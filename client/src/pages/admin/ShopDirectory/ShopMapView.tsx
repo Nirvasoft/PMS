@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import ReactGridLayout, { useContainerWidth, getCompactor } from 'react-grid-layout';
+import { absoluteStrategy } from 'react-grid-layout/core';
 import 'react-grid-layout/css/styles.css';
 import toast from 'react-hot-toast';
 import {
@@ -18,13 +19,16 @@ import {
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import {
   DECORATION_DEFAULT_SIZES, DECORATION_LABELS, DEFAULT_COLUMNS, DEFAULT_SQFT_PER_CELL,
-  SHOP_CATEGORIES, compareShopsByUnitNumber, findFreeSpot, floorKeyOf, hasAnyOverlap, resolveOverlaps,
+  SHOP_CATEGORIES, compareShopsByUnitNumber, findFreeSpot, findAdjacentSpot, floorKeyOf, hasAnyOverlap, resolveOverlaps,
   tileSizeFromSqft, calibrateSqftPerCell, syncUnitTilesToSqft,
-  unitKey, unitNumberOf, shopDisplayName, matchesShopQuery, scoreShopSearchMatch,
+  unitKey, nextUnitBlockKey, findPrimaryUnitTile, resolveTileByKey,
+  unitNumberOf, shopDisplayName, matchesShopQuery, scoreShopSearchMatch,
   computeWalkwayPath, findDefaultStartItem, findNearestFacilityItem,
-  rotateMapLayout, parseRotationAngle, getCorridorMergeData,
+  rotateMapLayout, parseRotationAngle, buildCorridorShapeMap, getCorridorMergeData, getLandmarkMergeData, computeUnitMergeMap, isMergeableLandmark,
+  normalizeTileAngle, TILE_ANGLE_STEP,
+  CORRIDOR_SHAPE_LABELS, parseCorridorShapeMode, encodeCorridorShapeMode, nextCorridorShapeMode,
   parseFloorPlanData, buildCopiedFloorLayout, saveCachedFloorPlan, getCachedFloorPlan,
-  type MapItem, type TileKind, type MapRotationAngle,
+  type MapItem, type TileKind, type MapRotationAngle, type SharpCorners, type EdgeMergeGeometry, type CorridorShapeMode,
 } from './shopMapLayout';
 import {
   isUnitPhotoImage,
@@ -45,6 +49,42 @@ interface Props {
 }
 
 const noCompaction = getCompactor(null as any, false, true);
+
+function CorridorShapeIcon({ mode, size }: { mode: CorridorShapeMode; size: number }) {
+  const s = Math.max(9, size);
+  if (mode === 'straight') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+        <line x1="2" y1="5" x2="14" y2="5" />
+        <line x1="2" y1="11" x2="14" y2="11" />
+        <line x1="4.5" y1="8" x2="11.5" y2="8" strokeDasharray="2 2" />
+      </svg>
+    );
+  }
+  if (mode === 'circle') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7">
+        <circle cx="8" cy="8" r="5.8" />
+        <circle cx="8" cy="8" r="2.3" />
+      </svg>
+    );
+  }
+  if (mode === 'arc') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+        <path d="M 3 3 A 10 10 0 0 1 13 13" />
+        <path d="M 3 8.5 A 4.5 4.5 0 0 1 7.5 13" />
+      </svg>
+    );
+  }
+  // 'auto' — smart position-aware indicator
+  return (
+    <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M 8 2.2 L 9.3 5.5 L 12.8 6.8 L 9.3 8.1 L 8 11.4 L 6.7 8.1 L 3.2 6.8 L 6.7 5.5 Z" />
+      <circle cx="12.5" cy="12.5" r="1.4" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
 
 function QrModalDialog({
   title,
@@ -391,6 +431,55 @@ function statusClass(shop: any): string {
   return 'st-vacant';
 }
 
+function sharpCornerClasses(c: SharpCorners): string {
+  return `${c.tlSharp ? 'sharp-tl' : ''} ${c.trSharp ? 'sharp-tr' : ''} ${c.blSharp ? 'sharp-bl' : ''} ${c.brSharp ? 'sharp-br' : ''}`;
+}
+
+function edgeMergeClasses(prefix: string, m: EdgeMergeGeometry): string {
+  return `${prefix} ${m.topMerged ? 'merge-t' : ''} ${m.rightMerged ? 'merge-r' : ''} ${m.bottomMerged ? 'merge-b' : ''} ${m.leftMerged ? 'merge-l' : ''} ${sharpCornerClasses(m)}`;
+}
+
+function MergedTileBorderSvg({
+  merge,
+  cellPx,
+  wPx,
+  hPx,
+}: {
+  merge: EdgeMergeGeometry;
+  cellPx: number;
+  wPx: number;
+  hPx: number;
+}) {
+  if (
+    merge.topSegs.length === 0 &&
+    merge.rightSegs.length === 0 &&
+    merge.bottomSegs.length === 0 &&
+    merge.leftSegs.length === 0
+  ) {
+    return null;
+  }
+  return (
+    <svg
+      className="shop-map-merged-border-svg"
+      viewBox={`0 0 ${wPx} ${hPx}`}
+      preserveAspectRatio="none"
+    >
+      {merge.topSegs.map(([u1, u2], idx) => (
+        <line key={`t-${idx}`} x1={u1 * cellPx} y1={0.5} x2={u2 * cellPx} y2={0.5} className="lm-border-rim" />
+      ))}
+      {merge.leftSegs.map(([v1, v2], idx) => (
+        <line key={`l-${idx}`} x1={0.5} y1={v1 * cellPx} x2={0.5} y2={v2 * cellPx} className="lm-border-rim" />
+      ))}
+      {merge.rightSegs.map(([v1, v2], idx) => (
+        <line key={`r-${idx}`} x1={wPx - 1} y1={v1 * cellPx} x2={wPx - 1} y2={v2 * cellPx} className="lm-border-lip-r" />
+      ))}
+      {merge.bottomSegs.map(([u1, u2], idx) => (
+        <line key={`b-${idx}`} x1={u1 * cellPx} y1={hPx - 1.5} x2={u2 * cellPx} y2={hPx - 1.5} className="lm-border-lip-b" />
+      ))}
+    </svg>
+  );
+}
+
 export default function ShopMapView({
   shops,
   propertyId,
@@ -472,6 +561,8 @@ export default function ShopMapView({
 
   // Indoor Navigation, Map Rotation & Floor QR state
   const [mapRotation, setMapRotation] = useState<MapRotationAngle>(initialRotateParam);
+  const [dragAngle, setDragAngle] = useState(0);
+  const [hoveredUnitId, setHoveredUnitId] = useState<string | null>(null);
   const [customStartKey, setCustomStartKey] = useState<string>(initialFromParam);
   const [targetKey, setTargetKey] = useState<string>(initialToParam);
   const [crossFloorUnitId, setCrossFloorUnitId] = useState<string | null>(null);
@@ -593,7 +684,16 @@ export default function ShopMapView({
     [items],
   );
   const corridors = useMemo(() => displayItems.filter((i) => i.kind === 'corridor'), [displayItems]);
-  const unplaced = floorShops.filter((s) => !placedUnitIds.has(s.unitId));
+  const mergeableLandmarks = useMemo(() => displayItems.filter((i) => isMergeableLandmark(i.kind)), [displayItems]);
+  const corridorShapeMap = useMemo(
+    () => buildCorridorShapeMap(corridors, mergeableLandmarks, displayItems),
+    [corridors, mergeableLandmarks, displayItems],
+  );
+  const unitMergeMap = useMemo(() => computeUnitMergeMap(displayItems), [displayItems]);
+  const unplaced = useMemo(
+    () => floorShops.filter((s) => !placedUnitIds.has(s.unitId)),
+    [floorShops, placedUnitIds],
+  );
 
   const { width, containerRef } = useContainerWidth();
   const availWidth = Math.max(0, (width || viewport.w || 900) - 16);
@@ -621,7 +721,7 @@ export default function ShopMapView({
   const defaultStartItem = useMemo(() => findDefaultStartItem(displayItems), [displayItems]);
   const activeStartItem = useMemo(() => {
     if (customStartKey) {
-      const found = displayItems.find((i) => i.key === customStartKey);
+      const found = resolveTileByKey(displayItems, customStartKey);
       if (found) return found;
     }
     if (transitArrivalMode) {
@@ -636,9 +736,9 @@ export default function ShopMapView({
     if (crossFloorUnitId) {
       const targetShop = allShopByUnit.get(crossFloorUnitId);
       if (targetShop && floorKeyOf(targetShop) === floor) {
-        const uKey = unitKey(crossFloorUnitId);
-        if (displayItems.some((i) => i.key === uKey)) {
-          setTargetKey(uKey);
+        const primaryTile = findPrimaryUnitTile(displayItems, crossFloorUnitId);
+        if (primaryTile) {
+          setTargetKey(unitKey(crossFloorUnitId));
           setCrossFloorUnitId(null);
         }
       }
@@ -684,36 +784,36 @@ export default function ShopMapView({
   // Once on the floor, route to the best matched unit and scroll the map to its tile
   useEffect(() => {
     if (!hasActiveSearch) return;
-    const placedMatches = displayItems
-      .filter((it) => it.kind === 'unit' && it.unitId)
-      .map((it) => {
-        const s = shopByUnit.get(it.unitId as string);
-        const score = s ? scoreShopSearchMatch(s, normalizedSearch) : 0;
-        return score > 0 ? { item: it, shop: s, score } : null;
+    const placedMatches = placedShops
+      .map((s) => {
+        const score = scoreShopSearchMatch(s, normalizedSearch);
+        const item = score > 0 ? findPrimaryUnitTile(displayItems, s.unitId) : null;
+        return item ? { item, shop: s, score } : null;
       })
       .filter((x): x is { item: MapItem; shop: any; score: number } => Boolean(x))
       .sort((a, b) => b.score - a.score || compareShopsByUnitNumber(a.shop, b.shop));
 
     if (placedMatches.length === 0) return;
-    const bestKey = placedMatches[0].item.key;
+    const bestItem = placedMatches[0].item;
+    const bestTargetKey = bestItem.unitId ? unitKey(bestItem.unitId) : bestItem.key;
     searchRoutedRef.current = true;
     setCrossFloorUnitId(null);
-    if (targetKey !== bestKey) {
-      setTargetKey(bestKey);
+    if (targetKey !== bestTargetKey) {
+      setTargetKey(bestTargetKey);
     }
 
-    const scrollSig = `${floor}:${bestKey}:${normalizedSearch}`;
+    const scrollSig = `${floor}:${bestItem.key}:${normalizedSearch}`;
     if (lastScrolledKeyRef.current !== scrollSig) {
       lastScrolledKeyRef.current = scrollSig;
       requestAnimationFrame(() => {
         const wrapEl = containerRef.current;
-        const tileEl = wrapEl?.querySelector(`[data-tile-key="${bestKey}"]`) as HTMLElement | null;
+        const tileEl = wrapEl?.querySelector(`[data-tile-key="${bestItem.key}"]`) as HTMLElement | null;
         if (tileEl) {
           tileEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
         }
       });
     }
-  }, [hasActiveSearch, normalizedSearch, displayItems, shopByUnit, floor, targetKey, containerRef]);
+  }, [hasActiveSearch, normalizedSearch, placedShops, displayItems, floor, targetKey, containerRef]);
 
   const crossFloorShop = useMemo(
     () => (crossFloorUnitId ? allShopByUnit.get(crossFloorUnitId) || null : null),
@@ -725,8 +825,7 @@ export default function ShopMapView({
     if (crossFloorShop && floorKeyOf(crossFloorShop) !== floor) {
       return findNearestFacilityItem(displayItems, activeStartItem, ['escalator', 'stairs', 'exit']);
     }
-    if (!targetKey) return null;
-    return displayItems.find((i) => i.key === targetKey) || null;
+    return resolveTileByKey(displayItems, targetKey);
   }, [crossFloorShop, floor, displayItems, activeStartItem, targetKey]);
 
   const selectedUnitId = useMemo(() => {
@@ -750,6 +849,7 @@ export default function ShopMapView({
   const walkwayRoute = useMemo(() => {
     if (editing || !activeStartItem || !effectiveTargetItem) return null;
     if (activeStartItem.key === effectiveTargetItem.key) return null;
+    if (activeStartItem.unitId && activeStartItem.unitId === effectiveTargetItem.unitId) return null;
     return computeWalkwayPath(displayItems, activeStartItem, effectiveTargetItem, displayColumns, effectiveSqftPerCell);
   }, [editing, activeStartItem, effectiveTargetItem, displayItems, displayColumns, effectiveSqftPerCell]);
 
@@ -778,13 +878,15 @@ export default function ShopMapView({
         destByLabel.set(label, lm);
       }
     }
-    const unitItems = displayItems.filter((i) => i.kind === 'unit' && i.unitId);
+    const unitItems = placedShops
+      .map((s) => findPrimaryUnitTile(displayItems, s.unitId))
+      .filter((x): x is MapItem => Boolean(x));
     return {
       startLandmarks: Array.from(startByLabel.values()),
       destLandmarks: Array.from(destByLabel.values()),
       unitItems,
     };
-  }, [displayItems, activeStartItem, targetKey, shopByUnit]);
+  }, [displayItems, placedShops, activeStartItem, targetKey, shopByUnit]);
 
   const handleSelectDestination = (val: string) => {
     if (!val) {
@@ -832,7 +934,31 @@ export default function ShopMapView({
     const { w, h } = tileSizeFromSqft(shop.unit?.areaSqft, effectiveSqftPerCell, columns);
     update((prev) => {
       const pos = findFreeSpot(prev, w, h, columns);
-      return [...prev, { key: unitKey(shop.unitId), kind: 'unit', unitId: shop.unitId, label: null, x: pos.x, y: pos.y, w, h }];
+      return [...prev, { key: nextUnitBlockKey(prev, shop.unitId), kind: 'unit', unitId: shop.unitId, label: null, x: pos.x, y: pos.y, w, h }];
+    });
+  };
+
+  const addUnitWing = (anchorKey: string) => {
+    const anchor = items.find((i) => i.key === anchorKey);
+    if (!anchor || anchor.kind !== 'unit' || !anchor.unitId) return;
+    const wingW = anchor.w >= 3 ? Math.max(2, Math.min(anchor.w - 1, Math.round(anchor.w * 0.6))) : anchor.w;
+    const wingH = anchor.h >= 3 ? Math.max(2, Math.min(anchor.h - 1, Math.round(anchor.h * 0.65))) : anchor.h;
+    update((prev) => {
+      const pos = findAdjacentSpot(prev, anchor, wingW, wingH, columns);
+      const nextKey = nextUnitBlockKey(prev, anchor.unitId as string);
+      return [
+        ...prev,
+        {
+          key: nextKey,
+          kind: 'unit',
+          unitId: anchor.unitId,
+          label: null,
+          x: pos.x,
+          y: pos.y,
+          w: wingW,
+          h: wingH,
+        },
+      ];
     });
   };
 
@@ -858,9 +984,35 @@ export default function ShopMapView({
     setDecorSeq((n) => n + 1);
   };
 
-  const rotate = (key: string) =>
+  const rotate = (key: string, stepDeg = TILE_ANGLE_STEP) =>
     update((prev) =>
-      resolveOverlaps(prev.map((i) => (i.key === key ? { ...i, w: Math.min(i.h, columns), h: i.w } : i)), columns),
+      resolveOverlaps(
+        prev.map((i) => {
+          if (i.key !== key) return i;
+          if (
+            stepDeg === 90 &&
+            i.kind === 'corridor' &&
+            !i.angle &&
+            parseCorridorShapeMode(i.label) !== 'arc'
+          ) {
+            return { ...i, w: Math.min(i.h, columns), h: i.w };
+          }
+          return { ...i, angle: normalizeTileAngle((i.angle ?? 0) + stepDeg) };
+        }),
+        columns,
+      ),
+    );
+
+  const cycleCorridorShape = (key: string) =>
+    update((prev) =>
+      resolveOverlaps(
+        prev.map((i) => {
+          if (i.key !== key || i.kind !== 'corridor') return i;
+          const nextMode = nextCorridorShapeMode(parseCorridorShapeMode(i.label));
+          return { ...i, label: encodeCorridorShapeMode(nextMode) };
+        }),
+        columns,
+      ),
     );
 
   const remove = (key: string) =>
@@ -930,7 +1082,7 @@ export default function ShopMapView({
     const payloadData = {
       sqftPerCell: effectiveSqftPerCell,
       columns,
-      items: items.map((i) => ({ kind: i.kind, unitId: i.unitId, label: i.label, x: i.x, y: i.y, w: i.w, h: i.h })),
+      items: items.map((i) => ({ kind: i.kind, unitId: i.unitId, label: i.label, x: i.x, y: i.y, w: i.w, h: i.h, ...(i.angle ? { angle: i.angle } : {}) })),
     };
     try {
       await savePlan({
@@ -1358,7 +1510,7 @@ export default function ShopMapView({
           <button
             className="btn btn-secondary"
             onClick={() => addDecor()}
-            disabled={decorKind === 'marker' && items.some((i) => i.kind === 'marker')}
+            disabled={decorKind === 'marker' && hasMarkerOnFloor}
           >
             <Plus size={14} /> Add
           </button>
@@ -1453,15 +1605,23 @@ export default function ShopMapView({
               )}
             </div>
           ) : (
-            <div className="shop-map-stage" style={{ width: gridWidth }}>
+            <div
+              className="shop-map-stage"
+              style={{ width: gridWidth, ['--drag-angle' as string]: `${dragAngle}deg` } as CSSProperties}
+            >
               <ReactGridLayout
                 width={gridWidth}
                 layout={layout as any}
                 gridConfig={{ cols: displayColumns, rowHeight: cellPx, margin: [1, 1], containerPadding: [0, 0], maxRows: rows } as any}
+                positionStrategy={absoluteStrategy as any}
                 dragConfig={{ enabled: editing, cancel: '.shop-map-tile-btn' } as any}
                 resizeConfig={{ enabled: editing } as any}
                 compactor={noCompaction as any}
                 onLayoutChange={onLayoutChange as any}
+                onDragStart={((_l: unknown, oldItem: { i: string } | null) => {
+                  setDragAngle(items.find((t) => t.key === oldItem?.i)?.angle ?? 0);
+                }) as any}
+                onDragStop={(() => setDragAngle(0)) as any}
                 onDrag={onLayoutChange as any}
                 onResize={onLayoutChange as any}
               >
@@ -1469,8 +1629,21 @@ export default function ShopMapView({
                   const shop = it.unitId ? shopByUnit.get(it.unitId) : null;
                   const decor = it.kind !== 'unit';
                   const isSearchMatch = Boolean(hasActiveSearch && !decor && shop && matchesShopQuery(shop, normalizedSearch));
-                  const isTarget = Boolean(!editing && effectiveTargetItem && it.key === effectiveTargetItem.key);
-                  const isStart = Boolean(!editing && isRoutingActive && !hasActiveSearch && activeStartItem && it.key === activeStartItem.key);
+                  const isTarget = Boolean(
+                    !editing &&
+                      effectiveTargetItem &&
+                      (it.key === effectiveTargetItem.key ||
+                        (Boolean(it.unitId) && it.unitId === effectiveTargetItem.unitId)),
+                  );
+                  const isStart = Boolean(
+                    !editing &&
+                      isRoutingActive &&
+                      !hasActiveSearch &&
+                      activeStartItem &&
+                      (it.key === activeStartItem.key ||
+                        (Boolean(it.unitId) && it.unitId === activeStartItem.unitId)),
+                  );
+                  const isUnitHovered = Boolean(!editing && it.unitId && hoveredUnitId === it.unitId);
                   const dim = Boolean(
                     !editing &&
                       hasActiveSearch &&
@@ -1494,10 +1667,20 @@ export default function ShopMapView({
                   const iconPx = Math.max(isMobile ? 8 : 10, Math.round(badgePx * 0.60));
                   const decorType = it.kind as Exclude<TileKind, 'unit'>;
                   const decorLabel = DECORATION_LABELS[decorType] || it.label || '';
-                  const cm = it.kind === 'corridor' ? getCorridorMergeData(it, corridors) : null;
-                  const sharpClasses = cm
-                    ? `${cm.tlSharp ? 'sharp-tl' : ''} ${cm.trSharp ? 'sharp-tr' : ''} ${cm.blSharp ? 'sharp-bl' : ''} ${cm.brSharp ? 'sharp-br' : ''}`
-                    : '';
+                  const cm =
+                    it.kind === 'corridor'
+                      ? getCorridorMergeData(it, corridors, mergeableLandmarks, displayItems, cellPx, corridorShapeMap)
+                      : null;
+                  const lm = isMergeableLandmark(it.kind) ? getLandmarkMergeData(it, corridors, corridorShapeMap) : null;
+                  const um = !decor ? unitMergeMap.get(it.key) ?? null : null;
+                  const isCurvedCorridor = Boolean(cm && cm.shape !== 'straight');
+                  const decorMergeClasses = cm
+                    ? `${sharpCornerClasses(cm)}${isCurvedCorridor ? ' is-curved-corridor' : ''}`
+                    : lm?.hasMerge
+                      ? edgeMergeClasses('is-merged-landmark', lm)
+                      : '';
+                  const unitMergeClasses = um?.hasMerge ? edgeMergeClasses('is-merged-unit', um) : '';
+                  const showUnitLabel = !um || um.showLabel;
                   const unitNumberLabel = unitNumberOf(shop);
                   const tileDisplayLabel = shopDisplayName(shop);
                   const labelLen = Math.max(2, tileDisplayLabel.length);
@@ -1513,24 +1696,39 @@ export default function ShopMapView({
                   const hasPhotoImage = isUnitPhotoImage(rawPhotoUrl);
                   const showPhotoMode = !decor && mapView === 'photo';
                   const hasUnitPhoto = showPhotoMode && hasPhotoImage;
+                  const corridorMode = it.kind === 'corridor' ? parseCorridorShapeMode(it.label) : null;
+                  const corridorShapeDesc = corridorMode
+                    ? `${CORRIDOR_SHAPE_LABELS[corridorMode]}${cm && corridorMode === 'auto' ? ` (${CORRIDOR_SHAPE_LABELS[cm.shape]})` : ''}`
+                    : '';
                   const title = decor
-                    ? decorLabel
+                    ? editing && corridorShapeDesc
+                      ? `${decorLabel} • ${corridorShapeDesc}${it.angle ? ` • ${it.angle}°` : ''}`
+                      : decorLabel
                     : `${tileDisplayLabel}${tileDisplayLabel !== unitNumberLabel && unitNumberLabel ? ` • ${unitNumberLabel}` : ''} • ${shop?.unit?.areaSqft ?? '—'} sqft • ${shop?.unit?.status || ''}`;
                   return (
                     <div
                       key={it.key}
                       data-tile-key={it.key}
                       title={title}
-                      className={`shop-map-tile ${decor ? `st-decor st-decor-${it.kind} ${sharpClasses}` : statusClass(shop)} ${hasUnitPhoto ? 'has-unit-photo' : ''} ${isVerticalTile ? 'is-vertical-tile' : ''} ${editing ? 'editing' : ''} ${dim ? 'dim' : ''} ${isSearchMatch ? 'search-match' : ''} ${tiny ? 'tiny' : ''} ${isTarget ? 'active-target' : ''} ${isStart ? 'active-start' : ''}`}
+                      style={it.angle ? ({ rotate: `${it.angle}deg` } as CSSProperties) : undefined}
+                      className={`shop-map-tile ${decor ? `st-decor st-decor-${it.kind} ${decorMergeClasses}` : `${statusClass(shop)} ${unitMergeClasses}`} ${isUnitHovered ? 'is-unit-hovered' : ''} ${hasUnitPhoto ? 'has-unit-photo' : ''} ${isVerticalTile ? 'is-vertical-tile' : ''} ${editing ? 'editing' : ''} ${dim ? 'dim' : ''} ${isSearchMatch ? 'search-match' : ''} ${tiny ? 'tiny' : ''} ${isTarget ? 'active-target' : ''} ${isStart ? 'active-start' : ''}`}
+                      onMouseEnter={() => {
+                        if (!editing && it.unitId) setHoveredUnitId(it.unitId);
+                      }}
+                      onMouseLeave={() => {
+                        if (it.unitId) setHoveredUnitId((prev) => (prev === it.unitId ? null : prev));
+                      }}
                       onClick={(e) => {
                         if (editing) return;
                         e.stopPropagation();
                         if (it.kind === 'corridor') return;
-                        if (targetKey === it.key && shop) {
+                        const alreadyTargeted =
+                          targetKey === it.key || (Boolean(it.unitId) && selectedUnitId === it.unitId);
+                        if (alreadyTargeted && shop) {
                           onOpenShop(shop);
                         } else {
                           setCrossFloorUnitId(null);
-                          setTargetKey(it.key);
+                          setTargetKey(it.unitId ? unitKey(it.unitId) : it.key);
                         }
                       }}
                       onDoubleClick={(e) => {
@@ -1547,71 +1745,169 @@ export default function ShopMapView({
                             viewBox={`0 0 ${wPx} ${hPx}`}
                             preserveAspectRatio="none"
                           >
-                            {cm.bottomTouched.map(([u1, u2], idx) => (
-                              <rect
-                                key={`bb-${idx}`}
-                                x={u1 * cellPx}
-                                y={hPx - 1}
-                                width={(u2 - u1) * cellPx}
-                                height={3}
-                                className="shop-map-corridor-bridge"
-                              />
+                            {cm.fillPath && (
+                              <path d={cm.fillPath} fillRule="evenodd" className="shop-map-corridor-fill" />
+                            )}
+                            {cm.bridgePaths.map((d, idx) => (
+                              <path key={`bp-${idx}`} d={d} className="shop-map-corridor-bridge" />
                             ))}
-                            {cm.rightTouched.map(([v1, v2], idx) => (
-                              <rect
-                                key={`rb-${idx}`}
-                                x={wPx - 1}
-                                y={v1 * cellPx}
-                                width={3}
-                                height={(v2 - v1) * cellPx}
-                                className="shop-map-corridor-bridge"
-                              />
+                            {cm.borderPaths.map((d, idx) => (
+                              <path key={`b-${idx}`} d={d} className="shop-map-corridor-border" />
                             ))}
-                            {[
-                              ...cm.topSegs.map(([u1, u2]) => ({ x1: u1 * cellPx, y1: 0.75, x2: u2 * cellPx, y2: 0.75 })),
-                              ...cm.bottomSegs.map(([u1, u2]) => ({ x1: u1 * cellPx, y1: hPx - 0.75, x2: u2 * cellPx, y2: hPx - 0.75 })),
-                              ...cm.leftSegs.map(([v1, v2]) => ({ x1: 0.75, y1: v1 * cellPx, x2: 0.75, y2: v2 * cellPx })),
-                              ...cm.rightSegs.map(([v1, v2]) => ({ x1: wPx - 0.75, y1: v1 * cellPx, x2: wPx - 0.75, y2: v2 * cellPx })),
-                            ].map((seg, idx) => (
-                              <line key={`b-${idx}`} {...seg} className="shop-map-corridor-border" />
+                            {cm.centerlinePaths.map((d, idx) => (
+                              <path key={`cl-${idx}`} d={d} className="shop-map-corridor-centerline" />
                             ))}
-                            <line
-                              x1={cm.vertical ? wPx / 2 : cm.start * cellPx + (cm.start < 0 ? -1 : 0)}
-                              y1={cm.vertical ? cm.start * cellPx + (cm.start < 0 ? -1 : 0) : hPx / 2}
-                              x2={cm.vertical ? wPx / 2 : cm.end * cellPx + (cm.end > it.w ? 1 : 0)}
-                              y2={cm.vertical ? cm.end * cellPx + (cm.end > it.h ? 1 : 0) : hPx / 2}
-                              className="shop-map-corridor-centerline"
-                            />
                           </svg>
                         ) : (
-                          <div className="shop-map-decor-badge" style={{ width: badgePx, height: badgePx }}>
-                            <span className="shop-map-decor-icon">
-                              <DecorIcon kind={decorType as Exclude<TileKind, 'unit' | 'corridor'>} size={iconPx} />
-                            </span>
-                          </div>
+                          <>
+                            {lm?.hasMerge && (
+                              <MergedTileBorderSvg merge={lm} cellPx={cellPx} wPx={wPx} hPx={hPx} />
+                            )}
+                            <div className="shop-map-decor-badge" style={{ width: badgePx, height: badgePx }}>
+                              <span className="shop-map-decor-icon">
+                                <DecorIcon kind={decorType as Exclude<TileKind, 'unit' | 'corridor'>} size={iconPx} />
+                              </span>
+                            </div>
+                          </>
                         )
                       ) : (
                         <>
-                          {hasPhotoImage && (
-                            <CachedUnitPhoto
-                              photoUrl={rawPhotoUrl}
-                              alt={tileDisplayLabel}
-                              imgClassName="shop-map-tile-photo"
-                              skeletonClassName={hasUnitPhoto ? 'shop-map-tile-skeleton' : undefined}
-                              loading="eager"
-                            />
+                          {um?.hasMerge ? (
+                            <div className="shop-map-unit-box">
+                              {um.topBridges.map(([u1, u2], idx) => (
+                                <span
+                                  key={`utb-${idx}`}
+                                  className="shop-map-unit-bridge"
+                                  style={{
+                                    left: `${(u1 / it.w) * 100}%`,
+                                    width: `${((u2 - u1) / it.w) * 100}%`,
+                                    bottom: '100%',
+                                    height: 1.5,
+                                  }}
+                                />
+                              ))}
+                              {um.bottomBridges.map(([u1, u2], idx) => (
+                                <span
+                                  key={`ubb-${idx}`}
+                                  className="shop-map-unit-bridge"
+                                  style={{
+                                    left: `${(u1 / it.w) * 100}%`,
+                                    width: `${((u2 - u1) / it.w) * 100}%`,
+                                    top: '100%',
+                                    height: it.angle ? 1.5 : 1,
+                                  }}
+                                />
+                              ))}
+                              {um.leftBridges.map(([v1, v2], idx) => (
+                                <span
+                                  key={`ulb-${idx}`}
+                                  className="shop-map-unit-bridge"
+                                  style={{
+                                    top: `${(v1 / it.h) * 100}%`,
+                                    height: `${((v2 - v1) / it.h) * 100}%`,
+                                    right: '100%',
+                                    width: 1.5,
+                                  }}
+                                />
+                              ))}
+                              {um.rightBridges.map(([v1, v2], idx) => (
+                                <span
+                                  key={`urb-${idx}`}
+                                  className="shop-map-unit-bridge"
+                                  style={{
+                                    top: `${(v1 / it.h) * 100}%`,
+                                    height: `${((v2 - v1) / it.h) * 100}%`,
+                                    left: '100%',
+                                    width: it.angle ? 1.5 : 1,
+                                  }}
+                                />
+                              ))}
+                              {hasPhotoImage && (
+                                <div
+                                  className="shop-map-tile-photo-clip"
+                                  style={{
+                                    top: um.topMerged && um.topSegs.length === 0 ? -1 : 0,
+                                    right: um.rightMerged && um.rightSegs.length === 0 ? -1 : 0,
+                                    bottom: um.bottomMerged && um.bottomSegs.length === 0 ? -1 : 0,
+                                    left: um.leftMerged && um.leftSegs.length === 0 ? -1 : 0,
+                                  }}
+                                >
+                                  <div
+                                    className={`shop-map-group-photo-frame ${um.groupBounds.spanH > um.groupBounds.spanW ? 'is-vertical-group' : ''}`}
+                                    style={{
+                                      left: `${-((it.x - um.groupBounds.minX) / it.w) * 100}%`,
+                                      top: `${-((it.y - um.groupBounds.minY) / it.h) * 100}%`,
+                                      width: `${(um.groupBounds.spanW / it.w) * 100}%`,
+                                      height: `${(um.groupBounds.spanH / it.h) * 100}%`,
+                                    }}
+                                  >
+                                    <CachedUnitPhoto
+                                      photoUrl={rawPhotoUrl}
+                                      alt={tileDisplayLabel}
+                                      imgClassName="shop-map-tile-photo"
+                                      skeletonClassName={hasUnitPhoto ? 'shop-map-tile-skeleton' : undefined}
+                                      loading="eager"
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                              <MergedTileBorderSvg merge={um} cellPx={cellPx} wPx={wPx} hPx={hPx} />
+                            </div>
+                          ) : (
+                            hasPhotoImage && (
+                              <CachedUnitPhoto
+                                photoUrl={rawPhotoUrl}
+                                alt={tileDisplayLabel}
+                                imgClassName="shop-map-tile-photo"
+                                skeletonClassName={hasUnitPhoto ? 'shop-map-tile-skeleton' : undefined}
+                                loading="eager"
+                              />
+                            )
                           )}
-                          <div
-                            className="shop-map-tile-name"
-                            style={{ fontSize: `${tileFontPx}px` }}
-                          >
-                            {tileDisplayLabel}
-                          </div>
+                          {showUnitLabel && (
+                            <div
+                              className="shop-map-tile-name"
+                              style={{ fontSize: `${tileFontPx}px` }}
+                            >
+                              {tileDisplayLabel}
+                            </div>
+                          )}
                         </>
                       )}
                       {editing && (
                         <div className="shop-map-tile-actions">
-                          <button className="shop-map-tile-btn rot" title="Rotate 90°" onClick={(e) => { e.stopPropagation(); rotate(it.key); }}>
+                          {it.kind === 'unit' && (
+                            <button
+                              className="shop-map-tile-btn add"
+                              title="Add connected wing block (L / T / U shape)"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                addUnitWing(it.key);
+                              }}
+                            >
+                              <Plus size={tileActionIconPx} />
+                            </button>
+                          )}
+                          {it.kind === 'corridor' && corridorMode && (
+                            <button
+                              className="shop-map-tile-btn shape"
+                              title={`Walkway shape: ${corridorShapeDesc} — click to switch`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                cycleCorridorShape(it.key);
+                              }}
+                            >
+                              <CorridorShapeIcon mode={corridorMode} size={tileActionIconPx} />
+                            </button>
+                          )}
+                          <button
+                            className="shop-map-tile-btn rot"
+                            title={`Rotate ${TILE_ANGLE_STEP}° (Shift+Click for 90°)`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              rotate(it.key, e.shiftKey ? 90 : TILE_ANGLE_STEP);
+                            }}
+                          >
                             <RotateCw size={tileActionIconPx} />
                           </button>
                           {it.kind !== 'marker' && (

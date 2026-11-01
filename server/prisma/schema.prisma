@@ -5381,16 +5381,18 @@ model MallFloorPlanItem {
   propertyId String   @map("property_id") @db.Uuid
   floorKey   String   @map("floor_key") @db.VarChar(80)
   kind       String   @default("unit") @db.VarChar(30) // unit | atrium | stairs | escalator | corridor
-  unitId     String?  @unique @map("unit_id") @db.Uuid
+  unitId     String?  @map("unit_id") @db.Uuid
   label      String?  @db.VarChar(100)
   x          Int
   y          Int
   w          Int
   h          Int
+  angle      Int      @default(0) // visual tilt in degrees (multiples of 15) for unit / landmark tiles
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   @@index([propertyId, floorKey])
+  @@index([unitId])
   @@index([companyId])
   @@map("mall_floor_plan_items")
 }

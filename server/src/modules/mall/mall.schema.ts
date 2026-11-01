@@ -13,6 +13,7 @@ export const saveFloorPlanSchema = z.object({
       y: z.number().int().min(0),
       w: z.number().int().min(1).max(200),
       h: z.number().int().min(1).max(500),
+      angle: z.number().int().min(0).max(345).refine((n) => n % 15 === 0, 'Angle must be a multiple of 15').optional(),
     })).max(2000),
   }),
 });

@@ -78,7 +78,7 @@ class MallService {
     ]);
 
     // Drop tiles whose unit no longer exists / belongs elsewhere (no FK on purpose)
-    const unitIds = items.map((i) => i.unitId).filter((id): id is string => !!id);
+    const unitIds = Array.from(new Set(items.map((i) => i.unitId).filter((id): id is string => !!id)));
     const validUnits = unitIds.length
       ? new Set((await prisma.unit.findMany({
           where: { id: { in: unitIds }, companyId, propertyId },
@@ -93,7 +93,7 @@ class MallService {
         .filter((i) => !i.unitId || validUnits.has(i.unitId))
         .map((i) => ({
           id: i.id, kind: i.kind, unitId: i.unitId, label: i.label,
-          x: i.x, y: i.y, w: i.w, h: i.h,
+          x: i.x, y: i.y, w: i.w, h: i.h, angle: i.angle,
         })),
     };
   }
@@ -104,7 +104,7 @@ class MallService {
     floorKey: string,
     data: {
       sqftPerCell: number; columns: number;
-      items: Array<{ kind: string; unitId?: string | null; label?: string | null; x: number; y: number; w: number; h: number }>;
+      items: Array<{ kind: string; unitId?: string | null; label?: string | null; x: number; y: number; w: number; h: number; angle?: number }>;
     },
   ) {
     if (!floorKey) {
@@ -112,46 +112,64 @@ class MallService {
     }
     const { sqftPerCell, columns, items } = data;
 
-    // Every tile must sit inside the grid
+    // Every tile must sit inside the grid and have valid unit assignment
     for (const it of items) {
       if (it.x + it.w > columns) {
         throw AppError.validation('A tile extends past the right edge of the floor grid');
       }
-    }
-
-    // A unit can be on the map only once
-    const unitIds = items.map((i) => i.unitId).filter((id): id is string => !!id);
-    if (new Set(unitIds).size !== unitIds.length) {
-      throw AppError.validation('The same unit is placed more than once');
-    }
-    for (const it of items) {
       if (it.kind === 'unit' && !it.unitId) throw AppError.validation('A unit tile has no unit assigned');
       if (it.kind !== 'unit' && it.unitId) throw AppError.validation('Only unit tiles can have a unit assigned');
     }
 
-    // Tiles must not overlap each other
+    const isInsideCircleHole = (
+      outer: { kind: string; label?: string | null; x: number; y: number; w: number; h: number },
+      inner: { x: number; y: number; w: number; h: number },
+    ) => {
+      if (outer.kind !== 'corridor') return false;
+      if (outer.label === 'walkway:straight' || outer.label === 'walkway:arc') return false;
+      if (outer.w < 5 || outer.h < 5) return false;
+      const padX = outer.w >= 8 ? 2 : 1;
+      const padY = outer.h >= 8 ? 2 : 1;
+      return (
+        inner.x >= outer.x + padX &&
+        inner.x + inner.w <= outer.x + outer.w - padX &&
+        inner.y >= outer.y + padY &&
+        inner.y + inner.h <= outer.y + outer.h - padY
+      );
+    };
+
+    // Tiles must not overlap each other (except an inner tile inside a circular ring walkway's hollow center)
     for (let a = 0; a < items.length; a++) {
       for (let b = a + 1; b < items.length; b++) {
         const p = items[a];
         const q = items[b];
-        if (p.x < q.x + q.w && p.x + p.w > q.x && p.y < q.y + q.h && p.y + p.h > q.y) {
+        if (
+          p.x < q.x + q.w &&
+          p.x + p.w > q.x &&
+          p.y < q.y + q.h &&
+          p.y + p.h > q.y &&
+          !isInsideCircleHole(p, q) &&
+          !isInsideCircleHole(q, p)
+        ) {
           throw AppError.validation('Tiles overlap each other — move them apart before saving');
         }
       }
     }
 
+    const uniqueUnitIds = Array.from(new Set(items.map((i) => i.unitId).filter((id): id is string => !!id)));
+
     // Units must belong to this company + property
-    if (unitIds.length) {
-      const found = await prisma.unit.count({ where: { id: { in: unitIds }, companyId, propertyId } });
-      if (found !== unitIds.length) {
+    if (uniqueUnitIds.length) {
+      const found = await prisma.unit.count({ where: { id: { in: uniqueUnitIds }, companyId, propertyId } });
+      if (found !== uniqueUnitIds.length) {
         throw AppError.validation('One or more units do not belong to this property');
       }
     }
 
     await prisma.$transaction([
-      // A unit moved from another floor must leave its old tile (unitId is unique across mall_floor_plan_items)
-      ...(unitIds.length
-        ? [prisma.mallFloorPlanItem.deleteMany({ where: { unitId: { in: unitIds } } })]
+      // A unit moved from another floor must leave its old tiles
+      ...(uniqueUnitIds.length
+        ? [prisma.mallFloorPlanItem.deleteMany({ where: { unitId: { in: uniqueUnitIds } } })]
         : []),
       prisma.mallFloorPlanItem.deleteMany({ where: { companyId, propertyId, floorKey } }),
       ...(items.length
@@ -159,7 +177,7 @@ class MallService {
             data: items.map((it) => ({
               companyId, propertyId, floorKey,
               kind: it.kind, unitId: it.unitId ?? null, label: it.label ?? null,
-              x: it.x, y: it.y, w: it.w, h: it.h,
+              x: it.x, y: it.y, w: it.w, h: it.h, angle: it.angle ?? 0,
             })),
           })]
         : []),
