@@ -428,8 +428,11 @@ export const billingApi = createApi({
     }),
 
     // ── Penalty Configs ───────────────────
-    getPenaltyConfigs: builder.query<ApiResponse<any[]>, void>({
-      query: () => '/billing/penalty-configs',
+    getPenaltyConfigs: builder.query<ApiResponse<any[]>, { propertyId?: string } | void>({
+      query: (params) => ({
+        url: '/billing/penalty-configs',
+        params: params?.propertyId ? { propertyId: params.propertyId } : undefined,
+      }),
       providesTags: ['PenaltyConfigs'],
     }),
 

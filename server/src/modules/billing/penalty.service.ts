@@ -1,12 +1,20 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../common/database';
 import { logger } from '../../common/logger';
+import { ensurePropertySetupScope, resolveEffectivePropertyId } from '../../common/propertySetupScope';
 import { billingNotifications } from './billingNotifications.service';
 
 export class PenaltyService {
-  async findConfigs(companyId: string) {
+  async findConfigs(companyId: string, filters?: { propertyId?: string }) {
+    await ensurePropertySetupScope();
+    const propertyId = filters?.propertyId?.trim() || undefined;
+
     return prisma.penaltyConfiguration.findMany({
-      where: { companyId, isActive: true },
+      where: {
+        companyId,
+        isActive: true,
+        ...(propertyId ? { propertyId } : {}),
+      },
       include: {
         property: { select: { id: true, name: true } },
         chargeType: { select: { id: true, code: true, name: true } },
@@ -16,10 +24,16 @@ export class PenaltyService {
   }
 
   async createConfig(companyId: string, dto: Record<string, unknown>) {
+    await ensurePropertySetupScope();
+    const propertyId = await resolveEffectivePropertyId(
+      companyId,
+      (dto.propertyId as string | null | undefined) ?? undefined,
+    );
+
     return prisma.penaltyConfiguration.create({
       data: {
         companyId,
-        propertyId: (dto.propertyId as string) || null,
+        propertyId,
         chargeTypeId: (dto.chargeTypeId as string) || null,
         gracePeriodDays: dto.gracePeriodDays as number,
         penaltyType: dto.penaltyType as string,

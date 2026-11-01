@@ -193,6 +193,19 @@ async function runPropertySetupScopeMigration(): Promise<void> {
           AND existing."cost_center_id" IS NOT DISTINCT FROM t."cost_center_id"
       )
   `);
+
+  await prisma.$executeRawUnsafe(`
+    UPDATE "penalty_configurations" t
+    SET "property_id" = sub.prop_id
+    FROM (
+      SELECT DISTINCT ON ("company_id") "company_id", "id" AS prop_id
+      FROM "properties"
+      WHERE "deleted_at" IS NULL
+      ORDER BY "company_id", "created_at" ASC
+    ) sub
+    WHERE t."company_id" = sub."company_id"
+      AND t."property_id" IS NULL
+  `);
 }
 
 export async function resolveEffectivePropertyId(

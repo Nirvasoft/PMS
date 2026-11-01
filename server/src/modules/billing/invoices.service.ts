@@ -1134,11 +1134,18 @@ export class InvoicesService {
 
     const invoiceNumber = await this.generateInvoiceNumber(first.companyId);
 
-    // Get grace period
-    const penaltyConfig = await prisma.penaltyConfiguration.findFirst({
-      where: { companyId: first.companyId, isActive: true },
-      orderBy: { createdAt: 'desc' },
-    });
+    // Get grace period (prefer property-scoped penalty configuration)
+    const penaltyConfig =
+      (first.propertyId
+        ? await prisma.penaltyConfiguration.findFirst({
+            where: { companyId: first.companyId, propertyId: first.propertyId, isActive: true },
+            orderBy: { createdAt: 'desc' },
+          })
+        : null) ??
+      (await prisma.penaltyConfiguration.findFirst({
+        where: { companyId: first.companyId, propertyId: null, isActive: true },
+        orderBy: { createdAt: 'desc' },
+      }));
 
     const departmentCenterId =
       lineInputs.find((l) => l.schedule.departmentCenterId)?.schedule.departmentCenterId ||

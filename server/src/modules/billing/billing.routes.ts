@@ -337,7 +337,9 @@ billingRunRouter.post('/', asyncHandler(async (req, res) => {
 export const penaltyConfigsRouter = Router();
 
 penaltyConfigsRouter.get('/', asyncHandler(async (req, res) => {
-  const data = await penaltyService.findConfigs(req.user!.companyId);
+  const data = await penaltyService.findConfigs(req.user!.companyId, {
+    propertyId: req.query.propertyId as string,
+  });
   res.json({ success: true, data });
 }));
 

@@ -7,7 +7,10 @@ import './BillingPage.css';
 export default function BillingSettingsPage() {
   const navigate = useNavigate();
   const selectedPropertyId = useSelectedPropertyId();
-  const { data: penaltyData } = useGetPenaltyConfigsQuery();
+  const { data: penaltyData } = useGetPenaltyConfigsQuery(
+    selectedPropertyId ? { propertyId: selectedPropertyId } : undefined,
+    { skip: !selectedPropertyId },
+  );
   const { data: taxData } = useGetTaxConfigsQuery();
   const { data: chargeTypesData } = useGetChargeTypesQuery(
     selectedPropertyId ? { propertyId: selectedPropertyId } : undefined,

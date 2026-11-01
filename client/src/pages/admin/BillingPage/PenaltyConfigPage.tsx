@@ -1,7 +1,6 @@
 import { TableSkeletonRows } from '../../../components/common/SkeletonLoaders';
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useGetPenaltyConfigsQuery, useCreatePenaltyConfigMutation, useGetChargeTypesQuery } from '../../../store/api/billingApi';
-import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import { Shield, Plus, AlertTriangle, Clock, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAlertDialog } from '../../../components/DialogProvider';
@@ -17,10 +16,25 @@ const PENALTY_TYPES: Record<string, string> = {
   tiered: 'Tiered',
 };
 
+const EMPTY_FORM = {
+  chargeTypeId: '',
+  gracePeriodDays: '7',
+  penaltyType: 'percentage' as string,
+  penaltyValue: '5',
+  maxPenaltyPct: '25',
+  compound: false,
+};
+
 export default function PenaltyConfigPage() {
   const selectedPropertyId = useSelectedPropertyId();
-  const { data: configsData, isFetching } = useGetPenaltyConfigsQuery();
-  const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
+  const { data: configsData, isFetching } = useGetPenaltyConfigsQuery(
+    selectedPropertyId ? { propertyId: selectedPropertyId } : undefined,
+    { skip: !selectedPropertyId },
+  );
+  const { data: chargeTypesData } = useGetChargeTypesQuery(
+    selectedPropertyId ? { propertyId: selectedPropertyId } : undefined,
+    { skip: !selectedPropertyId },
+  );
   const [createConfig, { isLoading: creating }] = useCreatePenaltyConfigMutation();
   const alertDialog = useAlertDialog();
 
@@ -29,19 +43,16 @@ export default function PenaltyConfigPage() {
 
   const [showForm, setShowForm] = useState(false);
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
-  const [form, setForm] = useState({
-    propertyId: '', chargeTypeId: '', gracePeriodDays: '7',
-    penaltyType: 'percentage' as string, penaltyValue: '5',
-    maxPenaltyPct: '25', compound: false,
-  });
+  const [form, setForm] = useState(EMPTY_FORM);
 
-  const effectivePropertyId = form.propertyId || selectedPropertyId || undefined;
-  const { data: chargeTypesData } = useGetChargeTypesQuery(
-    effectivePropertyId ? { propertyId: effectivePropertyId } : undefined,
-  );
+  useEffect(() => {
+    setPage(1);
+    setShowForm(false);
+    setHasAttemptedSubmit(false);
+    setForm(EMPTY_FORM);
+  }, [selectedPropertyId]);
 
   const configs = configsData?.data || [];
-  const properties = propertiesData?.data || [];
   const chargeTypes = chargeTypesData?.data || [];
 
   const graceNum = Number(form.gracePeriodDays);
@@ -75,8 +86,9 @@ export default function PenaltyConfigPage() {
   }, [form.penaltyType, penaltyNum, maxCapNum, form.compound]);
 
   const openCreate = () => {
+    if (!selectedPropertyId) return;
     setHasAttemptedSubmit(false);
-    setForm({ propertyId: '', chargeTypeId: '', gracePeriodDays: '7', penaltyType: 'percentage', penaltyValue: '5', maxPenaltyPct: '25', compound: false });
+    setForm(EMPTY_FORM);
     setShowForm(true);
   };
 
@@ -86,10 +98,10 @@ export default function PenaltyConfigPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setHasAttemptedSubmit(true);
-    if (isGraceInvalid || isPenaltyInvalid) return;
+    if (!selectedPropertyId || isGraceInvalid || isPenaltyInvalid) return;
     try {
       await createConfig({
-        ...(form.propertyId ? { propertyId: form.propertyId } : {}),
+        propertyId: selectedPropertyId,
         ...(form.chargeTypeId ? { chargeTypeId: form.chargeTypeId } : {}),
         gracePeriodDays: graceNum,
         penaltyType: form.penaltyType,
@@ -99,22 +111,17 @@ export default function PenaltyConfigPage() {
       }).unwrap();
       setShowForm(false);
       setHasAttemptedSubmit(false);
-      setForm({ propertyId: '', chargeTypeId: '', gracePeriodDays: '7', penaltyType: 'percentage', penaltyValue: '5', maxPenaltyPct: '25', compound: false });
+      setForm(EMPTY_FORM);
     } catch (err: any) {
       alertDialog(err?.data?.errors?.[0]?.message || 'Failed to create penalty config');
     }
   };
 
-  const getPropertyName = (id: string | null) => {
-    if (!id) return 'All Properties';
-    const p = properties.find((prop: any) => prop.id === id);
-    return p ? (p as any).name : id;
-  };
-
-  const getChargeTypeName = (id: string | null) => {
-    if (!id) return 'All Charge Types';
-    const ct = chargeTypes.find(c => c.id === id);
-    return ct ? ct.name : id;
+  const getChargeTypeName = (cfg: any) => {
+    if (cfg.chargeType?.name) return cfg.chargeType.name;
+    if (!cfg.chargeTypeId) return 'All Charge Types';
+    const ct = chargeTypes.find(c => c.id === cfg.chargeTypeId);
+    return ct ? ct.name : cfg.chargeTypeId;
   };
 
   const totalItems = configs.length;
@@ -137,7 +144,12 @@ export default function PenaltyConfigPage() {
             </p>
           </div>
           <PermissionGuard permission="billing-settings.write">
-            <button className="btn btn-primary" onClick={openCreate} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <button
+              className="btn btn-primary"
+              onClick={openCreate}
+              disabled={!selectedPropertyId}
+              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+            >
               <Plus size={14} /> New Config
             </button>
           </PermissionGuard>
@@ -150,7 +162,6 @@ export default function PenaltyConfigPage() {
           <table className="billing-table">
           <thead>
             <tr>
-              <th>Property</th>
               <th>Charge Type</th>
               <th>Grace Period</th>
               <th>Penalty Type</th>
@@ -161,17 +172,16 @@ export default function PenaltyConfigPage() {
             </tr>
           </thead>
           <tbody>
-            {isFetching && configs.length === 0 ? (
-              <TableSkeletonRows columns={8} />
+            {(!selectedPropertyId || isFetching) && configs.length === 0 ? (
+              <TableSkeletonRows columns={7} />
             ) : configs.length === 0 ? (
-              <tr><td colSpan={8} className="billing-empty">
+              <tr><td colSpan={7} className="billing-empty">
                 <AlertTriangle size={20} style={{ marginBottom: 8, opacity: 0.5 }} /><br />
                 No penalty configs yet. Create one to apply late payment penalties.
               </td></tr>
             ) : paginatedConfigs.map((cfg: any) => (
               <tr key={cfg.id}>
-                <td><span className="cell-primary">{getPropertyName(cfg.propertyId)}</span></td>
-                <td><span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{getChargeTypeName(cfg.chargeTypeId)}</span></td>
+                <td><span className="cell-primary">{getChargeTypeName(cfg)}</span></td>
                 <td>
                   <span className="charge-type-badge misc">
                     <Clock size={10} /> {cfg.gracePeriodDays} days
@@ -261,14 +271,7 @@ export default function PenaltyConfigPage() {
             <form onSubmit={handleSubmit} noValidate>
               <div className="modal-body">
                 <div className="inv-form-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
-                  <div className="inv-field">
-                    <label>Property (optional)</label>
-                    <select value={form.propertyId} onChange={e => setForm({ ...form, propertyId: e.target.value })}>
-                      <option value="">All Properties (company-wide)</option>
-                      {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
-                  </div>
-                  <div className="inv-field">
+                  <div className="inv-field" style={{ gridColumn: '1 / -1' }}>
                     <label>Charge Type (optional)</label>
                     <select value={form.chargeTypeId} onChange={e => setForm({ ...form, chargeTypeId: e.target.value })}>
                       <option value="">All Charge Types</option>
