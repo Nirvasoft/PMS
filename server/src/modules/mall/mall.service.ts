@@ -127,18 +127,24 @@ class MallService {
     ) => {
       if (outer.kind !== 'corridor') return false;
       if (outer.label === 'walkway:straight' || outer.label === 'walkway:arc') return false;
-      if (outer.w < 5 || outer.h < 5) return false;
-      const padX = outer.w >= 8 ? 2 : 1;
-      const padY = outer.h >= 8 ? 2 : 1;
+      if (outer.w < 4 || outer.h < 4) return false;
       return (
-        inner.x >= outer.x + padX &&
-        inner.x + inner.w <= outer.x + outer.w - padX &&
-        inner.y >= outer.y + padY &&
-        inner.y + inner.h <= outer.y + outer.h - padY
+        inner.x >= outer.x + 1 &&
+        inner.x + inner.w <= outer.x + outer.w - 1 &&
+        inner.y >= outer.y + 1 &&
+        inner.y + inner.h <= outer.y + outer.h - 1
       );
     };
 
-    // Tiles must not overlap each other (except an inner tile inside a circular ring walkway's hollow center)
+    const isAtriumTransitOverlap = (
+      a: { kind: string },
+      b: { kind: string },
+    ) =>
+      (a.kind === 'atrium' && (b.kind === 'stairs' || b.kind === 'escalator')) ||
+      (b.kind === 'atrium' && (a.kind === 'stairs' || a.kind === 'escalator'));
+
+    // Tiles must not overlap each other (except an inner tile inside a circular ring walkway's hollow center,
+    // or Elevator / Escalator / Lift / Stairs placed inside or merged with an Atrium)
     for (let a = 0; a < items.length; a++) {
       for (let b = a + 1; b < items.length; b++) {
         const p = items[a];
@@ -149,7 +155,8 @@ class MallService {
           p.y < q.y + q.h &&
           p.y + p.h > q.y &&
           !isInsideCircleHole(p, q) &&
-          !isInsideCircleHole(q, p)
+          !isInsideCircleHole(q, p) &&
+          !isAtriumTransitOverlap(p, q)
         ) {
           throw AppError.validation('Tiles overlap each other — move them apart before saving');
         }

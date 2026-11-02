@@ -136,7 +136,7 @@
 }
 
 /* The actual grid cells — MUST clip children to prevent sparkline bleed */
-.react-grid-item {
+.rgl-grid .react-grid-item {
   overflow: hidden !important;
   border-radius: 14px;
 }
@@ -165,13 +165,13 @@
   user-select: none;
 }
 
-.react-grid-item.react-draggable-dragging .rgl-widget-wrapper.edit-mode > .widget-container,
+.rgl-grid .react-grid-item.react-draggable-dragging .rgl-widget-wrapper.edit-mode > .widget-container,
 .rgl-widget-wrapper.edit-mode > .widget-container:active {
   cursor: grabbing;
 }
 
 /* Drag placeholder */
-.react-grid-placeholder {
+.rgl-grid .react-grid-placeholder {
   background: var(--accent, #6c5ce7) !important;
   opacity: 0.08 !important;
   border-radius: 14px !important;
@@ -179,26 +179,26 @@
 }
 
 /* Resize handle */
-.react-resizable-handle {
+.rgl-grid .react-resizable-handle {
   z-index: 10;
 }
 
-.react-resizable-handle::after {
+.rgl-grid .react-resizable-handle::after {
   border-right-color: var(--text-muted, #8b95a5) !important;
   border-bottom-color: var(--text-muted, #8b95a5) !important;
 }
 
 /* Smooth animation during drag */
-.react-grid-item.cssTransforms {
+.rgl-grid .react-grid-item.cssTransforms {
   transition-property: none;
 }
 
-.react-grid-item:not(.react-draggable-dragging):not(.resizing) {
+.rgl-grid .react-grid-item:not(.react-draggable-dragging):not(.resizing) {
   transition: all 0.2s ease;
 }
 
 /* Dragging state */
-.react-grid-item.react-draggable-dragging {
+.rgl-grid .react-grid-item.react-draggable-dragging {
   z-index: 100;
   opacity: 0.9;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
@@ -206,7 +206,7 @@
 }
 
 /* Resizing state */
-.react-grid-item.resizing {
+.rgl-grid .react-grid-item.resizing {
   opacity: 0.85;
   border-radius: 14px;
 }

@@ -6,7 +6,10 @@ export const saveFloorPlanSchema = z.object({
     sqftPerCell: z.number().positive().max(1_000_000),
     columns: z.number().int().min(10).max(200),
     items: z.array(z.object({
-      kind: z.enum(['unit', 'atrium', 'stairs', 'escalator', 'corridor', 'toilet', 'marker', 'entrance', 'exit']),
+      kind: z.enum([
+        'unit', 'atrium', 'stairs', 'escalator', 'corridor', 'toilet',
+        'marker', 'entrance', 'exit', 'info', 'parking', 'atm', 'medical',
+      ]),
       unitId: z.string().uuid().nullable().optional(),
       label: z.string().max(100).nullable().optional(),
       x: z.number().int().min(0),
