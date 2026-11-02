@@ -114,8 +114,8 @@ export function parseUnitShapeMode(
   if (it.label === 'unit:trapezoid') return 'trapezoid';
   if (it.label === 'unit:trapezoid-l') return 'trapezoid-l';
   if (it.label === 'unit:trapezoid-r') return 'trapezoid-r';
-  if (isMergedUnit) return 'rect';
   if (it.label === 'unit:circle') return 'circle';
+  if (isMergedUnit) return 'rect';
   if (it.label === 'unit:rect') return 'rect';
   if (allItems && allItems.some((c) => c.kind === 'corridor' && isInsideCircleCorridorHole(c, it))) {
     return 'circle';
@@ -174,6 +174,10 @@ export function getTrapezoidUnitGeometry(
     rightMerged: boolean;
     bottomMerged: boolean;
     leftMerged: boolean;
+    siblingTopMerged?: boolean;
+    siblingRightMerged?: boolean;
+    siblingBottomMerged?: boolean;
+    siblingLeftMerged?: boolean;
     topSegs: Array<[number, number]>;
     rightSegs: Array<[number, number]>;
     bottomSegs: Array<[number, number]>;
@@ -183,16 +187,24 @@ export function getTrapezoidUnitGeometry(
   tile?: { x: number; y: number; w: number; h: number } | null,
   allItems?: ReadonlyArray<{ kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number }> | null,
 ): TrapezoidUnitGeometry {
+  const sTop = merge?.siblingTopMerged ?? false;
+  const sRight = merge?.siblingRightMerged ?? false;
+  const sBottom = merge?.siblingBottomMerged ?? false;
+  const sLeft = merge?.siblingLeftMerged ?? false;
+
   if (mode === 'ring-curve' || mode === 'trapezoid-ring') {
     const it = tile ?? { x: 0, y: 0, w: Math.max(1, Math.round(wPx / Math.max(1, cellPx))), h: Math.max(1, Math.round(hPx / Math.max(1, cellPx))) };
-    const rings = (allItems ?? []).filter(
-      (c) =>
-        c.kind === 'corridor' &&
-        c.w >= 4 &&
-        c.h >= 4 &&
-        c.label !== 'walkway:straight' &&
-        c.label !== 'walkway:arc',
-    );
+    const hasAngle = Boolean((it as { angle?: number }).angle);
+    const rings = hasAngle
+      ? []
+      : (allItems ?? []).filter(
+          (c) =>
+            c.kind === 'corridor' &&
+            c.w >= 4 &&
+            c.h >= 4 &&
+            c.label !== 'walkway:straight' &&
+            c.label !== 'walkway:arc',
+        );
     const ux = it.x + it.w / 2;
     const uy = it.y + it.h / 2;
 
@@ -217,7 +229,7 @@ export function getTrapezoidUnitGeometry(
           cy = rcy;
           rxOut = rrx;
           ryOut = rry;
-          insideHole = isInsideCircleCorridorHole(r, it);
+          insideHole = r.kind === 'corridor' && isInsideCircleCorridorHole(r, it);
         }
       }
     }
@@ -230,25 +242,26 @@ export function getTrapezoidUnitGeometry(
     let facingEdge: 'top' | 'right' | 'bottom' | 'left';
     if (Math.abs(ndy) >= Math.abs(ndx)) {
       facingEdge = dy >= 0 ? 'bottom' : 'top';
-      if (facingEdge === 'bottom' && merge?.bottomMerged && !merge?.topMerged) facingEdge = 'top';
-      else if (facingEdge === 'top' && merge?.topMerged && !merge?.bottomMerged) facingEdge = 'bottom';
+      if (facingEdge === 'bottom' && sBottom && !sTop) facingEdge = 'top';
+      else if (facingEdge === 'top' && sTop && !sBottom) facingEdge = 'bottom';
     } else {
       facingEdge = dx >= 0 ? 'right' : 'left';
-      if (facingEdge === 'right' && merge?.rightMerged && !merge?.leftMerged) facingEdge = 'left';
-      else if (facingEdge === 'left' && merge?.leftMerged && !merge?.rightMerged) facingEdge = 'right';
+      if (facingEdge === 'right' && sRight && !sLeft) facingEdge = 'left';
+      else if (facingEdge === 'left' && sLeft && !sRight) facingEdge = 'right';
     }
 
     const taper = mode === 'trapezoid-ring' ? 0.18 : 0;
     const maxDepthFrac = 0.28;
     const N = 18;
+    const isSiblingMerged = Boolean(sTop || sRight || sBottom || sLeft);
 
     const computeArchNorm = (t: number): number => {
       if (facingEdge === 'bottom' || facingEdge === 'top') {
         const u = taper + t * (1 - 2 * taper);
         const gx = it.x + u * it.w;
-        const gMinX = merge?.hasMerge && merge.groupBounds ? merge.groupBounds.minX : it.x + taper * it.w;
+        const gMinX = isSiblingMerged && merge?.groupBounds ? merge.groupBounds.minX : it.x + taper * it.w;
         const gMaxX =
-          merge?.hasMerge && merge.groupBounds
+          isSiblingMerged && merge?.groupBounds
             ? merge.groupBounds.minX + merge.groupBounds.spanW
             : it.x + (1 - taper) * it.w;
         const ringR = Math.max(rxOut * 1.15, (gMaxX - gMinX) * 0.65, 3);
@@ -262,9 +275,9 @@ export function getTrapezoidUnitGeometry(
       } else {
         const v = taper + t * (1 - 2 * taper);
         const gy = it.y + v * it.h;
-        const gMinY = merge?.hasMerge && merge.groupBounds ? merge.groupBounds.minY : it.y + taper * it.h;
+        const gMinY = isSiblingMerged && merge?.groupBounds ? merge.groupBounds.minY : it.y + taper * it.h;
         const gMaxY =
-          merge?.hasMerge && merge.groupBounds
+          isSiblingMerged && merge?.groupBounds
             ? merge.groupBounds.minY + merge.groupBounds.spanH
             : it.y + (1 - taper) * it.h;
         const ringR = Math.max(ryOut * 1.15, (gMaxY - gMinY) * 0.65, 3);
@@ -430,7 +443,7 @@ export function getTrapezoidUnitGeometry(
   let br = { x: 1, y: 1 };
   let bl = { x: 0, y: 1 };
 
-  if (merge?.topMerged && !merge?.bottomMerged) {
+  if (sTop && !sBottom) {
     // Attached below a sibling block: Top edge is 100% wide base, Bottom edge is tapered
     const blX = mode === 'trapezoid' ? symInset : mode === 'trapezoid-l' ? sideInset : 0;
     const brX = mode === 'trapezoid' ? 1 - symInset : mode === 'trapezoid-r' ? 1 - sideInset : 1;
@@ -438,7 +451,7 @@ export function getTrapezoidUnitGeometry(
     tr = { x: 1, y: 0 };
     br = { x: brX, y: 1 };
     bl = { x: blX, y: 1 };
-  } else if (merge?.leftMerged && !merge?.rightMerged && !merge?.topMerged && !merge?.bottomMerged) {
+  } else if (sLeft && !sRight && !sTop && !sBottom) {
     // Attached to right of a sibling block: Left edge is 100% wide base, Right edge is tapered
     const trY = mode === 'trapezoid' ? symInset : mode === 'trapezoid-l' ? sideInset : 0;
     const brY = mode === 'trapezoid' ? 1 - symInset : mode === 'trapezoid-r' ? 1 - sideInset : 1;
@@ -446,7 +459,7 @@ export function getTrapezoidUnitGeometry(
     tr = { x: 1, y: trY };
     br = { x: 1, y: brY };
     bl = { x: 0, y: 1 };
-  } else if (merge?.rightMerged && !merge?.leftMerged && !merge?.topMerged && !merge?.bottomMerged) {
+  } else if (sRight && !sLeft && !sTop && !sBottom) {
     // Attached to left of a sibling block: Right edge is 100% wide base, Left edge is tapered
     const tlY = mode === 'trapezoid' ? symInset : mode === 'trapezoid-l' ? sideInset : 0;
     const blY = mode === 'trapezoid' ? 1 - symInset : mode === 'trapezoid-r' ? 1 - sideInset : 1;
@@ -476,38 +489,64 @@ export function getTrapezoidUnitGeometry(
   const rimParts: string[] = [];
   const lipRightParts: string[] = [];
   const lipBottomParts: string[] = [];
+  const wU = cellPx > 0 ? wPx / cellPx : 1;
+  const hV = cellPx > 0 ? hPx / cellPx : 1;
 
-  // Top edge (rim)
-  if (merge?.topMerged) {
+  // Top edge (rim): only use topSegs if the top edge is horizontal at y=0, clamped to [tl.x, tr.x]
+  if (merge?.topMerged && tl.y <= 0.01 && tr.y <= 0.01) {
+    const minU = tl.x * wU;
+    const maxU = tr.x * wU;
     for (const [u1, u2] of merge.topSegs) {
-      rimParts.push(`M ${(u1 * cellPx).toFixed(1)} 0.5 L ${(u2 * cellPx).toFixed(1)} 0.5`);
+      const a = Math.max(minU, u1);
+      const b = Math.min(maxU, u2);
+      if (b - a > 0.02) {
+        rimParts.push(`M ${(a * cellPx).toFixed(1)} 0.5 L ${(b * cellPx).toFixed(1)} 0.5`);
+      }
     }
   } else {
     rimParts.push(`M ${pTL.x.toFixed(1)} ${(pTL.y + 0.5).toFixed(1)} L ${pTR.x.toFixed(1)} ${(pTR.y + 0.5).toFixed(1)}`);
   }
 
-  // Left edge (rim)
-  if (merge?.leftMerged) {
+  // Left edge (rim): only use leftSegs if the left edge is vertical and flush at x=0; slanted edges stay intact
+  if (merge?.leftMerged && tl.x <= 0.01 && bl.x <= 0.01) {
+    const minV = tl.y * hV;
+    const maxV = bl.y * hV;
     for (const [v1, v2] of merge.leftSegs) {
-      rimParts.push(`M 0.5 ${(v1 * cellPx).toFixed(1)} L 0.5 ${(v2 * cellPx).toFixed(1)}`);
+      const a = Math.max(minV, v1);
+      const b = Math.min(maxV, v2);
+      if (b - a > 0.02) {
+        rimParts.push(`M 0.5 ${(a * cellPx).toFixed(1)} L 0.5 ${(b * cellPx).toFixed(1)}`);
+      }
     }
   } else {
     rimParts.push(`M ${(pBL.x + 0.5).toFixed(1)} ${pBL.y.toFixed(1)} L ${(pTL.x + 0.5).toFixed(1)} ${pTL.y.toFixed(1)}`);
   }
 
-  // Right edge (lip-r)
-  if (merge?.rightMerged) {
+  // Right edge (lip-r): only use rightSegs if the right edge is vertical and flush at x=1; slanted edges stay intact
+  if (merge?.rightMerged && tr.x >= 0.99 && br.x >= 0.99) {
+    const minV = tr.y * hV;
+    const maxV = br.y * hV;
     for (const [v1, v2] of merge.rightSegs) {
-      lipRightParts.push(`M ${(wPx - 1).toFixed(1)} ${(v1 * cellPx).toFixed(1)} L ${(wPx - 1).toFixed(1)} ${(v2 * cellPx).toFixed(1)}`);
+      const a = Math.max(minV, v1);
+      const b = Math.min(maxV, v2);
+      if (b - a > 0.02) {
+        lipRightParts.push(`M ${(wPx - 1).toFixed(1)} ${(a * cellPx).toFixed(1)} L ${(wPx - 1).toFixed(1)} ${(b * cellPx).toFixed(1)}`);
+      }
     }
   } else {
     lipRightParts.push(`M ${(pTR.x - 1).toFixed(1)} ${pTR.y.toFixed(1)} L ${(pBR.x - 1).toFixed(1)} ${pBR.y.toFixed(1)}`);
   }
 
-  // Bottom edge (lip-b)
-  if (merge?.bottomMerged) {
+  // Bottom edge (lip-b): only use bottomSegs if the bottom edge is horizontal at y=1, clamped to [bl.x, br.x]
+  if (merge?.bottomMerged && bl.y >= 0.99 && br.y >= 0.99) {
+    const minU = bl.x * wU;
+    const maxU = br.x * wU;
     for (const [u1, u2] of merge.bottomSegs) {
-      lipBottomParts.push(`M ${(u1 * cellPx).toFixed(1)} ${(hPx - 1.5).toFixed(1)} L ${(u2 * cellPx).toFixed(1)} ${(hPx - 1.5).toFixed(1)}`);
+      const a = Math.max(minU, u1);
+      const b = Math.min(maxU, u2);
+      if (b - a > 0.02) {
+        lipBottomParts.push(`M ${(a * cellPx).toFixed(1)} ${(hPx - 1.5).toFixed(1)} L ${(b * cellPx).toFixed(1)} ${(hPx - 1.5).toFixed(1)}`);
+      }
     }
   } else {
     lipBottomParts.push(`M ${pBL.x.toFixed(1)} ${(pBL.y - 1.5).toFixed(1)} L ${pBR.x.toFixed(1)} ${(pBR.y - 1.5).toFixed(1)}`);
@@ -618,12 +657,34 @@ export interface PolygonAtriumGeometry {
   outerPoints: string;
   rimPath: string;
   lipPath: string;
+  mergedFaces: number[];
 }
 
 export function getPolygonAtriumGeometry(
   faces: 8 | 12 | 24,
   wPx: number,
   hPx: number,
+  atriumItem?: {
+    key?: string;
+    kind?: TileKind | string;
+    label?: string | null;
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    angle?: number;
+  } | null,
+  allItems?: ReadonlyArray<{
+    key?: string;
+    kind: TileKind | string;
+    unitId?: string | null;
+    label?: string | null;
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    angle?: number;
+  }> | null,
 ): PolygonAtriumGeometry {
   const cx = wPx / 2;
   const cy = hPx / 2;
@@ -648,19 +709,76 @@ export function getPolygonAtriumGeometry(
   const clipPath = `polygon(${outerVerts.map((v) => `${v.pctX.toFixed(2)}% ${v.pctY.toFixed(2)}%`).join(', ')})`;
   const outerPoints = outerVerts.map((v) => `${v.x.toFixed(1)},${v.y.toFixed(1)}`).join(' ');
 
+  const faceTouched: Array<Array<[number, number]>> = Array.from({ length: faces }, () => []);
+  const worldFaces =
+    atriumItem && allItems
+      ? getPolygonAtriumWorldFaces({ ...atriumItem, kind: 'atrium', label: encodeLandmarkMeta('atrium', `poly${faces}`) })
+      : null;
+
+  if (atriumItem && allItems && worldFaces) {
+    const atrWithFaces = {
+      ...atriumItem,
+      kind: 'atrium' as const,
+      label: atriumItem.label ?? encodeLandmarkMeta('atrium', `poly${faces}`),
+    };
+    for (const o of allItems) {
+      if (o.key && atriumItem.key && o.key === atriumItem.key) continue;
+      if (o.kind === 'marker') continue;
+      if (o.kind === 'unit' && o.label === 'unit:circle') continue;
+      if (o.kind !== 'unit' && o.kind !== 'corridor') {
+        if (!isMergeableLandmark(o.kind as TileKind)) continue;
+        const oMeta = parseLandmarkMeta(o.kind, o.label);
+        if (oMeta.isCircle) continue;
+      }
+      if (isInsideCircleCorridorHole(o, atrWithFaces)) continue;
+      const strictlyInside =
+        o.x >= atrWithFaces.x + 1 &&
+        o.x + o.w <= atrWithFaces.x + atrWithFaces.w - 1 &&
+        o.y >= atrWithFaces.y + 1 &&
+        o.y + o.h <= atrWithFaces.y + atrWithFaces.h - 1;
+      if (strictlyInside || (isAtriumTransitOverlap(atrWithFaces, o) && rectsOverlap(atrWithFaces, o))) continue;
+
+      const match = matchSinglePolygonAtriumFaceForItem(o, atrWithFaces);
+      if (match && match.faceIndex >= 0 && match.faceIndex < faces) {
+        faceTouched[match.faceIndex].push(match.faceHit);
+      }
+    }
+  }
+
   const rimParts: string[] = [];
   const lipParts: string[] = [];
+  const mergedFaces: number[] = [];
 
   for (let i = 0; i < faces; i++) {
     const next = (i + 1) % faces;
     const v0 = outerVerts[i];
     const v1 = outerVerts[next];
     const midTheta = -Math.PI / 2 + ((i + 1) * 2 * Math.PI) / faces;
-    const edgeSeg = `M ${v0.x.toFixed(1)} ${v0.y.toFixed(1)} L ${v1.x.toFixed(1)} ${v1.y.toFixed(1)}`;
-    if (Math.cos(midTheta) + Math.sin(midTheta) <= 0.1) {
-      rimParts.push(edgeSeg);
+    const isRim = Math.cos(midTheta) + Math.sin(midTheta) <= 0.1;
+    const touched = faceTouched[i];
+    const faceLen = worldFaces?.[i]?.len ?? 1;
+
+    if (touched.length > 0) {
+      mergedFaces.push(i);
+      const keepSegs = subtractIntervals(faceLen, touched);
+      for (const [sA, sB] of keepSegs) {
+        const tA = faceLen > 1e-6 ? sA / faceLen : 0;
+        const tB = faceLen > 1e-6 ? sB / faceLen : 1;
+        const xA = v0.x + tA * (v1.x - v0.x);
+        const yA = v0.y + tA * (v1.y - v0.y);
+        const xB = v0.x + tB * (v1.x - v0.x);
+        const yB = v0.y + tB * (v1.y - v0.y);
+        const seg = `M ${xA.toFixed(1)} ${yA.toFixed(1)} L ${xB.toFixed(1)} ${yB.toFixed(1)}`;
+        if (isRim) rimParts.push(seg);
+        else lipParts.push(seg);
+      }
     } else {
-      lipParts.push(edgeSeg);
+      const edgeSeg = `M ${v0.x.toFixed(1)} ${v0.y.toFixed(1)} L ${v1.x.toFixed(1)} ${v1.y.toFixed(1)}`;
+      if (isRim) {
+        rimParts.push(edgeSeg);
+      } else {
+        lipParts.push(edgeSeg);
+      }
     }
   }
 
@@ -670,6 +788,7 @@ export function getPolygonAtriumGeometry(
     outerPoints,
     rimPath: rimParts.join(' '),
     lipPath: lipParts.join(' '),
+    mergedFaces,
   };
 }
 
@@ -980,12 +1099,50 @@ export function isAtriumTransitOverlap(
   );
 }
 
+export function isOutsidePolygonAtrium(
+  a: { kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
+  b: { kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
+): boolean {
+  const check = (
+    atr: { kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
+    other: { kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
+  ): boolean => {
+    if (atr.kind !== 'atrium') return false;
+    const polyFaces = getPolygonAtriumWorldFaces(atr);
+    if (!polyFaces) return false;
+    const f = getLocalTileFrame(other);
+    const corners = [
+      { x: f.tlx, y: f.tly },
+      { x: f.trx, y: f.try_ },
+      { x: f.trx + other.h * f.vx, y: f.try_ + other.h * f.vy },
+      { x: f.blx, y: f.bly },
+    ];
+    for (const face of polyFaces) {
+      let minProj = Infinity;
+      for (const c of corners) {
+        const p = (c.x - face.x0) * face.nx + (c.y - face.y0) * face.ny;
+        if (p < minProj) minProj = p;
+      }
+      const alignedDiagonal =
+        !face.isCardinal &&
+        Boolean(other.angle) &&
+        (Math.abs(f.ux * face.nx + f.uy * face.ny) <= 0.14 ||
+          Math.abs(f.vx * face.nx + f.vy * face.ny) <= 0.14);
+      const tol = alignedDiagonal ? 0.48 : EDGE_EPS;
+      if (minProj >= -tol) return true;
+    }
+    return false;
+  };
+  return check(a, b) || check(b, a);
+}
+
 export function tilesConflict(a: MapItem, b: MapItem): boolean {
   return (
     rectsOverlap(a, b) &&
     !isInsideCircleCorridorHole(a, b) &&
     !isInsideCircleCorridorHole(b, a) &&
-    !isAtriumTransitOverlap(a, b)
+    !isAtriumTransitOverlap(a, b) &&
+    !isOutsidePolygonAtrium(a, b)
   );
 }
 
@@ -1206,6 +1363,20 @@ function snapBlockToSiblingsBorder(
         candidates.push({ x: cx, y: cy, dist: Math.hypot(cx - moved.x, cy - moved.y) });
       }
     }
+
+    if (sib.kind === 'atrium' && Boolean(moved.angle) && getPolygonAtriumWorldFaces(sib)) {
+      for (let dy = -4; dy <= 4; dy++) {
+        for (let dx = -4; dx <= 4; dx++) {
+          const cx = moved.x + dx;
+          const cy = moved.y + dy;
+          if (cx < 0 || cy < 0 || cx + w > columns) continue;
+          const cand: MapItem = { ...moved, x: cx, y: cy, w, h };
+          if (!others.some((o) => tilesConflict(cand, o)) && matchSinglePolygonAtriumFaceForItem(cand, sib)) {
+            candidates.push({ x: cx, y: cy, dist: Math.hypot(dx, dy) });
+          }
+        }
+      }
+    }
   }
 
   if (candidates.length === 0) return null;
@@ -1224,22 +1395,28 @@ export function snapUnitBlockToBorder(
   columns: number,
 ): MapItem | null {
   if (moved.kind !== 'unit' || !moved.unitId) return null;
-  const siblings = items.filter((i) => i.key !== moved.key && i.kind === 'unit' && i.unitId === moved.unitId);
+  const siblings = items.filter(
+    (i) =>
+      i.key !== moved.key &&
+      ((i.kind === 'unit' && i.unitId === moved.unitId) ||
+        (i.kind === 'atrium' && tilesConflict(moved, i))),
+  );
   return snapBlockToSiblingsBorder(moved, siblings, items, columns);
 }
 
 /**
- * When a dragged/resized transit tile (`stairs` or `escalator`) overlaps another transit tile,
- * snaps it to the nearest conflict-free border (Right, Left, Bottom, Top) of that transit tile
- * so multiple Elevators, Escalators, Lifts, and Stairs merge side-by-side cleanly (inside or outside an Atrium).
+ * When a dragged/resized non-unit tile (`corridor` / Walkway or any Landmark such as
+ * `entrance`, `exit`, `toilet`, `stairs`, `escalator`, `atrium`, `info`, `parking`, `atm`, `medical`, `marker`)
+ * overlaps another non-unit tile, snaps it to the nearest conflict-free border (Right, Left, Bottom, Top)
+ * so Walkways and all Landmarks touch and merge cleanly.
  */
 export function snapTransitBlockToBorder(
   moved: MapItem,
   items: ReadonlyArray<MapItem>,
   columns: number,
 ): MapItem | null {
-  if (!isTransitLandmark(moved.kind)) return null;
-  const siblings = items.filter((i) => i.key !== moved.key && isTransitLandmark(i.kind));
+  if (moved.kind === 'unit') return null;
+  const siblings = items.filter((i) => i.key !== moved.key && i.kind !== 'unit' && tilesConflict(moved, i));
   return snapBlockToSiblingsBorder(moved, siblings, items, columns);
 }
 
@@ -1995,12 +2172,287 @@ function localToWorld(frame: LocalTileFrame, u: number, v: number): [number, num
   return [frame.tlx + u * frame.ux + v * frame.vx, frame.tly + u * frame.uy + v * frame.vy];
 }
 
+interface PolygonAtriumWorldFace {
+  index: number;
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  len: number;
+  tx: number;
+  ty: number;
+  nx: number;
+  ny: number;
+  isCardinal: boolean;
+}
+
+function getPolygonAtriumWorldFaces(atrium: {
+  kind?: TileKind | string;
+  label?: string | null;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  angle?: number;
+}): PolygonAtriumWorldFace[] | null {
+  if (atrium.kind !== 'atrium') return null;
+  const faces = parseLandmarkMeta('atrium', atrium.label).polygonFaces;
+  if (!faces) return null;
+  const cx = atrium.x + atrium.w / 2;
+  const cy = atrium.y + atrium.h / 2;
+  const rx = atrium.w / 2;
+  const ry = atrium.h / 2;
+  const rad = ((atrium.angle ?? 0) * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const cosStep = Math.cos(Math.PI / faces);
+
+  const verts: Array<{ x: number; y: number }> = [];
+  for (let i = 0; i < faces; i++) {
+    const theta = -Math.PI / 2 + ((i + 0.5) * 2 * Math.PI) / faces;
+    const ux = Math.max(-1, Math.min(1, Math.cos(theta) / cosStep)) * rx;
+    const uy = Math.max(-1, Math.min(1, Math.sin(theta) / cosStep)) * ry;
+    verts.push({
+      x: cx + ux * cos - uy * sin,
+      y: cy + ux * sin + uy * cos,
+    });
+  }
+
+  const result: PolygonAtriumWorldFace[] = [];
+  for (let i = 0; i < faces; i++) {
+    const v0 = verts[i];
+    const v1 = verts[(i + 1) % faces];
+    const dx = v1.x - v0.x;
+    const dy = v1.y - v0.y;
+    const len = Math.hypot(dx, dy);
+    if (len <= 1e-6) continue;
+    const tx = dx / len;
+    const ty = dy / len;
+    const nx = ty;
+    const ny = -tx;
+    result.push({
+      index: i,
+      x0: v0.x,
+      y0: v0.y,
+      x1: v1.x,
+      y1: v1.y,
+      len,
+      tx,
+      ty,
+      nx,
+      ny,
+      isCardinal: Math.abs(nx) < 1e-4 || Math.abs(ny) < 1e-4,
+    });
+  }
+  return result;
+}
+
+interface PolygonAtriumFaceMatch {
+  edge: 'top' | 'right' | 'bottom' | 'left';
+  tileHit: [number, number];
+  faceIndex: number;
+  faceHit: [number, number];
+  nudgeDx: number;
+  nudgeDy: number;
+}
+
+function matchSinglePolygonAtriumFace(
+  frame: LocalTileFrame,
+  w: number,
+  h: number,
+  atrium: { kind?: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
+  activeRanges?: {
+    top?: [number, number] | null;
+    right?: [number, number] | null;
+    bottom?: [number, number] | null;
+    left?: [number, number] | null;
+  },
+): PolygonAtriumFaceMatch | null {
+  const polyFaces = getPolygonAtriumWorldFaces(atrium);
+  if (!polyFaces) return null;
+
+  const edges: Array<{
+    name: 'top' | 'right' | 'bottom' | 'left';
+    p0x: number;
+    p0y: number;
+    dx: number;
+    dy: number;
+    minT: number;
+    maxT: number;
+    outNx: number;
+    outNy: number;
+  }> = [];
+
+  if (activeRanges?.top !== null) {
+    edges.push({
+      name: 'top',
+      p0x: frame.tlx,
+      p0y: frame.tly,
+      dx: frame.ux,
+      dy: frame.uy,
+      minT: activeRanges?.top?.[0] ?? 0,
+      maxT: activeRanges?.top?.[1] ?? w,
+      outNx: -frame.vx,
+      outNy: -frame.vy,
+    });
+  }
+  if (activeRanges?.bottom !== null) {
+    edges.push({
+      name: 'bottom',
+      p0x: frame.blx,
+      p0y: frame.bly,
+      dx: frame.ux,
+      dy: frame.uy,
+      minT: activeRanges?.bottom?.[0] ?? 0,
+      maxT: activeRanges?.bottom?.[1] ?? w,
+      outNx: frame.vx,
+      outNy: frame.vy,
+    });
+  }
+  if (activeRanges?.left !== null) {
+    edges.push({
+      name: 'left',
+      p0x: frame.tlx,
+      p0y: frame.tly,
+      dx: frame.vx,
+      dy: frame.vy,
+      minT: activeRanges?.left?.[0] ?? 0,
+      maxT: activeRanges?.left?.[1] ?? h,
+      outNx: -frame.ux,
+      outNy: -frame.uy,
+    });
+  }
+  if (activeRanges?.right !== null) {
+    edges.push({
+      name: 'right',
+      p0x: frame.trx,
+      p0y: frame.try_,
+      dx: frame.vx,
+      dy: frame.vy,
+      minT: activeRanges?.right?.[0] ?? 0,
+      maxT: activeRanges?.right?.[1] ?? h,
+      outNx: frame.ux,
+      outNy: frame.uy,
+    });
+  }
+
+  const fcx = frame.tlx + (w / 2) * frame.ux + (h / 2) * frame.vx;
+  const fcy = frame.tly + (w / 2) * frame.uy + (h / 2) * frame.vy;
+  const isTilted = Math.abs(frame.uy) > 1e-4;
+
+  let bestScore = Infinity;
+  let bestMatch: PolygonAtriumFaceMatch | null = null;
+
+  for (const face of polyFaces) {
+    for (const e of edges) {
+      const dotN = e.outNx * face.nx + e.outNy * face.ny;
+      if (dotN > -0.94) continue;
+
+      const centerDist = (fcx - face.x0) * face.nx + (fcy - face.y0) * face.ny;
+      if (centerDist <= 0.05) continue;
+
+      const midT = (e.minT + e.maxT) * 0.5;
+      const emx = e.p0x + midT * e.dx;
+      const emy = e.p0y + midT * e.dy;
+      const signedGap = (emx - face.x0) * face.nx + (emy - face.y0) * face.ny;
+      const isExactCardinal = face.isCardinal && !isTilted && !atrium.angle;
+
+      if (isExactCardinal) {
+        if (Math.abs(signedGap) > EDGE_EPS * 1.5) continue;
+      } else {
+        if (signedGap < -0.48 || signedGap > 0.68) continue;
+      }
+
+      const t0 = (face.x0 - e.p0x) * e.dx + (face.y0 - e.p0y) * e.dy;
+      const t1 = (face.x1 - e.p0x) * e.dx + (face.y1 - e.p0y) * e.dy;
+      const u1 = Math.max(e.minT, Math.min(t0, t1));
+      const u2 = Math.min(e.maxT, Math.max(t0, t1));
+      if (u2 - u1 <= MIN_SHARED_EDGE) continue;
+
+      const p1x = e.p0x + u1 * e.dx;
+      const p1y = e.p0y + u1 * e.dy;
+      const p2x = e.p0x + u2 * e.dx;
+      const p2y = e.p0y + u2 * e.dy;
+      const s0 = (p1x - face.x0) * face.tx + (p1y - face.y0) * face.ty;
+      const s1 = (p2x - face.x0) * face.tx + (p2y - face.y0) * face.ty;
+      const f1 = Math.max(0, Math.min(s0, s1));
+      const f2 = Math.min(face.len, Math.max(s0, s1));
+      if (f2 - f1 <= MIN_SHARED_EDGE) continue;
+
+      const score = Math.abs(signedGap) + (1 + dotN) * 2 - (u2 - u1) * 0.02;
+      if (score < bestScore) {
+        bestScore = score;
+        bestMatch = {
+          edge: e.name,
+          tileHit: [u1, u2],
+          faceIndex: face.index,
+          faceHit: [f1, f2],
+          nudgeDx: isExactCardinal ? 0 : -signedGap * face.nx,
+          nudgeDy: isExactCardinal ? 0 : -signedGap * face.ny,
+        };
+      }
+    }
+  }
+
+  return bestMatch;
+}
+
+function matchSinglePolygonAtriumFaceForItem(
+  tile: { kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
+  atrium: { kind?: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
+): PolygonAtriumFaceMatch | null {
+  const frame = getLocalTileFrame(tile);
+  const isTrap =
+    tile.kind === 'unit' &&
+    (tile.label === 'unit:trapezoid' || tile.label === 'unit:trapezoid-l' || tile.label === 'unit:trapezoid-r');
+  if (isTrap) {
+    const inset = tile.label === 'unit:trapezoid' ? 0.2 : 0.28;
+    const lSlant = tile.label !== 'unit:trapezoid-r';
+    const rSlant = tile.label !== 'unit:trapezoid-l';
+    return matchSinglePolygonAtriumFace(frame, tile.w, tile.h, atrium, {
+      top: [lSlant ? inset * tile.w : 0, rSlant ? (1 - inset) * tile.w : tile.w],
+      bottom: [0, tile.w],
+      left: lSlant ? null : [0, tile.h],
+      right: rSlant ? null : [0, tile.h],
+    });
+  }
+  return matchSinglePolygonAtriumFace(frame, tile.w, tile.h, atrium);
+}
+
+/**
+ * When a rotated tile (`angle != 0`) touches one of the angled/diagonal faces of an 8/12/24-Face Atrium,
+ * returns the sub-cell grid offset `(dx, dy)` needed so its visual edge aligns flush (`0px` gap) against that one face.
+ */
+export function getAtriumFaceVisualNudge(
+  it: { key?: string; kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
+  allItems: ReadonlyArray<{ key?: string; kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number }>,
+): { dx: number; dy: number } | null {
+  if (it.kind === 'atrium' || !it.angle) return null;
+  for (const a of allItems) {
+    if (a.kind !== 'atrium') continue;
+    const match = matchSinglePolygonAtriumFaceForItem(it, a);
+    if (match && Math.hypot(match.nudgeDx, match.nudgeDy) > 1e-3) {
+      return { dx: match.nudgeDx, dy: match.nudgeDy };
+    }
+  }
+  return null;
+}
+
 function clipFrameEdges(
   frame: LocalTileFrame,
   w: number,
   h: number,
-  target: { x: number; y: number; w: number; h: number; angle?: number },
+  target: { kind?: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
 ) {
+  if (target.kind === 'atrium' && parseLandmarkMeta('atrium', target.label).polygonFaces) {
+    const polyMatch = matchSinglePolygonAtriumFace(frame, w, h, target);
+    return {
+      tHit: polyMatch?.edge === 'top' ? polyMatch.tileHit : null,
+      bHit: polyMatch?.edge === 'bottom' ? polyMatch.tileHit : null,
+      lHit: polyMatch?.edge === 'left' ? polyMatch.tileHit : null,
+      rHit: polyMatch?.edge === 'right' ? polyMatch.tileHit : null,
+    };
+  }
   return {
     tHit: clipSegmentToRotatedItem(frame.tlx, frame.tly, frame.ux, frame.uy, w, target),
     bHit: clipSegmentToRotatedItem(frame.blx, frame.bly, frame.ux, frame.uy, w, target),
@@ -2271,14 +2723,31 @@ export function buildCorridorShapeMap(
     const bottomRaw: Array<[number, number]> = [];
     const leftRaw: Array<[number, number]> = [];
 
+    let corrT = false;
+    let corrR = false;
+    let corrB = false;
+    let corrL = false;
+
     for (const o of mergeNeighbors) {
       if (o.key === c.key) continue;
       if (isInsideCircleCorridorHole(c, o) || isInsideCircleCorridorHole(o, c)) continue;
       const { tHit, rHit, bHit, lHit } = clipFrameEdges(frame, c.w, c.h, o);
-      if (tHit) topRaw.push(tHit);
-      if (rHit) rightRaw.push(rHit);
-      if (bHit) bottomRaw.push(bHit);
-      if (lHit) leftRaw.push(lHit);
+      if (tHit) {
+        topRaw.push(tHit);
+        if (o.kind === 'corridor') corrT = true;
+      }
+      if (rHit) {
+        rightRaw.push(rHit);
+        if (o.kind === 'corridor') corrR = true;
+      }
+      if (bHit) {
+        bottomRaw.push(bHit);
+        if (o.kind === 'corridor') corrB = true;
+      }
+      if (lHit) {
+        leftRaw.push(lHit);
+        if (o.kind === 'corridor') corrL = true;
+      }
     }
 
     const mode = parseCorridorShapeMode(c.label);
@@ -2289,6 +2758,8 @@ export function buildCorridorShapeMap(
     const hasB = bottomRaw.length > 0;
     const hasL = leftRaw.length > 0;
     const sideCount = Number(hasT) + Number(hasR) + Number(hasB) + Number(hasL);
+    const corrSideCount = Number(corrT) + Number(corrR) + Number(corrB) + Number(corrL);
+    const corrPerp = (corrL && corrB) || (corrT && corrL) || (corrR && corrT) || (corrB && corrR);
 
     const sumLen = (arr: Array<[number, number]>) => arr.reduce((acc, [a, b]) => acc + Math.max(0, b - a), 0);
     const tLen = sumLen(topRaw);
@@ -2346,9 +2817,9 @@ export function buildCorridorShapeMap(
       const minDim = Math.min(c.w, c.h);
       const maxDim = Math.max(c.w, c.h);
       const aspect = maxDim / Math.max(1, minDim);
-      if (hasInnerHoleItem || (minDim >= 4 && aspect <= 1.45 && sideCount >= 3)) {
+      if (hasInnerHoleItem || (minDim >= 4 && aspect <= 1.45 && corrSideCount >= 3)) {
         shape = 'circle';
-      } else if (minDim >= 3 && aspect <= 1.75 && sideCount === 2 && perpQuadrant) {
+      } else if (minDim >= 3 && aspect <= 1.75 && corrSideCount === 2 && corrPerp && perpQuadrant) {
         shape = 'arc';
         quadrant = perpQuadrant;
       }
@@ -2716,27 +3187,26 @@ export function getLandmarkMergeData(
   const leftTouched: Array<[number, number]> = [];
   const frame = getLocalTileFrame(it);
 
-  if (!it.angle) {
-    for (const c of corridors) {
-      // Keep a crisp 360° border on an island Atrium/marker placed inside a hollow circle walkway hole
-      if (isInsideCircleCorridorHole(c, it)) continue;
-      const { tHits, rHits, bHits, lHits } = clipFrameEdgesToCorridor(
-        it.key,
-        frame,
-        it.w,
-        it.h,
-        c,
-        resolvedShapes.get(c.key),
-      );
-      topTouched.push(...tHits);
-      rightTouched.push(...rHits);
-      bottomTouched.push(...bHits);
-      leftTouched.push(...lHits);
-    }
+  for (const c of corridors) {
+    // Keep a crisp 360° border on an island Atrium/marker placed inside a hollow circle walkway hole
+    if (isInsideCircleCorridorHole(c, it)) continue;
+    const { tHits, rHits, bHits, lHits } = clipFrameEdgesToCorridor(
+      it.key,
+      frame,
+      it.w,
+      it.h,
+      c,
+      resolvedShapes.get(c.key),
+    );
+    topTouched.push(...tHits);
+    rightTouched.push(...rHits);
+    bottomTouched.push(...bHits);
+    leftTouched.push(...lHits);
   }
 
-  // Also merge touching borders between Elevator / Escalator / Lift ('escalator'), Stairs ('stairs'), and Atrium ('atrium')
-  if (allItems && (it.kind === 'atrium' || isTransitLandmark(it.kind))) {
+  // Merge touching borders between any mergeable landmarks (Entrance, Exit, Restroom, Stairs, Escalator, Atrium, etc.)
+  // and allow any Landmark to merge with a touching Atrium (including 8/12/24-Face and Circle Atrium) without changing the Atrium's shape
+  if (allItems && isMergeableLandmark(it.kind)) {
     const strictlyInside = (
       inner: { x: number; y: number; w: number; h: number },
       outer: { x: number; y: number; w: number; h: number },
@@ -2748,9 +3218,16 @@ export function getLandmarkMergeData(
 
     for (const o of allItems) {
       if (o.key === it.key) continue;
-      if (o.kind !== 'atrium' && !isTransitLandmark(o.kind)) continue;
-      const oMeta = parseLandmarkMeta(o.kind, o.label);
-      if (isCircleAtrium(o) || oMeta.isCircle || oMeta.polygonFaces) continue;
+      if (o.kind === 'corridor') continue;
+      if (o.kind === 'unit') {
+        if (it.kind !== 'atrium') continue;
+        if (o.label === 'unit:circle') continue;
+      } else {
+        if (!isMergeableLandmark(o.kind)) continue;
+        const oMeta = parseLandmarkMeta(o.kind, o.label);
+        // Non-Atrium circle landmarks keep a standalone circle border, whereas touching an Atrium (including 8/12/24-Face & Circle) merges the neighbor's border
+        if (o.kind !== 'atrium' && (oMeta.isCircle || oMeta.polygonFaces)) continue;
+      }
       if (strictlyInside(it, o) || strictlyInside(o, it)) continue;
       const hits = clipFrameEdges(frame, it.w, it.h, o);
       if (hits.tHit) topTouched.push(hits.tHit);
@@ -3065,10 +3542,22 @@ function buildCurvedCorridorMergeData(
         leftCorridorHits.push(...hits.lHits);
       } else {
         const hits = clipFrameEdges(info.frame, it.w, it.h, o);
-        if (hits.tHit) topAll.push(hits.tHit);
-        if (hits.rHit) rightAll.push(hits.rHit);
-        if (hits.bHit) bottomAll.push(hits.bHit);
-        if (hits.lHit) leftAll.push(hits.lHit);
+        if (hits.tHit) {
+          topAll.push(hits.tHit);
+          topCorridorHits.push(hits.tHit);
+        }
+        if (hits.rHit) {
+          rightAll.push(hits.rHit);
+          rightCorridorHits.push(hits.rHit);
+        }
+        if (hits.bHit) {
+          bottomAll.push(hits.bHit);
+          bottomCorridorHits.push(hits.bHit);
+        }
+        if (hits.lHit) {
+          leftAll.push(hits.lHit);
+          leftCorridorHits.push(hits.lHit);
+        }
       }
     }
 
@@ -3267,7 +3756,7 @@ export function getCorridorMergeData(
   }
 
   for (const o of landmarks) {
-    if (isCircleAtrium(o) || isInsideCircleCorridorHole(it, o)) continue;
+    if (isInsideCircleCorridorHole(it, o)) continue;
     const { tHit, rHit, bHit, lHit } = clipFrameEdges(frame, it.w, it.h, o);
     if (tHit) topLm.push(tHit);
     if (bHit) bottomLm.push(bHit);
@@ -3287,6 +3776,27 @@ export function getCorridorMergeData(
     ...[...rightCorridorBridges, ...rightLm].map(([v1, v2]) => svgRect(wPx - 1, v1 * px, 3, (v2 - v1) * px)),
   ];
   const extraBorders: string[] = [];
+  // Emit short 2px border connectors across the 1px grid gap at the ends of touching landmark openings
+  for (const [u1, u2] of topLm) {
+    const x1 = Math.min(wPx - 0.75, Math.max(0.75, u1 * px));
+    const x2 = Math.min(wPx - 0.75, Math.max(0.75, u2 * px));
+    extraBorders.push(svgLine(x1, 0.75, x1, -1.5), svgLine(x2, 0.75, x2, -1.5));
+  }
+  for (const [u1, u2] of bottomLm) {
+    const x1 = Math.min(wPx - 0.75, Math.max(0.75, u1 * px));
+    const x2 = Math.min(wPx - 0.75, Math.max(0.75, u2 * px));
+    extraBorders.push(svgLine(x1, hPx - 0.75, x1, hPx + 1.5), svgLine(x2, hPx - 0.75, x2, hPx + 1.5));
+  }
+  for (const [v1, v2] of leftLm) {
+    const y1 = Math.min(hPx - 0.75, Math.max(0.75, v1 * px));
+    const y2 = Math.min(hPx - 0.75, Math.max(0.75, v2 * px));
+    extraBorders.push(svgLine(0.75, y1, -1.5, y1), svgLine(0.75, y2, -1.5, y2));
+  }
+  for (const [v1, v2] of rightLm) {
+    const y1 = Math.min(hPx - 0.75, Math.max(0.75, v1 * px));
+    const y2 = Math.min(hPx - 0.75, Math.max(0.75, v2 * px));
+    extraBorders.push(svgLine(wPx - 0.75, y1, wPx + 1.5, y1), svgLine(wPx - 0.75, y2, wPx + 1.5, y2));
+  }
   const alongU = it.w >= it.h;
   let sleeveStartExt = 0;
   let sleeveEndExt = 0;
@@ -3458,6 +3968,11 @@ export interface UnitMergeData extends EdgeMergeGeometry {
   rightBridges: Array<[number, number]>;
   bottomBridges: Array<[number, number]>;
   leftBridges: Array<[number, number]>;
+  siblingHasMerge: boolean;
+  siblingTopMerged: boolean;
+  siblingRightMerged: boolean;
+  siblingBottomMerged: boolean;
+  siblingLeftMerged: boolean;
   /** True on the primary (largest-area) block of each connected group so the shop name renders once per merged shape. */
   showLabel: boolean;
   /** Bounding box (in grid cells) of the connected group so unit photos span continuously across L / T / U wings. */
@@ -3466,11 +3981,12 @@ export interface UnitMergeData extends EdgeMergeGeometry {
 
 /**
  * Computes auto-merge seams, outer borders, gap bridges, primary label block, and union photo bounds
- * for any unit that consists of 2 or more grid blocks (`L`, `T`, `U`, or stepped shapes).
+ * for any unit that consists of 2 or more grid blocks (`L`, `T`, `U`, or stepped shapes) or touches an Atrium.
  */
 export function computeUnitMergeMap(items: MapItem[]): Map<string, UnitMergeData> {
   const result = new Map<string, UnitMergeData>();
   const byUnit = new Map<string, MapItem[]>();
+  const atriums = items.filter((i) => i.kind === 'atrium');
   for (const it of items) {
     if (it.kind !== 'unit' || !it.unitId) continue;
     const list = byUnit.get(it.unitId);
@@ -3479,7 +3995,7 @@ export function computeUnitMergeMap(items: MapItem[]): Map<string, UnitMergeData
   }
 
   for (const group of byUnit.values()) {
-    if (group.length < 2) continue;
+    if (group.length < 2 && atriums.length === 0) continue;
     const adj = new Map<string, Set<string>>();
     for (const b of group) adj.set(b.key, new Set());
 
@@ -3527,12 +4043,67 @@ export function computeUnitMergeMap(items: MapItem[]): Map<string, UnitMergeData
         }
       }
 
+      const siblingTopMerged = topTouched.length > 0;
+      const siblingRightMerged = rightTouched.length > 0;
+      const siblingBottomMerged = bottomTouched.length > 0;
+      const siblingLeftMerged = leftTouched.length > 0;
+      const siblingHasMerge =
+        siblingTopMerged || siblingRightMerged || siblingBottomMerged || siblingLeftMerged;
+
+      // Also merge touching borders and emit seam bridges against any Atrium (including 8/12/24-Face, Circle, and Rectangle)
+      if (it.label !== 'unit:circle') {
+        const isTrap =
+          it.label === 'unit:trapezoid' ||
+          it.label === 'unit:trapezoid-l' ||
+          it.label === 'unit:trapezoid-r';
+        const inset = it.label === 'unit:trapezoid' ? 0.2 : 0.28;
+        const lSlant = isTrap && it.label !== 'unit:trapezoid-r';
+        const rSlant = isTrap && it.label !== 'unit:trapezoid-l';
+        const topMinU = isTrap && !(siblingTopMerged && !siblingBottomMerged) && lSlant ? inset * it.w : 0;
+        const topMaxU = isTrap && !(siblingTopMerged && !siblingBottomMerged) && rSlant ? (1 - inset) * it.w : it.w;
+        const botMinU = isTrap && siblingTopMerged && !siblingBottomMerged && lSlant ? inset * it.w : 0;
+        const botMaxU = isTrap && siblingTopMerged && !siblingBottomMerged && rSlant ? (1 - inset) * it.w : it.w;
+
+        for (const a of atriums) {
+          const { tHit, rHit, bHit, lHit } = clipFrameEdges(frame, it.w, it.h, a);
+          if (tHit) {
+            const u1 = Math.max(tHit[0], topMinU);
+            const u2 = Math.min(tHit[1], topMaxU);
+            if (u2 - u1 > 1e-3) {
+              topTouched.push([u1, u2]);
+              topBridges.push([u1, u2]);
+            }
+          }
+          if (bHit) {
+            const u1 = Math.max(bHit[0], botMinU);
+            const u2 = Math.min(bHit[1], botMaxU);
+            if (u2 - u1 > 1e-3) {
+              bottomTouched.push([u1, u2]);
+              bottomBridges.push([u1, u2]);
+            }
+          }
+          if (lHit && !lSlant) {
+            leftTouched.push(lHit);
+            leftBridges.push(lHit);
+          }
+          if (rHit && !rSlant) {
+            rightTouched.push(rHit);
+            rightBridges.push(rHit);
+          }
+        }
+      }
+
       rawByKey.set(it.key, {
         ...buildEdgeMergeGeometry(it.w, it.h, topTouched, rightTouched, bottomTouched, leftTouched),
         topBridges,
         rightBridges,
         bottomBridges,
         leftBridges,
+        siblingHasMerge,
+        siblingTopMerged,
+        siblingRightMerged,
+        siblingBottomMerged,
+        siblingLeftMerged,
       });
     }
 
@@ -3567,8 +4138,10 @@ export function computeUnitMergeMap(items: MapItem[]): Map<string, UnitMergeData
       };
 
       for (const b of comp) {
+        const raw = rawByKey.get(b.key)!;
+        if (comp.length < 2 && !raw.hasMerge) continue;
         result.set(b.key, {
-          ...rawByKey.get(b.key)!,
+          ...raw,
           showLabel: b.key === primary.key,
           groupBounds,
         });

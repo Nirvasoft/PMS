@@ -182,21 +182,24 @@
 
 .shop-map-stage .react-grid-item,
 .shop-map-grid-item {
-  z-index: 2;
+  z-index: 3;
   overflow: visible !important;
   border-radius: 0 !important;
 }
-.shop-map-grid-item.is-corridor-item {
+.shop-map-grid-item.is-corridor-item,
+.shop-map-grid-item.is-corridor-item.is-rotated-item {
   z-index: 1;
 }
-.shop-map-grid-item.is-transit-item {
-  z-index: 3;
+.shop-map-grid-item.is-atrium-item,
+.shop-map-grid-item.is-atrium-item.is-rotated-item {
+  z-index: 2;
 }
 .shop-map-grid-item.is-rotated-item {
   z-index: 4;
 }
-.shop-map-grid-item.is-corridor-item.is-rotated-item {
-  z-index: 1;
+.shop-map-grid-item.is-transit-item,
+.shop-map-grid-item.is-transit-item.is-rotated-item {
+  z-index: 5;
 }
 .shop-map-grid-item.active-start {
   z-index: 6;
@@ -204,9 +207,17 @@
 .shop-map-grid-item.active-target {
   z-index: 7;
 }
-.shop-map-grid-item:hover,
-.shop-map-grid-item.editing:hover {
+.shop-map-grid-item:not(.has-inner-items):hover,
+.shop-map-grid-item.editing:not(.has-inner-items):hover {
   z-index: 8;
+}
+.shop-map-grid-item.is-layer-focused,
+.shop-map-grid-item.is-layer-focused:hover {
+  z-index: 9 !important;
+}
+.shop-map-grid-item.is-layer-focused > .shop-map-tile {
+  outline: 2px dashed #a78bfa !important;
+  outline-offset: 1px;
 }
 
 .shop-map-tile {
@@ -1236,6 +1247,15 @@
   height: 100cqw;
   transform: translate(-50%, -50%) rotate(-90deg);
 }
+.shop-map-tile-photo.is-photo-flipped,
+.shop-map-tile.is-circle-tile.is-vertical-tile.has-unit-photo .shop-map-tile-photo.is-photo-flipped,
+.shop-map-tile.is-vertical-tile.has-unit-photo.is-merged-unit .shop-map-group-photo-frame:not(.is-vertical-group) .shop-map-tile-photo.is-photo-flipped {
+  transform: rotate(180deg);
+}
+.shop-map-tile.is-vertical-tile.has-unit-photo:not(.is-circle-tile):not(.is-merged-unit) .shop-map-tile-photo.is-photo-flipped,
+.shop-map-group-photo-frame.is-vertical-group .shop-map-tile-photo.is-photo-flipped {
+  transform: translate(-50%, -50%) rotate(90deg);
+}
 
 .shop-map-merged-border-svg,
 .shop-map-trapezoid-svg,
@@ -1342,8 +1362,13 @@
   pointer-events: none;
   transition: opacity 0.14s ease;
 }
+.shop-map-grid-item.has-inner-items > .shop-map-tile-actions {
+  top: -18px;
+  padding-bottom: 6px;
+}
 .shop-map-grid-item:hover .shop-map-tile-actions,
-.shop-map-grid-item:focus-within .shop-map-tile-actions {
+.shop-map-grid-item:focus-within .shop-map-tile-actions,
+.shop-map-grid-item.is-layer-focused > .shop-map-tile-actions {
   opacity: 1;
   pointer-events: auto;
 }
@@ -1356,6 +1381,8 @@
 .shop-map-tile-btn.rot:hover { background: var(--accent, #10b981); }
 .shop-map-tile-btn.add:hover { background: #3b82f6; }
 .shop-map-tile-btn.shape:hover { background: #14b8a6; }
+.shop-map-tile-btn.layer:hover,
+.shop-map-tile-btn.layer.active { background: #8b5cf6; }
 
 .shop-map-tray {
   width: 230px; flex-shrink: 0; border-radius: 12px; padding: 10px; max-height: 70vh; overflow: auto;

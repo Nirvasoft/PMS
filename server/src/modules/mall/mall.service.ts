@@ -143,6 +143,75 @@ class MallService {
       (a.kind === 'atrium' && (b.kind === 'stairs' || b.kind === 'escalator')) ||
       (b.kind === 'atrium' && (a.kind === 'stairs' || a.kind === 'escalator'));
 
+    const isOutsidePolygonAtrium = (
+      a: { kind: string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
+      b: { kind: string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
+    ) => {
+      const check = (
+        atr: { kind: string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
+        other: { kind: string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
+      ) => {
+        if (atr.kind !== 'atrium') return false;
+        const lbl = (atr.label ?? '').trim();
+        const faces = lbl.includes('poly8') ? 8 : lbl.includes('poly12') ? 12 : lbl.includes('poly24') ? 24 : 0;
+        if (!faces) return false;
+        const acx = atr.x + atr.w / 2;
+        const acy = atr.y + atr.h / 2;
+        const arx = atr.w / 2;
+        const ary = atr.h / 2;
+        const aRad = ((atr.angle ?? 0) * Math.PI) / 180;
+        const aCos = Math.cos(aRad);
+        const aSin = Math.sin(aRad);
+        const cosStep = Math.cos(Math.PI / faces);
+        const verts: Array<{ x: number; y: number }> = [];
+        for (let i = 0; i < faces; i++) {
+          const theta = -Math.PI / 2 + ((i + 0.5) * 2 * Math.PI) / faces;
+          const ux = Math.max(-1, Math.min(1, Math.cos(theta) / cosStep)) * arx;
+          const uy = Math.max(-1, Math.min(1, Math.sin(theta) / cosStep)) * ary;
+          verts.push({ x: acx + ux * aCos - uy * aSin, y: acy + ux * aSin + uy * aCos });
+        }
+        const ocx = other.x + other.w / 2;
+        const ocy = other.y + other.h / 2;
+        const ohw = other.w / 2;
+        const ohh = other.h / 2;
+        const oRad = ((other.angle ?? 0) * Math.PI) / 180;
+        const oux = Math.cos(oRad);
+        const ouy = Math.sin(oRad);
+        const ovx = -ouy;
+        const ovy = oux;
+        const corners = [
+          { x: ocx - ohw * oux - ohh * ovx, y: ocy - ohw * ouy - ohh * ovy },
+          { x: ocx + ohw * oux - ohh * ovx, y: ocy + ohw * ouy - ohh * ovy },
+          { x: ocx + ohw * oux + ohh * ovx, y: ocy + ohw * ouy + ohh * ovy },
+          { x: ocx - ohw * oux + ohh * ovx, y: ocy - ohw * ouy + ohh * ovy },
+        ];
+        for (let i = 0; i < faces; i++) {
+          const v0 = verts[i];
+          const v1 = verts[(i + 1) % faces];
+          const dx = v1.x - v0.x;
+          const dy = v1.y - v0.y;
+          const len = Math.hypot(dx, dy);
+          if (len <= 1e-6) continue;
+          const nx = dy / len;
+          const ny = -dx / len;
+          let minProj = Infinity;
+          for (const c of corners) {
+            const p = (c.x - v0.x) * nx + (c.y - v0.y) * ny;
+            if (p < minProj) minProj = p;
+          }
+          const isCardinal = Math.abs(nx) < 1e-4 || Math.abs(ny) < 1e-4;
+          const alignedDiagonal =
+            !isCardinal &&
+            Boolean(other.angle) &&
+            (Math.abs(oux * nx + ouy * ny) <= 0.14 || Math.abs(ovx * nx + ovy * ny) <= 0.14);
+          const tol = alignedDiagonal ? 0.48 : 0.02;
+          if (minProj >= -tol) return true;
+        }
+        return false;
+      };
+      return check(a, b) || check(b, a);
+    };
+
     // Tiles must not overlap each other (except an inner tile inside a circular ring walkway's hollow center,
     // or Elevator / Escalator / Lift / Stairs placed inside or merged with an Atrium)
     for (let a = 0; a < items.length; a++) {
@@ -156,7 +225,8 @@ class MallService {
           p.y + p.h > q.y &&
           !isInsideCircleHole(p, q) &&
           !isInsideCircleHole(q, p) &&
-          !isAtriumTransitOverlap(p, q)
+          !isAtriumTransitOverlap(p, q) &&
+          !isOutsidePolygonAtrium(p, q)
         ) {
           throw AppError.validation('Tiles overlap each other — move them apart before saving');
         }

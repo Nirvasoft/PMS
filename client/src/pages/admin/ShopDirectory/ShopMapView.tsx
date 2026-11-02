@@ -6,7 +6,7 @@ import 'react-grid-layout/css/styles.css';
 import toast from 'react-hot-toast';
 import {
   RotateCw, X, Pencil, Save, Plus, Maximize2, Trash2, LayoutGrid,
-  Map as MapIcon, QrCode, Navigation, MapPin,
+  Map as MapIcon, QrCode, Navigation, MapPin, Layers,
   Printer, Copy, ExternalLink, Info, ArrowRight, WifiOff, ChevronDown,
 } from 'lucide-react';
 import {
@@ -28,7 +28,7 @@ import {
   normalizeTileAngle, TILE_ANGLE_STEP,
   CORRIDOR_SHAPE_LABELS, parseCorridorShapeMode, encodeCorridorShapeMode, nextCorridorShapeMode,
   UNIT_SHAPE_LABELS, parseUnitShapeMode, encodeUnitShapeMode, nextUnitShapeMode, isTrapezoidUnitMode, getTrapezoidUnitGeometry,
-  LANDMARK_VARIANTS, parseLandmarkMeta, encodeLandmarkMeta, nextLandmarkVariant, getPolygonAtriumGeometry,
+  LANDMARK_VARIANTS, parseLandmarkMeta, encodeLandmarkMeta, nextLandmarkVariant, getPolygonAtriumGeometry, getAtriumFaceVisualNudge,
   parseFloorPlanData, buildCopiedFloorLayout, saveCachedFloorPlan, getCachedFloorPlan,
   type MapItem, type TileKind, type MapRotationAngle, type SharpCorners, type EdgeMergeGeometry, type CorridorShapeMode, type UnitShapeMode, type TrapezoidUnitGeometry,
 } from './shopMapLayout';
@@ -651,6 +651,8 @@ function MergedTileBorderSvg({
   ) {
     return null;
   }
+  const wU = cellPx > 0 ? wPx / cellPx : 0;
+  const hV = cellPx > 0 ? hPx / cellPx : 0;
   return (
     <svg
       className="shop-map-merged-border-svg"
@@ -658,16 +660,44 @@ function MergedTileBorderSvg({
       preserveAspectRatio="none"
     >
       {merge.topSegs.map(([u1, u2], idx) => (
-        <line key={`t-${idx}`} x1={u1 * cellPx} y1={0.5} x2={u2 * cellPx} y2={0.5} className="lm-border-rim" />
+        <line
+          key={`t-${idx}`}
+          x1={u1 <= 0.02 && merge.leftMerged ? -1.5 : u1 * cellPx}
+          y1={0.5}
+          x2={u2 >= wU - 0.02 && merge.rightMerged ? wPx + 1.5 : u2 * cellPx}
+          y2={0.5}
+          className="lm-border-rim"
+        />
       ))}
       {merge.leftSegs.map(([v1, v2], idx) => (
-        <line key={`l-${idx}`} x1={0.5} y1={v1 * cellPx} x2={0.5} y2={v2 * cellPx} className="lm-border-rim" />
+        <line
+          key={`l-${idx}`}
+          x1={0.5}
+          y1={v1 <= 0.02 && merge.topMerged ? -1.5 : v1 * cellPx}
+          x2={0.5}
+          y2={v2 >= hV - 0.02 && merge.bottomMerged ? hPx + 1.5 : v2 * cellPx}
+          className="lm-border-rim"
+        />
       ))}
       {merge.rightSegs.map(([v1, v2], idx) => (
-        <line key={`r-${idx}`} x1={wPx - 1} y1={v1 * cellPx} x2={wPx - 1} y2={v2 * cellPx} className="lm-border-lip-r" />
+        <line
+          key={`r-${idx}`}
+          x1={wPx - 1}
+          y1={v1 <= 0.02 && merge.topMerged ? -1.5 : v1 * cellPx}
+          x2={wPx - 1}
+          y2={v2 >= hV - 0.02 && merge.bottomMerged ? hPx + 1.5 : v2 * cellPx}
+          className="lm-border-lip-r"
+        />
       ))}
       {merge.bottomSegs.map(([u1, u2], idx) => (
-        <line key={`b-${idx}`} x1={u1 * cellPx} y1={hPx - 1.5} x2={u2 * cellPx} y2={hPx - 1.5} className="lm-border-lip-b" />
+        <line
+          key={`b-${idx}`}
+          x1={u1 <= 0.02 && merge.leftMerged ? -1.5 : u1 * cellPx}
+          y1={hPx - 1.5}
+          x2={u2 >= wU - 0.02 && merge.rightMerged ? wPx + 1.5 : u2 * cellPx}
+          y2={hPx - 1.5}
+          className="lm-border-lip-b"
+        />
       ))}
     </svg>
   );
@@ -791,6 +821,7 @@ export default function ShopMapView({
   const [qrModalFloor, setQrModalFloor] = useState<string>('');
   const [showRouteQrModal, setShowRouteQrModal] = useState(false);
   const [editingLandmarkKey, setEditingLandmarkKey] = useState<string | null>(null);
+  const [focusedLayerKey, setFocusedLayerKey] = useState<string | null>(null);
   const [landmarkVariantDraft, setLandmarkVariantDraft] = useState<string>('default');
   const [landmarkCustomDraft, setLandmarkCustomDraft] = useState<string>('');
   const [landmarkShowLabelDraft, setLandmarkShowLabelDraft] = useState<boolean>(false);
@@ -911,14 +942,13 @@ export default function ShopMapView({
       return l ? { ...it, x: l.x, y: l.y, w: l.w, h: l.h } : { ...it };
     });
 
-    // If a moved unit block overlaps its own sibling block(s), or a transit tile overlaps another transit tile, snap to border so they merge
+    // If a moved unit block overlaps its own sibling block(s), or a walkway/landmark overlaps another walkway/landmark, snap to border so they merge
     candidateItems = candidateItems.map((it, idx) => {
       const orig = baseItems[idx];
       const moved = orig && (it.x !== orig.x || it.y !== orig.y || it.w !== orig.w || it.h !== orig.h);
       if (!moved) return it;
       if (it.kind === 'unit') return snapUnitBlockToBorder(it, candidateItems, columns) ?? it;
-      if (isTransitLandmark(it.kind)) return snapTransitBlockToBorder(it, candidateItems, columns) ?? it;
-      return it;
+      return snapTransitBlockToBorder(it, candidateItems, columns) ?? it;
     });
 
     const resolvedLayout = candidateItems.map((it) => ({ i: it.key, x: it.x, y: it.y, w: it.w, h: it.h }));
@@ -1371,7 +1401,7 @@ export default function ShopMapView({
           };
         }
         if (i.kind === 'unit') {
-          const isMerged = Boolean(prevMergeMap.get(i.key)?.hasMerge);
+          const isMerged = Boolean(prevMergeMap.get(i.key)?.siblingHasMerge);
           const curr = parseUnitShapeMode(i, prev, isMerged);
           return { ...i, label: encodeUnitShapeMode(nextUnitShapeMode(curr, isMerged)) };
         }
@@ -1394,7 +1424,7 @@ export default function ShopMapView({
       if (meta.polygonFaces) return `poly${meta.polygonFaces}`;
       return meta.isCircle ? 'circle' : 'rect';
     }
-    const isMerged = Boolean(unitMergeMap.get(t.key)?.hasMerge);
+    const isMerged = Boolean(unitMergeMap.get(t.key)?.siblingHasMerge);
     return parseUnitShapeMode(t, displayItems, isMerged);
   };
 
@@ -2062,7 +2092,10 @@ export default function ShopMapView({
         <div
           ref={containerRef as any}
           className={`shop-map-canvas-wrap ${editing ? 'editing' : ''} ${isRoutingActive ? 'has-routed-unit' : ''}`}
-          onClick={() => { if (targetKey || crossFloorUnitId) clearRoute(); }}
+          onClick={() => {
+            if (focusedLayerKey) setFocusedLayerKey(null);
+            if (targetKey || crossFloorUnitId) clearRoute();
+          }}
         >
           {isFetching && items.length === 0 ? (
             <div className="shop-map-skeleton-wrap" aria-hidden="true">
@@ -2193,7 +2226,7 @@ export default function ShopMapView({
                     decor && it.kind !== 'corridor'
                       ? parseLandmarkMeta(it.kind, it.label)
                       : null;
-                  const unitMode = it.kind === 'unit' ? parseUnitShapeMode(it, displayItems, Boolean(um?.hasMerge)) : null;
+                  const unitMode = it.kind === 'unit' ? parseUnitShapeMode(it, displayItems, Boolean(um?.siblingHasMerge)) : null;
                   const shapeMode =
                     unitMode ??
                     (lmMeta
@@ -2205,7 +2238,7 @@ export default function ShopMapView({
                       : null);
                   const isCircleShape = Boolean(unitMode === 'circle' || lmMeta?.isCircle);
                   const polyAtriumGeo = lmMeta?.polygonFaces
-                    ? getPolygonAtriumGeometry(lmMeta.polygonFaces, wPx, hPx)
+                    ? getPolygonAtriumGeometry(lmMeta.polygonFaces, wPx, hPx, it, displayItems)
                     : null;
                   const isEmergencyLandmark = Boolean(lmMeta?.isEmergency);
                   const hasLandmarkVariants = Boolean(
@@ -2232,16 +2265,48 @@ export default function ShopMapView({
                       ? `${decorLabel} • ${tileShapeDesc}${it.angle ? ` • ${it.angle}°` : ''}`
                       : lmMeta?.displayLabel || decorLabel
                     : `${tileDisplayLabel}${tileDisplayLabel !== unitNumberLabel && unitNumberLabel ? ` • ${unitNumberLabel}` : ''} • ${shop?.unit?.areaSqft ?? '—'} sqft • ${shop?.unit?.status || ''}${editing && tileShapeDesc ? ` • ${tileShapeDesc}` : ''}`;
-                  const tileStyle: CSSProperties | undefined = it.angle
-                    ? ({ rotate: `${it.angle}deg` } as CSSProperties)
-                    : undefined;
-                  const isUpsideDownAngle = Boolean(it.angle && it.angle > 90 && it.angle < 270);
+                  const atriumFaceNudge = getAtriumFaceVisualNudge(it, displayItems);
+                  const tileStyle: CSSProperties | undefined =
+                    it.angle || atriumFaceNudge
+                      ? ({
+                          ...(it.angle ? { rotate: `${it.angle}deg` } : {}),
+                          ...(atriumFaceNudge
+                            ? {
+                                translate: `${(atriumFaceNudge.dx * cellPx).toFixed(1)}px ${(atriumFaceNudge.dy * cellPx).toFixed(1)}px`,
+                              }
+                            : {}),
+                        } as CSSProperties)
+                      : undefined;
+                  const isVerticalPhoto = um?.hasMerge
+                    ? um.groupBounds.spanH > um.groupBounds.spanW
+                    : isVerticalTile && !isCircleShape;
+                  const worldPhotoAngle = ((((it.angle ?? 0) + (isVerticalPhoto ? -90 : 0)) % 360) + 360) % 360;
+                  const isPhotoUpsideDown = worldPhotoAngle > 90 && worldPhotoAngle < 270;
+                  const photoImgClass = `shop-map-tile-photo${isPhotoUpsideDown ? ' is-photo-flipped' : ''}`;
+                  const worldLabelAngle = ((((it.angle ?? 0) + (isVerticalTile ? -90 : 0)) % 360) + 360) % 360;
+                  const isLabelUpsideDown = worldLabelAngle > 90 && worldLabelAngle < 270;
+                  const overlappingItems = displayItems.filter(
+                    (o) =>
+                      o.key !== it.key &&
+                      it.x < o.x + o.w &&
+                      it.x + it.w > o.x &&
+                      it.y < o.y + o.h &&
+                      it.y + it.h > o.y,
+                  );
+                  const hasInnerItems =
+                    (it.kind === 'atrium' || it.kind === 'corridor') &&
+                    overlappingItems.some((o) => o.kind !== it.kind);
+                  const parentAtrium =
+                    it.kind !== 'atrium' && it.kind !== 'corridor'
+                      ? overlappingItems.find((o) => o.kind === 'atrium') ?? null
+                      : null;
+                  const isLayerFocused = editing && focusedLayerKey === it.key;
                   return (
                     <div
                       key={it.key}
                       data-tile-key={it.key}
                       title={title}
-                      className={`shop-map-grid-item ${it.kind === 'corridor' ? 'is-corridor-item' : ''} ${isTransitLandmark(it.kind) ? 'is-transit-item' : ''} ${it.angle ? 'is-rotated-item' : ''} ${editing ? 'editing' : ''} ${isTarget ? 'active-target' : ''} ${isStart ? 'active-start' : ''}`}
+                      className={`shop-map-grid-item ${it.kind === 'corridor' ? 'is-corridor-item' : ''} ${it.kind === 'atrium' ? 'is-atrium-item' : ''} ${isTransitLandmark(it.kind) ? 'is-transit-item' : ''} ${hasInnerItems ? 'has-inner-items' : ''} ${isLayerFocused ? 'is-layer-focused' : ''} ${it.angle ? 'is-rotated-item' : ''} ${editing ? 'editing' : ''} ${isTarget ? 'active-target' : ''} ${isStart ? 'active-start' : ''}`}
                       onMouseEnter={() => {
                         if (!editing && it.unitId) setHoveredUnitId(it.unitId);
                       }}
@@ -2249,7 +2314,17 @@ export default function ShopMapView({
                         if (it.unitId) setHoveredUnitId((prev) => (prev === it.unitId ? null : prev));
                       }}
                       onClick={(e) => {
-                        if (editing) return;
+                        if (editing) {
+                          if (e.altKey) {
+                            e.stopPropagation();
+                            if (parentAtrium) {
+                              setFocusedLayerKey(focusedLayerKey === parentAtrium.key ? null : parentAtrium.key);
+                            } else if (hasInnerItems) {
+                              setFocusedLayerKey(isLayerFocused ? null : it.key);
+                            }
+                          }
+                          return;
+                        }
                         e.stopPropagation();
                         if (it.kind === 'corridor') return;
                         const alreadyTargeted =
@@ -2406,7 +2481,7 @@ export default function ShopMapView({
                                     <CachedUnitPhoto
                                       photoUrl={rawPhotoUrl}
                                       alt={tileDisplayLabel}
-                                      imgClassName="shop-map-tile-photo"
+                                      imgClassName={photoImgClass}
                                       skeletonClassName={hasUnitPhoto ? 'shop-map-tile-skeleton' : undefined}
                                       loading="eager"
                                     />
@@ -2429,7 +2504,7 @@ export default function ShopMapView({
                                   <CachedUnitPhoto
                                     photoUrl={rawPhotoUrl}
                                     alt={tileDisplayLabel}
-                                    imgClassName="shop-map-tile-photo"
+                                    imgClassName={photoImgClass}
                                     skeletonClassName={hasUnitPhoto ? 'shop-map-tile-skeleton' : undefined}
                                     loading="eager"
                                   />
@@ -2442,7 +2517,7 @@ export default function ShopMapView({
                               <CachedUnitPhoto
                                 photoUrl={rawPhotoUrl}
                                 alt={tileDisplayLabel}
-                                imgClassName="shop-map-tile-photo"
+                                imgClassName={photoImgClass}
                                 skeletonClassName={hasUnitPhoto ? 'shop-map-tile-skeleton' : undefined}
                                 loading="eager"
                               />
@@ -2453,7 +2528,7 @@ export default function ShopMapView({
                               className="shop-map-tile-name"
                               style={{
                                 fontSize: `${tileFontPx}px`,
-                                ...(isUpsideDownAngle ? ({ rotate: '180deg' } as CSSProperties) : {}),
+                                ...(isLabelUpsideDown ? ({ rotate: '180deg' } as CSSProperties) : {}),
                               }}
                             >
                               {tileDisplayLabel}
@@ -2506,6 +2581,28 @@ export default function ShopMapView({
                               ) : (
                                 <AtriumShapeIcon mode={shapeMode || 'rect'} size={tileActionIconPx} />
                               )}
+                            </button>
+                          )}
+                          {(hasInnerItems || parentAtrium) && (
+                            <button
+                              className={`shop-map-tile-btn layer ${isLayerFocused ? 'active' : ''}`}
+                              title={
+                                parentAtrium
+                                  ? 'Bring Atrium to front (Alt+Click)'
+                                  : isLayerFocused
+                                    ? 'Send behind inner items (Alt+Click)'
+                                    : 'Bring to front over inner items (Alt+Click)'
+                              }
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (parentAtrium) {
+                                  setFocusedLayerKey(focusedLayerKey === parentAtrium.key ? null : parentAtrium.key);
+                                } else {
+                                  setFocusedLayerKey(isLayerFocused ? null : it.key);
+                                }
+                              }}
+                            >
+                              <Layers size={tileActionIconPx} />
                             </button>
                           )}
                           <button
