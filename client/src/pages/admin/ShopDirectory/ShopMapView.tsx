@@ -6,8 +6,9 @@ import 'react-grid-layout/css/styles.css';
 import toast from 'react-hot-toast';
 import {
   RotateCw, X, Pencil, Save, Plus, Maximize2, Trash2, LayoutGrid,
-  Map as MapIcon, QrCode, Navigation, MapPin, Layers,
+  Map as MapIcon, QrCode, Navigation, MapPin, Layers, Magnet,
   Printer, Copy, ExternalLink, Info, ArrowRight, WifiOff, ChevronDown,
+  Compass, CornerUpLeft, CornerUpRight, MoveUp,
 } from 'lucide-react';
 import {
   useGetFloorPlanQuery,
@@ -19,18 +20,18 @@ import {
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import {
   DECORATION_DEFAULT_SIZES, DECORATION_LABELS, DEFAULT_COLUMNS, DEFAULT_SQFT_PER_CELL,
-  SHOP_CATEGORIES, compareShopsByUnitNumber, findFreeSpot, addConnectedUnitWing, snapUnitBlockToBorder, snapTransitBlockToBorder, addTransitIntoAtrium, isTransitLandmark, floorKeyOf, tilesConflict, hasAnyOverlap,
+  SHOP_CATEGORIES, compareShopsByUnitNumber, findFreeSpot, addConnectedUnitWing, addConnectedWalkwayBranch, wrapWalkwayAroundAtrium, snapTileToBorder, computeMagneticSnapGuide, addTransitIntoAtrium, isTransitLandmark, floorKeyOf, tilesConflict, hasAnyOverlap,
   tileSizeFromSqft, calibrateSqftPerCell, syncUnitTilesToSqft,
   unitKey, nextUnitBlockKey, findPrimaryUnitTile, resolveTileByKey,
   unitNumberOf, shopDisplayName, matchesShopQuery, scoreShopSearchMatch,
-  computeWalkwayPath, findDefaultStartItem, findNearestFacilityItem,
-  rotateMapLayout, parseRotationAngle, buildCorridorShapeMap, getCorridorMergeData, getLandmarkMergeData, computeUnitMergeMap, isMergeableLandmark,
+  computeWalkwayPath, buildSmoothRouteSvgPath, computeRouteDirectionArrows, computeFloorplateBounds, findDefaultStartItem, findNearestFacilityItem,
+  rotateMapLayout, parseRotationAngle, buildCorridorShapeMap, getCorridorMergeData, computeUnitMergeMap,
   normalizeTileAngle, TILE_ANGLE_STEP,
   CORRIDOR_SHAPE_LABELS, parseCorridorShapeMode, encodeCorridorShapeMode, nextCorridorShapeMode,
   UNIT_SHAPE_LABELS, parseUnitShapeMode, encodeUnitShapeMode, nextUnitShapeMode, isTrapezoidUnitMode, getTrapezoidUnitGeometry,
-  LANDMARK_VARIANTS, parseLandmarkMeta, encodeLandmarkMeta, nextLandmarkVariant, getPolygonAtriumGeometry, getAtriumFaceVisualNudge,
+  LANDMARK_VARIANTS, parseLandmarkMeta, encodeLandmarkMeta, nextLandmarkVariant, getPolygonAtriumGeometry, getAtriumFaceAlignment,
   parseFloorPlanData, buildCopiedFloorLayout, saveCachedFloorPlan, getCachedFloorPlan,
-  type MapItem, type TileKind, type MapRotationAngle, type SharpCorners, type EdgeMergeGeometry, type CorridorShapeMode, type UnitShapeMode, type TrapezoidUnitGeometry,
+  type MapItem, type TileKind, type MapRotationAngle, type SharpCorners, type EdgeMergeGeometry, type CorridorShapeMode, type CorridorMergeData, type UnitShapeMode, type TrapezoidUnitGeometry, type MagneticSnapGuide,
 } from './shopMapLayout';
 import {
   isUnitPhotoImage,
@@ -66,14 +67,6 @@ function CorridorShapeIcon({ mode, size }: { mode: CorridorShapeMode; size: numb
       <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7">
         <circle cx="8" cy="8" r="5.8" />
         <circle cx="8" cy="8" r="2.3" />
-      </svg>
-    );
-  }
-  if (mode === 'arc') {
-    return (
-      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-        <path d="M 3 3 A 10 10 0 0 1 13 13" />
-        <path d="M 3 8.5 A 4.5 4.5 0 0 1 7.5 13" />
       </svg>
     );
   }
@@ -202,99 +195,177 @@ function QrPreviewCard({
   );
 }
 
-interface MapNavOptionGroup {
-  label: string;
-  options: { value: string; label: string }[];
-}
-
 function MapNavSelect({
   value,
   placeholder,
-  groups,
+  icon,
+  clearable = false,
+  options,
   onChange,
 }: {
   value: string;
   placeholder?: string;
-  groups: MapNavOptionGroup[];
+  icon?: React.ReactNode;
+  clearable?: boolean;
+  options: { value: string; label: string }[];
   onChange: (nextVal: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [term, setTerm] = useState('');
+  const [activeIdx, setActiveIdx] = useState(0);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const selectedLabel = useMemo(() => {
+    const match = options.find((o) => o.value === value);
+    return match ? match.label : '';
+  }, [options, value]);
+
+  const visibleOptions = useMemo(() => {
+    const q = term.trim().toLowerCase();
+    if (!q) return options;
+    return options.filter((o) => o.label.toLowerCase().includes(q));
+  }, [options, term]);
+
+  useEffect(() => {
+    setActiveIdx(0);
+  }, [visibleOptions.length, open]);
 
   useEffect(() => {
     if (!open) return;
     const onDocMouseDown = (e: MouseEvent) => {
       if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
         setOpen(false);
+        setTerm('');
       }
     };
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
     document.addEventListener('mousedown', onDocMouseDown);
-    document.addEventListener('keydown', onKeyDown);
     return () => {
       document.removeEventListener('mousedown', onDocMouseDown);
-      document.removeEventListener('keydown', onKeyDown);
     };
   }, [open]);
 
-  const selectedLabel = useMemo(() => {
-    for (const g of groups) {
-      const match = g.options.find((o) => o.value === value);
-      if (match) return match.label;
+  const selectOption = (nextVal: string) => {
+    onChange(nextVal);
+    setOpen(false);
+    setTerm('');
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!open) {
+        setOpen(true);
+        return;
+      }
+      if (visibleOptions.length > 0) {
+        setActiveIdx((prev) => {
+          const delta = e.key === 'ArrowDown' ? 1 : -1;
+          return (prev + delta + visibleOptions.length) % visibleOptions.length;
+        });
+      }
+    } else if (e.key === 'Enter') {
+      if (open && visibleOptions[activeIdx]) {
+        e.preventDefault();
+        selectOption(visibleOptions[activeIdx].value);
+        inputRef.current?.blur();
+      }
+    } else if (e.key === 'Escape') {
+      if (open) {
+        e.preventDefault();
+        setOpen(false);
+        setTerm('');
+        inputRef.current?.blur();
+      }
+    } else if (e.key === 'Tab') {
+      if (open) {
+        setOpen(false);
+        setTerm('');
+      }
     }
-    return placeholder || 'Select…';
-  }, [groups, value, placeholder]);
+  };
 
   return (
     <div className="shop-map-nav-select-wrap" ref={wrapRef}>
-      <button
-        type="button"
-        className={`shop-map-nav-select-btn ${open ? 'open' : ''}`}
-        onClick={() => setOpen((prev) => !prev)}
-        aria-expanded={open}
+      <div
+        className={`shop-map-nav-select-btn shop-map-nav-combo ${open ? 'open' : ''}`}
+        onClick={() => {
+          setOpen(true);
+          inputRef.current?.focus();
+        }}
       >
-        <span className="shop-map-nav-select-text">{selectedLabel}</span>
-        <ChevronDown size={13} className="shop-map-nav-select-chevron" />
-      </button>
+        {icon && <span className="shop-map-nav-combo-icon">{icon}</span>}
+        <input
+          ref={inputRef}
+          type="text"
+          role="combobox"
+          aria-expanded={open}
+          aria-autocomplete="list"
+          autoComplete="off"
+          className="shop-map-nav-combo-input"
+          placeholder={selectedLabel || placeholder || 'Search…'}
+          value={open ? term : selectedLabel}
+          onFocus={() => setOpen(true)}
+          onChange={(e) => {
+            setTerm(e.target.value);
+            setOpen(true);
+          }}
+          onKeyDown={handleKeyDown}
+        />
+        {((open && term) || (clearable && value)) && (
+          <button
+            type="button"
+            className="shop-map-nav-combo-clear"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (open && term) {
+                setTerm('');
+                inputRef.current?.focus();
+              } else {
+                onChange('');
+                setTerm('');
+                setOpen(false);
+              }
+            }}
+            aria-label="Clear"
+          >
+            <X size={12} />
+          </button>
+        )}
+        <ChevronDown
+          size={13}
+          className="shop-map-nav-select-chevron"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (open) {
+              setOpen(false);
+              setTerm('');
+            } else {
+              setOpen(true);
+              inputRef.current?.focus();
+            }
+          }}
+        />
+      </div>
       {open && (
         <div className="shop-map-nav-menu" role="listbox">
-          {placeholder && (
-            <button
-              type="button"
-              role="option"
-              aria-selected={value === ''}
-              className={`shop-map-nav-option placeholder ${value === '' ? 'selected' : ''}`}
-              onClick={() => {
-                onChange('');
-                setOpen(false);
-              }}
-            >
-              {placeholder}
-            </button>
-          )}
-          {groups.map((group) =>
-            group.options.length > 0 ? (
-              <div key={group.label} className="shop-map-nav-group">
-                <div className="shop-map-nav-group-header">{group.label}</div>
-                {group.options.map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    role="option"
-                    aria-selected={value === opt.value}
-                    className={`shop-map-nav-option ${value === opt.value ? 'selected' : ''}`}
-                    onClick={() => {
-                      onChange(opt.value);
-                      setOpen(false);
-                    }}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            ) : null,
+          {visibleOptions.length === 0 ? (
+            <div className="shop-map-nav-empty">No matching locations</div>
+          ) : (
+            visibleOptions.map((opt, idx) => (
+              <button
+                key={opt.value}
+                type="button"
+                role="option"
+                aria-selected={value === opt.value}
+                className={`shop-map-nav-option ${idx === activeIdx ? 'active' : ''} ${value === opt.value ? 'selected' : ''}`}
+                onMouseEnter={() => setActiveIdx(idx)}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => selectOption(opt.value)}
+              >
+                {opt.label}
+              </button>
+            ))
           )}
         </div>
       )}
@@ -807,10 +878,24 @@ export default function ShopMapView({
     typeof navigator !== 'undefined' ? navigator.onLine : true,
   );
 
-  // Indoor Navigation, Map Rotation & Floor QR state
+  // Indoor Navigation, Map Rotation, 2.5D Pitch & Floor QR state
   const [mapRotation, setMapRotation] = useState<MapRotationAngle>(initialRotateParam);
+  const [is3DPitch, setIs3DPitch] = useState<boolean>(() => {
+    const p = new URLSearchParams(window.location.search).get('pitch')?.toLowerCase();
+    if (p === '2.5d' || p === '3d' || p === '1' || p === 'true') return true;
+    if (p === '2d' || p === '0' || p === 'false') return false;
+    return Boolean(publicMode);
+  });
+  const [highlightedAmenityKinds, setHighlightedAmenityKinds] = useState<TileKind[]>([]);
+  const [magnetEnabled, setMagnetEnabled] = useState(true);
+  const [magnetBypassActive, setMagnetBypassActive] = useState(false);
+  const bypassMagnetKeyRef = useRef(false);
+  const [dragSnapGuide, setDragSnapGuide] = useState<MagneticSnapGuide | null>(null);
   const [dragAngle, setDragAngle] = useState(0);
+  const [dragScale, setDragScale] = useState<string>('1 1');
   const [dragShape, setDragShape] = useState<string>('rect');
+  const [dragClipPath, setDragClipPath] = useState<string>('none');
+  const [dragPreviewItem, setDragPreviewItem] = useState<MapItem | null>(null);
   const [hoveredUnitId, setHoveredUnitId] = useState<string | null>(null);
   const [customStartKey, setCustomStartKey] = useState<string>(initialFromParam);
   const [targetKey, setTargetKey] = useState<string>(initialToParam);
@@ -836,15 +921,34 @@ export default function ShopMapView({
     };
     const onOnline = () => setIsOnline(true);
     const onOffline = () => setIsOnline(false);
+    const onKeyChange = (e: KeyboardEvent) => {
+      const bypass = Boolean(e.altKey || e.shiftKey);
+      if (bypassMagnetKeyRef.current !== bypass) {
+        bypassMagnetKeyRef.current = bypass;
+        setMagnetBypassActive(bypass);
+      }
+    };
+    const onWindowBlur = () => {
+      if (bypassMagnetKeyRef.current) {
+        bypassMagnetKeyRef.current = false;
+        setMagnetBypassActive(false);
+      }
+    };
     window.addEventListener('resize', onResize);
     window.addEventListener('orientationchange', onResize);
     window.addEventListener('online', onOnline);
     window.addEventListener('offline', onOffline);
+    window.addEventListener('keydown', onKeyChange);
+    window.addEventListener('keyup', onKeyChange);
+    window.addEventListener('blur', onWindowBlur);
     return () => {
       window.removeEventListener('resize', onResize);
       window.removeEventListener('orientationchange', onResize);
       window.removeEventListener('online', onOnline);
       window.removeEventListener('offline', onOffline);
+      window.removeEventListener('keydown', onKeyChange);
+      window.removeEventListener('keyup', onKeyChange);
+      window.removeEventListener('blur', onWindowBlur);
     };
   }, []);
 
@@ -913,7 +1017,7 @@ export default function ShopMapView({
     const candidates = nextLayout
       .map((l) => {
         const orig = byKey.get(l.i);
-        return orig ? { ...orig, x: l.x, y: l.y, w: l.w, h: l.h } : null;
+        return orig ? { ...orig, x: l.x, y: l.y, w: l.w, h: l.h, ...(l.angle !== undefined ? { angle: l.angle } : {}) } : null;
       })
       .filter(Boolean) as MapItem[];
 
@@ -924,8 +1028,8 @@ export default function ShopMapView({
         if (tilesConflict(p, q)) {
           const origP = byKey.get(p.key);
           const origQ = byKey.get(q.key);
-          const pChanged = !origP || origP.x !== p.x || origP.y !== p.y || origP.w !== p.w || origP.h !== p.h;
-          const qChanged = !origQ || origQ.x !== q.x || origQ.y !== q.y || origQ.w !== q.w || origQ.h !== q.h;
+          const pChanged = !origP || origP.x !== p.x || origP.y !== p.y || origP.w !== p.w || origP.h !== p.h || origP.angle !== p.angle;
+          const qChanged = !origQ || origQ.x !== q.x || origQ.y !== q.y || origQ.w !== q.w || origQ.h !== q.h || origQ.angle !== q.angle;
           if (pChanged || qChanged) return true;
         }
       }
@@ -937,21 +1041,24 @@ export default function ShopMapView({
     nextLayout: readonly any[],
     baseItems: ReadonlyArray<MapItem>,
   ): { conflict: boolean; items: MapItem[] } => {
+    const layoutByKey = new Map(nextLayout.map((x) => [x.i, x]));
     let candidateItems = baseItems.map((it) => {
-      const l = nextLayout.find((x) => x.i === it.key);
+      const l = layoutByKey.get(it.key);
       return l ? { ...it, x: l.x, y: l.y, w: l.w, h: l.h } : { ...it };
     });
 
-    // If a moved unit block overlaps its own sibling block(s), or a walkway/landmark overlaps another walkway/landmark, snap to border so they merge
-    candidateItems = candidateItems.map((it, idx) => {
-      const orig = baseItems[idx];
-      const moved = orig && (it.x !== orig.x || it.y !== orig.y || it.w !== orig.w || it.h !== orig.h);
-      if (!moved) return it;
-      if (it.kind === 'unit') return snapUnitBlockToBorder(it, candidateItems, columns) ?? it;
-      return snapTransitBlockToBorder(it, candidateItems, columns) ?? it;
-    });
+    // Magnetically snap moved/resized tiles to touching borders, align X/Y edge lines, and adjust rotation degree (`angle`)
+    // unless Magnet is toggled OFF or the user holds Alt / Shift during drag/resize.
+    if (magnetEnabled && !bypassMagnetKeyRef.current) {
+      candidateItems = candidateItems.map((it, idx) => {
+        const orig = baseItems[idx];
+        const moved = orig && (it.x !== orig.x || it.y !== orig.y || it.w !== orig.w || it.h !== orig.h);
+        if (!moved) return it;
+        return snapTileToBorder(it, candidateItems, columns, orig) ?? it;
+      });
+    }
 
-    const resolvedLayout = candidateItems.map((it) => ({ i: it.key, x: it.x, y: it.y, w: it.w, h: it.h }));
+    const resolvedLayout = candidateItems.map((it) => ({ i: it.key, x: it.x, y: it.y, w: it.w, h: it.h, angle: it.angle }));
     if (hasLayoutConflict(resolvedLayout, baseItems)) {
       return { conflict: true, items: baseItems.map((i) => ({ ...i })) };
     }
@@ -1015,10 +1122,9 @@ export default function ShopMapView({
     [items],
   );
   const corridors = useMemo(() => displayItems.filter((i) => i.kind === 'corridor'), [displayItems]);
-  const mergeableLandmarks = useMemo(() => displayItems.filter((i) => isMergeableLandmark(i.kind)), [displayItems]);
   const corridorShapeMap = useMemo(
-    () => buildCorridorShapeMap(corridors, mergeableLandmarks, displayItems),
-    [corridors, mergeableLandmarks, displayItems],
+    () => buildCorridorShapeMap(corridors, [], displayItems),
+    [corridors, displayItems],
   );
   const unitMergeMap = useMemo(() => computeUnitMergeMap(displayItems), [displayItems]);
   const unplaced = useMemo(
@@ -1037,7 +1143,7 @@ export default function ShopMapView({
     : isQuarterTurn
       ? Math.max(minDeviceCellPx, Math.min(rawCellPx, maxCellByHeight, 26))
       : Math.max(minDeviceCellPx, rawCellPx);
-  const naturalGridWidth = displayColumns * (cellPx + 1);
+  const naturalGridWidth = displayColumns * cellPx;
   const gridWidth = editing
     ? availWidth
     : isQuarterTurn && naturalGridWidth < availWidth
@@ -1045,8 +1151,80 @@ export default function ShopMapView({
       : naturalGridWidth > availWidth
         ? naturalGridWidth
         : availWidth;
-  const colStepPx = displayColumns > 0 ? (gridWidth - (displayColumns - 1)) / displayColumns + 1 : cellPx + 1;
-  const rowStepPx = cellPx + 1;
+  const colStepPx = displayColumns > 0 ? gridWidth / displayColumns : cellPx;
+  const rowStepPx = cellPx;
+  const floorplateBounds = useMemo(
+    () => (!editing ? computeFloorplateBounds(displayItems, displayColumns) : null),
+    [editing, displayItems, displayColumns],
+  );
+
+  const corridorMergeMap = useMemo(() => {
+    const map = new Map<string, CorridorMergeData>();
+    for (const c of corridors) {
+      map.set(c.key, getCorridorMergeData(c, corridors, [], displayItems, cellPx, corridorShapeMap));
+    }
+    return map;
+  }, [corridors, displayItems, cellPx, corridorShapeMap]);
+
+  const staticTileMetaMap = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        atriumFaceAlign: ReturnType<typeof getAtriumFaceAlignment>;
+        wPx: number;
+        hPx: number;
+        lmMeta: ReturnType<typeof parseLandmarkMeta> | null;
+        unitMode: UnitShapeMode | null;
+        polyAtriumGeo: ReturnType<typeof getPolygonAtriumGeometry> | null;
+        trapezoidGeo: TrapezoidUnitGeometry | null;
+        hasInnerItems: boolean;
+        parentAtrium: MapItem | null;
+      }
+    >();
+    for (const it of displayItems) {
+      const atriumFaceAlign = getAtriumFaceAlignment(it, displayItems);
+      const baseWPx = Math.max(1, it.w * cellPx);
+      const baseHPx = Math.max(1, it.h * cellPx);
+      const wPx = atriumFaceAlign ? Math.max(1, Math.round(baseWPx * atriumFaceAlign.scaleX)) : baseWPx;
+      const hPx = atriumFaceAlign ? Math.max(1, Math.round(baseHPx * atriumFaceAlign.scaleY)) : baseHPx;
+      const decor = it.kind !== 'unit';
+      const um = !decor ? unitMergeMap.get(it.key) ?? null : null;
+      const lmMeta = decor && it.kind !== 'corridor' ? parseLandmarkMeta(it.kind, it.label) : null;
+      const unitMode = it.kind === 'unit' ? parseUnitShapeMode(it, displayItems, Boolean(um?.siblingHasMerge)) : null;
+      const polyAtriumGeo = lmMeta?.polygonFaces
+        ? getPolygonAtriumGeometry(lmMeta.polygonFaces, wPx, hPx, it, displayItems)
+        : null;
+      const trapezoidGeo =
+        unitMode && isTrapezoidUnitMode(unitMode)
+          ? getTrapezoidUnitGeometry(unitMode, wPx, hPx, cellPx, um, it, displayItems)
+          : null;
+      let hasInnerItems = false;
+      let parentAtrium: MapItem | null = null;
+      for (const o of displayItems) {
+        if (o.key === it.key) continue;
+        if (it.x < o.x + o.w && it.x + it.w > o.x && it.y < o.y + o.h && it.y + it.h > o.y) {
+          if ((it.kind === 'atrium' || it.kind === 'corridor') && o.kind !== it.kind) {
+            hasInnerItems = true;
+          }
+          if (it.kind !== 'atrium' && it.kind !== 'corridor' && o.kind === 'atrium' && !parentAtrium) {
+            parentAtrium = o;
+          }
+        }
+      }
+      map.set(it.key, {
+        atriumFaceAlign,
+        wPx,
+        hPx,
+        lmMeta,
+        unitMode,
+        polyAtriumGeo,
+        trapezoidGeo,
+        hasInnerItems,
+        parentAtrium,
+      });
+    }
+    return map;
+  }, [displayItems, cellPx, unitMergeMap]);
 
   // Resolve starting point ("You Are Here" by default, or user-selected shop/landmark)
   const defaultStartItem = useMemo(() => findDefaultStartItem(displayItems), [displayItems]);
@@ -1184,6 +1362,20 @@ export default function ShopMapView({
     return computeWalkwayPath(displayItems, activeStartItem, effectiveTargetItem, displayColumns, effectiveSqftPerCell);
   }, [editing, activeStartItem, effectiveTargetItem, displayItems, displayColumns, effectiveSqftPerCell]);
 
+  const routeRenderData = useMemo(() => {
+    if (!walkwayRoute || walkwayRoute.points.length < 2) return null;
+    const pxPoints = walkwayRoute.points.map((pt) => ({
+      x: pt.x * colStepPx,
+      y: pt.y * rowStepPx,
+    }));
+    return {
+      smoothPathD: buildSmoothRouteSvgPath(pxPoints, Math.max(6, Math.round(cellPx * 0.48))),
+      routeArrows: computeRouteDirectionArrows(pxPoints, Math.max(38, Math.round(cellPx * 2.2))),
+      startPt: pxPoints[0],
+      endPt: pxPoints[pxPoints.length - 1],
+    };
+  }, [walkwayRoute, colStepPx, rowStepPx, cellPx]);
+
   const describeTile = (it: MapItem | null): string => {
     if (!it) return '—';
     if (it.kind === 'unit' && it.unitId) {
@@ -1219,7 +1411,7 @@ export default function ShopMapView({
     setEditingLandmarkKey(null);
   };
 
-  const startOptions = useMemo(() => {
+  const navOptions = useMemo(() => {
     const rawLandmarks = displayItems.filter((i) => i.kind !== 'unit' && i.kind !== 'corridor');
     const startByLabel = new Map<string, MapItem>();
     const destByLabel = new Map<string, MapItem>();
@@ -1239,14 +1431,23 @@ export default function ShopMapView({
     const unitItems = placedShops
       .map((s) => findPrimaryUnitTile(displayItems, s.unitId))
       .filter((x): x is MapItem => Boolean(x));
+    const startLandmarks = Array.from(startByLabel.values());
+    const destLandmarks = Array.from(destByLabel.values());
     return {
-      startLandmarks: Array.from(startByLabel.values()),
-      destLandmarks: Array.from(destByLabel.values()),
-      unitItems,
+      fromOptions: [
+        ...startLandmarks.map((lm) => ({ value: lm.key, label: describeTile(lm) })),
+        ...unitItems.map((u) => ({ value: u.key, label: describeTile(u) })),
+      ],
+      toOptions: [
+        ...placedShops.map((s) => ({ value: unitKey(s.unitId), label: shopDisplayName(s) })),
+        ...destLandmarks.map((lm) => ({ value: lm.key, label: describeTile(lm) })),
+        ...otherFloorShops.map((s) => ({ value: `cross:${s.unitId}`, label: shopDisplayName(s) })),
+      ],
     };
-  }, [displayItems, placedShops, activeStartItem, targetKey, shopByUnit]);
+  }, [displayItems, placedShops, otherFloorShops, activeStartItem, targetKey, shopByUnit]);
 
   const handleSelectDestination = (val: string) => {
+    setHighlightedAmenityKinds([]);
     if (!val) {
       setTargetKey('');
       setCrossFloorUnitId(null);
@@ -1269,7 +1470,17 @@ export default function ShopMapView({
       toast.error('Not available on this floor map');
       return;
     }
-    setTargetKey((prev) => (prev === nearest.key ? '' : nearest.key));
+    const isAlreadySameKind =
+      targetKey === nearest.key &&
+      highlightedAmenityKinds.length === kinds.length &&
+      kinds.every((k) => highlightedAmenityKinds.includes(k));
+    if (isAlreadySameKind) {
+      setTargetKey('');
+      setHighlightedAmenityKinds([]);
+    } else {
+      setTargetKey(nearest.key);
+      setHighlightedAmenityKinds(kinds);
+    }
   };
 
   const clearRoute = () => {
@@ -1277,6 +1488,7 @@ export default function ShopMapView({
     setCrossFloorUnitId(null);
     setTransitArrivalMode(false);
     setOriginFloorBeforeTransit(null);
+    setHighlightedAmenityKinds([]);
   };
 
   const cycleMapRotation = () => {
@@ -1328,6 +1540,35 @@ export default function ShopMapView({
     setDecorSeq((n) => n + 1);
   };
 
+  const addWalkwayBranch = (anchorKey: string) => {
+    const newKey = `d:${decorSeq}`;
+    const res = addConnectedWalkwayBranch(items, anchorKey, columns, newKey);
+    if (res.length > items.length) {
+      setItems(res);
+      setDirty(true);
+      setDecorSeq((n) => n + 1);
+      toast.success('Added connected walkway branch (L / T junction)');
+    } else {
+      toast.error('No free space around this walkway for a connected branch');
+    }
+  };
+
+  const handleWrapWalkwayAroundAtrium = (atriumKey: string) => {
+    const res = wrapWalkwayAroundAtrium(items, atriumKey, columns, decorSeq);
+    if (res.addedCount > 0) {
+      setItems(res.items);
+      setDirty(true);
+      setDecorSeq(res.nextSeq);
+      toast.success(
+        res.addedCount === 1
+          ? 'Wrapped Circle Ring Walkway around Atrium'
+          : `Wrapped ${res.addedCount}-part Walkway Loop around Atrium`,
+      );
+    } else {
+      toast.error('Walkway already wraps this Atrium or surrounding space is occupied');
+    }
+  };
+
   const rotate = (key: string, stepDeg = TILE_ANGLE_STEP) =>
     update((prev) =>
       prev.map((i) => {
@@ -1335,8 +1576,7 @@ export default function ShopMapView({
         if (
           stepDeg === 90 &&
           i.kind === 'corridor' &&
-          !i.angle &&
-          parseCorridorShapeMode(i.label) !== 'arc'
+          !i.angle
         ) {
           const newW = Math.min(i.h, columns);
           const newH = i.w;
@@ -1370,8 +1610,8 @@ export default function ShopMapView({
         if (i.kind === 'corridor') {
           const nextMode = nextCorridorShapeMode(parseCorridorShapeMode(i.label));
           const nextLabel = encodeCorridorShapeMode(nextMode);
-          if ((nextMode === 'circle' || nextMode === 'arc') && (i.w < 4 || i.h < 4)) {
-            const targetSizes = nextMode === 'circle' ? [6, 4] : [4, 3];
+          if (nextMode === 'circle' && (i.w < 4 || i.h < 4)) {
+            const targetSizes = [6, 4];
             const others = prev.filter((o) => o.key !== i.key);
             for (const sz of targetSizes) {
               const w = Math.min(columns, Math.max(i.w, sz));
@@ -1409,23 +1649,49 @@ export default function ShopMapView({
       });
     });
 
-  const resolveDragShape = (itemKey: string | undefined): string => {
-    if (!itemKey) return 'rect';
-    const t = displayItems.find((x) => x.key === itemKey);
-    if (!t) return 'rect';
+  const resolveDragVisuals = (
+    itemOrKey: MapItem | string | undefined,
+    currentItems: ReadonlyArray<MapItem> = displayItems,
+  ): { shape: string; clipPath: string } => {
+    const t =
+      typeof itemOrKey === 'string'
+        ? currentItems.find((x) => x.key === itemOrKey)
+        : itemOrKey;
+    if (!t) return { shape: 'rect', clipPath: 'none' };
     if (t.kind === 'corridor') {
       const info = corridorShapeMap.get(t.key);
-      if (info?.shape === 'circle') return 'ring';
-      if (info?.shape === 'arc') return `arc-${info.quadrant}`;
-      return 'rect';
+      if (info?.shape === 'circle') return { shape: 'ring', clipPath: 'none' };
+      return { shape: 'rect', clipPath: 'none' };
     }
     if (t.kind !== 'unit') {
       const meta = parseLandmarkMeta(t.kind, t.label);
-      if (meta.polygonFaces) return `poly${meta.polygonFaces}`;
-      return meta.isCircle ? 'circle' : 'rect';
+      if (meta.polygonFaces) {
+        const geo = getPolygonAtriumGeometry(
+          meta.polygonFaces,
+          Math.max(1, t.w * cellPx),
+          Math.max(1, t.h * cellPx),
+          t,
+          currentItems,
+        );
+        return { shape: `poly${meta.polygonFaces}`, clipPath: geo.clipPath };
+      }
+      return { shape: meta.isCircle ? 'circle' : 'rect', clipPath: 'none' };
     }
-    const isMerged = Boolean(unitMergeMap.get(t.key)?.siblingHasMerge);
-    return parseUnitShapeMode(t, displayItems, isMerged);
+    const um = unitMergeMap.get(t.key) ?? null;
+    const mode = parseUnitShapeMode(t, currentItems, Boolean(um?.siblingHasMerge));
+    if (isTrapezoidUnitMode(mode)) {
+      const geo = getTrapezoidUnitGeometry(
+        mode,
+        Math.max(1, t.w * cellPx),
+        Math.max(1, t.h * cellPx),
+        cellPx,
+        um,
+        t,
+        currentItems,
+      );
+      return { shape: mode, clipPath: geo.clipPath };
+    }
+    return { shape: mode, clipPath: 'none' };
   };
 
   const remove = (key: string) =>
@@ -1435,9 +1701,10 @@ export default function ShopMapView({
     if (!editing || dragOriginItemsRef.current !== null) return;
     const baseItems = itemsRef.current;
     if (hasLayoutConflict(nextLayout, baseItems)) return;
+    const layoutByKey = new Map(nextLayout.map((x) => [x.i, x]));
     let changed = false;
     const next = items.map((it) => {
-      const l = nextLayout.find((x) => x.i === it.key);
+      const l = layoutByKey.get(it.key);
       if (!l) return it;
       if (l.x === it.x && l.y === it.y && l.w === it.w && l.h === it.h) return it;
       changed = true;
@@ -1451,14 +1718,28 @@ export default function ShopMapView({
 
   const handleInteractionStart = (_l: unknown, oldItem: { i: string } | null) => {
     dragOriginItemsRef.current = itemsRef.current.map((i) => ({ ...i }));
-    setDragAngle(itemsRef.current.find((t) => t.key === oldItem?.i)?.angle ?? 0);
-    setDragShape(resolveDragShape(oldItem?.i));
+    const orig = itemsRef.current.find((t) => t.key === oldItem?.i);
+    setDragPreviewItem(orig ? { ...orig } : null);
+    setDragSnapGuide(null);
+    const align = orig ? getAtriumFaceAlignment(orig, itemsRef.current) : null;
+    setDragAngle(align ? align.exactAngleDeg : (orig?.angle ?? 0));
+    setDragScale(align ? `${align.scaleX} ${align.scaleY}` : '1 1');
+    const vis = resolveDragVisuals(orig, itemsRef.current);
+    setDragShape(vis.shape);
+    setDragClipPath(vis.clipPath);
   };
 
-  const handleInteractionMove = (nextLayout: readonly any[], _oldItem: any, l: any, placeholder: any) => {
+  const handleInteractionMove = (nextLayout: readonly any[], _oldItem: any, l: any, placeholder: any, e?: MouseEvent) => {
     if (!editing || !l || !placeholder) return;
+    if (e && typeof e.altKey === 'boolean') {
+      const bypass = Boolean(e.altKey || e.shiftKey);
+      if (bypassMagnetKeyRef.current !== bypass) {
+        bypassMagnetKeyRef.current = bypass;
+        setMagnetBypassActive(bypass);
+      }
+    }
     const baseItems = dragOriginItemsRef.current ?? itemsRef.current;
-    const { items: resolvedItems } = resolveInteractionLayout(nextLayout, baseItems);
+    const { conflict, items: resolvedItems } = resolveInteractionLayout(nextLayout, baseItems);
     const resolved = resolvedItems.find((i) => i.key === l.i);
     if (!resolved) return;
 
@@ -1466,6 +1747,18 @@ export default function ShopMapView({
     placeholder.y = resolved.y;
     placeholder.w = resolved.w;
     placeholder.h = resolved.h;
+    setDragPreviewItem(resolved);
+    const align = getAtriumFaceAlignment(resolved, resolvedItems);
+    setDragAngle(align ? align.exactAngleDeg : (resolved.angle ?? 0));
+    setDragScale(align ? `${align.scaleX} ${align.scaleY}` : '1 1');
+    const vis = resolveDragVisuals(resolved, resolvedItems);
+    setDragShape(vis.shape);
+    setDragClipPath(vis.clipPath);
+    if (!conflict && magnetEnabled && !bypassMagnetKeyRef.current) {
+      setDragSnapGuide(computeMagneticSnapGuide(resolved, resolvedItems));
+    } else {
+      setDragSnapGuide(null);
+    }
   };
 
   const handleInteractionStop = (finalLayout: readonly any[]) => {
@@ -1491,14 +1784,18 @@ export default function ShopMapView({
       !conflict &&
       resolvedItems.some((it, idx) => {
         const b = baseItems[idx];
-        return b && (it.x !== b.x || it.y !== b.y || it.w !== b.w || it.h !== b.h);
+        return b && (it.x !== b.x || it.y !== b.y || it.w !== b.w || it.h !== b.h || it.angle !== b.angle);
       })
     ) {
       setDirty(true);
     }
     dragOriginItemsRef.current = null;
+    setDragPreviewItem(null);
+    setDragSnapGuide(null);
     setDragAngle(0);
+    setDragScale('1 1');
     setDragShape('rect');
+    setDragClipPath('none');
   };
 
   const startEditingLayout = () => {
@@ -1615,6 +1912,7 @@ export default function ShopMapView({
     if (propertyId) params.set('propertyId', propertyId);
     if (floor) params.set('floor', floor);
     if (mapView === 'photo') params.set('view', 'photo');
+    if (is3DPitch) params.set('pitch', '2.5d');
     if (mapRotation) params.set('rotate', String(mapRotation));
     window.open(`/admin/mall/shops/map?${params.toString()}`, '_blank', 'noopener,noreferrer');
   };
@@ -1627,7 +1925,7 @@ export default function ShopMapView({
   const activeQrFloor = qrModalFloor || floor;
   const buildPublicNavUrl = (targetFloor: string, extra?: Record<string, string>) => {
     if (!propertyId || !targetFloor) return '';
-    const params = new URLSearchParams({ propertyId, floor: targetFloor, view: 'photo', ...extra });
+    const params = new URLSearchParams({ propertyId, floor: targetFloor, view: 'photo', pitch: '2.5d', ...extra });
     if (mapRotation) params.set('rotate', String(mapRotation));
     return `${window.location.origin}/mall/navigate?${params.toString()}`;
   };
@@ -1703,8 +2001,10 @@ export default function ShopMapView({
   const categoryIconPx = isMobile ? 13 : isTablet ? 14 : 15;
   const tileActionIconPx = isMobile ? 8 : 9;
 
+  const effective3DPitch = Boolean(!editing && is3DPitch);
+
   return (
-    <div className={`shop-map ${fullScreen ? 'shop-map-fullscreen' : ''} ${mapView === 'photo' ? 'shop-map-view2' : ''}`}>
+    <div className={`shop-map ${fullScreen ? 'shop-map-fullscreen' : ''} ${mapView === 'photo' ? 'shop-map-view2' : ''} ${effective3DPitch ? 'is-3d-pitch' : ''}`}>
       <div className="shop-map-toolbar">
         <div className="shop-map-toolbar-left">
           <select
@@ -1737,14 +2037,24 @@ export default function ShopMapView({
             </button>
           </div>
           {!editing && (
-            <button
-              type="button"
-              className={`btn btn-secondary ${mapRotation !== 0 ? 'active' : ''}`}
-              onClick={cycleMapRotation}
-              title="Rotate map"
-            >
-              <RotateCw size={toolbarIconPx} /> Rotate{mapRotation !== 0 ? ` (${mapRotation}°)` : ''}
-            </button>
+            <>
+              <button
+                type="button"
+                className={`btn btn-secondary ${is3DPitch ? 'active' : ''}`}
+                onClick={() => setIs3DPitch((prev) => !prev)}
+                title="Toggle Mappedin 2.5D Isometric Perspective View"
+              >
+                <Compass size={toolbarIconPx} /> {is3DPitch ? '2.5D View' : '2D View'}
+              </button>
+              <button
+                type="button"
+                className={`btn btn-secondary ${mapRotation !== 0 ? 'active' : ''}`}
+                onClick={cycleMapRotation}
+                title="Rotate map"
+              >
+                <RotateCw size={toolbarIconPx} /> Rotate{mapRotation !== 0 ? ` (${mapRotation}°)` : ''}
+              </button>
+            </>
           )}
           {!publicMode && (
             <button
@@ -1790,67 +2100,29 @@ export default function ShopMapView({
         <div className="shop-map-nav-bar">
           <div className="shop-map-nav-controls">
             <div className="shop-map-nav-field">
-              <span className="shop-map-nav-label">
-                <MapPin size={navIconPx} className="nav-pin-start-icon" /> From:
-              </span>
               <MapNavSelect
                 value={activeStartItem?.key || ''}
+                placeholder="Search starting location…"
+                icon={<MapPin size={navIconPx} className="nav-pin-start-icon" />}
+                clearable={Boolean(customStartKey)}
                 onChange={(val) => {
                   setTransitArrivalMode(false);
                   setCustomStartKey(val);
                 }}
-                groups={[
-                  {
-                    label: 'Floor Landmarks & Entrances',
-                    options: startOptions.startLandmarks.map((lm) => ({
-                      value: lm.key,
-                      label: describeTile(lm),
-                    })),
-                  },
-                  {
-                    label: `Shops on ${floor} (Standing Near)`,
-                    options: startOptions.unitItems.map((u) => ({
-                      value: u.key,
-                      label: describeTile(u),
-                    })),
-                  },
-                ]}
+                options={navOptions.fromOptions}
               />
             </div>
 
             <ArrowRight size={navIconPx + 1} className="shop-map-nav-arrow" />
 
             <div className="shop-map-nav-field">
-              <span className="shop-map-nav-label">
-                <Navigation size={navIconPx} className="nav-pin-dest-icon" /> To:
-              </span>
               <MapNavSelect
                 value={crossFloorUnitId ? `cross:${crossFloorUnitId}` : targetKey}
-                placeholder="Select destination shop or facility…"
+                placeholder="Search destination shop or facility…"
+                icon={<Navigation size={navIconPx} className="nav-pin-dest-icon" />}
+                clearable
                 onChange={handleSelectDestination}
-                groups={[
-                  {
-                    label: `Shops on ${floor}`,
-                    options: placedShops.map((s) => ({
-                      value: unitKey(s.unitId),
-                      label: shopDisplayName(s),
-                    })),
-                  },
-                  {
-                    label: `Facilities on ${floor}`,
-                    options: startOptions.destLandmarks.map((lm) => ({
-                      value: lm.key,
-                      label: describeTile(lm),
-                    })),
-                  },
-                  {
-                    label: 'Other Floors',
-                    options: otherFloorShops.map((s) => ({
-                      value: `cross:${s.unitId}`,
-                      label: shopDisplayName(s),
-                    })),
-                  },
-                ]}
+                options={navOptions.toOptions}
               />
             </div>
 
@@ -1858,7 +2130,7 @@ export default function ShopMapView({
               {items.some((i) => i.kind === 'toilet') && (
                 <button
                   type="button"
-                  className={`shop-map-quick-pill ${effectiveTargetItem?.kind === 'toilet' ? 'active' : ''}`}
+                  className={`shop-map-quick-pill ${effectiveTargetItem?.kind === 'toilet' || highlightedAmenityKinds.includes('toilet') ? 'active' : ''}`}
                   onClick={() => handleQuickFacility(['toilet'])}
                 >
                   Restroom
@@ -1867,16 +2139,25 @@ export default function ShopMapView({
               {items.some((i) => i.kind === 'escalator' || i.kind === 'stairs') && (
                 <button
                   type="button"
-                  className={`shop-map-quick-pill ${effectiveTargetItem?.kind === 'escalator' || effectiveTargetItem?.kind === 'stairs' ? 'active' : ''}`}
+                  className={`shop-map-quick-pill ${effectiveTargetItem?.kind === 'escalator' || effectiveTargetItem?.kind === 'stairs' || highlightedAmenityKinds.includes('escalator') ? 'active' : ''}`}
                   onClick={() => handleQuickFacility(['escalator', 'stairs'])}
                 >
                   Elevator / Stairs
                 </button>
               )}
+              {items.some((i) => i.kind === 'entrance') && (
+                <button
+                  type="button"
+                  className={`shop-map-quick-pill ${effectiveTargetItem?.kind === 'entrance' || highlightedAmenityKinds.includes('entrance') ? 'active' : ''}`}
+                  onClick={() => handleQuickFacility(['entrance'])}
+                >
+                  Entrance
+                </button>
+              )}
               {items.some((i) => i.kind === 'exit') && (
                 <button
                   type="button"
-                  className={`shop-map-quick-pill ${effectiveTargetItem?.kind === 'exit' ? 'active' : ''}`}
+                  className={`shop-map-quick-pill ${effectiveTargetItem?.kind === 'exit' || highlightedAmenityKinds.includes('exit') ? 'active' : ''}`}
                   onClick={() => handleQuickFacility(['exit'])}
                 >
                   Exit
@@ -1885,7 +2166,7 @@ export default function ShopMapView({
               {items.some((i) => i.kind === 'info') && (
                 <button
                   type="button"
-                  className={`shop-map-quick-pill ${effectiveTargetItem?.kind === 'info' ? 'active' : ''}`}
+                  className={`shop-map-quick-pill ${effectiveTargetItem?.kind === 'info' || highlightedAmenityKinds.includes('info') ? 'active' : ''}`}
                   onClick={() => handleQuickFacility(['info'])}
                 >
                   Info Desk
@@ -1894,7 +2175,7 @@ export default function ShopMapView({
               {items.some((i) => i.kind === 'atm') && (
                 <button
                   type="button"
-                  className={`shop-map-quick-pill ${effectiveTargetItem?.kind === 'atm' ? 'active' : ''}`}
+                  className={`shop-map-quick-pill ${effectiveTargetItem?.kind === 'atm' || highlightedAmenityKinds.includes('atm') ? 'active' : ''}`}
                   onClick={() => handleQuickFacility(['atm'])}
                 >
                   ATM
@@ -1903,7 +2184,7 @@ export default function ShopMapView({
               {items.some((i) => i.kind === 'parking') && (
                 <button
                   type="button"
-                  className={`shop-map-quick-pill ${effectiveTargetItem?.kind === 'parking' ? 'active' : ''}`}
+                  className={`shop-map-quick-pill ${effectiveTargetItem?.kind === 'parking' || highlightedAmenityKinds.includes('parking') ? 'active' : ''}`}
                   onClick={() => handleQuickFacility(['parking'])}
                 >
                   Parking
@@ -1912,7 +2193,7 @@ export default function ShopMapView({
               {items.some((i) => i.kind === 'medical') && (
                 <button
                   type="button"
-                  className={`shop-map-quick-pill ${effectiveTargetItem?.kind === 'medical' ? 'active' : ''}`}
+                  className={`shop-map-quick-pill ${effectiveTargetItem?.kind === 'medical' || highlightedAmenityKinds.includes('medical') ? 'active' : ''}`}
                   onClick={() => handleQuickFacility(['medical'])}
                 >
                   First Aid
@@ -1932,12 +2213,30 @@ export default function ShopMapView({
                     <strong>{shopDisplayName(crossFloorShop)}</strong>.
                   </span>
                 ) : walkwayRoute ? (
-                  <span className="shop-map-route-steps">
-                    <strong>{describeTile(activeStartItem)}</strong> → <strong>{describeTile(effectiveTargetItem)}</strong>
-                    <span className="shop-map-route-metrics">
-                      ~{walkwayRoute.distanceMeters} m ({walkwayRoute.distanceFeet} ft) · {walkwayRoute.estimatedMinutes} min walk
+                  <div className="shop-map-route-details-col">
+                    <span className="shop-map-route-steps">
+                      <strong>{describeTile(activeStartItem)}</strong> → <strong>{describeTile(effectiveTargetItem)}</strong>
+                      <span className="shop-map-route-metrics">
+                        ~{walkwayRoute.distanceMeters} m ({walkwayRoute.distanceFeet} ft) · {walkwayRoute.estimatedMinutes} min walk
+                      </span>
                     </span>
-                  </span>
+                    {walkwayRoute.steps.length > 0 && (
+                      <div className="shop-map-turn-steps">
+                        {walkwayRoute.steps.map((st, idx) => (
+                          <span key={`step-${idx}`} className={`shop-map-turn-pill dir-${st.direction}`}>
+                            {st.direction === 'left' ? (
+                              <CornerUpLeft size={11} />
+                            ) : st.direction === 'right' ? (
+                              <CornerUpRight size={11} />
+                            ) : (
+                              <MoveUp size={11} />
+                            )}
+                            <span>{st.instruction}</span>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 ) : null}
               </div>
 
@@ -2046,6 +2345,14 @@ export default function ShopMapView({
             <Maximize2 size={13} /> Auto-Size by Sqft ({Math.round(effectiveSqftPerCell)} sqft/cell)
           </button>
           <button
+            type="button"
+            className={`btn btn-secondary shop-map-magnet-btn ${magnetEnabled && !magnetBypassActive ? 'active' : ''}`}
+            onClick={() => setMagnetEnabled((prev) => !prev)}
+            title="Toggle magnetic border snapping & Polygon Atrium face alignment (Hold Alt or Shift while dragging to temporarily bypass)"
+          >
+            <Magnet size={13} /> Magnet: {magnetEnabled ? (magnetBypassActive ? 'BYPASS (Alt/Shift)' : 'ON') : 'OFF'}
+          </button>
+          <button
             className="btn btn-secondary shop-map-clear-btn"
             onClick={() => update((prev) => prev.filter((i) => i.kind === 'marker'))}
             disabled={items.every((i) => i.kind === 'marker')}
@@ -2130,353 +2437,423 @@ export default function ShopMapView({
               )}
             </div>
           ) : (
-            <div
-              className="shop-map-stage"
-              data-drag-shape={dragShape}
-              style={{ width: gridWidth, ['--drag-angle' as string]: `${dragAngle}deg` } as CSSProperties}
-            >
-              <ReactGridLayout
-                width={gridWidth}
-                layout={layout as any}
-                gridConfig={{ cols: displayColumns, rowHeight: cellPx, margin: [1, 1], containerPadding: [0, 0], maxRows: rows } as any}
-                positionStrategy={absoluteStrategy as any}
-                dragConfig={{ enabled: editing, cancel: '.shop-map-tile-btn' } as any}
-                resizeConfig={{ enabled: editing, handles: ['se', 'sw', 'nw', 'ne'] } as any}
-                compactor={mapCompactor as any}
-                onLayoutChange={onLayoutChange as any}
-                onDragStart={handleInteractionStart as any}
-                onDragStop={handleInteractionStop as any}
-                onResizeStart={handleInteractionStart as any}
-                onResizeStop={handleInteractionStop as any}
-                onDrag={handleInteractionMove as any}
-                onResize={handleInteractionMove as any}
+            <>
+              <div
+                className={`shop-map-stage ${effective3DPitch ? 'is-3d-stage' : ''}`}
+                data-drag-shape={dragShape}
+                style={{
+                  width: gridWidth,
+                  ['--drag-angle' as string]: `${dragAngle}deg`,
+                  ['--drag-scale' as string]: dragScale,
+                  ['--drag-clip-path' as string]: dragClipPath,
+                } as CSSProperties}
               >
-                {displayItems.map((it) => {
-                  const shop = it.unitId ? shopByUnit.get(it.unitId) : null;
-                  const decor = it.kind !== 'unit';
-                  const isSearchMatch = Boolean(hasActiveSearch && !decor && shop && matchesShopQuery(shop, normalizedSearch));
-                  const isTarget = Boolean(
-                    !editing &&
-                      effectiveTargetItem &&
-                      (it.key === effectiveTargetItem.key ||
-                        (Boolean(it.unitId) && it.unitId === effectiveTargetItem.unitId)),
-                  );
-                  const isStart = Boolean(
-                    !editing &&
-                      isRoutingActive &&
-                      !hasActiveSearch &&
-                      activeStartItem &&
-                      (it.key === activeStartItem.key ||
-                        (Boolean(it.unitId) && it.unitId === activeStartItem.unitId)),
-                  );
-                  const isUnitHovered = Boolean(!editing && it.unitId && hoveredUnitId === it.unitId);
-                  const dim = Boolean(
-                    !editing &&
-                      hasActiveSearch &&
-                      (decor ? it.kind !== 'corridor' : !isSearchMatch),
-                  );
-                  const wPx = Math.max(1, it.w * cellPx);
-                  const hPx = Math.max(1, it.h * cellPx);
-                  const isVerticalTile = !decor && it.h > it.w;
-                  const longSidePx = isVerticalTile ? hPx : wPx;
-                  const shortSidePx = isVerticalTile ? wPx : hPx;
-                  const tiny = !decor && (longSidePx < 18 || shortSidePx < 14);
-                  const minSidePx = Math.min(it.w, it.h) * cellPx;
-                  const maxBadgeForTile = Math.max(10, minSidePx - (isMobile ? 3 : 5));
-                  const minBadgePx = isMobile ? 12 : isTablet ? 14 : 16;
-                  const maxBadgePx = isMobile ? 42 : isTablet ? 64 : 88;
-                  const badgeScale = isMobile ? 0.60 : isTablet ? 0.64 : 0.68;
-                  const badgePx = Math.min(
-                    maxBadgeForTile,
-                    Math.max(minBadgePx, Math.min(maxBadgePx, Math.round(minSidePx * badgeScale))),
-                  );
-                  const decorType = it.kind as Exclude<TileKind, 'unit'>;
-                  const decorLabel = DECORATION_LABELS[decorType] || it.label || '';
-                  const cm =
-                    it.kind === 'corridor'
-                      ? getCorridorMergeData(it, corridors, mergeableLandmarks, displayItems, cellPx, corridorShapeMap)
-                      : null;
-                  const lm = isMergeableLandmark(it.kind) ? getLandmarkMergeData(it, corridors, corridorShapeMap, displayItems) : null;
-                  const um = !decor ? unitMergeMap.get(it.key) ?? null : null;
-                  const isCurvedCorridor = Boolean(cm && cm.shape !== 'straight');
-                  const decorMergeClasses = cm
-                    ? `${sharpCornerClasses(cm)}${isCurvedCorridor ? ' is-curved-corridor' : ''}`
-                    : lm?.hasMerge
-                      ? edgeMergeClasses('is-merged-landmark', lm)
+                {floorplateBounds && (
+                  <div
+                    className="shop-map-floorplate"
+                    style={{
+                      left: `${(floorplateBounds.x * colStepPx).toFixed(1)}px`,
+                      top: `${(floorplateBounds.y * rowStepPx).toFixed(1)}px`,
+                      width: `${(floorplateBounds.w * colStepPx).toFixed(1)}px`,
+                      height: `${(floorplateBounds.h * rowStepPx).toFixed(1)}px`,
+                    }}
+                    aria-hidden="true"
+                  />
+                )}
+                <ReactGridLayout
+                  width={gridWidth}
+                  layout={layout as any}
+                  gridConfig={{ cols: displayColumns, rowHeight: cellPx, margin: [0, 0], containerPadding: [0, 0], maxRows: rows } as any}
+                  positionStrategy={absoluteStrategy as any}
+                  dragConfig={{ enabled: editing, cancel: '.shop-map-tile-btn' } as any}
+                  resizeConfig={{ enabled: editing, handles: ['se', 'sw', 'nw', 'ne'] } as any}
+                  compactor={mapCompactor as any}
+                  onLayoutChange={onLayoutChange as any}
+                  onDragStart={handleInteractionStart as any}
+                  onDragStop={handleInteractionStop as any}
+                  onResizeStart={handleInteractionStart as any}
+                  onResizeStop={handleInteractionStop as any}
+                  onDrag={handleInteractionMove as any}
+                  onResize={handleInteractionMove as any}
+                >
+                  {displayItems.map((it) => {
+                    const isDraggingThisTile = Boolean(dragPreviewItem && dragPreviewItem.key === it.key && mapRotation === 0);
+                    const effectiveIt = isDraggingThisTile && dragPreviewItem ? dragPreviewItem : it;
+                    const cachedMeta = !isDraggingThisTile ? staticTileMetaMap.get(it.key) : null;
+                    const effectiveDisplayItems =
+                      isDraggingThisTile && dragPreviewItem
+                        ? displayItems.map((d) => (d.key === dragPreviewItem.key ? dragPreviewItem : d))
+                        : displayItems;
+                    const atriumFaceAlign = cachedMeta
+                      ? cachedMeta.atriumFaceAlign
+                      : getAtriumFaceAlignment(effectiveIt, effectiveDisplayItems);
+                    const shop = it.unitId ? shopByUnit.get(it.unitId) : null;
+                    const decor = it.kind !== 'unit';
+                    const isSearchMatch = Boolean(hasActiveSearch && !decor && shop && matchesShopQuery(shop, normalizedSearch));
+                    const isTarget = Boolean(
+                      !editing &&
+                        effectiveTargetItem &&
+                        (it.key === effectiveTargetItem.key ||
+                          (Boolean(it.unitId) && it.unitId === effectiveTargetItem.unitId)),
+                    );
+                    const isStart = Boolean(
+                      !editing &&
+                        isRoutingActive &&
+                        !hasActiveSearch &&
+                        activeStartItem &&
+                        (it.key === activeStartItem.key ||
+                          (Boolean(it.unitId) && it.unitId === activeStartItem.unitId)),
+                    );
+                    const isAmenityHighlighted = Boolean(!editing && decor && highlightedAmenityKinds.includes(it.kind));
+                    const isUnitHovered = Boolean(!editing && it.unitId && hoveredUnitId === it.unitId);
+                    const dim = Boolean(
+                      !editing &&
+                        hasActiveSearch &&
+                        (decor ? it.kind !== 'corridor' : !isSearchMatch),
+                    );
+                    const gridItemWPx = Math.max(1, it.w * cellPx);
+                    const gridItemHPx = Math.max(1, it.h * cellPx);
+                    const baseWPx = Math.max(1, effectiveIt.w * cellPx);
+                    const baseHPx = Math.max(1, effectiveIt.h * cellPx);
+                    const wPx = cachedMeta
+                      ? cachedMeta.wPx
+                      : atriumFaceAlign
+                        ? Math.max(1, Math.round(baseWPx * atriumFaceAlign.scaleX))
+                        : baseWPx;
+                    const hPx = cachedMeta
+                      ? cachedMeta.hPx
+                      : atriumFaceAlign
+                        ? Math.max(1, Math.round(baseHPx * atriumFaceAlign.scaleY))
+                        : baseHPx;
+                    const isVerticalTile = !decor && effectiveIt.h > effectiveIt.w;
+                    const longSidePx = isVerticalTile ? hPx : wPx;
+                    const shortSidePx = isVerticalTile ? wPx : hPx;
+                    const tiny = !decor && (longSidePx < 18 || shortSidePx < 14);
+                    const minSidePx = Math.min(wPx, hPx);
+                    const maxBadgeForTile = Math.max(10, minSidePx - (isMobile ? 3 : 5));
+                    const minBadgePx = isMobile ? 12 : isTablet ? 14 : 16;
+                    const maxBadgePx = isMobile ? 42 : isTablet ? 64 : 88;
+                    const badgeScale = isMobile ? 0.60 : isTablet ? 0.64 : 0.68;
+                    const badgePx = Math.min(
+                      maxBadgeForTile,
+                      Math.max(minBadgePx, Math.min(maxBadgePx, Math.round(minSidePx * badgeScale))),
+                    );
+                    const decorType = it.kind as Exclude<TileKind, 'unit'>;
+                    const decorLabel = DECORATION_LABELS[decorType] || it.label || '';
+                    const cm = it.kind === 'corridor' ? corridorMergeMap.get(it.key) ?? null : null;
+                    const um = !decor ? unitMergeMap.get(it.key) ?? null : null;
+                    const isCurvedCorridor = Boolean(cm && cm.shape !== 'straight');
+                    const decorMergeClasses = cm
+                      ? `${sharpCornerClasses(cm)}${isCurvedCorridor ? ' is-curved-corridor' : ''}`
                       : '';
-                  const unitMergeClasses = um?.hasMerge ? edgeMergeClasses('is-merged-unit', um) : '';
-                  const showUnitLabel = !um || um.showLabel;
-                  const unitNumberLabel = unitNumberOf(shop);
-                  const tileDisplayLabel = shopDisplayName(shop);
-                  const labelLen = Math.max(2, tileDisplayLabel.length);
-                  const minTileFontPx = isMobile ? 7 : 8;
-                  const tileFontPx = Math.max(
-                    minTileFontPx,
-                    Math.min(
-                      13,
-                      Math.floor(Math.min(shortSidePx * 0.38, (longSidePx - 6) / Math.max(2.4, labelLen * 0.54))),
-                    ),
-                  );
-                  const rawPhotoUrl = shop?.unit?.floorPlanUrl as string | undefined;
-                  const hasPhotoImage = isUnitPhotoImage(rawPhotoUrl);
-                  const showPhotoMode = !decor && mapView === 'photo';
-                  const hasUnitPhoto = showPhotoMode && hasPhotoImage;
-                  const corridorMode = it.kind === 'corridor' ? parseCorridorShapeMode(it.label) : null;
-                  const lmMeta =
-                    decor && it.kind !== 'corridor'
-                      ? parseLandmarkMeta(it.kind, it.label)
+                    const unitMergeClasses = um?.hasMerge ? edgeMergeClasses('is-merged-unit', um) : '';
+                    const showUnitLabel = !um || um.showLabel;
+                    const unitNumberLabel = unitNumberOf(shop);
+                    const tileDisplayLabel = shopDisplayName(shop);
+                    const labelLen = Math.max(2, tileDisplayLabel.length);
+                    const minTileFontPx = isMobile ? 7 : 8;
+                    const tileFontPx = Math.max(
+                      minTileFontPx,
+                      Math.min(
+                        13,
+                        Math.floor(Math.min(shortSidePx * 0.38, (longSidePx - 6) / Math.max(2.4, labelLen * 0.54))),
+                      ),
+                    );
+                    const rawPhotoUrl = shop?.unit?.floorPlanUrl as string | undefined;
+                    const hasPhotoImage = isUnitPhotoImage(rawPhotoUrl);
+                    const showPhotoMode = !decor && mapView === 'photo';
+                    const hasUnitPhoto = showPhotoMode && hasPhotoImage;
+                    const corridorMode = it.kind === 'corridor' ? parseCorridorShapeMode(it.label) : null;
+                    const lmMeta = cachedMeta
+                      ? cachedMeta.lmMeta
+                      : decor && it.kind !== 'corridor'
+                        ? parseLandmarkMeta(it.kind, it.label)
+                        : null;
+                    const unitMode = cachedMeta
+                      ? cachedMeta.unitMode
+                      : it.kind === 'unit'
+                        ? parseUnitShapeMode(effectiveIt, effectiveDisplayItems, Boolean(um?.siblingHasMerge))
+                        : null;
+                    const shapeMode =
+                      unitMode ??
+                      (lmMeta
+                        ? lmMeta.polygonFaces
+                          ? `poly${lmMeta.polygonFaces}`
+                          : lmMeta.isCircle
+                            ? 'circle'
+                            : 'rect'
+                        : null);
+                    const isCircleShape = Boolean(unitMode === 'circle' || lmMeta?.isCircle);
+                    const polyAtriumGeo = cachedMeta
+                      ? cachedMeta.polyAtriumGeo
+                      : lmMeta?.polygonFaces
+                        ? getPolygonAtriumGeometry(lmMeta.polygonFaces, wPx, hPx, it, displayItems)
+                        : null;
+                    const isEmergencyLandmark = Boolean(lmMeta?.isEmergency);
+                    const hasLandmarkVariants = Boolean(
+                      decor && it.kind !== 'corridor' && it.kind !== 'marker' && (LANDMARK_VARIANTS[it.kind as Exclude<TileKind, 'unit' | 'corridor'>]?.length ?? 0) > 1,
+                    );
+                    const showLandmarkSublabel = Boolean(lmMeta && lmMeta.showLabel);
+                    const effectiveBadgePx = showLandmarkSublabel
+                      ? Math.max(10, Math.min(badgePx, Math.round(hPx * 0.48)))
+                      : badgePx;
+                    const effectiveIconPx = Math.max(isMobile ? 8 : 9, Math.round(effectiveBadgePx * 0.60));
+                    const trapezoidGeo = cachedMeta
+                      ? cachedMeta.trapezoidGeo
+                      : unitMode && isTrapezoidUnitMode(unitMode)
+                        ? getTrapezoidUnitGeometry(unitMode, wPx, hPx, cellPx, um, effectiveIt, effectiveDisplayItems)
+                        : null;
+                    const tileShapeDesc = corridorMode
+                      ? `${CORRIDOR_SHAPE_LABELS[corridorMode]}${cm && corridorMode === 'auto' ? ` (${CORRIDOR_SHAPE_LABELS[cm.shape]})` : ''}`
+                      : lmMeta
+                        ? lmMeta.displayLabel
+                        : unitMode
+                          ? UNIT_SHAPE_LABELS[unitMode]
+                          : '';
+                    const effectiveAngle = atriumFaceAlign ? atriumFaceAlign.exactAngleDeg : (effectiveIt.angle ?? 0);
+                    const title = decor
+                      ? editing && tileShapeDesc
+                        ? `${decorLabel} • ${tileShapeDesc}${effectiveAngle ? ` • ${effectiveAngle}°` : ''}`
+                        : lmMeta?.displayLabel || decorLabel
+                      : `${tileDisplayLabel}${tileDisplayLabel !== unitNumberLabel && unitNumberLabel ? ` • ${unitNumberLabel}` : ''} • ${shop?.unit?.areaSqft ?? '—'} sqft • ${shop?.unit?.status || ''}${editing && tileShapeDesc ? ` • ${tileShapeDesc}` : ''}`;
+                    const atriumFaceNudge = !isDraggingThisTile && atriumFaceAlign
+                      ? { dx: atriumFaceAlign.dx, dy: atriumFaceAlign.dy }
                       : null;
-                  const unitMode = it.kind === 'unit' ? parseUnitShapeMode(it, displayItems, Boolean(um?.siblingHasMerge)) : null;
-                  const shapeMode =
-                    unitMode ??
-                    (lmMeta
-                      ? lmMeta.polygonFaces
-                        ? `poly${lmMeta.polygonFaces}`
-                        : lmMeta.isCircle
-                          ? 'circle'
-                          : 'rect'
-                      : null);
-                  const isCircleShape = Boolean(unitMode === 'circle' || lmMeta?.isCircle);
-                  const polyAtriumGeo = lmMeta?.polygonFaces
-                    ? getPolygonAtriumGeometry(lmMeta.polygonFaces, wPx, hPx, it, displayItems)
-                    : null;
-                  const isEmergencyLandmark = Boolean(lmMeta?.isEmergency);
-                  const hasLandmarkVariants = Boolean(
-                    decor && it.kind !== 'corridor' && it.kind !== 'marker' && (LANDMARK_VARIANTS[it.kind as Exclude<TileKind, 'unit' | 'corridor'>]?.length ?? 0) > 1,
-                  );
-                  const showLandmarkSublabel = Boolean(lmMeta && lmMeta.showLabel);
-                  const effectiveBadgePx = showLandmarkSublabel
-                    ? Math.max(10, Math.min(badgePx, Math.round(hPx * 0.48)))
-                    : badgePx;
-                  const effectiveIconPx = Math.max(isMobile ? 8 : 9, Math.round(effectiveBadgePx * 0.60));
-                  const trapezoidGeo =
-                    unitMode && isTrapezoidUnitMode(unitMode)
-                      ? getTrapezoidUnitGeometry(unitMode, wPx, hPx, cellPx, um, it, displayItems)
-                      : null;
-                  const tileShapeDesc = corridorMode
-                    ? `${CORRIDOR_SHAPE_LABELS[corridorMode]}${cm && corridorMode === 'auto' ? ` (${CORRIDOR_SHAPE_LABELS[cm.shape]})` : ''}`
-                    : lmMeta
-                      ? lmMeta.displayLabel
-                      : unitMode
-                        ? UNIT_SHAPE_LABELS[unitMode]
-                        : '';
-                  const title = decor
-                    ? editing && tileShapeDesc
-                      ? `${decorLabel} • ${tileShapeDesc}${it.angle ? ` • ${it.angle}°` : ''}`
-                      : lmMeta?.displayLabel || decorLabel
-                    : `${tileDisplayLabel}${tileDisplayLabel !== unitNumberLabel && unitNumberLabel ? ` • ${unitNumberLabel}` : ''} • ${shop?.unit?.areaSqft ?? '—'} sqft • ${shop?.unit?.status || ''}${editing && tileShapeDesc ? ` • ${tileShapeDesc}` : ''}`;
-                  const atriumFaceNudge = getAtriumFaceVisualNudge(it, displayItems);
-                  const tileStyle: CSSProperties | undefined =
-                    it.angle || atriumFaceNudge
-                      ? ({
-                          ...(it.angle ? { rotate: `${it.angle}deg` } : {}),
-                          ...(atriumFaceNudge
-                            ? {
-                                translate: `${(atriumFaceNudge.dx * cellPx).toFixed(1)}px ${(atriumFaceNudge.dy * cellPx).toFixed(1)}px`,
-                              }
-                            : {}),
-                        } as CSSProperties)
-                      : undefined;
-                  const isVerticalPhoto = um?.hasMerge
-                    ? um.groupBounds.spanH > um.groupBounds.spanW
-                    : isVerticalTile && !isCircleShape;
-                  const worldPhotoAngle = ((((it.angle ?? 0) + (isVerticalPhoto ? -90 : 0)) % 360) + 360) % 360;
-                  const isPhotoUpsideDown = worldPhotoAngle > 90 && worldPhotoAngle < 270;
-                  const photoImgClass = `shop-map-tile-photo${isPhotoUpsideDown ? ' is-photo-flipped' : ''}`;
-                  const worldLabelAngle = ((((it.angle ?? 0) + (isVerticalTile ? -90 : 0)) % 360) + 360) % 360;
-                  const isLabelUpsideDown = worldLabelAngle > 90 && worldLabelAngle < 270;
-                  const overlappingItems = displayItems.filter(
-                    (o) =>
-                      o.key !== it.key &&
-                      it.x < o.x + o.w &&
-                      it.x + it.w > o.x &&
-                      it.y < o.y + o.h &&
-                      it.y + it.h > o.y,
-                  );
-                  const hasInnerItems =
-                    (it.kind === 'atrium' || it.kind === 'corridor') &&
-                    overlappingItems.some((o) => o.kind !== it.kind);
-                  const parentAtrium =
-                    it.kind !== 'atrium' && it.kind !== 'corridor'
-                      ? overlappingItems.find((o) => o.kind === 'atrium') ?? null
-                      : null;
-                  const isLayerFocused = editing && focusedLayerKey === it.key;
-                  return (
-                    <div
-                      key={it.key}
-                      data-tile-key={it.key}
-                      title={title}
-                      className={`shop-map-grid-item ${it.kind === 'corridor' ? 'is-corridor-item' : ''} ${it.kind === 'atrium' ? 'is-atrium-item' : ''} ${isTransitLandmark(it.kind) ? 'is-transit-item' : ''} ${hasInnerItems ? 'has-inner-items' : ''} ${isLayerFocused ? 'is-layer-focused' : ''} ${it.angle ? 'is-rotated-item' : ''} ${editing ? 'editing' : ''} ${isTarget ? 'active-target' : ''} ${isStart ? 'active-start' : ''}`}
-                      onMouseEnter={() => {
-                        if (!editing && it.unitId) setHoveredUnitId(it.unitId);
-                      }}
-                      onMouseLeave={() => {
-                        if (it.unitId) setHoveredUnitId((prev) => (prev === it.unitId ? null : prev));
-                      }}
-                      onClick={(e) => {
-                        if (editing) {
-                          if (e.altKey) {
-                            e.stopPropagation();
-                            if (parentAtrium) {
-                              setFocusedLayerKey(focusedLayerKey === parentAtrium.key ? null : parentAtrium.key);
-                            } else if (hasInnerItems) {
-                              setFocusedLayerKey(isLayerFocused ? null : it.key);
-                            }
-                          }
-                          return;
-                        }
-                        e.stopPropagation();
-                        if (it.kind === 'corridor') return;
-                        const alreadyTargeted =
-                          targetKey === it.key || (Boolean(it.unitId) && selectedUnitId === it.unitId);
-                        if (alreadyTargeted && shop) {
-                          onOpenShop(shop);
-                        } else {
-                          setCrossFloorUnitId(null);
-                          setTargetKey(it.unitId ? unitKey(it.unitId) : it.key);
-                        }
-                      }}
-                      onDoubleClick={(e) => {
-                        if (!editing && shop) {
-                          e.stopPropagation();
-                          onOpenShop(shop);
-                        } else if (editing && decor && it.kind !== 'corridor' && it.kind !== 'marker') {
-                          e.stopPropagation();
-                          openLandmarkConfig(it.key);
-                        }
-                      }}
-                    >
+                    const hasSizeOverride = wPx !== gridItemWPx || hPx !== gridItemHPx;
+                    const tileStyle: CSSProperties | undefined =
+                      effectiveAngle || atriumFaceNudge || hasSizeOverride
+                        ? ({
+                            ...(hasSizeOverride
+                              ? {
+                                  width: `${wPx}px`,
+                                  height: `${hPx}px`,
+                                  left: `${((gridItemWPx - wPx) / 2).toFixed(1)}px`,
+                                  top: `${((gridItemHPx - hPx) / 2).toFixed(1)}px`,
+                                }
+                              : {}),
+                            ...(effectiveAngle ? { rotate: `${effectiveAngle}deg` } : {}),
+                            ...(atriumFaceNudge
+                              ? {
+                                  translate: `${(atriumFaceNudge.dx * cellPx).toFixed(1)}px ${(atriumFaceNudge.dy * cellPx).toFixed(1)}px`,
+                                }
+                              : {}),
+                          } as CSSProperties)
+                        : undefined;
+                    const isVerticalPhoto = um?.hasMerge
+                      ? um.groupBounds.spanH > um.groupBounds.spanW
+                      : isVerticalTile && !isCircleShape;
+                    const worldPhotoAngle = ((((effectiveAngle) + (isVerticalPhoto ? -90 : 0)) % 360) + 360) % 360;
+                    const isPhotoUpsideDown = worldPhotoAngle > 90 && worldPhotoAngle < 270;
+                    const photoImgClass = `shop-map-tile-photo${isPhotoUpsideDown ? ' is-photo-flipped' : ''}`;
+                    const isSmartUprightLabel = Boolean(effectiveAngle !== 0 && !isVerticalTile);
+                    const worldLabelAngle = ((((effectiveAngle) + (isVerticalTile ? -90 : 0)) % 360) + 360) % 360;
+                    const isLabelUpsideDown = !isSmartUprightLabel && worldLabelAngle > 90 && worldLabelAngle < 270;
+                    const showUnitSubNumber = Boolean(
+                      !hasUnitPhoto &&
+                        tileDisplayLabel !== unitNumberLabel &&
+                        unitNumberLabel &&
+                        shortSidePx >= 34 &&
+                        longSidePx >= 48,
+                    );
+                    const hasInnerItems = cachedMeta ? cachedMeta.hasInnerItems : false;
+                    const parentAtrium = cachedMeta ? cachedMeta.parentAtrium : null;
+                    const isLayerFocused = editing && focusedLayerKey === it.key;
+                    return (
                       <div
-                        style={tileStyle}
-                        className={`shop-map-tile ${decor ? `st-decor st-decor-${it.kind} ${lmMeta ? `st-variant-${lmMeta.variant}` : ''} ${decorMergeClasses}` : `${statusClass(shop)} ${unitMergeClasses}`} ${isCircleShape ? 'is-circle-tile' : ''} ${polyAtriumGeo ? 'is-polygon-atrium' : ''} ${trapezoidGeo ? 'is-trapezoid-tile' : ''} ${isEmergencyLandmark ? 'is-emergency-landmark' : ''} ${isUnitHovered ? 'is-unit-hovered' : ''} ${hasUnitPhoto ? 'has-unit-photo' : ''} ${isVerticalTile ? 'is-vertical-tile' : ''} ${editing ? 'editing' : ''} ${dim ? 'dim' : ''} ${isSearchMatch ? 'search-match' : ''} ${tiny ? 'tiny' : ''} ${isTarget ? 'active-target' : ''} ${isStart ? 'active-start' : ''}`}
+                        key={it.key}
+                        data-tile-key={it.key}
+                        title={title}
+                        className={`shop-map-grid-item ${it.kind === 'corridor' ? 'is-corridor-item' : ''} ${it.kind === 'atrium' ? 'is-atrium-item' : ''} ${isTransitLandmark(it.kind) ? 'is-transit-item' : ''} ${hasInnerItems ? 'has-inner-items' : ''} ${isLayerFocused ? 'is-layer-focused' : ''} ${effectiveAngle ? 'is-rotated-item' : ''} ${editing ? 'editing' : ''} ${isTarget ? 'active-target' : ''} ${isStart ? 'active-start' : ''} ${isAmenityHighlighted ? 'is-amenity-highlighted' : ''}`}
+                        onMouseEnter={() => {
+                          if (!editing && it.unitId) setHoveredUnitId(it.unitId);
+                        }}
+                        onMouseLeave={() => {
+                          if (it.unitId) setHoveredUnitId((prev) => (prev === it.unitId ? null : prev));
+                        }}
+                        onClick={(e) => {
+                          if (editing) {
+                            if (e.altKey) {
+                              e.stopPropagation();
+                              if (parentAtrium) {
+                                setFocusedLayerKey(focusedLayerKey === parentAtrium.key ? null : parentAtrium.key);
+                              } else if (hasInnerItems) {
+                                setFocusedLayerKey(isLayerFocused ? null : it.key);
+                              }
+                            }
+                            return;
+                          }
+                          e.stopPropagation();
+                          if (it.kind === 'corridor') return;
+                          const alreadyTargeted =
+                            targetKey === it.key || (Boolean(it.unitId) && selectedUnitId === it.unitId);
+                          if (alreadyTargeted && shop) {
+                            onOpenShop(shop);
+                          } else {
+                            setCrossFloorUnitId(null);
+                            setHighlightedAmenityKinds([]);
+                            setTargetKey(it.unitId ? unitKey(it.unitId) : it.key);
+                          }
+                        }}
+                        onDoubleClick={(e) => {
+                          if (!editing && shop) {
+                            e.stopPropagation();
+                            onOpenShop(shop);
+                          } else if (editing && decor && it.kind !== 'corridor' && it.kind !== 'marker') {
+                            e.stopPropagation();
+                            openLandmarkConfig(it.key);
+                          }
+                        }}
                       >
-                      {decor ? (
-                        it.kind === 'corridor' && cm ? (
-                          <svg
-                            className="shop-map-corridor-svg"
-                            viewBox={`0 0 ${wPx} ${hPx}`}
-                            preserveAspectRatio="none"
-                          >
-                            {cm.fillPath && (
-                              <path d={cm.fillPath} fillRule="evenodd" className="shop-map-corridor-fill" />
-                            )}
-                            {cm.bridgePaths.map((d, idx) => (
-                              <path key={`bp-${idx}`} d={d} className="shop-map-corridor-bridge" />
-                            ))}
-                            {cm.borderPaths.map((d, idx) => (
-                              <path key={`b-${idx}`} d={d} className="shop-map-corridor-border" />
-                            ))}
-                            {cm.centerlinePaths.map((d, idx) => (
-                              <path key={`cl-${idx}`} d={d} className="shop-map-corridor-centerline" />
-                            ))}
-                          </svg>
+                        <div
+                          style={tileStyle}
+                          className={`shop-map-tile ${decor ? `st-decor st-decor-${it.kind} ${lmMeta ? `st-variant-${lmMeta.variant}` : ''} ${decorMergeClasses}` : `${statusClass(shop)} ${unitMergeClasses}`} ${isCircleShape ? 'is-circle-tile' : ''} ${polyAtriumGeo ? 'is-polygon-atrium' : ''} ${trapezoidGeo ? 'is-trapezoid-tile' : ''} ${isEmergencyLandmark ? 'is-emergency-landmark' : ''} ${isUnitHovered ? 'is-unit-hovered' : ''} ${hasUnitPhoto ? 'has-unit-photo' : ''} ${isVerticalTile ? 'is-vertical-tile' : ''} ${editing ? 'editing' : ''} ${dim ? 'dim' : ''} ${isSearchMatch ? 'search-match' : ''} ${tiny ? 'tiny' : ''} ${isTarget ? 'active-target' : ''} ${isStart ? 'active-start' : ''} ${isAmenityHighlighted ? 'is-amenity-highlighted' : ''}`}
+                        >
+                        {decor ? (
+                          it.kind === 'corridor' && cm ? (
+                            <svg
+                              className="shop-map-corridor-svg"
+                              viewBox={`0 0 ${wPx} ${hPx}`}
+                              preserveAspectRatio="none"
+                            >
+                              {cm.fillPath && (
+                                <path d={cm.fillPath} fillRule="evenodd" className="shop-map-corridor-fill" />
+                              )}
+                              {cm.bridgePaths.map((d, idx) => (
+                                <path key={`bp-${idx}`} d={d} className="shop-map-corridor-bridge" />
+                              ))}
+                              {cm.borderPaths.map((d, idx) => (
+                                <path key={`b-${idx}`} d={d} className="shop-map-corridor-border" />
+                              ))}
+                              {cm.centerlinePaths.map((d, idx) => (
+                                <path key={`cl-${idx}`} d={d} className="shop-map-corridor-centerline" />
+                              ))}
+                            </svg>
+                          ) : (
+                            <>
+                              {polyAtriumGeo && (
+                                <svg
+                                  className="shop-map-atrium-poly-svg"
+                                  viewBox={`0 0 ${wPx} ${hPx}`}
+                                  preserveAspectRatio="none"
+                                >
+                                  <polygon points={polyAtriumGeo.outerPoints} className="shop-map-atrium-poly-base" />
+                                  {polyAtriumGeo.rimPath && <path d={polyAtriumGeo.rimPath} className="lm-border-rim" fill="none" />}
+                                  {polyAtriumGeo.lipPath && <path d={polyAtriumGeo.lipPath} className="lm-border-lip-b" fill="none" />}
+                                </svg>
+                              )}
+                              <div
+                                className="shop-map-decor-content"
+                                style={effectiveAngle ? ({ rotate: `${-effectiveAngle}deg` } as CSSProperties) : undefined}
+                              >
+                                <div className="shop-map-decor-badge" style={{ width: effectiveBadgePx, height: effectiveBadgePx }}>
+                                  <span className="shop-map-decor-icon">
+                                    <DecorIcon
+                                      kind={decorType as Exclude<TileKind, 'unit' | 'corridor'>}
+                                      variant={lmMeta?.variant}
+                                      size={effectiveIconPx}
+                                    />
+                                  </span>
+                                </div>
+                                {showLandmarkSublabel && lmMeta && (
+                                  <span className="shop-map-decor-sublabel">{lmMeta.badgeText}</span>
+                                )}
+                              </div>
+                            </>
+                          )
                         ) : (
                           <>
-                            {polyAtriumGeo ? (
-                              <svg
-                                className="shop-map-atrium-poly-svg"
-                                viewBox={`0 0 ${wPx} ${hPx}`}
-                                preserveAspectRatio="none"
-                              >
-                                <polygon points={polyAtriumGeo.outerPoints} className="shop-map-atrium-poly-base" />
-                                {polyAtriumGeo.rimPath && <path d={polyAtriumGeo.rimPath} className="lm-border-rim" fill="none" />}
-                                {polyAtriumGeo.lipPath && <path d={polyAtriumGeo.lipPath} className="lm-border-lip-b" fill="none" />}
-                              </svg>
-                            ) : (
-                              lm?.hasMerge && (
-                                <MergedTileBorderSvg merge={lm} cellPx={cellPx} wPx={wPx} hPx={hPx} />
-                              )
-                            )}
-                            <div
-                              className="shop-map-decor-content"
-                              style={it.angle ? ({ rotate: `${-it.angle}deg` } as CSSProperties) : undefined}
-                            >
-                              <div className="shop-map-decor-badge" style={{ width: effectiveBadgePx, height: effectiveBadgePx }}>
-                                <span className="shop-map-decor-icon">
-                                  <DecorIcon
-                                    kind={decorType as Exclude<TileKind, 'unit' | 'corridor'>}
-                                    variant={lmMeta?.variant}
-                                    size={effectiveIconPx}
-                                  />
-                                </span>
-                              </div>
-                              {showLandmarkSublabel && lmMeta && (
-                                <span className="shop-map-decor-sublabel">{lmMeta.badgeText}</span>
-                              )}
-                            </div>
-                          </>
-                        )
-                      ) : (
-                        <>
-                          {um?.hasMerge ? (
-                            <div className="shop-map-unit-box">
-                              {um.topBridges.map(([u1, u2], idx) => (
-                                <span
-                                  key={`utb-${idx}`}
-                                  className="shop-map-unit-bridge"
-                                  style={{
-                                    left: `${(u1 / it.w) * 100}%`,
-                                    width: `${((u2 - u1) / it.w) * 100}%`,
-                                    bottom: '100%',
-                                    height: 2,
-                                  }}
-                                />
-                              ))}
-                              {um.bottomBridges.map(([u1, u2], idx) => (
-                                <span
-                                  key={`ubb-${idx}`}
-                                  className="shop-map-unit-bridge"
-                                  style={{
-                                    left: `${(u1 / it.w) * 100}%`,
-                                    width: `${((u2 - u1) / it.w) * 100}%`,
-                                    top: '100%',
-                                    height: it.angle ? 2 : 1.5,
-                                  }}
-                                />
-                              ))}
-                              {um.leftBridges.map(([v1, v2], idx) => (
-                                <span
-                                  key={`ulb-${idx}`}
-                                  className="shop-map-unit-bridge"
-                                  style={{
-                                    top: `${(v1 / it.h) * 100}%`,
-                                    height: `${((v2 - v1) / it.h) * 100}%`,
-                                    right: '100%',
-                                    width: 2,
-                                  }}
-                                />
-                              ))}
-                              {um.rightBridges.map(([v1, v2], idx) => (
-                                <span
-                                  key={`urb-${idx}`}
-                                  className="shop-map-unit-bridge"
-                                  style={{
-                                    top: `${(v1 / it.h) * 100}%`,
-                                    height: `${((v2 - v1) / it.h) * 100}%`,
-                                    left: '100%',
-                                    width: it.angle ? 2 : 1.5,
-                                  }}
-                                />
-                              ))}
-                              {hasPhotoImage && (
-                                <div
-                                  className="shop-map-tile-photo-clip"
-                                  style={{
-                                    top: um.topMerged && um.topSegs.length === 0 ? -1 : 0,
-                                    right: um.rightMerged && um.rightSegs.length === 0 ? -1 : 0,
-                                    bottom: um.bottomMerged && um.bottomSegs.length === 0 ? -1 : 0,
-                                    left: um.leftMerged && um.leftSegs.length === 0 ? -1 : 0,
-                                    ...(trapezoidGeo ? { clipPath: trapezoidGeo.clipPath } : {}),
-                                  }}
-                                >
-                                  <div
-                                    className={`shop-map-group-photo-frame ${um.groupBounds.spanH > um.groupBounds.spanW ? 'is-vertical-group' : ''}`}
+                            {um?.hasMerge ? (
+                              <div className="shop-map-unit-box">
+                                {um.topBridges.map(([u1, u2], idx) => (
+                                  <span
+                                    key={`utb-${idx}`}
+                                    className="shop-map-unit-bridge"
                                     style={{
-                                      left: `${-((it.x - um.groupBounds.minX) / it.w) * 100}%`,
-                                      top: `${-((it.y - um.groupBounds.minY) / it.h) * 100}%`,
-                                      width: `${(um.groupBounds.spanW / it.w) * 100}%`,
-                                      height: `${(um.groupBounds.spanH / it.h) * 100}%`,
+                                      left: `${(u1 / it.w) * 100}%`,
+                                      width: `${((u2 - u1) / it.w) * 100}%`,
+                                      bottom: '100%',
+                                      height: 2,
                                     }}
+                                  />
+                                ))}
+                                {um.bottomBridges.map(([u1, u2], idx) => (
+                                  <span
+                                    key={`ubb-${idx}`}
+                                    className="shop-map-unit-bridge"
+                                    style={{
+                                      left: `${(u1 / it.w) * 100}%`,
+                                      width: `${((u2 - u1) / it.w) * 100}%`,
+                                      top: '100%',
+                                      height: it.angle ? 2 : 1.5,
+                                    }}
+                                  />
+                                ))}
+                                {um.leftBridges.map(([v1, v2], idx) => (
+                                  <span
+                                    key={`ulb-${idx}`}
+                                    className="shop-map-unit-bridge"
+                                    style={{
+                                      top: `${(v1 / it.h) * 100}%`,
+                                      height: `${((v2 - v1) / it.h) * 100}%`,
+                                      right: '100%',
+                                      width: 2,
+                                    }}
+                                  />
+                                ))}
+                                {um.rightBridges.map(([v1, v2], idx) => (
+                                  <span
+                                    key={`urb-${idx}`}
+                                    className="shop-map-unit-bridge"
+                                    style={{
+                                      top: `${(v1 / it.h) * 100}%`,
+                                      height: `${((v2 - v1) / it.h) * 100}%`,
+                                      left: '100%',
+                                      width: it.angle ? 2 : 1.5,
+                                    }}
+                                  />
+                                ))}
+                                {hasPhotoImage && (
+                                  <div
+                                    className="shop-map-tile-photo-clip"
+                                    style={{
+                                      top: um.topMerged && um.topSegs.length === 0 ? -1 : 0,
+                                      right: um.rightMerged && um.rightSegs.length === 0 ? -1 : 0,
+                                      bottom: um.bottomMerged && um.bottomSegs.length === 0 ? -1 : 0,
+                                      left: um.leftMerged && um.leftSegs.length === 0 ? -1 : 0,
+                                      ...(trapezoidGeo ? { clipPath: trapezoidGeo.clipPath } : {}),
+                                    }}
+                                  >
+                                    <div
+                                      className={`shop-map-group-photo-frame ${um.groupBounds.spanH > um.groupBounds.spanW ? 'is-vertical-group' : ''}`}
+                                      style={{
+                                        left: `${-((it.x - um.groupBounds.minX) / it.w) * 100}%`,
+                                        top: `${-((it.y - um.groupBounds.minY) / it.h) * 100}%`,
+                                        width: `${(um.groupBounds.spanW / it.w) * 100}%`,
+                                        height: `${(um.groupBounds.spanH / it.h) * 100}%`,
+                                      }}
+                                    >
+                                      <CachedUnitPhoto
+                                        photoUrl={rawPhotoUrl}
+                                        alt={tileDisplayLabel}
+                                        imgClassName={photoImgClass}
+                                        skeletonClassName={hasUnitPhoto ? 'shop-map-tile-skeleton' : undefined}
+                                        loading="eager"
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+                                {trapezoidGeo ? (
+                                  <TrapezoidUnitSvg trap={trapezoidGeo} wPx={wPx} hPx={hPx} showFill={!hasUnitPhoto} />
+                                ) : (
+                                  <MergedTileBorderSvg merge={um} cellPx={cellPx} wPx={wPx} hPx={hPx} />
+                                )}
+                              </div>
+                            ) : trapezoidGeo ? (
+                              <div className="shop-map-unit-box">
+                                {hasPhotoImage && (
+                                  <div
+                                    className="shop-map-tile-photo-clip"
+                                    style={{ clipPath: trapezoidGeo.clipPath }}
                                   >
                                     <CachedUnitPhoto
                                       photoUrl={rawPhotoUrl}
@@ -2486,168 +2863,239 @@ export default function ShopMapView({
                                       loading="eager"
                                     />
                                   </div>
-                                </div>
-                              )}
-                              {trapezoidGeo ? (
+                                )}
                                 <TrapezoidUnitSvg trap={trapezoidGeo} wPx={wPx} hPx={hPx} showFill={!hasUnitPhoto} />
-                              ) : (
-                                <MergedTileBorderSvg merge={um} cellPx={cellPx} wPx={wPx} hPx={hPx} />
-                              )}
-                            </div>
-                          ) : trapezoidGeo ? (
-                            <div className="shop-map-unit-box">
-                              {hasPhotoImage && (
-                                <div
-                                  className="shop-map-tile-photo-clip"
-                                  style={{ clipPath: trapezoidGeo.clipPath }}
-                                >
-                                  <CachedUnitPhoto
-                                    photoUrl={rawPhotoUrl}
-                                    alt={tileDisplayLabel}
-                                    imgClassName={photoImgClass}
-                                    skeletonClassName={hasUnitPhoto ? 'shop-map-tile-skeleton' : undefined}
-                                    loading="eager"
-                                  />
-                                </div>
-                              )}
-                              <TrapezoidUnitSvg trap={trapezoidGeo} wPx={wPx} hPx={hPx} showFill={!hasUnitPhoto} />
-                            </div>
-                          ) : (
-                            hasPhotoImage && (
-                              <CachedUnitPhoto
-                                photoUrl={rawPhotoUrl}
-                                alt={tileDisplayLabel}
-                                imgClassName={photoImgClass}
-                                skeletonClassName={hasUnitPhoto ? 'shop-map-tile-skeleton' : undefined}
-                                loading="eager"
-                              />
-                            )
-                          )}
-                          {showUnitLabel && (
-                            <div
-                              className="shop-map-tile-name"
-                              style={{
-                                fontSize: `${tileFontPx}px`,
-                                ...(isLabelUpsideDown ? ({ rotate: '180deg' } as CSSProperties) : {}),
-                              }}
-                            >
-                              {tileDisplayLabel}
-                            </div>
-                          )}
-                        </>
-                      )}
-                      </div>
-                      {editing && (
-                        <div
-                          className="shop-map-tile-actions"
-                          onMouseDown={(e) => e.stopPropagation()}
-                          onPointerDown={(e) => e.stopPropagation()}
-                        >
-                          {it.kind === 'unit' && (
-                            <button
-                              className="shop-map-tile-btn add"
-                              title="Add connected wing block (L / T / U shape)"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                addUnitWing(it.key);
-                              }}
-                            >
-                              <Plus size={tileActionIconPx} />
-                            </button>
-                          )}
-                          {decor && it.kind !== 'corridor' && it.kind !== 'marker' && (
-                            <button
-                              className="shop-map-tile-btn add"
-                              title={`Customize ${decorLabel} (type, direction & gate/label)`}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openLandmarkConfig(it.key);
-                              }}
-                            >
-                              <Pencil size={tileActionIconPx} />
-                            </button>
-                          )}
-                          {(corridorMode || unitMode || hasLandmarkVariants) && (
-                            <button
-                              className="shop-map-tile-btn shape"
-                              title={`${decor ? decorLabel : 'Unit'}: ${tileShapeDesc} — click to switch`}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                cycleTileShape(it.key);
-                              }}
-                            >
-                              {corridorMode ? (
-                                <CorridorShapeIcon mode={corridorMode} size={tileActionIconPx} />
-                              ) : (
-                                <AtriumShapeIcon mode={shapeMode || 'rect'} size={tileActionIconPx} />
-                              )}
-                            </button>
-                          )}
-                          {(hasInnerItems || parentAtrium) && (
-                            <button
-                              className={`shop-map-tile-btn layer ${isLayerFocused ? 'active' : ''}`}
-                              title={
-                                parentAtrium
-                                  ? 'Bring Atrium to front (Alt+Click)'
-                                  : isLayerFocused
-                                    ? 'Send behind inner items (Alt+Click)'
-                                    : 'Bring to front over inner items (Alt+Click)'
-                              }
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (parentAtrium) {
-                                  setFocusedLayerKey(focusedLayerKey === parentAtrium.key ? null : parentAtrium.key);
-                                } else {
-                                  setFocusedLayerKey(isLayerFocused ? null : it.key);
-                                }
-                              }}
-                            >
-                              <Layers size={tileActionIconPx} />
-                            </button>
-                          )}
-                          <button
-                            className="shop-map-tile-btn rot"
-                            title={`Rotate ${TILE_ANGLE_STEP}° (Shift+Click for 90°)`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              rotate(it.key, e.shiftKey ? 90 : TILE_ANGLE_STEP);
-                            }}
-                          >
-                            <RotateCw size={tileActionIconPx} />
-                          </button>
-                          {it.kind !== 'marker' && (
-                            <button className="shop-map-tile-btn" title="Remove" onClick={(e) => { e.stopPropagation(); remove(it.key); }}>
-                              <X size={tileActionIconPx} />
-                            </button>
-                          )}
+                              </div>
+                            ) : (
+                              hasPhotoImage && (
+                                <CachedUnitPhoto
+                                  photoUrl={rawPhotoUrl}
+                                  alt={tileDisplayLabel}
+                                  imgClassName={photoImgClass}
+                                  skeletonClassName={hasUnitPhoto ? 'shop-map-tile-skeleton' : undefined}
+                                  loading="eager"
+                                />
+                              )
+                            )}
+                            {showUnitLabel && (
+                              <div
+                                className={`shop-map-tile-name ${isSmartUprightLabel ? 'is-smart-upright' : ''}`}
+                                style={{
+                                  fontSize: `${tileFontPx}px`,
+                                  ...(isSmartUprightLabel
+                                    ? ({ rotate: `${-effectiveAngle}deg` } as CSSProperties)
+                                    : isLabelUpsideDown
+                                      ? ({ rotate: '180deg' } as CSSProperties)
+                                      : {}),
+                                }}
+                              >
+                                <span className="shop-map-tile-name-main">{tileDisplayLabel}</span>
+                                {showUnitSubNumber && (
+                                  <span className="shop-map-tile-unit-no">{unitNumberLabel}</span>
+                                )}
+                              </div>
+                            )}
+                          </>
+                        )}
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </ReactGridLayout>
+                        {editing && (
+                          <div
+                            className="shop-map-tile-actions"
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onPointerDown={(e) => e.stopPropagation()}
+                          >
+                            {it.kind === 'unit' && (
+                              <button
+                                className="shop-map-tile-btn add"
+                                title="Add connected wing block (L / T / U shape)"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  addUnitWing(it.key);
+                                }}
+                              >
+                                <Plus size={tileActionIconPx} />
+                              </button>
+                            )}
+                            {it.kind === 'corridor' && (
+                              <button
+                                className="shop-map-tile-btn add"
+                                title="Add connected walkway branch (L-Turn / T-Junction)"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  addWalkwayBranch(it.key);
+                                }}
+                              >
+                                <Plus size={tileActionIconPx} />
+                              </button>
+                            )}
+                            {decor && it.kind !== 'corridor' && it.kind !== 'marker' && (
+                              <button
+                                className="shop-map-tile-btn add"
+                                title={`Customize ${decorLabel} (type, direction & gate/label)`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openLandmarkConfig(it.key);
+                                }}
+                              >
+                                <Pencil size={tileActionIconPx} />
+                              </button>
+                            )}
+                            {(corridorMode || unitMode || hasLandmarkVariants) && (
+                              <button
+                                className="shop-map-tile-btn shape"
+                                title={`${decor ? decorLabel : 'Unit'}: ${tileShapeDesc} — click to switch`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  cycleTileShape(it.key);
+                                }}
+                              >
+                                {corridorMode ? (
+                                  <CorridorShapeIcon mode={corridorMode} size={tileActionIconPx} />
+                                ) : (
+                                  <AtriumShapeIcon mode={shapeMode || 'rect'} size={tileActionIconPx} />
+                                )}
+                              </button>
+                            )}
+                            {(hasInnerItems || parentAtrium) && (
+                              <button
+                                className={`shop-map-tile-btn layer ${isLayerFocused ? 'active' : ''}`}
+                                title={
+                                  parentAtrium
+                                    ? 'Bring Atrium to front (Alt+Click)'
+                                    : isLayerFocused
+                                      ? 'Send behind inner items (Alt+Click)'
+                                      : 'Bring to front over inner items (Alt+Click)'
+                                }
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (parentAtrium) {
+                                    setFocusedLayerKey(focusedLayerKey === parentAtrium.key ? null : parentAtrium.key);
+                                  } else {
+                                    setFocusedLayerKey(isLayerFocused ? null : it.key);
+                                  }
+                                }}
+                              >
+                                <Layers size={tileActionIconPx} />
+                              </button>
+                            )}
+                            <button
+                              className="shop-map-tile-btn rot"
+                              title={`Rotate ${TILE_ANGLE_STEP}° (Shift+Click for 90°)`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                rotate(it.key, e.shiftKey ? 90 : TILE_ANGLE_STEP);
+                              }}
+                            >
+                              <RotateCw size={tileActionIconPx} />
+                            </button>
+                            {it.kind !== 'marker' && (
+                              <button className="shop-map-tile-btn" title="Remove" onClick={(e) => { e.stopPropagation(); remove(it.key); }}>
+                                <X size={tileActionIconPx} />
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </ReactGridLayout>
 
-              {/* ── Walkway Indoor Navigation Route Overlay ── */}
-              {isRoutingActive && walkwayRoute && walkwayRoute.points.length >= 2 && (() => {
-                const pxPoints = walkwayRoute.points.map((pt) => ({
-                  x: pt.x * colStepPx - 0.5,
-                  y: pt.y * rowStepPx - 0.5,
-                }));
-                const polyStr = pxPoints.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
-                const startPt = pxPoints[0];
-                const endPt = pxPoints[pxPoints.length - 1];
-                return (
-                  <svg className="shop-map-connector-svg">
-                    <polyline points={polyStr} className="shop-map-nav-glow" />
-                    <polyline points={polyStr} className="shop-map-connector-line" />
-                    <circle cx={startPt.x} cy={startPt.y} r={8} className="shop-map-nav-pulse start" />
-                    <circle cx={startPt.x} cy={startPt.y} r={4.5} className="shop-map-connector-dot start" />
-                    <circle cx={endPt.x} cy={endPt.y} r={9} className="shop-map-nav-pulse target" />
-                    <circle cx={endPt.x} cy={endPt.y} r={5} className="shop-map-connector-dot target" />
-                  </svg>
-                );
-              })()}
-            </div>
+                {/* ── Live Magnetic Snap Guide Lines & Floating Snap Badge (Edit Mode) ── */}
+                {editing && dragSnapGuide && (
+                  <>
+                    <svg className="shop-map-snap-guides-svg" aria-hidden="true">
+                      {dragSnapGuide.guideLines.map((gl, idx) => (
+                        <line
+                          key={`gl-${idx}`}
+                          x1={gl.x1 * colStepPx}
+                          y1={gl.y1 * rowStepPx}
+                          x2={gl.x2 * colStepPx}
+                          y2={gl.y2 * rowStepPx}
+                          className={`shop-map-snap-guide-line ${dragSnapGuide.isPolygonAtriumSnap ? 'atrium' : ''}`}
+                        />
+                      ))}
+                      <line
+                        x1={dragSnapGuide.touchLine.x1 * colStepPx}
+                        y1={dragSnapGuide.touchLine.y1 * rowStepPx}
+                        x2={dragSnapGuide.touchLine.x2 * colStepPx}
+                        y2={dragSnapGuide.touchLine.y2 * rowStepPx}
+                        className={`shop-map-snap-touch-line ${dragSnapGuide.isPolygonAtriumSnap ? 'atrium' : ''}`}
+                      />
+                      <circle
+                        cx={dragSnapGuide.touchLine.x1 * colStepPx}
+                        cy={dragSnapGuide.touchLine.y1 * rowStepPx}
+                        r={3.5}
+                        className={`shop-map-snap-endpoint ${dragSnapGuide.isPolygonAtriumSnap ? 'atrium' : ''}`}
+                      />
+                      <circle
+                        cx={dragSnapGuide.touchLine.x2 * colStepPx}
+                        cy={dragSnapGuide.touchLine.y2 * rowStepPx}
+                        r={3.5}
+                        className={`shop-map-snap-endpoint ${dragSnapGuide.isPolygonAtriumSnap ? 'atrium' : ''}`}
+                      />
+                    </svg>
+                    <div
+                      className={`shop-map-snap-badge ${dragSnapGuide.isPolygonAtriumSnap ? 'atrium' : ''}`}
+                      style={{
+                        left: `${dragSnapGuide.badgePos.x * colStepPx}px`,
+                        top: `${Math.max(18, dragSnapGuide.badgePos.y * rowStepPx - 14)}px`,
+                      }}
+                    >
+                      <Magnet size={11} />
+                      <span>{dragSnapGuide.badgeText}</span>
+                    </div>
+                  </>
+                )}
+
+                {/* ── Mappedin Smooth Wayfinding Route Overlay & Floating 3D Callout Pins ── */}
+                {routeRenderData && walkwayRoute && (() => {
+                  const { smoothPathD, routeArrows, startPt, endPt } = routeRenderData;
+                  return (
+                    <>
+                      <svg className="shop-map-connector-svg" aria-hidden="true">
+                        <path d={smoothPathD} className="shop-map-nav-glow" />
+                        <path d={smoothPathD} className="shop-map-nav-casing" />
+                        <path d={smoothPathD} className="shop-map-connector-line" />
+                        {routeArrows.map((ar, idx) => (
+                          <g
+                            key={`ar-${idx}`}
+                            transform={`translate(${ar.x.toFixed(1)}, ${ar.y.toFixed(1)}) rotate(${ar.angleDeg.toFixed(1)})`}
+                            className="shop-map-nav-arrow-glyph"
+                          >
+                            <path d="M -3 -2.6 L 2.2 0 L -3 2.6" />
+                          </g>
+                        ))}
+                        <circle cx={startPt.x} cy={startPt.y} r={8} className="shop-map-nav-pulse start" />
+                        <circle cx={startPt.x} cy={startPt.y} r={4.5} className="shop-map-connector-dot start" />
+                        <circle cx={endPt.x} cy={endPt.y} r={9} className="shop-map-nav-pulse target" />
+                        <circle cx={endPt.x} cy={endPt.y} r={5} className="shop-map-connector-dot target" />
+                      </svg>
+                      <div
+                        className="shop-map-floating-pin start"
+                        style={{
+                          left: `${startPt.x.toFixed(1)}px`,
+                          top: `${startPt.y.toFixed(1)}px`,
+                        }}
+                      >
+                        <MapPin size={11} />
+                        <span>{describeTile(activeStartItem)}</span>
+                      </div>
+                      <div
+                        className="shop-map-floating-pin target"
+                        style={{
+                          left: `${endPt.x.toFixed(1)}px`,
+                          top: `${endPt.y.toFixed(1)}px`,
+                        }}
+                      >
+                        <Navigation size={11} />
+                        <span>{describeTile(effectiveTargetItem)}</span>
+                        <small>~{walkwayRoute.estimatedMinutes}m</small>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            </>
           )}
 
           {!editing && (placedCategories.length > 0 || placedDecorKinds.length > 0) && (
@@ -2914,9 +3362,24 @@ export default function ShopMapView({
             {lmKind === 'atrium' && (
               <div className="shop-map-lm-modal-section">
                 <label className="shop-map-lm-modal-label">
-                  Add Inside Atrium (Elevator / Escalator / Stairs / Lift)
+                  Add Inside or Around Atrium (Walkway Ring / Elevator / Escalator / Stairs)
                 </label>
                 <div className="shop-map-lm-variant-grid">
+                  <button
+                    type="button"
+                    className="shop-map-lm-variant-btn"
+                    onClick={() => {
+                      handleWrapWalkwayAroundAtrium(editingItem.key);
+                    }}
+                  >
+                    <span className="shop-map-lm-variant-icon">
+                      <CorridorShapeIcon mode="circle" size={15} />
+                    </span>
+                    <span className="shop-map-lm-variant-text">
+                      <strong>+ Wrap Walkway Around Atrium</strong>
+                      <small>Circle Ring or 4-Sided Loop • Auto-Merges</small>
+                    </span>
+                  </button>
                   {(
                     [
                       { kind: 'escalator' as const, variant: 'default', label: '+ Elevator / Lift (⇅)', sub: 'Standard Lift' },
