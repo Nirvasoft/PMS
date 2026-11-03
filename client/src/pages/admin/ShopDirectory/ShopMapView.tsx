@@ -20,7 +20,7 @@ import {
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import {
   DECORATION_DEFAULT_SIZES, DECORATION_LABELS, DEFAULT_COLUMNS, DEFAULT_SQFT_PER_CELL,
-  SHOP_CATEGORIES, compareShopsByUnitNumber, findFreeSpot, addConnectedUnitWing, addConnectedWalkwayBranch, wrapWalkwayAroundAtrium, snapTileToBorder, computeMagneticSnapGuide, addTransitIntoAtrium, isTransitLandmark, floorKeyOf, tilesConflict, hasAnyOverlap,
+  SHOP_CATEGORIES, compareShopsByUnitNumber, findFreeSpot, addConnectedUnitWing, addConnectedWalkwayBranch, wrapWalkwayAroundAtrium, snapTileToBorder, syncCircleCorridorResizeWithInnerAndOuterItems, isOutsideCircleCorridorOuter, computeMagneticSnapGuide, addTransitIntoAtrium, isTransitLandmark, floorKeyOf, tilesConflict, hasAnyOverlap,
   tileSizeFromSqft, calibrateSqftPerCell, syncUnitTilesToSqft,
   unitKey, nextUnitBlockKey, findPrimaryUnitTile, resolveTileByKey,
   unitNumberOf, shopDisplayName, matchesShopQuery, scoreShopSearchMatch,
@@ -1102,6 +1102,7 @@ export default function ShopMapView({
         return snapTileToBorder(it, candidateItems, columns, orig) ?? it;
       });
     }
+    candidateItems = syncCircleCorridorResizeWithInnerAndOuterItems(candidateItems, baseItems, columns);
 
     const resolvedLayout = candidateItems.map((it) => ({ i: it.key, x: it.x, y: it.y, w: it.w, h: it.h, angle: it.angle }));
     if (hasLayoutConflict(resolvedLayout, baseItems)) {
@@ -1202,13 +1203,7 @@ export default function ShopMapView({
       ? Math.max(minDeviceCellPx, Math.min(rawCellPx, maxCellByHeight, 26))
       : Math.max(minDeviceCellPx, rawCellPx);
   const naturalGridWidth = displayColumns * cellPx;
-  const gridWidth = editing
-    ? availWidth
-    : isQuarterTurn && naturalGridWidth < availWidth
-      ? Math.max(240, naturalGridWidth)
-      : naturalGridWidth > availWidth
-        ? naturalGridWidth
-        : availWidth;
+  const gridWidth = Math.max(240, naturalGridWidth);
   const colStepPx = displayColumns > 0 ? gridWidth / displayColumns : cellPx;
   const rowStepPx = cellPx;
   const floorplateBounds = useMemo(
@@ -1236,11 +1231,12 @@ export default function ShopMapView({
         polyAtriumGeo: ReturnType<typeof getPolygonAtriumGeometry> | null;
         trapezoidGeo: TrapezoidUnitGeometry | null;
         hasInnerItems: boolean;
+        isInnerHoleItem: boolean;
         parentAtrium: MapItem | null;
       }
     >();
     for (const it of displayItems) {
-      const atriumFaceAlign = getAtriumFaceAlignment(it, displayItems);
+      const atriumFaceAlign = getAtriumFaceAlignment(it, liveDisplayItems);
       const baseWPx = Math.max(1, it.w * cellPx);
       const baseHPx = Math.max(1, it.h * cellPx);
       const wPx = atriumFaceAlign ? Math.max(1, Math.round(baseWPx * atriumFaceAlign.scaleX)) : baseWPx;
@@ -1248,21 +1244,35 @@ export default function ShopMapView({
       const decor = it.kind !== 'unit';
       const um = !decor ? unitMergeMap.get(it.key) ?? null : null;
       const lmMeta = decor && it.kind !== 'corridor' ? parseLandmarkMeta(it.kind, it.label) : null;
-      const unitMode = it.kind === 'unit' ? parseUnitShapeMode(it, displayItems, Boolean(um?.siblingHasMerge)) : null;
+      const unitMode = it.kind === 'unit' ? parseUnitShapeMode(it, liveDisplayItems, Boolean(um?.siblingHasMerge)) : null;
       const polyAtriumGeo = lmMeta?.polygonFaces
         ? getPolygonAtriumGeometry(lmMeta.polygonFaces, wPx, hPx)
         : null;
+      const alignedTile = atriumFaceAlign ? { ...it, angle: atriumFaceAlign.exactAngleDeg } : it;
       const trapezoidGeo =
         unitMode && isTrapezoidUnitMode(unitMode)
-          ? getTrapezoidUnitGeometry(unitMode, wPx, hPx, cellPx, um, it, displayItems)
+          ? getTrapezoidUnitGeometry(unitMode, wPx, hPx, cellPx, um, alignedTile, liveDisplayItems)
           : null;
       let hasInnerItems = false;
+      let isInnerHoleItem = false;
       let parentAtrium: MapItem | null = null;
-      for (const o of displayItems) {
+      for (const o of liveDisplayItems) {
         if (o.key === it.key) continue;
         if (it.x < o.x + o.w && it.x + it.w > o.x && it.y < o.y + o.h && it.y + it.h > o.y) {
-          if ((it.kind === 'atrium' || it.kind === 'corridor') && o.kind !== it.kind) {
+          if (
+            (it.kind === 'atrium' || it.kind === 'corridor') &&
+            o.kind !== it.kind &&
+            !isOutsideCircleCorridorOuter(it, o)
+          ) {
             hasInnerItems = true;
+          }
+          if (
+            it.kind !== 'corridor' &&
+            o.kind === 'corridor' &&
+            !isOutsideCircleCorridorOuter(o, it)
+          ) {
+            isInnerHoleItem = true;
+            if (!parentAtrium) parentAtrium = o;
           }
           if (it.kind !== 'atrium' && it.kind !== 'corridor' && o.kind === 'atrium' && !parentAtrium) {
             parentAtrium = o;
@@ -1278,11 +1288,12 @@ export default function ShopMapView({
         polyAtriumGeo,
         trapezoidGeo,
         hasInnerItems,
+        isInnerHoleItem,
         parentAtrium,
       });
     }
     return map;
-  }, [displayItems, cellPx, unitMergeMap]);
+  }, [displayItems, liveDisplayItems, cellPx, unitMergeMap]);
 
   // Resolve starting point ("You Are Here" by default, or user-selected shop/landmark)
   const defaultStartItem = useMemo(() => findDefaultStartItem(displayItems), [displayItems]);
@@ -1563,7 +1574,19 @@ export default function ShopMapView({
     const { w, h } = tileSizeFromSqft(shop.unit?.areaSqft, effectiveSqftPerCell, columns);
     update((prev) => {
       const pos = findFreeSpot(prev, w, h, columns);
-      return [...prev, { key: nextUnitBlockKey(prev, shop.unitId), kind: 'unit', unitId: shop.unitId, label: null, x: pos.x, y: pos.y, w, h }];
+      const rawItem: MapItem = {
+        key: nextUnitBlockKey(prev, shop.unitId),
+        kind: 'unit',
+        unitId: shop.unitId,
+        label: null,
+        x: pos.x,
+        y: pos.y,
+        w,
+        h,
+      };
+      const nextList = [...prev, rawItem];
+      const snapped = magnetEnabled ? snapTileToBorder(rawItem, nextList, columns) : null;
+      return snapped ? [...prev, snapped] : nextList;
     });
   };
 
@@ -1778,13 +1801,17 @@ export default function ShopMapView({
     const um = unitMergeMap.get(t.key) ?? null;
     const mode = parseUnitShapeMode(t, currentItems, Boolean(um?.siblingHasMerge));
     if (isTrapezoidUnitMode(mode)) {
+      const align = getAtriumFaceAlignment(t, currentItems);
+      const wPx = Math.max(1, Math.round(t.w * cellPx * (align ? align.scaleX : 1)));
+      const hPx = Math.max(1, Math.round(t.h * cellPx * (align ? align.scaleY : 1)));
+      const alignedTile = align ? { ...t, angle: align.exactAngleDeg } : t;
       const geo = getTrapezoidUnitGeometry(
         mode,
-        Math.max(1, t.w * cellPx),
-        Math.max(1, t.h * cellPx),
+        wPx,
+        hPx,
         cellPx,
         um,
-        t,
+        alignedTile,
         currentItems,
       );
       return { shape: mode, clipPath: geo.clipPath };
@@ -2050,7 +2077,15 @@ export default function ShopMapView({
       !conflict &&
       resolvedItems.some((it, idx) => {
         const b = baseItems[idx];
-        return b && (it.x !== b.x || it.y !== b.y || it.w !== b.w || it.h !== b.h || it.angle !== b.angle);
+        return (
+          b &&
+          (it.x !== b.x ||
+            it.y !== b.y ||
+            it.w !== b.w ||
+            it.h !== b.h ||
+            it.angle !== b.angle ||
+            it.label !== b.label)
+        );
       })
     ) {
       setDirty(true);
@@ -2865,8 +2900,8 @@ export default function ShopMapView({
                         hasActiveSearch &&
                         (decor ? it.kind !== 'corridor' : !isSearchMatch),
                     );
-                    const gridItemWPx = Math.max(1, it.w * cellPx);
-                    const gridItemHPx = Math.max(1, it.h * cellPx);
+                    const gridItemWPx = Math.max(1, it.w * colStepPx);
+                    const gridItemHPx = Math.max(1, it.h * rowStepPx);
                     const baseWPx = Math.max(1, effectiveIt.w * cellPx);
                     const baseHPx = Math.max(1, effectiveIt.h * cellPx);
                     const wPx = cachedMeta
@@ -2879,9 +2914,9 @@ export default function ShopMapView({
                       : atriumFaceAlign
                         ? Math.max(1, Math.round(baseHPx * atriumFaceAlign.scaleY))
                         : baseHPx;
-                    const isVerticalTile = !decor && effectiveIt.h > effectiveIt.w;
-                    const longSidePx = isVerticalTile ? hPx : wPx;
-                    const shortSidePx = isVerticalTile ? wPx : hPx;
+                    const isVerticalTile = !decor && hPx > wPx * 1.15;
+                    const longSidePx = Math.max(wPx, hPx);
+                    const shortSidePx = Math.min(wPx, hPx);
                     const tiny = !decor && (longSidePx < 18 || shortSidePx < 14);
                     const minSidePx = Math.min(wPx, hPx);
                     const maxBadgeForTile = Math.max(10, minSidePx - (isMobile ? 3 : 5));
@@ -2959,10 +2994,13 @@ export default function ShopMapView({
                     const effectiveIconPx = isFullIconMarker
                       ? effectiveBadgePx
                       : Math.max(isMobile ? 8 : 9, Math.round(effectiveBadgePx * 0.60));
+                    const alignedTile = atriumFaceAlign
+                      ? { ...effectiveIt, angle: atriumFaceAlign.exactAngleDeg }
+                      : effectiveIt;
                     const trapezoidGeo = cachedMeta
                       ? cachedMeta.trapezoidGeo
                       : unitMode && isTrapezoidUnitMode(unitMode)
-                        ? getTrapezoidUnitGeometry(unitMode, wPx, hPx, cellPx, um, effectiveIt, effectiveDisplayItems)
+                        ? getTrapezoidUnitGeometry(unitMode, wPx, hPx, cellPx, um, alignedTile, effectiveDisplayItems)
                         : null;
                     const tileShapeDesc = corridorMode
                       ? `${CORRIDOR_SHAPE_LABELS[corridorMode]}${cm && corridorMode === 'auto' ? ` (${CORRIDOR_SHAPE_LABELS[cm.shape]})` : ''}`
@@ -3023,6 +3061,7 @@ export default function ShopMapView({
                         longSidePx >= 48,
                     );
                     const hasInnerItems = cachedMeta ? cachedMeta.hasInnerItems : false;
+                    const isInnerHoleItem = cachedMeta ? cachedMeta.isInnerHoleItem : false;
                     const parentAtrium = cachedMeta ? cachedMeta.parentAtrium : null;
                     const isLayerFocused = editing && focusedLayerKey === it.key;
                     const isRotatingThisTile = editing && rotatingTileKey === it.key;
@@ -3043,7 +3082,7 @@ export default function ShopMapView({
                         data-tile-key={it.key}
                         title={title}
                         style={gridItemCssVars}
-                        className={`shop-map-grid-item ${it.kind === 'corridor' ? 'is-corridor-item' : ''} ${it.kind === 'atrium' ? 'is-atrium-item' : ''} ${isTransitLandmark(it.kind) ? 'is-transit-item' : ''} ${hasInnerItems ? 'has-inner-items' : ''} ${isLayerFocused ? 'is-layer-focused' : ''} ${isGroupSelected ? 'is-group-selected' : ''} ${effectiveAngle ? 'is-rotated-item' : ''} ${isRotatingThisTile ? 'is-rotating-item' : ''} ${editing ? 'editing' : ''} ${isTarget ? 'active-target' : ''} ${isStart ? 'active-start' : ''} ${isAmenityHighlighted ? 'is-amenity-highlighted' : ''}`}
+                        className={`shop-map-grid-item ${it.kind === 'corridor' ? 'is-corridor-item' : ''} ${it.kind === 'atrium' ? 'is-atrium-item' : ''} ${isTransitLandmark(it.kind) ? 'is-transit-item' : ''} ${hasInnerItems ? 'has-inner-items' : ''} ${isInnerHoleItem ? 'is-inner-hole-item' : ''} ${isLayerFocused ? 'is-layer-focused' : ''} ${isGroupSelected ? 'is-group-selected' : ''} ${effectiveAngle ? 'is-rotated-item' : ''} ${isRotatingThisTile ? 'is-rotating-item' : ''} ${editing ? 'editing' : ''} ${isTarget ? 'active-target' : ''} ${isStart ? 'active-start' : ''} ${isAmenityHighlighted ? 'is-amenity-highlighted' : ''}`}
                         onMouseEnter={() => {
                           if (!editing && it.unitId) setHoveredUnitId(it.unitId);
                         }}
@@ -3267,6 +3306,11 @@ export default function ShopMapView({
                                 className={`shop-map-tile-name ${isSmartUprightLabel ? 'is-smart-upright' : ''}`}
                                 style={{
                                   fontSize: `${tileFontPx}px`,
+                                  ...(trapezoidGeo && (trapezoidGeo.labelOffsetXPx || trapezoidGeo.labelOffsetYPx)
+                                    ? ({
+                                        translate: `${trapezoidGeo.labelOffsetXPx ?? 0}px ${trapezoidGeo.labelOffsetYPx ?? 0}px`,
+                                      } as CSSProperties)
+                                    : {}),
                                   ...(isSmartUprightLabel
                                     ? ({ rotate: `${-effectiveAngle}deg` } as CSSProperties)
                                     : isLabelUpsideDown

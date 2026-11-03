@@ -46,7 +46,7 @@ export function normalizeTileAngle(val: unknown): number | undefined {
 }
 
 export type CorridorShapeMode = 'auto' | 'straight' | 'circle';
-export type ResolvedCorridorShape = 'straight' | 'circle';
+type ResolvedCorridorShape = 'straight' | 'circle';
 
 export const CORRIDOR_SHAPE_LABELS: Record<CorridorShapeMode, string> = {
   auto: 'Auto',
@@ -98,24 +98,712 @@ export interface TrapezoidUnitGeometry {
   lipRightPath: string;
   lipBottomPath: string;
   facingEdge?: 'top' | 'right' | 'bottom' | 'left';
+  labelOffsetXPx?: number;
+  labelOffsetYPx?: number;
+}
+
+function isCircleRingCorridor(
+  c: { kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number },
+): boolean {
+  if (c.kind !== 'corridor') return false;
+  if (c.label === 'walkway:straight') return false;
+  if (c.label === 'walkway:circle') return c.w >= 2 && c.h >= 2;
+  if (c.w < 4 || c.h < 4) return false;
+  const aspect = Math.max(c.w, c.h) / Math.max(1, Math.min(c.w, c.h));
+  return aspect <= 1.65;
+}
+
+function computeCircleRingRadii(
+  r: { key?: string; kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number },
+  allItems: ReadonlyArray<{ key?: string; kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number }>,
+  minOuter = 1.5,
+  minInner = 0.8,
+) {
+  const rxOut = Math.max(minOuter, r.w * 0.5);
+  const ryOut = Math.max(minOuter, r.h * 0.5);
+  const minDim = Math.min(r.w, r.h);
+  const laneX = minDim <= 2 ? r.w * 0.5 : r.w >= 8 ? Math.max(2, r.w * 0.25) : Math.min(r.w * 0.36, 1.65);
+  const laneY = minDim <= 2 ? r.h * 0.5 : r.h >= 8 ? Math.max(2, r.h * 0.25) : Math.min(r.h * 0.36, 1.65);
+  let rxIn = Math.max(minInner, rxOut - laneX);
+  let ryIn = Math.max(minInner, ryOut - laneY);
+  const innerHoleItems = allItems.filter(
+    (o) => (r.key && o.key ? o.key !== r.key : o !== r) && isInsideCircleCorridorHole(r, o),
+  );
+  if (innerHoleItems.length > 0) {
+    let reqRx = 0;
+    let reqRy = 0;
+    for (const inner of innerHoleItems) {
+      reqRx = Math.max(reqRx, inner.w * 0.5);
+      reqRy = Math.max(reqRy, inner.h * 0.5);
+    }
+    rxIn = Math.min(Math.max(0.5, rxOut - 1), reqRx);
+    ryIn = Math.min(Math.max(0.5, ryOut - 1), reqRy);
+  }
+  return { rxOut, ryOut, rxIn, ryIn, innerHoleItems };
+}
+
+interface CircleCorridorUnitMatch {
+  ring: { kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number };
+  cx: number;
+  cy: number;
+  rxOut: number;
+  ryOut: number;
+  rxIn: number;
+  ryIn: number;
+  insideHole: boolean;
+  boxGap: number;
+  normClosest: number;
+  isNear: boolean;
+}
+
+function getClosestPointOnTileToPoint(
+  tile: { x: number; y: number; w: number; h: number; angle?: number },
+  px: number,
+  py: number,
+): { x: number; y: number } {
+  const angle = tile.angle ?? 0;
+  if (!angle) {
+    return {
+      x: Math.max(tile.x, Math.min(tile.x + tile.w, px)),
+      y: Math.max(tile.y, Math.min(tile.y + tile.h, py)),
+    };
+  }
+  const cx = tile.x + tile.w * 0.5;
+  const cy = tile.y + tile.h * 0.5;
+  const rad = (angle * Math.PI) / 180;
+  const ux = Math.cos(rad);
+  const uy = Math.sin(rad);
+  const vx = -uy;
+  const vy = ux;
+  const dx = px - cx;
+  const dy = py - cy;
+  const du = Math.max(-tile.w * 0.5, Math.min(tile.w * 0.5, dx * ux + dy * uy));
+  const dv = Math.max(-tile.h * 0.5, Math.min(tile.h * 0.5, dx * vx + dy * vy));
+  return {
+    x: cx + du * ux + dv * vx,
+    y: cy + du * uy + dv * vy,
+  };
+}
+
+function findNearestCircleCorridorForUnit(
+  it: { x: number; y: number; w: number; h: number; angle?: number },
+  allItems: ReadonlyArray<{ kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number }>,
+): CircleCorridorUnitMatch | null {
+  const rings = allItems.filter(isCircleRingCorridor);
+  if (rings.length === 0) return null;
+  const ux = it.x + it.w * 0.5;
+  const uy = it.y + it.h * 0.5;
+  let best: CircleCorridorUnitMatch | null = null;
+  let bestScore = Infinity;
+
+  for (const r of rings) {
+    const rcx = r.x + r.w * 0.5;
+    const rcy = r.y + r.h * 0.5;
+    const { rxOut, ryOut, rxIn, ryIn, innerHoleItems } = computeCircleRingRadii(r, allItems, 1.5, 0.8);
+    const hasInnerAtrium = innerHoleItems.some((o) => o.kind === 'atrium');
+    const insideHole = !hasInnerAtrium && isInsideCircleCorridorHole(r, { ...it, kind: 'unit' });
+    const gapX = Math.max(0, it.x - (r.x + r.w), r.x - (it.x + it.w));
+    const gapY = Math.max(0, it.y - (r.y + r.h), r.y - (it.y + it.h));
+    const boxGap = Math.hypot(gapX, gapY);
+    const closestPt = getClosestPointOnTileToPoint(it, rcx, rcy);
+    const normClosest = Math.hypot((closestPt.x - rcx) / rxOut, (closestPt.y - rcy) / ryOut);
+    const avgR = (rxOut + ryOut) * 0.5;
+    const radialDist = Math.abs(normClosest - 1) * avgR;
+    const normCenter = Math.hypot((ux - rcx) / rxOut, (uy - rcy) / ryOut);
+    const score = insideHole ? Math.abs(normCenter) * 0.1 : boxGap + radialDist * 0.6;
+    const isNear =
+      insideHole ||
+      (boxGap <= 3.5 && normCenter >= 0.40 && normClosest >= 0.18 && (normClosest - 1) * avgR <= 3.5);
+    if (score < bestScore) {
+      bestScore = score;
+      best = {
+        ring: r,
+        cx: rcx,
+        cy: rcy,
+        rxOut,
+        ryOut,
+        rxIn,
+        ryIn,
+        insideHole,
+        boxGap,
+        normClosest,
+        isNear,
+      };
+    }
+  }
+  return best;
+}
+
+interface CircleRingUnitSector {
+  ring: { kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number };
+  cx: number;
+  cy: number;
+  rxOut: number;
+  ryOut: number;
+  thetaStart: number;
+  thetaEnd: number;
+  thetaStartOut: number;
+  thetaEndOut: number;
+  thetaMid: number;
+  radialDepth: number;
+  facingEdge: 'top' | 'right' | 'bottom' | 'left';
+  exactAngleDeg: number;
+  uMin: number;
+  uMax: number;
+  vMin: number;
+  vMax: number;
+  midU: number;
+  midV: number;
+  worldCx: number;
+  worldCy: number;
+  wCells: number;
+  hCells: number;
+}
+
+function isUnitEligibleForCircleRingSector(
+  u: { key?: string; label?: string | null; unitId?: string | null; x: number; y: number; w: number; h: number },
+  allItems: ReadonlyArray<{ key?: string; kind: TileKind | string; unitId?: string | null; x: number; y: number; w: number; h: number }>,
+): boolean {
+  if (
+    u.label === 'unit:rect' ||
+    u.label === 'unit:circle' ||
+    u.label === 'unit:trapezoid' ||
+    u.label === 'unit:trapezoid-l' ||
+    u.label === 'unit:trapezoid-r'
+  ) {
+    return false;
+  }
+  const hasAdjacentSameUnit =
+    Boolean(u.unitId) &&
+    allItems.some(
+      (o) =>
+        o !== u &&
+        (o.key ? o.key !== u.key : true) &&
+        o.kind === 'unit' &&
+        o.unitId === u.unitId &&
+        Math.max(0, u.x - (o.x + o.w), o.x - (u.x + u.w)) <= 0.05 &&
+        Math.max(0, u.y - (o.y + o.h), o.y - (u.y + u.h)) <= 0.05,
+    );
+  return !hasAdjacentSameUnit;
+}
+
+function computeCircleRingUnitSector(
+  it: { key?: string; kind?: TileKind | string; label?: string | null; unitId?: string | null; x: number; y: number; w: number; h: number; angle?: number },
+  allItems: ReadonlyArray<{ key?: string; kind: TileKind | string; label?: string | null; unitId?: string | null; x: number; y: number; w: number; h: number; angle?: number }>,
+): CircleRingUnitSector | null {
+  const baseIt = (it.key ? allItems.find((o) => o.key === it.key) : null) ?? it;
+  if (!isUnitEligibleForCircleRingSector(baseIt, allItems)) return null;
+
+  const match = findNearestCircleCorridorForUnit(baseIt, allItems);
+  if (!match || !match.isNear || match.insideHole) return null;
+
+  // Detect Straight Walkways (corridors) that connect to or cross the Circle Ring's outer unit zone
+  const straightCorridors = allItems.filter(
+    (c) => c.kind === 'corridor' && c !== match.ring && !isCircleRingCorridor(c),
+  );
+  const isPointInStraightCorridor = (
+    wx: number,
+    wy: number,
+    c: (typeof allItems)[number],
+    pad = 0.04,
+  ): boolean => {
+    const ccx = c.x + c.w * 0.5;
+    const ccy = c.y + c.h * 0.5;
+    const rad = (((c as { angle?: number }).angle ?? 0) * Math.PI) / 180;
+    const dx = wx - ccx;
+    const dy = wy - ccy;
+    const lu = dx * Math.cos(rad) + dy * Math.sin(rad);
+    const lv = -dx * Math.sin(rad) + dy * Math.cos(rad);
+    return Math.abs(lu) <= c.w * 0.5 + pad && Math.abs(lv) <= c.h * 0.5 + pad;
+  };
+
+  type WalkwayBarrier = {
+    mid: number;
+    span: number;
+    startIn: number;
+    endIn: number;
+  };
+  const walkwayBarriers: WalkwayBarrier[] = [];
+
+  const measureBarrierAtDepth = (bMid: number, maxHalfSpan: number, dR: number): [number, number] | null => {
+    const rx = match.rxOut + dR;
+    const ry = match.ryOut + dR;
+    const steps = 120;
+    let firstTh: number | null = null;
+    let lastTh: number | null = null;
+    for (let s = 0; s <= steps; s++) {
+      const th = bMid - maxHalfSpan + (s / steps) * (2 * maxHalfSpan);
+      const wx = match.cx + rx * Math.cos(th);
+      const wy = match.cy + ry * Math.sin(th);
+      if (straightCorridors.some((c) => isPointInStraightCorridor(wx, wy, c, 0.04))) {
+        if (firstTh === null) firstTh = th;
+        lastTh = th;
+      }
+    }
+    return firstTh !== null && lastTh !== null ? [firstTh, lastTh] : null;
+  };
+
+  if (straightCorridors.length > 0) {
+    const K = 360;
+    const hits = new Array<boolean>(K).fill(false);
+    for (let k = 0; k < K; k++) {
+      const th = (2 * Math.PI * k) / K;
+      const cosT = Math.cos(th);
+      const sinT = Math.sin(th);
+      const wx1 = match.cx + (match.rxOut + 0.08) * cosT;
+      const wy1 = match.cy + (match.ryOut + 0.08) * sinT;
+      const wx2 = match.cx + (match.rxOut + 0.65) * cosT;
+      const wy2 = match.cy + (match.ryOut + 0.65) * sinT;
+      if (
+        straightCorridors.some(
+          (c) => isPointInStraightCorridor(wx1, wy1, c, 0.04) || isPointInStraightCorridor(wx2, wy2, c, 0.04),
+        )
+      ) {
+        hits[k] = true;
+      }
+    }
+    const runs: Array<[number, number]> = [];
+    let r0: number | null = null;
+    for (let k = 0; k < K; k++) {
+      if (hits[k]) {
+        if (r0 === null) r0 = k;
+      } else if (r0 !== null) {
+        runs.push([r0, k - 1]);
+        r0 = null;
+      }
+    }
+    if (r0 !== null) runs.push([r0, K - 1]);
+    if (runs.length >= 2 && runs[0][0] === 0 && runs[runs.length - 1][1] === K - 1) {
+      const first = runs.shift()!;
+      const last = runs.pop()!;
+      runs.push([last[0] - K, first[1]]);
+    }
+    for (const [kStart, kEnd] of runs) {
+      const th0 = (2 * Math.PI * kStart) / K;
+      const th1 = (2 * Math.PI * (kEnd + 1)) / K;
+      const midRaw = 0.5 * (th0 + th1);
+      const mid = ((midRaw % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+      const halfSpan = Math.max((10 * Math.PI) / 180, 0.5 * (th1 - th0) + (8 * Math.PI) / 180);
+      const innerPair = measureBarrierAtDepth(mid, halfSpan, 0.03);
+      const startIn = innerPair ? innerPair[0] : mid - 0.5 * (th1 - th0);
+      const endIn = innerPair ? innerPair[1] : mid + 0.5 * (th1 - th0);
+      walkwayBarriers.push({
+        mid: 0.5 * (startIn + endIn),
+        span: Math.max(0.05, endIn - startIn),
+        startIn,
+        endIn,
+      });
+    }
+  }
+
+  type PeerEntry = {
+    item: typeof baseIt;
+    key: string;
+    thetaRaw: number;
+    parSpan: number;
+    perpDepth: number;
+    deltaThetaNat: number;
+    thetaStart: number;
+    thetaEnd: number;
+    startBarrier?: WalkwayBarrier;
+    endBarrier?: WalkwayBarrier;
+  };
+
+  const peers: PeerEntry[] = [];
+  const seenKeys = new Set<string>();
+  const candidates = allItems.filter((o) => o.kind === 'unit');
+  if (!candidates.some((o) => (baseIt.key ? o.key === baseIt.key : o === baseIt))) {
+    candidates.push(baseIt as (typeof allItems)[number]);
+  }
+
+  for (let idx = 0; idx < candidates.length; idx++) {
+    const u = candidates[idx];
+    const uKey = u.key ?? `__ring_peer_${idx}`;
+    if (seenKeys.has(uKey) || !isUnitEligibleForCircleRingSector(u, allItems)) continue;
+    const m = findNearestCircleCorridorForUnit(u, allItems);
+    if (!m || !m.isNear || m.insideHole || m.ring !== match.ring) continue;
+    seenKeys.add(uKey);
+    const ucx = u.x + u.w * 0.5;
+    const ucy = u.y + u.h * 0.5;
+    const raw = Math.atan2((ucy - match.cy) / match.ryOut, (ucx - match.cx) / match.rxOut);
+    let thetaRaw = ((raw % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+    const parSpan = Math.max(u.w, u.h);
+    const perpDepth = Math.max(2, Math.min(2.6, Math.min(u.w, u.h)));
+    const rInAtTheta = Math.hypot(match.rxOut * Math.cos(thetaRaw), match.ryOut * Math.sin(thetaRaw)) || match.rxOut;
+    const rMid = rInAtTheta + perpDepth * 0.5;
+    const deltaThetaNat = Math.max(
+      (18 * Math.PI) / 180,
+      Math.min((95 * Math.PI) / 180, parSpan / Math.max(2, rMid)),
+    );
+
+    // Push raw center angle outside any Straight Walkway mouth barrier it overlaps
+    for (const b of walkwayBarriers) {
+      const diff = Math.atan2(Math.sin(thetaRaw - b.mid), Math.cos(thetaRaw - b.mid));
+      const minClear = 0.5 * b.span + 0.5 * deltaThetaNat;
+      if (Math.abs(diff) < minClear) {
+        const pushed = diff < 0 ? b.startIn - 0.5 * deltaThetaNat - 0.005 : b.endIn + 0.5 * deltaThetaNat + 0.005;
+        thetaRaw = ((pushed % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+      }
+    }
+
+    peers.push({
+      item: u,
+      key: uKey,
+      thetaRaw,
+      parSpan,
+      perpDepth,
+      deltaThetaNat,
+      thetaStart: thetaRaw - deltaThetaNat * 0.5,
+      thetaEnd: thetaRaw + deltaThetaNat * 0.5,
+    });
+  }
+
+  if (peers.length === 0) return null;
+  peers.sort((a, b) => a.thetaRaw - b.thetaRaw || a.key.localeCompare(b.key));
+
+  const hasBarrierBetween = (thA: number, thB: number): boolean => {
+    const step = ((thB - thA) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
+    if (step <= 1e-5) return false;
+    for (const b of walkwayBarriers) {
+      const d = ((b.mid - thA) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
+      if (d > 1e-4 && d < step - 1e-4) return true;
+    }
+    return false;
+  };
+
+  const clampClusterToWalkwayBarriers = (cluster: PeerEntry[]) => {
+    if (walkwayBarriers.length === 0 || cluster.length === 0) return;
+    const cStart = cluster[0].thetaStart;
+    const cEnd = cluster[cluster.length - 1].thetaEnd;
+    const cMid = 0.5 * (cStart + cEnd);
+    const snapMagnetRad = (16 * Math.PI) / 180;
+
+    for (const b of walkwayBarriers) {
+      const kWrap = Math.round((cMid - b.mid) / (2 * Math.PI));
+      const bMid = b.mid + kWrap * 2 * Math.PI;
+      const bStart = b.startIn + kWrap * 2 * Math.PI;
+      const bEnd = b.endIn + kWrap * 2 * Math.PI;
+
+      if (cMid <= bMid) {
+        const gapToStart = bStart - cluster[cluster.length - 1].thetaEnd;
+        if (gapToStart < snapMagnetRad && gapToStart > -(75 * Math.PI) / 180) {
+          for (const p of cluster) {
+            p.thetaStart += gapToStart;
+            p.thetaEnd += gapToStart;
+          }
+          cluster[cluster.length - 1].endBarrier = b;
+        }
+      } else {
+        const gapToEnd = cluster[0].thetaStart - bEnd;
+        if (gapToEnd < snapMagnetRad && gapToEnd > -(75 * Math.PI) / 180) {
+          for (const p of cluster) {
+            p.thetaStart -= gapToEnd;
+            p.thetaEnd -= gapToEnd;
+          }
+          cluster[0].startBarrier = b;
+        }
+      }
+    }
+  };
+
+  if (peers.length === 1) {
+    for (const b of walkwayBarriers) {
+      const diff = Math.atan2(Math.sin(peers[0].thetaRaw - b.mid), Math.cos(peers[0].thetaRaw - b.mid));
+      if (Math.abs(diff) <= 0.5 * b.span + 0.5 * peers[0].deltaThetaNat + (16 * Math.PI) / 180) {
+        if (diff <= 0) {
+          peers[0].thetaEnd = b.startIn;
+          peers[0].thetaStart = b.startIn - peers[0].deltaThetaNat;
+          peers[0].endBarrier = b;
+        } else {
+          peers[0].thetaStart = b.endIn;
+          peers[0].thetaEnd = b.endIn + peers[0].deltaThetaNat;
+          peers[0].startBarrier = b;
+        }
+      }
+    }
+  } else {
+    const M = peers.length;
+    const totalNatSpan = peers.reduce((acc, p) => acc + p.deltaThetaNat, 0);
+    const gaps: number[] = [];
+    for (let i = 0; i < M; i++) {
+      const cur = peers[i];
+      const nxt = peers[(i + 1) % M];
+      const step = ((nxt.thetaRaw - cur.thetaRaw) + 2 * Math.PI) % (2 * Math.PI);
+      gaps.push(step - 0.5 * (cur.deltaThetaNat + nxt.deltaThetaNat));
+    }
+    const maxClusterGap = (52 * Math.PI) / 180;
+    const isFullRing =
+      walkwayBarriers.length === 0 &&
+      (totalNatSpan >= 2 * Math.PI * 0.90 ||
+        (M >= 4 && gaps.every((g) => g <= (72 * Math.PI) / 180) && totalNatSpan >= 2 * Math.PI * 0.65));
+
+    if (isFullRing) {
+      const scale = (2 * Math.PI) / Math.max(1e-6, totalNatSpan);
+      const spans = peers.map((p) => p.deltaThetaNat * scale);
+      let cum = 0;
+      let sumSin = 0;
+      let sumCos = 0;
+      for (let i = 0; i < M; i++) {
+        const midOffset = cum + spans[i] * 0.5;
+        const diff = peers[i].thetaRaw - midOffset;
+        sumSin += Math.sin(diff);
+        sumCos += Math.cos(diff);
+        cum += spans[i];
+      }
+      const ringStart = Math.atan2(sumSin, sumCos);
+      let cursor = ringStart;
+      for (let i = 0; i < M; i++) {
+        peers[i].thetaStart = cursor;
+        peers[i].thetaEnd = i === M - 1 ? ringStart + 2 * Math.PI : cursor + spans[i];
+        cursor = peers[i].thetaEnd;
+      }
+    } else {
+      const breakIndices: number[] = [];
+      for (let i = 0; i < M; i++) {
+        const cur = peers[i];
+        const nxt = peers[(i + 1) % M];
+        if (gaps[i] > maxClusterGap || hasBarrierBetween(cur.thetaRaw, nxt.thetaRaw)) {
+          breakIndices.push(i);
+        }
+      }
+      const clusters: PeerEntry[][] = [];
+      if (breakIndices.length === 0) {
+        clusters.push([...peers]);
+      } else {
+        for (let b = 0; b < breakIndices.length; b++) {
+          const startIdx = (breakIndices[b] + 1) % M;
+          const endIdx = breakIndices[(b + 1) % breakIndices.length];
+          const cluster: PeerEntry[] = [];
+          let curIdx = startIdx;
+          while (true) {
+            cluster.push(peers[curIdx]);
+            if (curIdx === endIdx) break;
+            curIdx = (curIdx + 1) % M;
+          }
+          clusters.push(cluster);
+        }
+      }
+
+      const packCluster = (cluster: PeerEntry[]) => {
+        const unwrapped: number[] = [cluster[0].thetaRaw];
+        for (let k = 1; k < cluster.length; k++) {
+          let a = cluster[k].thetaRaw;
+          while (a < unwrapped[k - 1]) a += 2 * Math.PI;
+          unwrapped.push(a);
+        }
+        const sumSpan = cluster.reduce((acc, p) => acc + p.deltaThetaNat, 0);
+        const scale = sumSpan > 2 * Math.PI ? (2 * Math.PI) / sumSpan : 1;
+        let cum = 0;
+        let offsetSum = 0;
+        for (let k = 0; k < cluster.length; k++) {
+          const span = cluster[k].deltaThetaNat * scale;
+          const midOffset = cum + span * 0.5;
+          offsetSum += unwrapped[k] - midOffset;
+          cum += span;
+        }
+        const clusterStart = offsetSum / cluster.length;
+        let cursor = clusterStart;
+        for (let k = 0; k < cluster.length; k++) {
+          const span = cluster[k].deltaThetaNat * scale;
+          cluster[k].thetaStart = cursor;
+          cluster[k].thetaEnd = cursor + span;
+          cursor = cluster[k].thetaEnd;
+        }
+        clampClusterToWalkwayBarriers(cluster);
+      };
+
+      for (const c of clusters) packCluster(c);
+
+      // Merge any two adjacent clusters if expanding internal overlaps caused them to touch/overlap (unless separated by a walkway barrier)
+      if (clusters.length >= 2) {
+        let mergedAny = true;
+        while (mergedAny && clusters.length >= 2) {
+          mergedAny = false;
+          for (let i = 0; i < clusters.length; i++) {
+            const cA = clusters[i];
+            const cB = clusters[(i + 1) % clusters.length];
+            if (hasBarrierBetween(cA[cA.length - 1].thetaRaw, cB[0].thetaRaw)) continue;
+            const endA = cA[cA.length - 1].thetaEnd;
+            let startB = cB[0].thetaStart;
+            while (startB < cA[0].thetaStart) startB += 2 * Math.PI;
+            if (startB - endA <= 0.04) {
+              const combined = [...cA, ...cB];
+              packCluster(combined);
+              if ((i + 1) % clusters.length === 0) {
+                clusters.splice(i, 1);
+                clusters[0] = combined;
+              } else {
+                clusters.splice(i, 2, combined);
+              }
+              mergedAny = true;
+              break;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  const targetKey = baseIt.key ?? `__ring_peer_${candidates.indexOf(baseIt as (typeof allItems)[number])}`;
+  const targetPeer = peers.find((p) => p.key === targetKey || p.item === baseIt) ?? peers[0];
+  const thetaStart = targetPeer.thetaStart;
+  const thetaEnd = targetPeer.thetaEnd;
+  const thetaMid = 0.5 * (thetaStart + thetaEnd);
+  const radialDepth = targetPeer.perpDepth;
+
+  let thetaStartOut = thetaStart;
+  let thetaEndOut = thetaEnd;
+  if (targetPeer.startBarrier) {
+    const outerPair = measureBarrierAtDepth(
+      targetPeer.startBarrier.mid,
+      targetPeer.startBarrier.span * 0.75 + (10 * Math.PI) / 180,
+      radialDepth,
+    );
+    if (outerPair) {
+      const kWrap = Math.round((thetaStart - outerPair[1]) / (2 * Math.PI));
+      thetaStartOut = outerPair[1] + kWrap * 2 * Math.PI;
+    }
+  }
+  if (targetPeer.endBarrier) {
+    const outerPair = measureBarrierAtDepth(
+      targetPeer.endBarrier.mid,
+      targetPeer.endBarrier.span * 0.75 + (10 * Math.PI) / 180,
+      radialDepth,
+    );
+    if (outerPair) {
+      const kWrap = Math.round((thetaEnd - outerPair[0]) / (2 * Math.PI));
+      thetaEndOut = outerPair[0] + kWrap * 2 * Math.PI;
+    }
+  }
+  if (thetaEndOut - thetaStartOut < (8 * Math.PI) / 180) {
+    thetaStartOut = thetaStart;
+    thetaEndOut = thetaEnd;
+  }
+
+  const gnx = Math.cos(thetaMid) / match.rxOut;
+  const gny = Math.sin(thetaMid) / match.ryOut;
+  const gLen = Math.hypot(gnx, gny) || 1;
+  const nx = gnx / gLen;
+  const ny = gny / gLen;
+
+  const degBottom = (((Math.atan2(nx, -ny) * 180) / Math.PI) % 360 + 360) % 360;
+  const degTop = (((Math.atan2(-nx, ny) * 180) / Math.PI) % 360 + 360) % 360;
+  const bottomUpright = degBottom <= 96 || degBottom >= 264;
+  const topUpright = degTop <= 96 || degTop >= 264;
+  const facingEdge: 'bottom' | 'top' =
+    bottomUpright && !topUpright
+      ? 'bottom'
+      : topUpright && !bottomUpright
+        ? 'top'
+        : angularDiffDeg(degBottom, baseIt.angle ?? 0) <= angularDiffDeg(degTop, baseIt.angle ?? 0)
+          ? 'bottom'
+          : 'top';
+  const exactAngleDeg = Math.round((facingEdge === 'bottom' ? degBottom : degTop) * 100) / 100;
+
+  const rad = (exactAngleDeg * Math.PI) / 180;
+  const ux = Math.cos(rad);
+  const uy = Math.sin(rad);
+  const vx = -Math.sin(rad);
+  const vy = Math.cos(rad);
+
+  const rxInSector = match.rxOut;
+  const ryInSector = match.ryOut;
+  const rxOutSector = match.rxOut + radialDepth;
+  const ryOutSector = match.ryOut + radialDepth;
+  const N = 24;
+  let uMin = Infinity;
+  let uMax = -Infinity;
+  let vMin = Infinity;
+  let vMax = -Infinity;
+
+  for (let k = 0; k <= N; k++) {
+    const thIn = thetaStart + (k / N) * (thetaEnd - thetaStart);
+    const thOut = thetaStartOut + (k / N) * (thetaEndOut - thetaStartOut);
+    const ix = rxInSector * Math.cos(thIn);
+    const iy = ryInSector * Math.sin(thIn);
+    const ox = rxOutSector * Math.cos(thOut);
+    const oy = ryOutSector * Math.sin(thOut);
+    const uIn = ix * ux + iy * uy;
+    const vIn = ix * vx + iy * vy;
+    const uOut = ox * ux + oy * uy;
+    const vOut = ox * vx + oy * vy;
+    if (uIn < uMin) uMin = uIn;
+    if (uIn > uMax) uMax = uIn;
+    if (vIn < vMin) vMin = vIn;
+    if (vIn > vMax) vMax = vIn;
+    if (uOut < uMin) uMin = uOut;
+    if (uOut > uMax) uMax = uOut;
+    if (vOut < vMin) vMin = vOut;
+    if (vOut > vMax) vMax = vOut;
+  }
+
+  const padCells = 0.08;
+  const wCells = Math.max(0.5, uMax - uMin + padCells);
+  const hCells = Math.max(0.5, vMax - vMin + padCells);
+  const midU = 0.5 * (uMin + uMax);
+  const midV = 0.5 * (vMin + vMax);
+  const worldCx = match.cx + midU * ux + midV * vx;
+  const worldCy = match.cy + midU * uy + midV * vy;
+
+  return {
+    ring: match.ring,
+    cx: match.cx,
+    cy: match.cy,
+    rxOut: match.rxOut,
+    ryOut: match.ryOut,
+    thetaStart,
+    thetaEnd,
+    thetaStartOut,
+    thetaEndOut,
+    thetaMid,
+    radialDepth,
+    facingEdge,
+    exactAngleDeg,
+    uMin,
+    uMax,
+    vMin,
+    vMax,
+    midU,
+    midV,
+    worldCx,
+    worldCy,
+    wCells,
+    hCells,
+  };
 }
 
 export function parseUnitShapeMode(
-  it: { kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number },
-  allItems?: ReadonlyArray<{ kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number }>,
+  it: { key?: string; kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
+  allItems?: ReadonlyArray<{ key?: string; kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number }>,
   isMergedUnit?: boolean,
 ): UnitShapeMode {
-  if (it.label === 'unit:ring-curve') return 'ring-curve';
-  if (it.label === 'unit:trapezoid-ring') return 'trapezoid-ring';
   if (it.label === 'unit:trapezoid') return 'trapezoid';
   if (it.label === 'unit:trapezoid-l') return 'trapezoid-l';
   if (it.label === 'unit:trapezoid-r') return 'trapezoid-r';
   if (it.label === 'unit:circle') return 'circle';
-  if (isMergedUnit) return 'rect';
-  if (it.label === 'unit:rect') return 'rect';
-  if (allItems && allItems.some((c) => c.kind === 'corridor' && isInsideCircleCorridorHole(c, it))) {
-    return 'circle';
+  if (allItems) {
+    const match = findNearestCircleCorridorForUnit(it, allItems);
+    if (match && match.isNear) {
+      if (match.insideHole && !isMergedUnit) {
+        const otherInner = allItems.some(
+          (o) =>
+            o.kind === 'unit' &&
+            (o.key ? o.key !== it.key : o !== it) &&
+            isInsideCircleCorridorHole(match.ring, o),
+        );
+        const centered =
+          Math.abs(it.x + it.w * 0.5 - match.cx) <= 0.85 &&
+          Math.abs(it.y + it.h * 0.5 - match.cy) <= 0.85;
+        if (!otherInner && centered) return 'circle';
+      }
+      if (it.label === 'unit:rect') return 'rect';
+      if (it.label === 'unit:trapezoid-ring') return 'trapezoid-ring';
+      return 'ring-curve';
+    }
+    if (it.label === 'unit:ring-curve') return 'rect';
   }
+  if (it.label === 'unit:ring-curve') return 'ring-curve';
+  if (it.label === 'unit:trapezoid-ring') return 'trapezoid-ring';
   return 'rect';
 }
 
@@ -180,8 +868,8 @@ export function getTrapezoidUnitGeometry(
     leftSegs: Array<[number, number]>;
     groupBounds?: { minX: number; minY: number; spanW: number; spanH: number };
   } | null,
-  tile?: { x: number; y: number; w: number; h: number } | null,
-  allItems?: ReadonlyArray<{ kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number }> | null,
+  tile?: { key?: string; kind?: TileKind | string; label?: string | null; unitId?: string | null; x: number; y: number; w: number; h: number; angle?: number } | null,
+  allItems?: ReadonlyArray<{ key?: string; kind: TileKind | string; label?: string | null; unitId?: string | null; x: number; y: number; w: number; h: number; angle?: number }> | null,
 ): TrapezoidUnitGeometry {
   const sTop = merge?.siblingTopMerged ?? false;
   const sRight = merge?.siblingRightMerged ?? false;
@@ -190,47 +878,96 @@ export function getTrapezoidUnitGeometry(
 
   if (mode === 'ring-curve' || mode === 'trapezoid-ring') {
     const it = tile ?? { x: 0, y: 0, w: Math.max(1, Math.round(wPx / Math.max(1, cellPx))), h: Math.max(1, Math.round(hPx / Math.max(1, cellPx))) };
-    const hasAngle = Boolean((it as { angle?: number }).angle);
-    const rings = hasAngle
-      ? []
-      : (allItems ?? []).filter(
-          (c) =>
-            c.kind === 'corridor' &&
-            c.w >= 4 &&
-            c.h >= 4 &&
-            c.label !== 'walkway:straight',
-        );
-    const ux = it.x + it.w / 2;
-    const uy = it.y + it.h / 2;
+    const isSiblingMerged = Boolean(sTop || sRight || sBottom || sLeft);
+    const sector = !isSiblingMerged && allItems ? computeCircleRingUnitSector(it, allItems) : null;
 
-    let cx = ux;
-    let cy = it.y + it.h + Math.max(3, it.w * 0.75);
-    let rxOut = Math.max(4, it.w * 0.85);
-    let ryOut = rxOut;
-    let insideHole = false;
+    if (sector) {
+      const rad = (sector.exactAngleDeg * Math.PI) / 180;
+      const ux = Math.cos(rad);
+      const uy = Math.sin(rad);
+      const vx = -Math.sin(rad);
+      const vy = Math.cos(rad);
+      const rxInSector = sector.rxOut;
+      const ryInSector = sector.ryOut;
+      const rxOutSector = sector.rxOut + sector.radialDepth;
+      const ryOutSector = sector.ryOut + sector.radialDepth;
+      const N = 24;
 
-    if (rings.length > 0) {
-      let bestScore = Infinity;
-      for (const r of rings) {
-        const rcx = r.x + r.w / 2;
-        const rcy = r.y + r.h / 2;
-        const rrx = Math.max(2, r.w / 2);
-        const rry = Math.max(2, r.h / 2);
-        const normDist = Math.hypot((ux - rcx) / rrx, (uy - rcy) / rry);
-        const score = Math.abs(normDist - 1) * Math.min(rrx, rry);
-        if (score < bestScore) {
-          bestScore = score;
-          cx = rcx;
-          cy = rcy;
-          rxOut = rrx;
-          ryOut = rry;
-          insideHole = r.kind === 'corridor' && isInsideCircleCorridorHole(r, it);
-        }
+      const worldRelToNorm = (rx: number, ry: number) => {
+        const u = rx * ux + ry * uy;
+        const v = rx * vx + ry * vy;
+        const xNorm = Math.max(0, Math.min(1, 0.5 + ((u - sector.midU) * cellPx) / Math.max(1, wPx)));
+        const yNorm = Math.max(0, Math.min(1, 0.5 + ((v - sector.midV) * cellPx) / Math.max(1, hPx)));
+        return { x: xNorm, y: yNorm };
+      };
+
+      const outerCurvePts: Array<{ x: number; y: number }> = [];
+      for (let k = 0; k <= N; k++) {
+        const th = sector.thetaStartOut + (k / N) * (sector.thetaEndOut - sector.thetaStartOut);
+        outerCurvePts.push(worldRelToNorm(rxOutSector * Math.cos(th), ryOutSector * Math.sin(th)));
       }
+      const innerCurvePts: Array<{ x: number; y: number }> = [];
+      for (let k = N; k >= 0; k--) {
+        const th = sector.thetaStart + (k / N) * (sector.thetaEnd - sector.thetaStart);
+        innerCurvePts.push(worldRelToNorm(rxInSector * Math.cos(th), ryInSector * Math.sin(th)));
+      }
+
+      const normPts = [...outerCurvePts, ...innerCurvePts];
+      const polyPath = (pts: Array<{ x: number; y: number }>) =>
+        pts
+          .map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${(p.x * wPx).toFixed(1)} ${(p.y * hPx).toFixed(1)}`)
+          .join(' ');
+
+      const startWall = [innerCurvePts[innerCurvePts.length - 1], outerCurvePts[0]];
+      const endWall = [outerCurvePts[outerCurvePts.length - 1], innerCurvePts[0]];
+      const rimParts = [polyPath(outerCurvePts), polyPath(startWall)];
+      const lipRightParts = [polyPath(endWall)];
+      const lipBottomParts = [polyPath(innerCurvePts)];
+
+      const midR = 0.5 * (rxInSector + rxOutSector);
+      const midRY = 0.5 * (ryInSector + ryOutSector);
+      const labelRelX = midR * Math.cos(sector.thetaMid);
+      const labelRelY = midRY * Math.sin(sector.thetaMid);
+      const labelU = labelRelX * ux + labelRelY * uy;
+      const labelV = labelRelX * vx + labelRelY * vy;
+      const labelOffsetXPx = Math.round((labelU - sector.midU) * cellPx * 10) / 10;
+      const labelOffsetYPx = Math.round((labelV - sector.midV) * cellPx * 10) / 10;
+
+      const clipPath = `polygon(${normPts.map((p) => `${(p.x * 100).toFixed(2)}% ${(p.y * 100).toFixed(2)}%`).join(', ')})`;
+      const fillPoints = normPts.map((p) => `${(p.x * wPx).toFixed(1)},${(p.y * hPx).toFixed(1)}`).join(' ');
+
+      return {
+        clipPath,
+        fillPoints,
+        rimPath: rimParts.join(' '),
+        lipRightPath: lipRightParts.join(' '),
+        lipBottomPath: lipBottomParts.join(' '),
+        facingEdge: sector.facingEdge,
+        labelOffsetXPx,
+        labelOffsetYPx,
+      };
     }
 
-    const dx = cx - ux;
-    const dy = cy - uy;
+    const angleDeg = (it as { angle?: number }).angle ?? 0;
+    const match = allItems ? findNearestCircleCorridorForUnit(it, allItems) : null;
+    const ux = it.x + it.w * 0.5;
+    const uy = it.y + it.h * 0.5;
+
+    const cx = match ? match.cx : ux;
+    const cy = match ? match.cy : it.y + it.h + Math.max(3, it.w * 0.75);
+    const rxOut = match ? match.rxOut : Math.max(4, it.w * 0.85);
+    const ryOut = match ? match.ryOut : rxOut;
+    const rxIn = match ? match.rxIn : Math.max(2, rxOut - 1.65);
+    const ryIn = match ? match.ryIn : Math.max(2, ryOut - 1.65);
+    const insideHole = match ? match.insideHole : false;
+
+    const rad = (angleDeg * Math.PI) / 180;
+    const cosA = Math.cos(rad);
+    const sinA = Math.sin(rad);
+    const wDx = cx - ux;
+    const wDy = cy - uy;
+    const dx = wDx * cosA + wDy * sinA;
+    const dy = -wDx * sinA + wDy * cosA;
     const ndx = dx / Math.max(1, rxOut);
     const ndy = dy / Math.max(1, ryOut);
 
@@ -246,44 +983,50 @@ export function getTrapezoidUnitGeometry(
     }
 
     const taper = mode === 'trapezoid-ring' ? 0.18 : 0;
-    const maxDepthFrac = 0.28;
     const N = 18;
-    const isSiblingMerged = Boolean(sTop || sRight || sBottom || sLeft);
+    const targetRx = insideHole ? rxIn : rxOut;
+    const targetRy = insideHole ? ryIn : ryOut;
+    const effWCells = cellPx > 0 ? wPx / cellPx : it.w;
+    const effHCells = cellPx > 0 ? hPx / cellPx : it.h;
+
+    const isHorizEdge = facingEdge === 'bottom' || facingEdge === 'top';
+    const sMin = isHorizEdge
+      ? !angleDeg && isSiblingMerged && merge?.groupBounds
+        ? merge.groupBounds.minX - cx
+        : (taper - 0.5) * it.w - dx
+      : !angleDeg && isSiblingMerged && merge?.groupBounds
+        ? merge.groupBounds.minY - cy
+        : (taper - 0.5) * it.h - dy;
+    const sMax = isHorizEdge
+      ? !angleDeg && isSiblingMerged && merge?.groupBounds
+        ? merge.groupBounds.minX + merge.groupBounds.spanW - cx
+        : (1 - taper - 0.5) * it.w - dx
+      : !angleDeg && isSiblingMerged && merge?.groupBounds
+        ? merge.groupBounds.minY + merge.groupBounds.spanH - cy
+        : (1 - taper - 0.5) * it.h - dy;
+
+    const baseRPar = isHorizEdge ? targetRx : targetRy;
+    const baseRPerp = isHorizEdge ? targetRy : targetRx;
+    const maxAbsS = Math.max(Math.abs(sMin), Math.abs(sMax));
+    const rPar = Math.max(baseRPar, maxAbsS * 1.04, 2.5);
+    const rPerp = Math.max(2.0, baseRPerp * (rPar / Math.max(0.5, baseRPar)));
+    const arcH = (sVal: number): number => {
+      const clamped = Math.max(-rPar * 0.96, Math.min(rPar * 0.96, sVal));
+      return Math.sqrt(Math.max(0, 1 - (clamped / rPar) ** 2)) * rPerp;
+    };
+    const baseH = Math.min(arcH(sMin), arcH(sMax));
+    const sPeak = Math.max(sMin, Math.min(sMax, 0));
+    const peakH = arcH(sPeak);
+    const spanCells = Math.max(1e-4, peakH - baseH);
+    const perpCells = isHorizEdge ? effHCells : effWCells;
+    const maxDepthFrac = match
+      ? Math.max(0.06, Math.min(0.48, spanCells / Math.max(1, perpCells)))
+      : 0.28;
 
     const computeArchNorm = (t: number): number => {
-      if (facingEdge === 'bottom' || facingEdge === 'top') {
-        const u = taper + t * (1 - 2 * taper);
-        const gx = it.x + u * it.w;
-        const gMinX = isSiblingMerged && merge?.groupBounds ? merge.groupBounds.minX : it.x + taper * it.w;
-        const gMaxX =
-          isSiblingMerged && merge?.groupBounds
-            ? merge.groupBounds.minX + merge.groupBounds.spanW
-            : it.x + (1 - taper) * it.w;
-        const ringR = Math.max(rxOut * 1.15, (gMaxX - gMinX) * 0.65, 3);
-        const clampDx = (xVal: number) => Math.max(-ringR * 0.92, Math.min(ringR * 0.92, xVal - cx));
-        const maxDxSq = Math.max(clampDx(gMinX) ** 2, clampDx(gMaxX) ** 2);
-        const baseH = Math.sqrt(Math.max(0, ringR * ringR - maxDxSq));
-        const hAt = (xVal: number) => Math.max(0, Math.sqrt(Math.max(0, ringR * ringR - clampDx(xVal) ** 2)) - baseH);
-        const xPeak = Math.max(gMinX, Math.min(gMaxX, cx));
-        const peak = Math.max(1e-4, hAt(xPeak));
-        return Math.max(0, Math.min(1, hAt(gx) / peak));
-      } else {
-        const v = taper + t * (1 - 2 * taper);
-        const gy = it.y + v * it.h;
-        const gMinY = isSiblingMerged && merge?.groupBounds ? merge.groupBounds.minY : it.y + taper * it.h;
-        const gMaxY =
-          isSiblingMerged && merge?.groupBounds
-            ? merge.groupBounds.minY + merge.groupBounds.spanH
-            : it.y + (1 - taper) * it.h;
-        const ringR = Math.max(ryOut * 1.15, (gMaxY - gMinY) * 0.65, 3);
-        const clampDy = (yVal: number) => Math.max(-ringR * 0.92, Math.min(ringR * 0.92, yVal - cy));
-        const maxDySq = Math.max(clampDy(gMinY) ** 2, clampDy(gMaxY) ** 2);
-        const baseH = Math.sqrt(Math.max(0, ringR * ringR - maxDySq));
-        const hAt = (yVal: number) => Math.max(0, Math.sqrt(Math.max(0, ringR * ringR - clampDy(yVal) ** 2)) - baseH);
-        const yPeak = Math.max(gMinY, Math.min(gMaxY, cy));
-        const peak = Math.max(1e-4, hAt(yPeak));
-        return Math.max(0, Math.min(1, hAt(gy) / peak));
-      }
+      const u = taper + t * (1 - 2 * taper);
+      const sVal = isHorizEdge ? (u - 0.5) * it.w - dx : (u - 0.5) * it.h - dy;
+      return Math.max(0, Math.min(1, (arcH(sVal) - baseH) / spanCells));
     };
 
     const indentAt = (t: number): number => {
@@ -556,7 +1299,7 @@ export function getTrapezoidUnitGeometry(
   };
 }
 
-export interface LandmarkVariantDef {
+interface LandmarkVariantDef {
   id: string;
   label: string;
   badgeText: string;
@@ -637,7 +1380,7 @@ export const LANDMARK_VARIANTS: Record<Exclude<TileKind, 'unit' | 'corridor'>, R
   ],
 };
 
-export interface LandmarkMeta {
+interface LandmarkMeta {
   variant: string;
   variantLabel: string;
   badgeText: string;
@@ -649,7 +1392,7 @@ export interface LandmarkMeta {
   displayLabel: string;
 }
 
-export interface PolygonAtriumGeometry {
+interface PolygonAtriumGeometry {
   faces: 8 | 12 | 24;
   clipPath: string;
   outerPoints: string;
@@ -798,7 +1541,7 @@ export function nextLandmarkVariant(
   return defs[(idx + 1) % defs.length].id;
 }
 
-export function isCircleTile(
+function isCircleTile(
   it: { kind: TileKind | string; label?: string | null; x?: number; y?: number; w?: number; h?: number },
   allItems?: ReadonlyArray<{ kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number }>,
   isMergedUnit?: boolean,
@@ -809,16 +1552,7 @@ export function isCircleTile(
   if (it.kind === 'unit') {
     if (isMergedUnit) return false;
     if (it.label === 'unit:circle') return true;
-    if (
-      it.label === 'unit:rect' ||
-      it.label === 'unit:ring-curve' ||
-      it.label === 'unit:trapezoid-ring' ||
-      it.label === 'unit:trapezoid' ||
-      it.label === 'unit:trapezoid-l' ||
-      it.label === 'unit:trapezoid-r'
-    ) {
-      return false;
-    }
+    if (it.label?.startsWith('unit:')) return false;
     if (
       allItems &&
       typeof it.x === 'number' &&
@@ -826,7 +1560,7 @@ export function isCircleTile(
       typeof it.w === 'number' &&
       typeof it.h === 'number'
     ) {
-      return allItems.some((c) => c.kind === 'corridor' && isInsideCircleCorridorHole(c, it as any));
+      return parseUnitShapeMode(it as any, allItems, isMergedUnit) === 'circle';
     }
   }
   return false;
@@ -838,17 +1572,60 @@ export function isCircleTile(
  */
 function isInsideCircleCorridorHole(
   outer: { kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number },
-  inner: { x: number; y: number; w: number; h: number },
+  inner: { kind?: TileKind | string; x: number; y: number; w: number; h: number },
 ): boolean {
   if (outer.kind !== 'corridor') return false;
   if (outer.label === 'walkway:straight') return false;
   if (outer.w < 4 || outer.h < 4) return false;
-  return (
-    inner.x >= outer.x + 1 &&
-    inner.x + inner.w <= outer.x + outer.w - 1 &&
-    inner.y >= outer.y + 1 &&
-    inner.y + inner.h <= outer.y + outer.h - 1
-  );
+  if (
+    inner.x < outer.x + 1 ||
+    inner.x + inner.w > outer.x + outer.w - 1 ||
+    inner.y < outer.y + 1 ||
+    inner.y + inner.h > outer.y + outer.h - 1
+  ) {
+    return false;
+  }
+  if (inner.kind === 'unit') {
+    const rcx = outer.x + outer.w * 0.5;
+    const rcy = outer.y + outer.h * 0.5;
+    const rxOut = Math.max(2, outer.w * 0.5);
+    const ryOut = Math.max(2, outer.h * 0.5);
+    const icx = inner.x + inner.w * 0.5;
+    const icy = inner.y + inner.h * 0.5;
+    const normCenter = Math.hypot((icx - rcx) / rxOut, (icy - rcy) / ryOut);
+    if (normCenter > 0.42) return false;
+  }
+  return true;
+}
+
+/**
+ * Returns true when a non-corridor tile `other` overlaps the rectangular bounding box of a circular ring walkway `ring`
+ * only in the empty outer corner/shoulder region outside the inscribed circular/elliptical walkway lane, or is a unit
+ * tile visually auto-snapped to the outer rim (`rxOut`).
+ */
+export function isOutsideCircleCorridorOuter(
+  a: { kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
+  b: { kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
+): boolean {
+  const check = (
+    ring: { kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
+    other: { kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
+  ): boolean => {
+    if (!isCircleRingCorridor(ring) || other.kind === 'corridor') return false;
+    if (isInsideCircleCorridorHole(ring, other)) return false;
+    const rcx = ring.x + ring.w * 0.5;
+    const rcy = ring.y + ring.h * 0.5;
+    const rxOut = Math.max(2, ring.w * 0.5);
+    const ryOut = Math.max(2, ring.h * 0.5);
+    const ocx = other.x + other.w * 0.5;
+    const ocy = other.y + other.h * 0.5;
+    const centerNorm = Math.hypot((ocx - rcx) / rxOut, (ocy - rcy) / ryOut);
+    if (centerNorm < (other.kind === 'unit' ? 0.40 : 0.92)) return false;
+    const closestPt = getClosestPointOnTileToPoint(other, rcx, rcy);
+    const closestNorm = Math.hypot((closestPt.x - rcx) / rxOut, (closestPt.y - rcy) / ryOut);
+    return closestNorm >= (other.angle || other.kind === 'unit' ? 0.18 : 0.82);
+  };
+  return check(a, b) || check(b, a);
 }
 
 export const SHOP_CATEGORIES = [
@@ -1012,7 +1789,7 @@ export function isTransitLandmark(kind: TileKind | string): boolean {
   return kind === 'stairs' || kind === 'escalator';
 }
 
-export function isAtriumTransitOverlap(
+function isAtriumTransitOverlap(
   a: { kind: TileKind | string },
   b: { kind: TileKind | string },
 ): boolean {
@@ -1022,7 +1799,7 @@ export function isAtriumTransitOverlap(
   );
 }
 
-export function isOutsidePolygonAtrium(
+function isOutsidePolygonAtrium(
   a: { kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
   b: { kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
 ): boolean {
@@ -1055,13 +1832,20 @@ export function isOutsidePolygonAtrium(
   return check(a, b) || check(b, a);
 }
 
-export function areRotatedRectsSeparated(
+function areRotatedRectsSeparated(
   a: { kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
   b: { kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
 ): boolean {
   const angleA = a.angle ?? 0;
   const angleB = b.angle ?? 0;
-  if (angleA === 0 && angleB === 0) return false;
+  const isRingCurvePair =
+    a.kind === 'unit' &&
+    b.kind === 'unit' &&
+    (a.label === 'unit:ring-curve' ||
+      b.label === 'unit:ring-curve' ||
+      a.label === 'unit:trapezoid-ring' ||
+      b.label === 'unit:trapezoid-ring');
+  if (angleA === 0 && angleB === 0 && !isRingCurvePair) return false;
   if (
     (a.kind === 'corridor' && parseCorridorShapeMode(a.label) === 'circle') ||
     (b.kind === 'corridor' && parseCorridorShapeMode(b.label) === 'circle')
@@ -1084,10 +1868,14 @@ export function areRotatedRectsSeparated(
   );
   const minSpan = Math.min(a.w, a.h, b.w, b.h);
   const sepTol =
-    centerDist >= Math.max(1.2, minSpan * 0.72)
-      ? angleA !== 0 && angleB !== 0
-        ? 0.88
-        : 0.62
+    centerDist >= Math.max(1.2, minSpan * 0.62)
+      ? isRingCurvePair
+        ? 1.65
+        : a.kind === 'unit' && b.kind === 'unit'
+          ? 1.15
+          : angleA !== 0 && angleB !== 0
+            ? 0.88
+            : 0.62
       : 0.32;
   for (const ax of axes) {
     let minA = Infinity;
@@ -1115,6 +1903,7 @@ export function tilesConflict(a: MapItem, b: MapItem): boolean {
     !(a.kind === 'corridor' && b.kind === 'corridor') &&
     !isInsideCircleCorridorHole(a, b) &&
     !isInsideCircleCorridorHole(b, a) &&
+    !isOutsideCircleCorridorOuter(a, b) &&
     !isAtriumTransitOverlap(a, b) &&
     !isOutsidePolygonAtrium(a, b) &&
     !areRotatedRectsSeparated(a, b)
@@ -1176,8 +1965,17 @@ export function findFreeSpot(
   const width = Math.min(w, columns);
   for (let y = 0; y < 5000; y++) {
     for (let x = 0; x + width <= columns; x++) {
-      const candidate = { x, y, w: width, h };
-      if (!items.some((it) => rectsOverlap(candidate, it))) return { x, y };
+      const candidate: MapItem = {
+        key: '__spot__',
+        kind: 'unit',
+        unitId: '__spot__',
+        label: null,
+        x,
+        y,
+        w: width,
+        h,
+      };
+      if (!items.some((it) => tilesConflict(candidate, it))) return { x, y };
     }
   }
   return { x: 0, y: 0 };
@@ -1225,7 +2023,7 @@ function findSpotTouchingBlock(
   return null;
 }
 
-export function findAdjacentSpot(
+function findAdjacentSpot(
   items: MapItem[],
   anchor: MapItem,
   w: number,
@@ -1625,7 +2423,7 @@ export function wrapWalkwayAroundAtrium(
   };
 }
 
-export const MAGNET_SNAP_GAP = 2;
+const MAGNET_SNAP_GAP = 2;
 const LINE_ALIGN_TOL = 2;
 
 function alignCoordToLines(val: number, targets: ReadonlyArray<number>, minVal: number, maxVal: number, tol = LINE_ALIGN_TOL): number {
@@ -1999,6 +2797,160 @@ function findPolygonAtriumMagneticCandidate(
   return null;
 }
 
+function findCircleCorridorMagneticCandidate(
+  moved: MapItem,
+  ring: MapItem,
+  others: ReadonlyArray<MapItem>,
+  columns: number,
+): { x: number; y: number; w: number; h: number; angle: number | undefined; label: string | null; dist: number } | null {
+  if (moved.kind !== 'unit' || !isCircleRingCorridor(ring)) return null;
+  if (isInsideCircleCorridorHole(ring, moved)) return null;
+
+  const w = Math.min(moved.w, columns);
+  const h = moved.h;
+  const gapX = Math.max(0, ring.x - (moved.x + w), moved.x - (ring.x + ring.w));
+  const gapY = Math.max(0, ring.y - (moved.y + h), moved.y - (ring.y + ring.h));
+  if (gapX > MAGNET_SNAP_GAP + 2.5 || gapY > MAGNET_SNAP_GAP + 2.5) return null;
+
+  const rcx = ring.x + ring.w * 0.5;
+  const rcy = ring.y + ring.h * 0.5;
+  const rxOut = Math.max(2, ring.w * 0.5);
+  const ryOut = Math.max(2, ring.h * 0.5);
+  const mcx = moved.x + w * 0.5;
+  const mcy = moved.y + h * 0.5;
+  const vx = mcx - rcx;
+  const vy = mcy - rcy;
+  if (Math.hypot(vx, vy) < 0.25) return null;
+
+  const closestPt = getClosestPointOnTileToPoint(moved, rcx, rcy);
+  const normClosest = Math.hypot((closestPt.x - rcx) / rxOut, (closestPt.y - rcy) / ryOut);
+  const avgR = (rxOut + ryOut) * 0.5;
+  const radialGap = (normClosest - 1) * avgR;
+  if (radialGap > MAGNET_SNAP_GAP + 2.8) return null;
+
+  const isMultiBlockUnit = Boolean(
+    moved.unitId && others.some((o) => o.kind === 'unit' && o.unitId === moved.unitId),
+  );
+  const rawTheta = Math.atan2(vy / ryOut, vx / rxOut);
+  const parSpan = Math.max(w, h);
+  const perpDepth = Math.min(w, h);
+  const candW = isMultiBlockUnit ? w : Math.min(columns, parSpan);
+  const candH = isMultiBlockUnit ? h : perpDepth;
+  const nextLabel = moved.label === 'unit:trapezoid-ring' ? 'unit:trapezoid-ring' : 'unit:ring-curve';
+  const rMidMoved = avgR + perpDepth * 0.5;
+  const dThetaMoved = Math.max(
+    (18 * Math.PI) / 180,
+    Math.min((105 * Math.PI) / 180, parSpan / Math.max(2, rMidMoved)),
+  );
+
+  // Collect candidate polar angles: raw angle + adjacent slots next to existing units on this ring
+  const candidateThetas: number[] = [rawTheta];
+  for (const o of others) {
+    if (o.kind !== 'unit' || o.key === moved.key) continue;
+    const m = findNearestCircleCorridorForUnit(o, [ring]);
+    if (!m || !m.isNear || m.insideHole) continue;
+    const ocx = o.x + o.w * 0.5;
+    const ocy = o.y + o.h * 0.5;
+    const oTheta = Math.atan2((ocy - rcy) / ryOut, (ocx - rcx) / rxOut);
+    const oPar = Math.max(o.w, o.h);
+    const oPerp = Math.min(o.w, o.h);
+    const oSpan = Math.max(
+      (18 * Math.PI) / 180,
+      Math.min((105 * Math.PI) / 180, oPar / Math.max(2, avgR + oPerp * 0.5)),
+    );
+    const touchDelta = 0.5 * (oSpan + dThetaMoved);
+    const diff = Math.atan2(Math.sin(rawTheta - oTheta), Math.cos(rawTheta - oTheta));
+    if (Math.abs(diff) <= touchDelta + (38 * Math.PI) / 180) {
+      candidateThetas.push(oTheta + (diff >= 0 ? touchDelta : -touchDelta));
+      candidateThetas.push(oTheta + (diff >= 0 ? -touchDelta : touchDelta));
+    }
+  }
+
+  let bestCand: { x: number; y: number; angle: number | undefined; dist: number; score: number } | null = null;
+
+  for (let tIdx = 0; tIdx < candidateThetas.length; tIdx++) {
+    const theta = candidateThetas[tIdx];
+    const bx = rcx + rxOut * Math.cos(theta);
+    const by = rcy + ryOut * Math.sin(theta);
+    const gnx = Math.cos(theta) / rxOut;
+    const gny = Math.sin(theta) / ryOut;
+    const gLen = Math.hypot(gnx, gny) || 1;
+    const nx = gnx / gLen;
+    const ny = gny / gLen;
+
+    const candidateEdges: Array<'bottom' | 'top'> = ['bottom', 'top'];
+    let bestExactDeg = 0;
+    let bestScoreDeg = Infinity;
+
+    for (const edge of candidateEdges) {
+      const rad = edge === 'top' ? Math.atan2(-nx, ny) : Math.atan2(nx, -ny);
+      const exactDeg = (((rad * 180) / Math.PI) % 360 + 360) % 360;
+      const isUpright = exactDeg <= 96 || exactDeg >= 264;
+      const penalty = (isUpright ? 0 : 180) + angularDiffDeg(exactDeg, moved.angle ?? 0) * 0.2;
+      if (penalty < bestScoreDeg) {
+        bestScoreDeg = penalty;
+        bestExactDeg = exactDeg;
+      }
+    }
+
+    const snappedDeg = Math.round(bestExactDeg / TILE_ANGLE_STEP) * TILE_ANGLE_STEP;
+    const alignedAngle = normalizeTileAngle(snappedDeg);
+
+    const rPeak = Math.hypot(bx - rcx, by - rcy) || avgR;
+    const halfSpan = Math.min(rPeak * 0.92, parSpan * 0.5);
+    const baseH = Math.sqrt(Math.max(0, rPeak * rPeak - halfSpan * halfSpan));
+    const sagittaCells = Math.min(perpDepth * 0.45, Math.max(0, rPeak - baseH));
+    const idealCenterX = bx + nx * (perpDepth * 0.5 - sagittaCells * 0.5);
+    const idealCenterY = by + ny * (perpDepth * 0.5 - sagittaCells * 0.5);
+    const baseX = Math.round(idealCenterX - candW * 0.5);
+    const baseY = Math.round(idealCenterY - candH * 0.5);
+
+    for (let dy = -3; dy <= 3; dy++) {
+      for (let dx = -3; dx <= 3; dx++) {
+        const cx = baseX + dx;
+        const cy = baseY + dy;
+        if (cx < 0 || cy < 0 || cx + candW > columns) continue;
+        const cand: MapItem = {
+          ...moved,
+          x: cx,
+          y: cy,
+          w: candW,
+          h: candH,
+          angle: alignedAngle,
+          label: nextLabel,
+        };
+        if (others.some((o) => tilesConflict(cand, o))) continue;
+        const m = findNearestCircleCorridorForUnit(cand, [ring]);
+        if (!m || !m.isNear || m.insideHole) continue;
+        const centerDist = Math.hypot(cx + candW * 0.5 - idealCenterX, cy + candH * 0.5 - idealCenterY);
+        const moveDist = Math.hypot(cx + candW * 0.5 - mcx, cy + candH * 0.5 - mcy);
+        const slotPenalty = tIdx === 0 ? 0 : 0.35;
+        const score = centerDist * 3.0 + moveDist * 0.35 + slotPenalty;
+        if (!bestCand || score < bestCand.score) {
+          bestCand = {
+            x: cx,
+            y: cy,
+            angle: alignedAngle,
+            dist: Math.min(Math.hypot(gapX, gapY), moveDist),
+            score,
+          };
+        }
+      }
+    }
+  }
+
+  if (!bestCand) return null;
+  return {
+    x: bestCand.x,
+    y: bestCand.y,
+    w: candW,
+    h: candH,
+    angle: bestCand.angle,
+    label: nextLabel,
+    dist: bestCand.dist,
+  };
+}
+
 function snapBlockToSiblingsBorder(
   moved: MapItem,
   siblings: ReadonlyArray<MapItem>,
@@ -2019,6 +2971,8 @@ function snapBlockToSiblingsBorder(
     h?: number;
     angle?: number;
     hasAngle?: boolean;
+    label?: string | null;
+    hasLabel?: boolean;
     dist: number;
     priority: number;
   }> = [];
@@ -2035,6 +2989,25 @@ function snapBlockToSiblingsBorder(
           angle: polyCand.angle,
           hasAngle: true,
           dist: polyCand.dist,
+          priority: -1,
+        });
+        continue;
+      }
+    }
+
+    if (moved.kind === 'unit' && isCircleRingCorridor(sib)) {
+      const ringCand = findCircleCorridorMagneticCandidate(moved, sib, others, columns);
+      if (ringCand) {
+        candidates.push({
+          x: ringCand.x,
+          y: ringCand.y,
+          w: ringCand.w,
+          h: ringCand.h,
+          angle: ringCand.angle,
+          hasAngle: true,
+          label: ringCand.label,
+          hasLabel: true,
+          dist: ringCand.dist,
           priority: -1,
         });
         continue;
@@ -2108,6 +3081,7 @@ function snapBlockToSiblingsBorder(
     w: best.w ?? w,
     h: best.h ?? h,
     angle: best.hasAngle ? best.angle : moved.angle,
+    label: best.hasLabel ? (best.label ?? null) : moved.label,
   };
 }
 
@@ -2135,6 +3109,8 @@ function snapTileByMagneticProximity(
     h?: number;
     angle?: number;
     hasAngle?: boolean;
+    label?: string | null;
+    hasLabel?: boolean;
     dist: number;
     priority: number;
   }> = [];
@@ -2166,6 +3142,26 @@ function snapTileByMagneticProximity(
           angle: polyCand.angle,
           hasAngle: true,
           dist: polyCand.dist,
+          priority: -1,
+        });
+        continue;
+      }
+    }
+
+    // 1a. Unit near a Circle Ring walkway: magnetically attract to touch the circular arc and auto-rotate to match the curve
+    if (moved.kind === 'unit' && isCircleRingCorridor(sib)) {
+      const ringCand = findCircleCorridorMagneticCandidate(moved, sib, others, columns);
+      if (ringCand && ringCand.dist <= MAGNET_SNAP_GAP + 4) {
+        candidates.push({
+          x: ringCand.x,
+          y: ringCand.y,
+          w: ringCand.w,
+          h: ringCand.h,
+          angle: ringCand.angle,
+          hasAngle: true,
+          label: ringCand.label,
+          hasLabel: true,
+          dist: ringCand.dist,
           priority: -1,
         });
         continue;
@@ -2363,6 +3359,7 @@ function snapTileByMagneticProximity(
     w: best.w ?? w,
     h: best.h ?? h,
     angle: best.hasAngle ? best.angle : moved.angle,
+    label: best.hasLabel ? (best.label ?? null) : moved.label,
   };
 }
 
@@ -2370,14 +3367,14 @@ function snapTileByMagneticProximity(
  * Magnetically snaps a resized tile's moving edges (`x`, `y`, `w`, `h`) within `MAGNET_SNAP_GAP` (1–2 cells)
  * so resized edges automatically touch adjacent borders or equalize width/height and edge lines with neighbors.
  */
-export function snapTileResizeMagnetically(
+function snapTileResizeMagnetically(
   moved: MapItem,
   orig: MapItem,
   items: ReadonlyArray<MapItem>,
   columns: number,
 ): MapItem | null {
   const others = items.filter((i) => i.key !== moved.key);
-  if (moved.angle) {
+  if (moved.angle || isCircleRingCorridor(moved)) {
     const cand: MapItem = { ...moved, w: Math.min(moved.w, columns - moved.x) };
     return !others.some((o) => tilesConflict(cand, o)) ? cand : null;
   }
@@ -2418,19 +3415,23 @@ export function snapTileResizeMagnetically(
   let nextH = moved.h;
 
   if (resizingRight) {
-    const snappedRight = alignCoordToLines(movedRight, rightTargets, moved.x + 1, columns, MAGNET_SNAP_GAP);
+    const validRightTargets = rightTargets.filter((t) => t !== origRight);
+    const snappedRight = alignCoordToLines(movedRight, validRightTargets, moved.x + 1, columns, MAGNET_SNAP_GAP);
     nextW = Math.max(1, snappedRight - moved.x);
   } else if (resizingLeft) {
-    const snappedLeft = alignCoordToLines(moved.x, xTargets, 0, origRight - 1, MAGNET_SNAP_GAP);
+    const validXTargets = xTargets.filter((t) => t !== orig.x);
+    const snappedLeft = alignCoordToLines(moved.x, validXTargets, 0, origRight - 1, MAGNET_SNAP_GAP);
     nextX = snappedLeft;
     nextW = Math.max(1, origRight - snappedLeft);
   }
 
   if (resizingBottom) {
-    const snappedBottom = alignCoordToLines(movedBottom, bottomTargets, moved.y + 1, 5000, MAGNET_SNAP_GAP);
+    const validBottomTargets = bottomTargets.filter((t) => t !== origBottom);
+    const snappedBottom = alignCoordToLines(movedBottom, validBottomTargets, moved.y + 1, 5000, MAGNET_SNAP_GAP);
     nextH = Math.max(1, snappedBottom - moved.y);
   } else if (resizingTop) {
-    const snappedTop = alignCoordToLines(moved.y, yTargets, 0, origBottom - 1, MAGNET_SNAP_GAP);
+    const validYTargets = yTargets.filter((t) => t !== orig.y);
+    const snappedTop = alignCoordToLines(moved.y, validYTargets, 0, origBottom - 1, MAGNET_SNAP_GAP);
     nextY = snappedTop;
     nextH = Math.max(1, origBottom - snappedTop);
   }
@@ -2447,7 +3448,7 @@ export function snapTileResizeMagnetically(
  * - When resizing (`orig` has different `w` or `h`), snaps the resized edge to nearby borders.
  * - When overlapping a same-unit sibling block, Atrium, or neighboring tile, snaps flush to the nearest border with full border alignment.
  * - When dragged within 1–2 grid cells (`MAGNET_SNAP_GAP`) of any tile, magnetically pulls to touch border-by-border
- *   (and on Polygon Atriums, auto-adjusts degree & face span).
+ *   (and on Polygon Atriums / Circle Rings, auto-adjusts degree & curve alignment).
  */
 export function snapTileToBorder(
   moved: MapItem,
@@ -2461,33 +3462,205 @@ export function snapTileToBorder(
     if (resized) return resized;
     if (moved.angle) return null;
   }
+  let baseMoved = moved;
+  let detachedFromRing = false;
+  if (baseMoved.kind === 'unit' && (!orig || (baseMoved.w === orig.w && baseMoved.h === orig.h))) {
+    const nearRingNow = Boolean(findNearestCircleCorridorForUnit(baseMoved, items)?.isNear);
+    const wasNearRing = Boolean(orig && findNearestCircleCorridorForUnit(orig, items)?.isNear);
+    if (
+      !nearRingNow &&
+      (wasNearRing || baseMoved.label === 'unit:ring-curve' || baseMoved.label === 'unit:trapezoid-ring')
+    ) {
+      baseMoved = { ...baseMoved, label: null, angle: undefined };
+      detachedFromRing = true;
+    }
+  }
   const siblings = items.filter((i) => {
-    if (i.key === moved.key) return false;
-    if (moved.kind === 'unit') {
+    if (i.key === baseMoved.key) return false;
+    if (baseMoved.kind === 'unit') {
       return (
-        (i.kind === 'unit' && i.unitId === moved.unitId) ||
-        (i.kind === 'atrium' && (tilesConflict(moved, i) || rectsOverlap(moved, i)))
+        (i.kind === 'unit' && i.unitId === baseMoved.unitId) ||
+        (i.kind === 'atrium' && (tilesConflict(baseMoved, i) || rectsOverlap(baseMoved, i))) ||
+        (isCircleRingCorridor(i) && (tilesConflict(baseMoved, i) || rectsOverlap(baseMoved, i)))
       );
     }
-    if (moved.kind === 'corridor' && i.kind === 'corridor') {
+    if (baseMoved.kind === 'corridor' && i.kind === 'corridor') {
       if (
-        moved.angle ||
+        baseMoved.angle ||
         i.angle ||
-        parseCorridorShapeMode(moved.label) === 'circle' ||
+        parseCorridorShapeMode(baseMoved.label) === 'circle' ||
         parseCorridorShapeMode(i.label) === 'circle' ||
-        !rectsOverlap(moved, i)
+        !rectsOverlap(baseMoved, i)
       ) {
         return false;
       }
-      const overlapW = Math.min(moved.x + moved.w, i.x + i.w) - Math.max(moved.x, i.x);
-      const overlapH = Math.min(moved.y + moved.h, i.y + i.h) - Math.max(moved.y, i.y);
+      const overlapW = Math.min(baseMoved.x + baseMoved.w, i.x + i.w) - Math.max(baseMoved.x, i.x);
+      const overlapH = Math.min(baseMoved.y + baseMoved.h, i.y + i.h) - Math.max(baseMoved.y, i.y);
       return overlapW <= 1 || overlapH <= 1;
     }
-    return tilesConflict(moved, i) || (i.kind === 'atrium' && rectsOverlap(moved, i));
+    return tilesConflict(baseMoved, i) || (i.kind === 'atrium' && rectsOverlap(baseMoved, i));
   });
-  const overlapSnapped = snapBlockToSiblingsBorder(moved, siblings, items, columns);
+  const overlapSnapped = snapBlockToSiblingsBorder(baseMoved, siblings, items, columns);
   if (overlapSnapped) return overlapSnapped;
-  return snapTileByMagneticProximity(moved, items, columns);
+  const proximitySnapped = snapTileByMagneticProximity(baseMoved, items, columns);
+  if (proximitySnapped) return proximitySnapped;
+  return detachedFromRing ? baseMoved : null;
+}
+
+/**
+ * Synchronizes inner hole items (e.g. an Atrium inside a Circle Ring walkway) and surrounding curved Units
+ * when a Circle Ring walkway (or an Atrium inside a Circle Ring walkway) is resized or moved,
+ * so the Circle Ring walkway can freely increase/decrease its width and height.
+ */
+export function syncCircleCorridorResizeWithInnerAndOuterItems(
+  candidateItems: MapItem[],
+  baseItems: ReadonlyArray<MapItem>,
+  columns: number,
+): MapItem[] {
+  const origByKey = new Map(baseItems.map((i) => [i.key, i]));
+  const next = candidateItems.map((i) => ({ ...i }));
+  const nextByKey = new Map(next.map((i) => [i.key, i]));
+
+  const pushOuterUnitsAroundRing = (ring: MapItem, origRing: MapItem) => {
+    const rcx = ring.x + ring.w * 0.5;
+    const rcy = ring.y + ring.h * 0.5;
+    const origRcx = origRing.x + origRing.w * 0.5;
+    const origRcy = origRing.y + origRing.h * 0.5;
+    const rxOut = Math.max(2, ring.w * 0.5);
+    const ryOut = Math.max(2, ring.h * 0.5);
+
+    for (const u of next) {
+      if (u.key === ring.key || u.kind !== 'unit') continue;
+      const uOrig = origByKey.get(u.key);
+      if (!uOrig || isInsideCircleCorridorHole(origRing, uOrig)) continue;
+      const wasNear = Boolean(findNearestCircleCorridorForUnit(uOrig, [origRing])?.isNear);
+      const nowConflicts = tilesConflict(ring, u);
+      if (!wasNear && !nowConflicts) continue;
+
+      const vx = uOrig.x + uOrig.w * 0.5 - origRcx;
+      const vy = uOrig.y + uOrig.h * 0.5 - origRcy;
+      const theta = Math.atan2(vy / Math.max(2, origRing.h * 0.5), vx / Math.max(2, origRing.w * 0.5));
+      const bx = rcx + rxOut * Math.cos(theta);
+      const by = rcy + ryOut * Math.sin(theta);
+      const gnx = Math.cos(theta) / rxOut;
+      const gny = Math.sin(theta) / ryOut;
+      const gLen = Math.hypot(gnx, gny) || 1;
+      const nx = gnx / gLen;
+      const ny = gny / gLen;
+      const perpDepth = u.w >= u.h ? u.h : u.w;
+      const seedX = Math.max(0, Math.min(columns - u.w, Math.round(bx + nx * (perpDepth * 0.5) - u.w * 0.5)));
+      const seedY = Math.max(0, Math.round(by + ny * (perpDepth * 0.5) - u.h * 0.5));
+      const seededUnit: MapItem = { ...u, x: seedX, y: seedY };
+      const others = next.filter((o) => o.key !== u.key);
+      const ringCand = findCircleCorridorMagneticCandidate(seededUnit, ring, others, columns);
+      if (ringCand) {
+        u.x = ringCand.x;
+        u.y = ringCand.y;
+        u.w = ringCand.w;
+        u.h = ringCand.h;
+        u.angle = ringCand.angle;
+        u.label = ringCand.label;
+      } else if (nowConflicts) {
+        for (let step = 1; step <= 8; step++) {
+          const px = Math.max(0, Math.min(columns - u.w, Math.round(bx + nx * (perpDepth * 0.5 + step * 0.75) - u.w * 0.5)));
+          const py = Math.max(0, Math.round(by + ny * (perpDepth * 0.5 + step * 0.75) - u.h * 0.5));
+          const testU: MapItem = { ...u, x: px, y: py };
+          if (!others.some((o) => tilesConflict(testU, o))) {
+            u.x = px;
+            u.y = py;
+            break;
+          }
+        }
+      }
+    }
+  };
+
+  for (const curr of next) {
+    const orig = origByKey.get(curr.key);
+    if (!orig) continue;
+    const resized = curr.w !== orig.w || curr.h !== orig.h;
+    const moved = curr.x !== orig.x || curr.y !== orig.y;
+    if (!resized && !moved) continue;
+
+    // 1. Circle Ring corridor resized or moved while containing inner hole items (e.g. Atrium)
+    if (isCircleRingCorridor(orig)) {
+      const innerOrigs = baseItems.filter((o) => o.key !== orig.key && isInsideCircleCorridorHole(orig, o));
+      if (innerOrigs.length > 0) {
+        if (resized) {
+          let minReqW = 4;
+          let minReqH = 4;
+          for (const inOrig of innerOrigs) {
+            minReqW = Math.max(minReqW, inOrig.w + 2);
+            minReqH = Math.max(minReqH, inOrig.h + 2);
+          }
+          if (curr.w < minReqW) {
+            if (curr.x !== orig.x) curr.x = Math.max(0, orig.x + orig.w - minReqW);
+            curr.w = Math.min(columns - curr.x, minReqW);
+          }
+          if (curr.h < minReqH) {
+            if (curr.y !== orig.y) curr.y = Math.max(0, orig.y + orig.h - minReqH);
+            curr.h = minReqH;
+          }
+          for (const inOrig of innerOrigs) {
+            const innerCurr = nextByKey.get(inOrig.key);
+            if (!innerCurr) continue;
+            innerCurr.x = Math.max(
+              curr.x + 1,
+              Math.min(curr.x + curr.w - innerCurr.w - 1, Math.round(curr.x + (curr.w - innerCurr.w) * 0.5)),
+            );
+            innerCurr.y = Math.max(
+              curr.y + 1,
+              Math.min(curr.y + curr.h - innerCurr.h - 1, Math.round(curr.y + (curr.h - innerCurr.h) * 0.5)),
+            );
+          }
+        } else if (moved) {
+          const dx = curr.x - orig.x;
+          const dy = curr.y - orig.y;
+          for (const inOrig of innerOrigs) {
+            const innerCurr = nextByKey.get(inOrig.key);
+            if (!innerCurr) continue;
+            innerCurr.x = Math.max(0, Math.min(columns - innerCurr.w, inOrig.x + dx));
+            innerCurr.y = Math.max(0, inOrig.y + dy);
+          }
+        }
+      }
+      if (resized) {
+        pushOuterUnitsAroundRing(curr, orig);
+      }
+      continue;
+    }
+
+    // 2. Inner hole item (e.g. Atrium) resized while inside a Circle Ring corridor
+    if (resized && curr.kind !== 'corridor') {
+      const parentRingOrig = baseItems.find((r) => isCircleRingCorridor(r) && isInsideCircleCorridorHole(r, orig));
+      if (parentRingOrig) {
+        const ringCurr = nextByKey.get(parentRingOrig.key);
+        if (ringCurr && !isInsideCircleCorridorHole(ringCurr, curr)) {
+          const padW = Math.max(2, parentRingOrig.w - orig.w);
+          const padH = Math.max(2, parentRingOrig.h - orig.h);
+          const nextRingW = Math.min(columns, Math.max(ringCurr.w, curr.w + padW));
+          const nextRingH = Math.max(ringCurr.h, curr.h + padH);
+          const nextRingX = Math.max(0, Math.min(columns - nextRingW, Math.round(curr.x + (curr.w - nextRingW) * 0.5)));
+          const nextRingY = Math.max(0, Math.round(curr.y + (curr.h - nextRingH) * 0.5));
+          ringCurr.x = nextRingX;
+          ringCurr.y = nextRingY;
+          ringCurr.w = nextRingW;
+          ringCurr.h = nextRingH;
+          curr.x = Math.max(
+            ringCurr.x + 1,
+            Math.min(ringCurr.x + ringCurr.w - curr.w - 1, Math.round(ringCurr.x + (ringCurr.w - curr.w) * 0.5)),
+          );
+          curr.y = Math.max(
+            ringCurr.y + 1,
+            Math.min(ringCurr.y + ringCurr.h - curr.h - 1, Math.round(ringCurr.y + (ringCurr.h - curr.h) * 0.5)),
+          );
+          pushOuterUnitsAroundRing(ringCurr, parentRingOrig);
+        }
+      }
+    }
+  }
+
+  return next;
 }
 
 export interface MagneticSnapGuide {
@@ -2540,6 +3713,45 @@ export function computeMagneticSnapGuide(
       badgeText: `${deg}° • ${polyFaces.length}-Face Line & Length`,
       isPolygonAtriumSnap: true,
     };
+  }
+
+  // 1b. Check Circle Ring walkway curve snap for a Unit
+  if (snapped.kind === 'unit') {
+    const ringMatch = findNearestCircleCorridorForUnit(snapped, allItems);
+    if (ringMatch && ringMatch.isNear && !ringMatch.insideHole) {
+      const align = getAtriumFaceAlignment(snapped, allItems);
+      const deg = Math.round(align ? align.exactAngleDeg : (snapped.angle ?? 0)) % 360;
+      const ucx = snapped.x + snapped.w * 0.5;
+      const ucy = snapped.y + snapped.h * 0.5;
+      const theta = Math.atan2((ucy - ringMatch.cy) / ringMatch.ryOut, (ucx - ringMatch.cx) / ringMatch.rxOut);
+      const bx = ringMatch.cx + ringMatch.rxOut * Math.cos(theta);
+      const by = ringMatch.cy + ringMatch.ryOut * Math.sin(theta);
+      const gnx = Math.cos(theta) / ringMatch.rxOut;
+      const gny = Math.sin(theta) / ringMatch.ryOut;
+      const gLen = Math.hypot(gnx, gny) || 1;
+      const tx = -gny / gLen;
+      const ty = gnx / gLen;
+      const halfSpan = Math.max(snapped.w, snapped.h) * 0.5;
+      return {
+        touchLine: {
+          x1: bx - tx * halfSpan,
+          y1: by - ty * halfSpan,
+          x2: bx + tx * halfSpan,
+          y2: by + ty * halfSpan,
+        },
+        guideLines: [
+          {
+            x1: bx - tx * (halfSpan + 1.2),
+            y1: by - ty * (halfSpan + 1.2),
+            x2: bx + tx * (halfSpan + 1.2),
+            y2: by + ty * (halfSpan + 1.2),
+          },
+        ],
+        badgePos: { x: bx, y: by },
+        badgeText: `${deg}° • Circle Curve Match`,
+        isPolygonAtriumSnap: true,
+      };
+    }
   }
 
   // 2. Check standard rectangular border contact with adjacent tiles
@@ -2761,18 +3973,12 @@ export function addTransitIntoAtrium(
  * Clamp tiles inside the grid, then push any tile that overlaps an earlier one
  * straight down until it fits. Used after the scale changes or sizes are recomputed.
  */
-export function resolveOverlaps(items: MapItem[], columns: number): MapItem[] {
-  const sorted = [...items]
-    .map((it) => ({ ...it, w: Math.min(it.w, columns), x: Math.max(0, Math.min(it.x, columns - Math.min(it.w, columns))) }))
-    .sort((a, b) => a.y - b.y || a.x - b.x);
-  const placed: MapItem[] = [];
-  for (const it of sorted) {
-    const next = { ...it };
-    while (placed.some((p) => tilesConflict(next, p))) next.y += 1;
-    placed.push(next);
-  }
-  // keep the caller's original order
-  const byKey = new Map(placed.map((p) => [p.key, p]));
+function resolveOverlaps(items: MapItem[], columns: number): MapItem[] {
+  const clamped = items.map((it) => {
+    const w = Math.min(it.w, columns);
+    return { ...it, w, x: Math.max(0, Math.min(it.x, columns - w)) };
+  });
+  const byKey = resolveOverlapsWithLockedItems([], clamped);
   return items.map((it) => byKey.get(it.key)!);
 }
 
@@ -2966,13 +4172,13 @@ export function findNearestFacilityItem(
   return best;
 }
 
-export interface WalkwayRouteStep {
+interface WalkwayRouteStep {
   instruction: string;
   distanceMeters: number;
   direction: 'start' | 'straight' | 'left' | 'right' | 'arrive';
 }
 
-export interface WalkwayRouteResult {
+interface WalkwayRouteResult {
   /** Waypoints in grid coordinates (0..columns, 0..rows). Multiply by cellPx for SVG pixels. */
   points: Array<{ x: number; y: number }>;
   /** Estimated walking distance in feet */
@@ -3867,7 +5073,7 @@ function matchSinglePolygonAtriumFaceForItem(
   return matchSinglePolygonAtriumFace(frame, tile.w, tile.h, atrium);
 }
 
-export interface AtriumFaceVisualAlignment {
+interface AtriumFaceVisualAlignment {
   dx: number;
   dy: number;
   exactAngleDeg: number;
@@ -3964,6 +5170,31 @@ export function getAtriumFaceAlignment(
       faceLenCells: Math.round(face.len * 1000) / 1000,
     };
   }
+
+  if (it.kind === 'unit') {
+    const mode = parseUnitShapeMode(it, allItems);
+    if (mode === 'ring-curve' || mode === 'trapezoid-ring') {
+      const sector = computeCircleRingUnitSector(it, allItems);
+      if (sector) {
+        const ucx = it.x + it.w * 0.5;
+        const ucy = it.y + it.h * 0.5;
+        const rawDx = sector.worldCx - ucx;
+        const rawDy = sector.worldCy - ucy;
+        const scaleX = Math.max(0.25, Math.min(8.0, sector.wCells / Math.max(0.5, it.w)));
+        const scaleY = Math.max(0.25, Math.min(8.0, sector.hCells / Math.max(0.5, it.h)));
+        return {
+          dx: Math.round(rawDx * 1000) / 1000,
+          dy: Math.round(rawDy * 1000) / 1000,
+          exactAngleDeg: sector.exactAngleDeg,
+          scaleX: Math.round(scaleX * 10000) / 10000,
+          scaleY: Math.round(scaleY * 10000) / 10000,
+          edge: sector.facingEdge,
+          faceIndex: 0,
+          faceLenCells: Math.round(sector.wCells * 1000) / 1000,
+        };
+      }
+    }
+  }
   return null;
 }
 
@@ -3999,7 +5230,7 @@ interface TiltedEndSleeve {
   samples: Array<{ tau: number; t: number; hit: boolean }>;
 }
 
-export interface CorridorShapeInfo {
+interface CorridorShapeInfo {
   mode: CorridorShapeMode;
   shape: ResolvedCorridorShape;
   frame: LocalTileFrame;
@@ -4239,7 +5470,7 @@ export function buildCorridorShapeMap(
     }
 
     const mode = parseCorridorShapeMode(c.label);
-    const innerHoleItems = all.filter((o) => o.key !== c.key && isInsideCircleCorridorHole(c, o));
+    const { rxIn: calcRxIn, ryIn: calcRyIn, innerHoleItems } = computeCircleRingRadii(c, all, 0, 0);
     const hasInnerHoleItem = innerHoleItems.length > 0;
     const corrSideCount = Number(corrT) + Number(corrR) + Number(corrB) + Number(corrL);
 
@@ -4261,26 +5492,8 @@ export function buildCorridorShapeMap(
     const cy = c.h / 2;
     const rxOut = c.w / 2;
     const ryOut = c.h / 2;
-    let rxIn = 0;
-    let ryIn = 0;
-
-    if (shape === 'circle') {
-      const minDim = Math.min(c.w, c.h);
-      const laneX = minDim <= 2 ? c.w / 2 : c.w >= 8 ? 2 : Math.min(c.w * 0.36, 1.65);
-      const laneY = minDim <= 2 ? c.h / 2 : c.h >= 8 ? 2 : Math.min(c.h * 0.36, 1.65);
-      rxIn = Math.max(0, c.w / 2 - laneX);
-      ryIn = Math.max(0, c.h / 2 - laneY);
-      if (hasInnerHoleItem) {
-        let reqRx = 0;
-        let reqRy = 0;
-        for (const inner of innerHoleItems) {
-          reqRx = Math.max(reqRx, cx - (inner.x - c.x), inner.x + inner.w - c.x - cx);
-          reqRy = Math.max(reqRy, cy - (inner.y - c.y), inner.y + inner.h - c.y - cy);
-        }
-        rxIn = Math.min(Math.max(0.5, c.w / 2 - 1), Math.max(rxIn, reqRx));
-        ryIn = Math.min(Math.max(0.5, c.h / 2 - 1), Math.max(ryIn, reqRy));
-      }
-    }
+    const rxIn = shape === 'circle' ? calcRxIn : 0;
+    const ryIn = shape === 'circle' ? calcRyIn : 0;
 
     map.set(c.key, {
       mode,
@@ -5103,7 +6316,7 @@ export function getCorridorMergeData(
   };
 }
 
-export interface UnitMergeData extends EdgeMergeGeometry {
+interface UnitMergeData extends EdgeMergeGeometry {
   topBridges: Array<[number, number]>;
   rightBridges: Array<[number, number]>;
   bottomBridges: Array<[number, number]>;

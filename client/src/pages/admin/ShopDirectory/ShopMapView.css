@@ -276,12 +276,29 @@
   z-index: 7;
 }
 .shop-map-grid-item:not(.has-inner-items):not(.is-corridor-item):hover,
-.shop-map-grid-item.editing:not(.has-inner-items):hover {
+.shop-map-grid-item.editing:hover,
+.shop-map-grid-item.editing.resizing {
   z-index: 8;
+}
+.shop-map-grid-item.is-inner-hole-item,
+.shop-map-grid-item.is-inner-hole-item.is-rotated-item {
+  z-index: 9;
+}
+.shop-map-grid-item.is-inner-hole-item:hover,
+.shop-map-grid-item.editing.is-inner-hole-item:hover {
+  z-index: 11;
+}
+.shop-map-grid-item.is-transit-item,
+.shop-map-grid-item.is-transit-item.is-rotated-item {
+  z-index: 12;
+}
+.shop-map-grid-item.is-transit-item:hover,
+.shop-map-grid-item.editing.is-transit-item:hover {
+  z-index: 13;
 }
 .shop-map-grid-item.is-layer-focused,
 .shop-map-grid-item.is-layer-focused:hover {
-  z-index: 9 !important;
+  z-index: 14 !important;
 }
 .shop-map-grid-item.is-layer-focused > .shop-map-tile:not(.is-polygon-atrium):not(.is-trapezoid-tile):not(.is-curved-corridor) {
   outline: 2px dashed #a78bfa !important;
@@ -460,12 +477,6 @@
 }
 .shop-map-tile.has-unit-photo .shop-map-tile-photo {
   display: block;
-}
-.shop-map-tile-photo.is-loading {
-  opacity: 0;
-}
-.shop-map-tile-photo.is-ready {
-  opacity: 1;
 }
 
 /* ── Distinct Decoration / Landmark Tiles ── */

@@ -121,19 +121,109 @@ class MallService {
       if (it.kind !== 'unit' && it.unitId) throw AppError.validation('Only unit tiles can have a unit assigned');
     }
 
+    const isCircleRing = (c: { kind: string; label?: string | null; w: number; h: number }) => {
+      if (c.kind !== 'corridor' || c.label === 'walkway:straight') return false;
+      if (c.label === 'walkway:circle') return c.w >= 2 && c.h >= 2;
+      if (c.w < 4 || c.h < 4) return false;
+      return Math.max(c.w, c.h) / Math.max(1, Math.min(c.w, c.h)) <= 1.65;
+    };
+
+    const getRotatedTileBox = (t: { x: number; y: number; w: number; h: number; angle?: number }) => {
+      const cx = t.x + t.w * 0.5;
+      const cy = t.y + t.h * 0.5;
+      const hw = t.w * 0.5;
+      const hh = t.h * 0.5;
+      const rad = ((t.angle ?? 0) * Math.PI) / 180;
+      const ux = Math.cos(rad);
+      const uy = Math.sin(rad);
+      const vx = -uy;
+      const vy = ux;
+      return {
+        cx,
+        cy,
+        ux,
+        uy,
+        vx,
+        vy,
+        corners: [
+          { x: cx - hw * ux - hh * vx, y: cy - hw * uy - hh * vy },
+          { x: cx + hw * ux - hh * vx, y: cy + hw * uy - hh * vy },
+          { x: cx + hw * ux + hh * vx, y: cy + hw * uy + hh * vy },
+          { x: cx - hw * ux + hh * vx, y: cy - hw * uy + hh * vy },
+        ],
+        axes: [
+          { x: ux, y: uy },
+          { x: vx, y: vy },
+        ],
+      };
+    };
+
     const isInsideCircleHole = (
       outer: { kind: string; label?: string | null; x: number; y: number; w: number; h: number },
-      inner: { x: number; y: number; w: number; h: number },
+      inner: { kind?: string; x: number; y: number; w: number; h: number },
     ) => {
-      if (outer.kind !== 'corridor') return false;
-      if (outer.label === 'walkway:straight') return false;
-      if (outer.w < 4 || outer.h < 4) return false;
-      return (
-        inner.x >= outer.x + 1 &&
-        inner.x + inner.w <= outer.x + outer.w - 1 &&
-        inner.y >= outer.y + 1 &&
-        inner.y + inner.h <= outer.y + outer.h - 1
-      );
+      if (outer.kind !== 'corridor' || outer.label === 'walkway:straight' || outer.w < 4 || outer.h < 4) return false;
+      if (
+        inner.x < outer.x + 1 ||
+        inner.x + inner.w > outer.x + outer.w - 1 ||
+        inner.y < outer.y + 1 ||
+        inner.y + inner.h > outer.y + outer.h - 1
+      ) {
+        return false;
+      }
+      if (inner.kind === 'unit') {
+        const rcx = outer.x + outer.w * 0.5;
+        const rcy = outer.y + outer.h * 0.5;
+        const rxOut = Math.max(2, outer.w * 0.5);
+        const ryOut = Math.max(2, outer.h * 0.5);
+        const icx = inner.x + inner.w * 0.5;
+        const icy = inner.y + inner.h * 0.5;
+        if (Math.hypot((icx - rcx) / rxOut, (icy - rcy) / ryOut) > 0.42) return false;
+      }
+      return true;
+    };
+
+    const isOutsideCircleHoleOuter = (
+      a: { kind: string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
+      b: { kind: string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
+    ) => {
+      const check = (
+        ring: { kind: string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
+        other: { kind: string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
+      ) => {
+        if (!isCircleRing(ring) || other.kind === 'corridor' || isInsideCircleHole(ring, other)) return false;
+        const rcx = ring.x + ring.w * 0.5;
+        const rcy = ring.y + ring.h * 0.5;
+        const rxOut = Math.max(1, ring.w * 0.5);
+        const ryOut = Math.max(1, ring.h * 0.5);
+        const ocx = other.x + other.w * 0.5;
+        const ocy = other.y + other.h * 0.5;
+        const centerNorm = Math.hypot((ocx - rcx) / rxOut, (ocy - rcy) / ryOut);
+        if (centerNorm < (other.kind === 'unit' ? 0.40 : 0.92)) return false;
+        const hw = other.w * 0.5;
+        const hh = other.h * 0.5;
+        const dx = rcx - ocx;
+        const dy = rcy - ocy;
+        let qx: number;
+        let qy: number;
+        if (!other.angle) {
+          qx = ocx + Math.max(-hw, Math.min(hw, dx));
+          qy = ocy + Math.max(-hh, Math.min(hh, dy));
+        } else {
+          const rad = (other.angle * Math.PI) / 180;
+          const cos = Math.cos(rad);
+          const sin = Math.sin(rad);
+          const lx = dx * cos + dy * sin;
+          const ly = -dx * sin + dy * cos;
+          const clx = Math.max(-hw, Math.min(hw, lx));
+          const cly = Math.max(-hh, Math.min(hh, ly));
+          qx = ocx + clx * cos - cly * sin;
+          qy = ocy + clx * sin + cly * cos;
+        }
+        const closestNorm = Math.hypot((qx - rcx) / rxOut, (qy - rcy) / ryOut);
+        return closestNorm >= (other.angle || other.kind === 'unit' ? 0.18 : 0.78);
+      };
+      return check(a, b) || check(b, a);
     };
 
     const isAtriumTransitOverlap = (
@@ -170,21 +260,7 @@ class MallService {
           const uy = Math.max(-1, Math.min(1, Math.sin(theta) / cosStep)) * ary;
           verts.push({ x: acx + ux * aCos - uy * aSin, y: acy + ux * aSin + uy * aCos });
         }
-        const ocx = other.x + other.w / 2;
-        const ocy = other.y + other.h / 2;
-        const ohw = other.w / 2;
-        const ohh = other.h / 2;
-        const oRad = ((other.angle ?? 0) * Math.PI) / 180;
-        const oux = Math.cos(oRad);
-        const ouy = Math.sin(oRad);
-        const ovx = -ouy;
-        const ovy = oux;
-        const corners = [
-          { x: ocx - ohw * oux - ohh * ovx, y: ocy - ohw * ouy - ohh * ovy },
-          { x: ocx + ohw * oux - ohh * ovx, y: ocy + ohw * ouy - ohh * ovy },
-          { x: ocx + ohw * oux + ohh * ovx, y: ocy + ohw * ouy + ohh * ovy },
-          { x: ocx - ohw * oux + ohh * ovx, y: ocy - ohw * ouy + ohh * ovy },
-        ];
+        const ob = getRotatedTileBox(other);
         for (let i = 0; i < faces; i++) {
           const v0 = verts[i];
           const v1 = verts[(i + 1) % faces];
@@ -195,15 +271,15 @@ class MallService {
           const nx = dy / len;
           const ny = -dx / len;
           let minProj = Infinity;
-          for (const c of corners) {
+          for (const c of ob.corners) {
             const p = (c.x - v0.x) * nx + (c.y - v0.y) * ny;
             if (p < minProj) minProj = p;
           }
-          const centerDist = (ocx - v0.x) * nx + (ocy - v0.y) * ny;
+          const centerDist = (ob.cx - v0.x) * nx + (ob.cy - v0.y) * ny;
           const alignedDiagonal =
             Boolean(other.angle) &&
             centerDist >= 0.15 &&
-            (Math.abs(oux * nx + ouy * ny) <= 0.26 || Math.abs(ovx * nx + ovy * ny) <= 0.26);
+            (Math.abs(ob.ux * nx + ob.uy * ny) <= 0.26 || Math.abs(ob.vx * nx + ob.vy * ny) <= 0.26);
           const tol = alignedDiagonal ? 0.72 : 0.02;
           if (minProj >= -tol) return true;
         }
@@ -213,53 +289,38 @@ class MallService {
     };
 
     const areRotatedRectsSeparated = (
-      a: { kind: string; x: number; y: number; w: number; h: number; angle?: number },
-      b: { kind: string; x: number; y: number; w: number; h: number; angle?: number },
+      a: { kind: string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
+      b: { kind: string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
     ) => {
       const angleA = a.angle ?? 0;
       const angleB = b.angle ?? 0;
-      if (angleA === 0 && angleB === 0) return false;
+      const isRingCurvePair =
+        a.kind === 'unit' &&
+        b.kind === 'unit' &&
+        (a.label === 'unit:ring-curve' ||
+          b.label === 'unit:ring-curve' ||
+          a.label === 'unit:trapezoid-ring' ||
+          b.label === 'unit:trapezoid-ring');
+      if (angleA === 0 && angleB === 0 && !isRingCurvePair) return false;
       if (
         (a.kind === 'corridor' && a.label === 'walkway:circle') ||
         (b.kind === 'corridor' && b.label === 'walkway:circle')
       ) {
         return false;
       }
-      const getCornersAndAxes = (t: { x: number; y: number; w: number; h: number; angle?: number }) => {
-        const cx = t.x + t.w / 2;
-        const cy = t.y + t.h / 2;
-        const hw = t.w / 2;
-        const hh = t.h / 2;
-        const rad = ((t.angle ?? 0) * Math.PI) / 180;
-        const ux = Math.cos(rad);
-        const uy = Math.sin(rad);
-        const vx = -uy;
-        const vy = ux;
-        return {
-          corners: [
-            { x: cx - hw * ux - hh * vx, y: cy - hw * uy - hh * vy },
-            { x: cx + hw * ux - hh * vx, y: cy + hw * uy - hh * vy },
-            { x: cx + hw * ux + hh * vx, y: cy + hw * uy + hh * vy },
-            { x: cx - hw * ux + hh * vx, y: cy - hw * uy + hh * vy },
-          ],
-          axes: [
-            { x: ux, y: uy },
-            { x: vx, y: vy },
-          ],
-        };
-      };
-      const ga = getCornersAndAxes(a);
-      const gb = getCornersAndAxes(b);
-      const centerDist = Math.hypot(
-        a.x + a.w * 0.5 - (b.x + b.w * 0.5),
-        a.y + a.h * 0.5 - (b.y + b.h * 0.5),
-      );
+      const ga = getRotatedTileBox(a);
+      const gb = getRotatedTileBox(b);
+      const centerDist = Math.hypot(ga.cx - gb.cx, ga.cy - gb.cy);
       const minSpan = Math.min(a.w, a.h, b.w, b.h);
       const sepTol =
-        centerDist >= Math.max(1.2, minSpan * 0.72)
-          ? angleA !== 0 && angleB !== 0
-            ? 0.88
-            : 0.62
+        centerDist >= Math.max(1.2, minSpan * 0.62)
+          ? isRingCurvePair
+            ? 1.65
+            : a.kind === 'unit' && b.kind === 'unit'
+              ? 1.15
+              : angleA !== 0 && angleB !== 0
+                ? 0.88
+                : 0.62
           : 0.32;
       for (const ax of [...ga.axes, ...gb.axes]) {
         let minA = Infinity;
@@ -295,6 +356,7 @@ class MallService {
           !(p.kind === 'corridor' && q.kind === 'corridor') &&
           !isInsideCircleHole(p, q) &&
           !isInsideCircleHole(q, p) &&
+          !isOutsideCircleHoleOuter(p, q) &&
           !isAtriumTransitOverlap(p, q) &&
           !isOutsidePolygonAtrium(p, q) &&
           !areRotatedRectsSeparated(p, q)
