@@ -68,7 +68,7 @@ export default function CostCentersPage() {
           </div>
           <div>
             <h1>Cost Centers</h1>
-            <p>{costCenters.length} total cost centers for financial tracking & GL</p>
+            <p>{costCenters.length} total cost centers for financial tracking & GL{isV6Active ? ' • Synced with V6 ERP' : ''}</p>
           </div>
         </div>
         <PermissionGuard permission="finance-coa.write">

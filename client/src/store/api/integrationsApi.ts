@@ -22,7 +22,7 @@ export const integrationsApi = createApi({
       async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
         try {
           await queryFulfilled;
-          dispatch(glApi.util.invalidateTags(['GlAccounts']));
+          dispatch(glApi.util.invalidateTags(['GlAccounts', 'DepartmentCenters', 'CostCenters']));
         } catch { /* ignore */ }
       },
     }),
@@ -32,7 +32,7 @@ export const integrationsApi = createApi({
       async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
         try {
           await queryFulfilled;
-          dispatch(glApi.util.invalidateTags(['GlAccounts']));
+          dispatch(glApi.util.invalidateTags(['GlAccounts', 'DepartmentCenters', 'CostCenters']));
         } catch { /* ignore */ }
       },
     }),
@@ -42,7 +42,7 @@ export const integrationsApi = createApi({
       async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
         try {
           await queryFulfilled;
-          dispatch(glApi.util.invalidateTags(['GlAccounts']));
+          dispatch(glApi.util.invalidateTags(['GlAccounts', 'DepartmentCenters', 'CostCenters']));
         } catch { /* ignore */ }
       },
     }),
@@ -56,7 +56,7 @@ export const integrationsApi = createApi({
       async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
         try {
           await queryFulfilled;
-          dispatch(glApi.util.invalidateTags(['GlAccounts']));
+          dispatch(glApi.util.invalidateTags(['GlAccounts', 'DepartmentCenters', 'CostCenters']));
         } catch { /* ignore */ }
       },
     }),
@@ -66,7 +66,7 @@ export const integrationsApi = createApi({
       async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
         try {
           await queryFulfilled;
-          dispatch(glApi.util.invalidateTags(['GlAccounts']));
+          dispatch(glApi.util.invalidateTags(['GlAccounts', 'DepartmentCenters', 'CostCenters']));
         } catch { /* ignore */ }
       },
     }),
@@ -159,7 +159,7 @@ export const integrationsApi = createApi({
       async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
         try {
           await queryFulfilled;
-          dispatch(glApi.util.invalidateTags(['GlAccounts']));
+          dispatch(glApi.util.invalidateTags(['GlAccounts', 'DepartmentCenters', 'CostCenters']));
         } catch { /* ignore */ }
       },
     }),

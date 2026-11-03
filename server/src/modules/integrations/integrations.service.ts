@@ -4,14 +4,57 @@ import { AppError } from '../../common/errors';
 import { logger } from '../../common/logger';
 import { ensurePropertySetupScope, resolveEffectivePropertyId } from '../../common/propertySetupScope';
 
+const V6_GLM004_CATEGORY_MAP: Record<
+  string,
+  {
+    accountType: 'asset' | 'liability' | 'equity' | 'income' | 'expense';
+    accountSubtype: string;
+    normalBalance: 'debit' | 'credit';
+  }
+> = {
+  'non-current assets': { accountType: 'asset', accountSubtype: 'Non-Current Assets', normalBalance: 'debit' },
+  'accumulated depreciation': { accountType: 'asset', accountSubtype: 'Accumulated Depreciation', normalBalance: 'credit' },
+  'current assets': { accountType: 'asset', accountSubtype: 'Current Assets', normalBalance: 'debit' },
+  'other accounts receivable': { accountType: 'asset', accountSubtype: 'Other Accounts Receivable', normalBalance: 'debit' },
+  'other assets': { accountType: 'asset', accountSubtype: 'Other Assets', normalBalance: 'debit' },
+  'non-current liabilities': { accountType: 'liability', accountSubtype: 'Non-Current Liabilities', normalBalance: 'credit' },
+  'current liabilities': { accountType: 'liability', accountSubtype: 'Current Liabilities', normalBalance: 'credit' },
+  'other accounts payable': { accountType: 'liability', accountSubtype: 'Other Accounts Payable', normalBalance: 'credit' },
+  capital: { accountType: 'equity', accountSubtype: 'Capital', normalBalance: 'credit' },
+  reserve: { accountType: 'equity', accountSubtype: 'Reserve', normalBalance: 'credit' },
+  'retained earnings': { accountType: 'equity', accountSubtype: 'Retained Earnings', normalBalance: 'credit' },
+  'net profit': { accountType: 'equity', accountSubtype: 'Net Profit', normalBalance: 'credit' },
+  sales: { accountType: 'income', accountSubtype: 'Sales', normalBalance: 'credit' },
+  'other revenue': { accountType: 'income', accountSubtype: 'Other Revenue', normalBalance: 'credit' },
+  'opening stocks': { accountType: 'expense', accountSubtype: 'Opening Stocks', normalBalance: 'debit' },
+  purchase: { accountType: 'expense', accountSubtype: 'Purchase', normalBalance: 'debit' },
+  'carriage inwards': { accountType: 'expense', accountSubtype: 'Carriage Inwards', normalBalance: 'debit' },
+  'closing stocks': { accountType: 'expense', accountSubtype: 'Closing Stocks', normalBalance: 'credit' },
+  'cost of sales': { accountType: 'expense', accountSubtype: 'Cost of Sales', normalBalance: 'debit' },
+  'income & expenses': { accountType: 'income', accountSubtype: 'Income & Expenses', normalBalance: 'credit' },
+  'income tax': { accountType: 'expense', accountSubtype: 'Income Tax', normalBalance: 'debit' },
+  'other comprehensive income': { accountType: 'income', accountSubtype: 'Other Comprehensive Income', normalBalance: 'credit' },
+  'cost & expenses': { accountType: 'expense', accountSubtype: 'Cost & Expenses', normalBalance: 'debit' },
+  'direct expenses': { accountType: 'expense', accountSubtype: 'Direct Expenses', normalBalance: 'debit' },
+  overheads: { accountType: 'expense', accountSubtype: 'Overheads', normalBalance: 'debit' },
+};
+
 function mapV6AccountClassification(
   code: string,
   description: string,
+  v6CategoryName?: string,
 ): {
   accountType: 'asset' | 'liability' | 'equity' | 'income' | 'expense';
   accountSubtype: string;
   normalBalance: 'debit' | 'credit';
 } {
+  if (v6CategoryName) {
+    const matchedCat = V6_GLM004_CATEGORY_MAP[v6CategoryName.trim().toLowerCase()];
+    if (matchedCat) {
+      return matchedCat;
+    }
+  }
+
   const c = code.trim();
   const d = description.trim();
   const major = c.charAt(0);
@@ -448,7 +491,17 @@ class IntegrationsService {
       where: {
         companyId,
         ...(integrationId && { integrationId }),
-        ...(entityType ? { entityType } : { entityType: { not: 'gl_account_pms_hidden' } }),
+        ...(entityType
+          ? { entityType }
+          : {
+              entityType: {
+                notIn: [
+                  'gl_account_pms_hidden',
+                  'department_center_pms_hidden',
+                  'cost_center_pms_hidden',
+                ],
+              },
+            }),
       },
       orderBy: { syncedAt: 'desc' },
       take: 100,
@@ -821,11 +874,207 @@ class IntegrationsService {
   }
 
   /**
-   * Pull General Ledger -> Chart of Accounts from V6 ERP (/v6IntegrationAPIlogin/getCOA)
-   * scoped to the active propertyId:
-   * - Upserts V6 ERP COA accounts with mapped accountType, accountSubtype, normalBalance, parentId, isControl.
-   * - Marks non-V6 PMS accounts for that property as isActive: false (preserving them in IntegrationEntityMap
-   *   under 'gl_account_pms_hidden' so turning V6 Flag OFF restores original PMS accounts with zero data loss).
+   * Fetch Chart of Accounts bundle from V6 ERP:
+   * - Authenticates via /lkn/getotkenlogin (or /main/loginRefreshToken) and pulls:
+   *   1. COA list (/chartofaccount/searchChartOfAccountListByRoleAllowed/{usk} with n1=1, n2=1)
+   *      containing Account Category (n3/n1), Acc Type (categorySK: "1"=Header, "0"=Posting),
+   *      Department (deptCode/t2/n12), and Cost Center (ccCode/t3/n11).
+   *   2. Department list (/department/searchDepartmentListByRoleAllowed/{usk}).
+   *   3. Cost Center list (/costcentre/searchCostCentreListByRoleAllowed/{usk}).
+   *   4. Account Category list (/accountcategory/getAccountCategory).
+   * - Falls back to /v6IntegrationAPIlogin/getCOA if token endpoints are unavailable.
+   */
+  private async fetchV6CoaBundle(
+    cleanRoot: string,
+    domain: string,
+  ): Promise<{
+    coaRows: any[];
+    departments: any[];
+    costCenters: any[];
+    categories: any[];
+  }> {
+    let token = '';
+    try {
+      const tokenResp = await fetch(`${cleanRoot}/lkn/getotkenlogin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain }),
+        signal: AbortSignal.timeout(10000),
+      });
+      if (tokenResp.ok) {
+        const tokenJson = (await tokenResp.json().catch(() => null)) as any;
+        if (tokenJson?.token) {
+          token = String(tokenJson.token);
+        }
+      }
+    } catch {
+      // try loginRefreshToken fallback below
+    }
+
+    if (!token) {
+      try {
+        const refreshResp = await fetch(`${cleanRoot}/main/loginRefreshToken`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ domain, userId: 'admin', oid: '001' }),
+          signal: AbortSignal.timeout(10000),
+        });
+        if (refreshResp.ok) {
+          const refreshJson = (await refreshResp.json().catch(() => null)) as any;
+          if (refreshJson?.token) {
+            token = String(refreshJson.token);
+          }
+        }
+      } catch {
+        // handled below
+      }
+    }
+
+    if (token) {
+      let usk = '10150000188';
+      try {
+        const parts = token.split('.');
+        if (parts.length >= 2) {
+          const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+          if (payload?.usk) {
+            usk = String(payload.usk);
+          }
+        }
+      } catch {
+        // keep default usk
+      }
+
+      const authHeaders = {
+        'Content-Type': 'application/json',
+        'Content-Over': token,
+        'APP-CALLER': '1',
+      };
+
+      const encodedUsk = encodeURIComponent(usk);
+
+      const [coaResp, deptResp, ccResp, catResp] = await Promise.all([
+        fetch(`${cleanRoot}/chartofaccount/searchChartOfAccountListByRoleAllowed/${encodedUsk}`, {
+          method: 'POST',
+          headers: authHeaders,
+          body: JSON.stringify({
+            currentPage: 1,
+            totalPageSize: 10000,
+            searchStr: '',
+            searchCcDept: '',
+            sortBy: 'code',
+            sort: 1,
+            isCOAList: 1,
+            n1: 1,
+            n2: 1,
+            filters: [],
+          }),
+          signal: AbortSignal.timeout(20000),
+        }).catch(() => null),
+        fetch(`${cleanRoot}/department/searchDepartmentListByRoleAllowed/${encodedUsk}`, {
+          method: 'POST',
+          headers: authHeaders,
+          body: JSON.stringify({
+            code: '',
+            description: '',
+            groupCode: '',
+            currentPage: 1,
+            pageSize: 5000,
+            sortBy: 'code',
+            sort: 1,
+          }),
+          signal: AbortSignal.timeout(15000),
+        }).catch(() => null),
+        fetch(`${cleanRoot}/costcentre/searchCostCentreListByRoleAllowed/${encodedUsk}`, {
+          method: 'POST',
+          headers: authHeaders,
+          body: JSON.stringify({
+            code: '',
+            description: '',
+            groupCode: '',
+            currentPage: 1,
+            pageSize: 5000,
+            sortBy: 'code',
+            sort: 1,
+          }),
+          signal: AbortSignal.timeout(15000),
+        }).catch(() => null),
+        fetch(`${cleanRoot}/accountcategory/getAccountCategory`, {
+          method: 'GET',
+          headers: authHeaders,
+          signal: AbortSignal.timeout(15000),
+        }).catch(() => null),
+      ]);
+
+      if (coaResp && coaResp.ok) {
+        const searchJson = (await coaResp.json().catch(() => null)) as any;
+        const coaRows: any[] | null = Array.isArray(searchJson?.chartOfAccountlistdata)
+          ? searchJson.chartOfAccountlistdata
+          : null;
+
+        if (coaRows) {
+          const deptJson = deptResp && deptResp.ok ? ((await deptResp.json().catch(() => null)) as any) : null;
+          const ccJson = ccResp && ccResp.ok ? ((await ccResp.json().catch(() => null)) as any) : null;
+          const catJson = catResp && catResp.ok ? ((await catResp.json().catch(() => null)) as any) : null;
+
+          return {
+            coaRows,
+            departments: Array.isArray(deptJson?.departmentdata) ? deptJson.departmentdata : [],
+            costCenters: Array.isArray(ccJson?.costcentredata) ? ccJson.costcentredata : [],
+            categories: Array.isArray(catJson) ? catJson : [],
+          };
+        }
+      }
+    }
+
+    // Fallback: /v6IntegrationAPIlogin/getCOA
+    const coaEndpoint = `${cleanRoot}/v6IntegrationAPIlogin/getCOA`;
+    const resp = await fetch(coaEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ domain, code: '', date: '' }),
+      signal: AbortSignal.timeout(15000),
+    });
+
+    if (!resp.ok) {
+      const errBody = await resp.text().catch(() => '');
+      throw new AppError(
+        502,
+        'V6ERP_COA_FETCH_FAILED',
+        `V6 ERP getCOA failed with HTTP ${resp.status}: ${errBody.substring(0, 150)}`,
+      );
+    }
+
+    const coaJson = (await resp.json().catch(() => null)) as any;
+    const primaryList: any[] | null = Array.isArray(coaJson?.coalist)
+      ? coaJson.coalist
+      : Array.isArray(coaJson?.list)
+        ? coaJson.list
+        : null;
+
+    if (!primaryList) {
+      throw new AppError(
+        502,
+        'V6ERP_COA_INVALID_RESPONSE',
+        'V6 ERP returned an unexpected payload without Chart of Accounts list.',
+      );
+    }
+
+    return {
+      coaRows: primaryList,
+      departments: [],
+      costCenters: [],
+      categories: [],
+    };
+  }
+
+  /**
+   * Pull General Ledger -> Chart of Accounts, Account Category, Acc Type (Header/Posting),
+   * Department, and Cost Center from V6 ERP scoped to the active propertyId:
+   * - Upserts V6 ERP DepartmentCenter and CostCenter records for that property.
+   * - Upserts V6 ERP COA accounts with mapped accountType, accountSubtype (Account Category),
+   *   normalBalance, parentId, isControl (Acc Type: Header vs Posting), departmentCenterId, and costCenterId.
+   * - Marks non-V6 PMS accounts/departments/cost-centers for that property as isActive: false
+   *   (preserving them in IntegrationEntityMap so turning V6 Flag OFF restores original PMS records with zero data loss).
    */
   async syncV6ChartOfAccounts(
     companyId: string,
@@ -872,62 +1121,463 @@ class IntegrationsService {
       const { cleanRoot, domain } = this.resolveV6Config(config);
 
       const t0 = Date.now();
-      const coaEndpoint = `${cleanRoot}/v6IntegrationAPIlogin/getCOA`;
-      const resp = await fetch(coaEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ domain, code: '', date: '' }),
-        signal: AbortSignal.timeout(15000),
-      });
+      const {
+        coaRows: rawList,
+        departments: rawDepts,
+        costCenters: rawCcs,
+        categories: rawCats,
+      } = await this.fetchV6CoaBundle(cleanRoot, domain);
 
-      if (!resp.ok) {
-        const errBody = await resp.text().catch(() => '');
-        throw new AppError(
-          502,
-          'V6ERP_COA_FETCH_FAILED',
-          `V6 ERP getCOA failed with HTTP ${resp.status}: ${errBody.substring(0, 150)}`,
-        );
+      const CHUNK = 5;
+      const now = new Date();
+
+      // Build GLM004 category syskey -> category name lookup
+      const catNameBySyskey = new Map<string, string>();
+      for (const cat of rawCats) {
+        const sk = String(cat?.syskey || '').trim();
+        const name = String(cat?.t1 || '').trim();
+        if (sk && name) {
+          catNameBySyskey.set(sk, name);
+        }
       }
 
-      const coaJson = (await resp.json().catch(() => null)) as any;
-      const rawList: any[] | null = Array.isArray(coaJson?.coalist)
-        ? coaJson.coalist
-        : Array.isArray(coaJson?.list)
-          ? coaJson.list
-          : null;
+      // Filter active COA rows (n13 === 0 in GLM001)
+      const activeRawList = rawList.filter(
+        (item) => item.n13 === undefined || Number(item.n13) === 0,
+      );
 
-      if (!rawList) {
-        throw new AppError(
-          502,
-          'V6ERP_COA_INVALID_RESPONSE',
-          'V6 ERP getCOA returned an unexpected payload without coalist.',
-        );
+      // ── 1. Collect & Sync Departments (GLM003 -> DepartmentCenter) ──────────
+      const v6DeptMap = new Map<string, { code: string; name: string; syskey: string }>();
+      for (const d of rawDepts) {
+        const code = String(d?.t1 || d?.code || '').trim();
+        if (!code) continue;
+        const name = String(d?.t2 || d?.description || d?.name || code).trim() || code;
+        const syskey = String(d?.syskey || '').trim();
+        v6DeptMap.set(code.toLowerCase(), {
+          code: code.substring(0, 50),
+          name: name.substring(0, 255),
+          syskey,
+        });
       }
-
-      // Deduplicate by account code (case-insensitive), keeping latest syskey
-      const dedupedByLower = new Map<
-        string,
-        { code: string; name: string; syskey: string }
-      >();
-
-      for (const item of rawList) {
-        const rawCode = String(item.code || item.accountCode || item.t1 || '').trim();
-        if (!rawCode) continue;
-        const rawDesc = String(item.description || item.name || item.t2 || rawCode).trim() || rawCode;
-        const rawSyskey = String(item.syskey || '').trim();
-        const lower = rawCode.toLowerCase();
-
-        const prev = dedupedByLower.get(lower);
-        if (!prev || rawSyskey > prev.syskey) {
-          dedupedByLower.set(lower, {
-            code: rawCode,
-            name: rawDesc.substring(0, 255),
-            syskey: rawSyskey,
+      for (const item of activeRawList) {
+        const deptCode = String(item?.deptCode || '').trim();
+        if (!deptCode) continue;
+        const lower = deptCode.toLowerCase();
+        if (!v6DeptMap.has(lower)) {
+          const deptName = String(item?.t2 || deptCode).trim() || deptCode;
+          const deptSk = String(item?.n12 || '').trim();
+          v6DeptMap.set(lower, {
+            code: deptCode.substring(0, 50),
+            name: deptName.substring(0, 255),
+            syskey: deptSk !== '0' ? deptSk : '',
           });
         }
       }
 
-      const v6Items = [...dedupedByLower.values()].sort((a, b) => a.code.localeCompare(b.code));
+      // ── 2. Collect & Sync Cost Centers (GLM002 -> CostCenter) ───────────────
+      const v6CcMap = new Map<string, { code: string; name: string; syskey: string }>();
+      for (const cc of rawCcs) {
+        const code = String(cc?.t1 || cc?.code || '').trim();
+        if (!code) continue;
+        const name = String(cc?.t2 || cc?.description || cc?.name || code).trim() || code;
+        const syskey = String(cc?.syskey || '').trim();
+        v6CcMap.set(code.toLowerCase(), {
+          code: code.substring(0, 50),
+          name: name.substring(0, 255),
+          syskey,
+        });
+      }
+      for (const item of activeRawList) {
+        const ccCode = String(item?.ccCode || '').trim();
+        if (!ccCode) continue;
+        const lower = ccCode.toLowerCase();
+        if (!v6CcMap.has(lower)) {
+          const ccName = String(item?.t3 || ccCode).trim() || ccCode;
+          const ccSk = String(item?.n11 || '').trim();
+          v6CcMap.set(lower, {
+            code: ccCode.substring(0, 50),
+            name: ccName.substring(0, 255),
+            syskey: ccSk !== '0' ? ccSk : '',
+          });
+        }
+      }
+
+      // Load existing property GL accounts, departments, cost centers, and entity maps
+      const [existingAccounts, existingDepts, existingCcs, existingMaps] = await Promise.all([
+        prisma.glAccount.findMany({
+          where: { companyId, propertyId: targetPropertyId },
+        }),
+        prisma.departmentCenter.findMany({
+          where: { companyId, propertyId: targetPropertyId },
+        }),
+        prisma.costCenter.findMany({
+          where: { companyId, propertyId: targetPropertyId },
+        }),
+        prisma.integrationEntityMap.findMany({
+          where: {
+            companyId,
+            integrationId: config.id,
+            entityType: {
+              in: [
+                'gl_account',
+                'gl_account_pms_hidden',
+                'department_center',
+                'department_center_pms_hidden',
+                'cost_center',
+                'cost_center_pms_hidden',
+              ],
+            },
+          },
+        }),
+      ]);
+
+      const deptEntityMapByPmsId = new Map<string, (typeof existingMaps)[number]>();
+      const ccEntityMapByPmsId = new Map<string, (typeof existingMaps)[number]>();
+      const glEntityMapByPmsId = new Map<string, (typeof existingMaps)[number]>();
+      for (const m of existingMaps) {
+        if (m.entityType === 'department_center') deptEntityMapByPmsId.set(m.pmsId, m);
+        else if (m.entityType === 'cost_center') ccEntityMapByPmsId.set(m.pmsId, m);
+        else if (m.entityType === 'gl_account') glEntityMapByPmsId.set(m.pmsId, m);
+      }
+
+      // Upsert Departments
+      const existingDeptByLower = new Map<string, (typeof existingDepts)[number]>();
+      for (const d of existingDepts) {
+        existingDeptByLower.set(d.code.trim().toLowerCase(), d);
+      }
+      const v6DeptList = [...v6DeptMap.values()].sort((a, b) => a.code.localeCompare(b.code));
+      const deptsToCreate: Array<{
+        companyId: string;
+        propertyId: string | null;
+        code: string;
+        name: string;
+        isActive: boolean;
+        sortOrder: number;
+      }> = [];
+      const deptsToUpdate: Array<{ id: string; data: { name: string; isActive: boolean; sortOrder: number } }> = [];
+      const newlyCreatedDeptLowers = new Set<string>();
+
+      v6DeptList.forEach((d, idx) => {
+        const lower = d.code.toLowerCase();
+        const existing = existingDeptByLower.get(lower);
+        if (!existing) {
+          newlyCreatedDeptLowers.add(lower);
+          deptsToCreate.push({
+            companyId,
+            propertyId: targetPropertyId,
+            code: d.code,
+            name: d.name,
+            isActive: true,
+            sortOrder: idx,
+          });
+        } else if (existing.name !== d.name || !existing.isActive || existing.sortOrder !== idx) {
+          deptsToUpdate.push({
+            id: existing.id,
+            data: { name: d.name, isActive: true, sortOrder: idx },
+          });
+        }
+      });
+
+      if (deptsToCreate.length > 0) {
+        await prisma.departmentCenter.createMany({ data: deptsToCreate, skipDuplicates: true });
+      }
+      for (let i = 0; i < deptsToUpdate.length; i += CHUNK) {
+        const batch = deptsToUpdate.slice(i, i + CHUNK);
+        await Promise.all(
+          batch.map((u) => prisma.departmentCenter.update({ where: { id: u.id }, data: u.data })),
+        );
+      }
+
+      const allPropertyDepts =
+        deptsToCreate.length > 0 || deptsToUpdate.length > 0
+          ? await prisma.departmentCenter.findMany({
+              where: { companyId, propertyId: targetPropertyId },
+            })
+          : existingDepts;
+
+      const deptIdByCodeLower = new Map<string, string>();
+      const deptIdBySyskey = new Map<string, string>();
+      const syncedDeptIds = new Set<string>();
+      for (const d of allPropertyDepts) {
+        const lower = d.code.trim().toLowerCase();
+        const v6D = v6DeptMap.get(lower);
+        if (v6D) {
+          deptIdByCodeLower.set(lower, d.id);
+          if (v6D.syskey) deptIdBySyskey.set(v6D.syskey, d.id);
+          syncedDeptIds.add(d.id);
+        }
+      }
+
+      if (v6DeptList.length > 0) {
+        const deptsToHide = allPropertyDepts.filter((d) => d.isActive && !syncedDeptIds.has(d.id));
+        const genuinePmsDepts = deptsToHide.filter((d) => {
+          const m = deptEntityMapByPmsId.get(d.id);
+          return !m || !String(m.externalRef || '').startsWith('V6 |');
+        });
+        if (genuinePmsDepts.length > 0) {
+          await prisma.integrationEntityMap.createMany({
+            data: genuinePmsDepts.map((d) => ({
+              companyId,
+              integrationId: config.id,
+              entityType: 'department_center_pms_hidden',
+              pmsId: d.id,
+              externalId: d.code,
+              externalRef: targetPropertyId || 'default',
+              syncedAt: now,
+            })),
+            skipDuplicates: true,
+          });
+        }
+        if (deptsToHide.length > 0) {
+          await prisma.departmentCenter.updateMany({
+            where: {
+              companyId,
+              propertyId: targetPropertyId,
+              id: { in: deptsToHide.map((d) => d.id) },
+              isActive: true,
+            },
+            data: { isActive: false },
+          });
+        }
+        const newDeptMaps = v6DeptList
+          .map((d) => {
+            const lower = d.code.toLowerCase();
+            const pmsId = deptIdByCodeLower.get(lower);
+            if (!pmsId || deptEntityMapByPmsId.has(pmsId)) return null;
+            const originPrefix = newlyCreatedDeptLowers.has(lower) ? 'V6' : 'PMS';
+            return {
+              companyId,
+              integrationId: config.id,
+              entityType: 'department_center',
+              pmsId,
+              externalId: d.code,
+              externalRef: `${originPrefix} | ${d.syskey ? `Syskey: ${d.syskey}` : d.name}`.substring(0, 255),
+              syncedAt: now,
+            };
+          })
+          .filter(Boolean) as Array<{
+          companyId: string;
+          integrationId: string;
+          entityType: string;
+          pmsId: string;
+          externalId: string;
+          externalRef: string;
+          syncedAt: Date;
+        }>;
+        if (newDeptMaps.length > 0) {
+          await prisma.integrationEntityMap.createMany({ data: newDeptMaps, skipDuplicates: true }).catch(() => {});
+        }
+      }
+
+      // Upsert Cost Centers
+      const existingCcByLower = new Map<string, (typeof existingCcs)[number]>();
+      for (const cc of existingCcs) {
+        existingCcByLower.set(cc.code.trim().toLowerCase(), cc);
+      }
+      const v6CcList = [...v6CcMap.values()].sort((a, b) => a.code.localeCompare(b.code));
+      const ccsToCreate: Array<{
+        companyId: string;
+        propertyId: string | null;
+        code: string;
+        name: string;
+        isActive: boolean;
+        sortOrder: number;
+      }> = [];
+      const ccsToUpdate: Array<{ id: string; data: { name: string; isActive: boolean; sortOrder: number } }> = [];
+      const newlyCreatedCcLowers = new Set<string>();
+
+      v6CcList.forEach((cc, idx) => {
+        const lower = cc.code.toLowerCase();
+        const existing = existingCcByLower.get(lower);
+        if (!existing) {
+          newlyCreatedCcLowers.add(lower);
+          ccsToCreate.push({
+            companyId,
+            propertyId: targetPropertyId,
+            code: cc.code,
+            name: cc.name,
+            isActive: true,
+            sortOrder: idx,
+          });
+        } else if (existing.name !== cc.name || !existing.isActive || existing.sortOrder !== idx) {
+          ccsToUpdate.push({
+            id: existing.id,
+            data: { name: cc.name, isActive: true, sortOrder: idx },
+          });
+        }
+      });
+
+      if (ccsToCreate.length > 0) {
+        await prisma.costCenter.createMany({ data: ccsToCreate, skipDuplicates: true });
+      }
+      for (let i = 0; i < ccsToUpdate.length; i += CHUNK) {
+        const batch = ccsToUpdate.slice(i, i + CHUNK);
+        await Promise.all(
+          batch.map((u) => prisma.costCenter.update({ where: { id: u.id }, data: u.data })),
+        );
+      }
+
+      const allPropertyCcs =
+        ccsToCreate.length > 0 || ccsToUpdate.length > 0
+          ? await prisma.costCenter.findMany({
+              where: { companyId, propertyId: targetPropertyId },
+            })
+          : existingCcs;
+
+      const ccIdByCodeLower = new Map<string, string>();
+      const ccIdBySyskey = new Map<string, string>();
+      const syncedCcIds = new Set<string>();
+      for (const cc of allPropertyCcs) {
+        const lower = cc.code.trim().toLowerCase();
+        const v6Cc = v6CcMap.get(lower);
+        if (v6Cc) {
+          ccIdByCodeLower.set(lower, cc.id);
+          if (v6Cc.syskey) ccIdBySyskey.set(v6Cc.syskey, cc.id);
+          syncedCcIds.add(cc.id);
+        }
+      }
+
+      if (v6CcList.length > 0) {
+        const ccsToHide = allPropertyCcs.filter((cc) => cc.isActive && !syncedCcIds.has(cc.id));
+        const genuinePmsCcs = ccsToHide.filter((cc) => {
+          const m = ccEntityMapByPmsId.get(cc.id);
+          return !m || !String(m.externalRef || '').startsWith('V6 |');
+        });
+        if (genuinePmsCcs.length > 0) {
+          await prisma.integrationEntityMap.createMany({
+            data: genuinePmsCcs.map((cc) => ({
+              companyId,
+              integrationId: config.id,
+              entityType: 'cost_center_pms_hidden',
+              pmsId: cc.id,
+              externalId: cc.code,
+              externalRef: targetPropertyId || 'default',
+              syncedAt: now,
+            })),
+            skipDuplicates: true,
+          });
+        }
+        if (ccsToHide.length > 0) {
+          await prisma.costCenter.updateMany({
+            where: {
+              companyId,
+              propertyId: targetPropertyId,
+              id: { in: ccsToHide.map((cc) => cc.id) },
+              isActive: true,
+            },
+            data: { isActive: false },
+          });
+        }
+        const newCcMaps = v6CcList
+          .map((cc) => {
+            const lower = cc.code.toLowerCase();
+            const pmsId = ccIdByCodeLower.get(lower);
+            if (!pmsId || ccEntityMapByPmsId.has(pmsId)) return null;
+            const originPrefix = newlyCreatedCcLowers.has(lower) ? 'V6' : 'PMS';
+            return {
+              companyId,
+              integrationId: config.id,
+              entityType: 'cost_center',
+              pmsId,
+              externalId: cc.code,
+              externalRef: `${originPrefix} | ${cc.syskey ? `Syskey: ${cc.syskey}` : cc.name}`.substring(0, 255),
+              syncedAt: now,
+            };
+          })
+          .filter(Boolean) as Array<{
+          companyId: string;
+          integrationId: string;
+          entityType: string;
+          pmsId: string;
+          externalId: string;
+          externalRef: string;
+          syncedAt: Date;
+        }>;
+        if (newCcMaps.length > 0) {
+          await prisma.integrationEntityMap.createMany({ data: newCcMaps, skipDuplicates: true }).catch(() => {});
+        }
+      }
+
+      // ── 3. Deduplicate & Sync COA Accounts (with Category, Acc Type, Dept, CC) ──
+      // Identify codes that have at least one non-orphan department row so we can skip deleted-department rows
+      const codesWithValidOrEmptyDept = new Set<string>();
+      for (const item of activeRawList) {
+        const rawCode = String(item.code || item.accountCode || item.t1 || '').trim().toLowerCase();
+        if (!rawCode) continue;
+        const n12 = String(item.n12 || '0').trim();
+        const deptCode = String(item.deptCode || '').trim();
+        if (!n12 || n12 === '0' || deptCode) {
+          codesWithValidOrEmptyDept.add(rawCode);
+        }
+      }
+
+      const dedupedByCombo = new Map<
+        string,
+        {
+          comboKey: string;
+          code: string;
+          name: string;
+          syskey: string;
+          v6CategoryName?: string;
+          isHeader?: boolean;
+          departmentCenterId: string | null;
+          costCenterId: string | null;
+        }
+      >();
+
+      for (const item of activeRawList) {
+        const rawCode = String(item.code || item.accountCode || item.t1 || '').trim();
+        if (!rawCode) continue;
+        const lower = rawCode.toLowerCase();
+
+        const n12 = String(item.n12 || '0').trim();
+        const rawDeptCode = String(item.deptCode || '').trim();
+        // Skip rows pointing to a deleted GLM003 department if this account code has valid rows
+        if (n12 && n12 !== '0' && !rawDeptCode && codesWithValidOrEmptyDept.has(lower)) {
+          continue;
+        }
+
+        const rawDesc =
+          String(item.description || item.name || item.t4 || rawCode).trim() || rawCode;
+        const rawSyskey = String(item.syskey || '').trim();
+        const rawCatSk = String(item.n1 || '').trim();
+        const v6CategoryName =
+          (typeof item.n3 === 'string' && item.n3.trim() ? item.n3.trim() : undefined) ||
+          (rawCatSk ? catNameBySyskey.get(rawCatSk) : undefined);
+        const isHeader = String(item.categorySK || '') === '1' || Number(item.isHdr || 0) === 1;
+
+        const rawCcCode = String(item.ccCode || '').trim();
+        const n11 = String(item.n11 || '0').trim();
+
+        const departmentCenterId =
+          (rawDeptCode ? deptIdByCodeLower.get(rawDeptCode.toLowerCase()) : undefined) ||
+          (n12 && n12 !== '0' ? deptIdBySyskey.get(n12) : undefined) ||
+          null;
+
+        const costCenterId =
+          (rawCcCode ? ccIdByCodeLower.get(rawCcCode.toLowerCase()) : undefined) ||
+          (n11 && n11 !== '0' ? ccIdBySyskey.get(n11) : undefined) ||
+          null;
+
+        const comboKey = `${lower}|${departmentCenterId || ''}|${costCenterId || ''}`;
+        const prev = dedupedByCombo.get(comboKey);
+        if (!prev || rawSyskey > prev.syskey) {
+          dedupedByCombo.set(comboKey, {
+            comboKey,
+            code: rawCode,
+            name: rawDesc.substring(0, 255),
+            syskey: rawSyskey,
+            v6CategoryName: v6CategoryName || prev?.v6CategoryName,
+            isHeader: isHeader || prev?.isHeader,
+            departmentCenterId,
+            costCenterId,
+          });
+        }
+      }
+
+      const v6Items = [...dedupedByCombo.values()].sort((a, b) =>
+        a.code.localeCompare(b.code) || a.comboKey.localeCompare(b.comboKey),
+      );
       if (v6Items.length === 0) {
         return {
           success: true,
@@ -936,49 +1586,35 @@ class IntegrationsService {
           created: 0,
           updated: 0,
           deactivated: 0,
+          departmentsSynced: v6DeptList.length,
+          costCentersSynced: v6CcList.length,
           message: 'V6 ERP returned 0 Chart of Accounts records.',
         };
       }
 
-      const codeLowerSet = new Set(dedupedByLower.keys());
+      const codeLowerSet = new Set(v6Items.map((i) => i.code.toLowerCase()));
       const parentLowerByCodeLower = new Map<string, string | null>();
       const parentCodeSet = new Set<string>();
 
-      for (const item of v6Items) {
-        const lower = item.code.toLowerCase();
-        const pLower = resolveV6ParentCode(item.code, codeLowerSet);
-        parentLowerByCodeLower.set(lower, pLower);
+      for (const codeLower of codeLowerSet) {
+        const pLower = resolveV6ParentCode(codeLower, codeLowerSet);
+        parentLowerByCodeLower.set(codeLower, pLower);
         if (pLower) parentCodeSet.add(pLower);
       }
 
-      // Load existing GL accounts for this property + existing entity mappings
-      const [existingAccounts, existingMaps] = await Promise.all([
-        prisma.glAccount.findMany({
-          where: { companyId, propertyId: targetPropertyId },
-        }),
-        prisma.integrationEntityMap.findMany({
-          where: {
-            companyId,
-            integrationId: config.id,
-            entityType: { in: ['gl_account', 'gl_account_pms_hidden'] },
-          },
-        }),
-      ]);
+      // Match existing GL accounts by (codeLower|deptId|ccId), falling back to unclaimed rows of the same codeLower
+      const existingByComboKey = new Map<string, (typeof existingAccounts)[number]>();
+      const unclaimedByCodeLower = new Map<string, Array<(typeof existingAccounts)[number]>>();
 
-      const glEntityMapByPmsId = new Map<string, (typeof existingMaps)[number]>();
-      for (const m of existingMaps) {
-        if (m.entityType === 'gl_account') {
-          glEntityMapByPmsId.set(m.pmsId, m);
-        }
-      }
-
-      // Prefer matching account without department/cost center for standard COA codes
-      const existingByCodeLower = new Map<string, (typeof existingAccounts)[number]>();
       for (const acc of existingAccounts) {
         const lower = acc.code.trim().toLowerCase();
-        const current = existingByCodeLower.get(lower);
-        if (!current || (!acc.departmentCenterId && !acc.costCenterId)) {
-          existingByCodeLower.set(lower, acc);
+        const cKey = `${lower}|${acc.departmentCenterId || ''}|${acc.costCenterId || ''}`;
+        if (dedupedByCombo.has(cKey) && !existingByComboKey.has(cKey)) {
+          existingByComboKey.set(cKey, acc);
+        } else {
+          const list = unclaimedByCodeLower.get(lower) || [];
+          list.push(acc);
+          unclaimedByCodeLower.set(lower, list);
         }
       }
 
@@ -991,11 +1627,13 @@ class IntegrationsService {
         accountSubtype: string;
         normalBalance: string;
         isControl: boolean;
+        departmentCenterId: string | null;
+        costCenterId: string | null;
         isActive: boolean;
         sortOrder: number;
       }> = [];
 
-      const newlyCreatedCodeLowers = new Set<string>();
+      const newlyCreatedComboKeys = new Set<string>();
       const toUpdateRows: Array<{
         id: string;
         data: {
@@ -1004,7 +1642,10 @@ class IntegrationsService {
           accountSubtype: string;
           normalBalance: string;
           isControl: boolean;
+          departmentCenterId: string | null;
+          costCenterId: string | null;
           isActive: boolean;
+          sortOrder: number;
         };
       }> = [];
 
@@ -1013,12 +1654,19 @@ class IntegrationsService {
 
       v6Items.forEach((item, idx) => {
         const lower = item.code.toLowerCase();
-        const cls = mapV6AccountClassification(item.code, item.name);
-        const isControl = parentCodeSet.has(lower);
-        const existing = existingByCodeLower.get(lower);
+        const cls = mapV6AccountClassification(item.code, item.name, item.v6CategoryName);
+        const isControl = parentCodeSet.has(lower) || Boolean(item.isHeader);
+
+        let existing = existingByComboKey.get(item.comboKey);
+        if (!existing) {
+          const fallbackPool = unclaimedByCodeLower.get(lower);
+          if (fallbackPool && fallbackPool.length > 0) {
+            existing = fallbackPool.shift();
+          }
+        }
 
         if (!existing) {
-          newlyCreatedCodeLowers.add(lower);
+          newlyCreatedComboKeys.add(item.comboKey);
           toCreate.push({
             companyId,
             propertyId: targetPropertyId,
@@ -1028,6 +1676,8 @@ class IntegrationsService {
             accountSubtype: cls.accountSubtype,
             normalBalance: cls.normalBalance,
             isControl,
+            departmentCenterId: item.departmentCenterId,
+            costCenterId: item.costCenterId,
             isActive: true,
             sortOrder: idx,
           });
@@ -1038,7 +1688,10 @@ class IntegrationsService {
             existing.accountSubtype !== cls.accountSubtype ||
             existing.normalBalance !== cls.normalBalance ||
             existing.isControl !== isControl ||
-            !existing.isActive;
+            existing.departmentCenterId !== item.departmentCenterId ||
+            existing.costCenterId !== item.costCenterId ||
+            !existing.isActive ||
+            existing.sortOrder !== idx;
 
           if (needsUpdate) {
             toUpdateRows.push({
@@ -1049,7 +1702,10 @@ class IntegrationsService {
                 accountSubtype: cls.accountSubtype,
                 normalBalance: cls.normalBalance,
                 isControl,
+                departmentCenterId: item.departmentCenterId,
+                costCenterId: item.costCenterId,
                 isActive: true,
+                sortOrder: idx,
               },
             });
           }
@@ -1066,7 +1722,6 @@ class IntegrationsService {
 
       // Keep parallelism well below the Prisma pool size so a COA sync never starves
       // interactive requests (e.g. login) of database connections.
-      const CHUNK = 5;
       for (let i = 0; i < toUpdateRows.length; i += CHUNK) {
         const batch = toUpdateRows.slice(i, i + CHUNK);
         await Promise.all(
@@ -1082,19 +1737,22 @@ class IntegrationsService {
 
       // Reload property GL accounts so we have IDs for newly created rows & parent tree linking
       const allPropertyAccounts =
-        toCreate.length > 0
+        toCreate.length > 0 || toUpdateRows.length > 0
           ? await prisma.glAccount.findMany({
               where: { companyId, propertyId: targetPropertyId },
             })
           : existingAccounts;
 
-      const syncedByCodeLower = new Map<string, (typeof allPropertyAccounts)[number]>();
+      const syncedByComboKey = new Map<string, (typeof allPropertyAccounts)[number]>();
+      const primaryAccountByCodeLower = new Map<string, (typeof allPropertyAccounts)[number]>();
       for (const acc of allPropertyAccounts) {
         const lower = acc.code.trim().toLowerCase();
-        if (!codeLowerSet.has(lower)) continue;
-        const current = syncedByCodeLower.get(lower);
-        if (!current || (!acc.departmentCenterId && !acc.costCenterId)) {
-          syncedByCodeLower.set(lower, acc);
+        const cKey = `${lower}|${acc.departmentCenterId || ''}|${acc.costCenterId || ''}`;
+        if (!dedupedByCombo.has(cKey)) continue;
+        syncedByComboKey.set(cKey, acc);
+        const currentPrimary = primaryAccountByCodeLower.get(lower);
+        if (!currentPrimary || (!acc.departmentCenterId && !acc.costCenterId)) {
+          primaryAccountByCodeLower.set(lower, acc);
         }
       }
 
@@ -1102,10 +1760,17 @@ class IntegrationsService {
       const parentUpdates: Array<{ id: string; parentId: string | null }> = [];
       for (const item of v6Items) {
         const lower = item.code.toLowerCase();
-        const acc = syncedByCodeLower.get(lower);
+        const acc = syncedByComboKey.get(item.comboKey);
         if (!acc) continue;
         const parentLower = parentLowerByCodeLower.get(lower) || null;
-        const desiredParentId = parentLower ? syncedByCodeLower.get(parentLower)?.id || null : null;
+        let desiredParentId: string | null = null;
+        if (parentLower) {
+          const sameScopeParentKey = `${parentLower}|${item.departmentCenterId || ''}|${item.costCenterId || ''}`;
+          desiredParentId =
+            syncedByComboKey.get(sameScopeParentKey)?.id ||
+            primaryAccountByCodeLower.get(parentLower)?.id ||
+            null;
+        }
         const safeParentId = desiredParentId && desiredParentId !== acc.id ? desiredParentId : null;
         if (acc.parentId !== safeParentId) {
           parentUpdates.push({ id: acc.id, parentId: safeParentId });
@@ -1124,7 +1789,7 @@ class IntegrationsService {
         );
       }
 
-      const syncedIds = new Set<string>([...syncedByCodeLower.values()].map((a) => a.id));
+      const syncedIds = new Set<string>([...syncedByComboKey.values()].map((a) => a.id));
 
       // Record original active PMS accounts that are being hidden so Flag OFF can restore them
       const accountsToHide = allPropertyAccounts.filter(
@@ -1144,7 +1809,7 @@ class IntegrationsService {
             pmsId: acc.id,
             externalId: acc.code,
             externalRef: targetPropertyId || 'default',
-            syncedAt: new Date(),
+            syncedAt: now,
           })),
           skipDuplicates: true,
         });
@@ -1187,14 +1852,12 @@ class IntegrationsService {
         syncedAt: Date;
       }> = [];
 
-      const now = new Date();
       for (const item of v6Items) {
-        const lower = item.code.toLowerCase();
-        const acc = syncedByCodeLower.get(lower);
+        const acc = syncedByComboKey.get(item.comboKey);
         if (!acc) continue;
         const prevMap = glEntityMapByPmsId.get(acc.id);
         if (!prevMap) {
-          const originPrefix = newlyCreatedCodeLowers.has(lower) ? 'V6' : 'PMS';
+          const originPrefix = newlyCreatedComboKeys.has(item.comboKey) ? 'V6' : 'PMS';
           const refLabel = `${originPrefix} | ${item.syskey ? `Syskey: ${item.syskey}` : item.name}`.substring(0, 255);
           newGlMaps.push({
             companyId,
@@ -1237,9 +1900,9 @@ class IntegrationsService {
             syncType: 'coa_sync',
             direction: 'pull',
             status: 'success',
-            recordsProcessed: v6Items.length,
-            recordsCreated: createdCount,
-            recordsUpdated: updatedCount,
+            recordsProcessed: v6Items.length + v6DeptList.length + v6CcList.length,
+            recordsCreated: createdCount + deptsToCreate.length + ccsToCreate.length,
+            recordsUpdated: updatedCount + deptsToUpdate.length + ccsToUpdate.length,
             recordsFailed: 0,
             errorDetails: [],
             durationMs,
@@ -1256,7 +1919,7 @@ class IntegrationsService {
       }
 
       logger.info(
-        `V6 ERP COA sync completed for property ${targetPropertyId}: total=${v6Items.length}, created=${createdCount}, updated=${updatedCount}, hidden=${deactivatedCount}`,
+        `V6 ERP COA sync completed for property ${targetPropertyId}: accounts=${v6Items.length} (created=${createdCount}, updated=${updatedCount}), departments=${v6DeptList.length}, costCenters=${v6CcList.length}, hidden=${deactivatedCount}`,
       );
 
       return {
@@ -1266,8 +1929,10 @@ class IntegrationsService {
         created: createdCount,
         updated: updatedCount,
         deactivated: deactivatedCount,
+        departmentsSynced: v6DeptList.length,
+        costCentersSynced: v6CcList.length,
         durationMs,
-        message: `Synced ${v6Items.length} Chart of Accounts from V6 ERP (${createdCount} created, ${updatedCount} updated).`,
+        message: `Synced ${v6Items.length} Chart of Accounts, ${v6DeptList.length} Department(s), and ${v6CcList.length} Cost Center(s) from V6 ERP.`,
       };
     })();
 
@@ -1280,16 +1945,24 @@ class IntegrationsService {
   }
 
   /**
-   * Restores original PMS Chart of Accounts when V6 ERP Flag is turned OFF or integration is deleted:
-   * - Hides accounts that were created solely by V6 sync ('V6 | ...').
-   * - Re-activates pre-existing PMS accounts that were hidden during V6 sync ('gl_account_pms_hidden').
+   * Restores original PMS Chart of Accounts, Departments, and Cost Centers when V6 ERP Flag is turned OFF
+   * or integration is deleted:
+   * - Hides records that were created solely by V6 sync ('V6 | ...').
+   * - Re-activates pre-existing PMS records that were hidden during V6 sync ('*_pms_hidden').
    */
   async restorePmsChartOfAccountsOnV6Disable(
     integrationId: string,
     companyId: string,
     propertyId?: string | null,
   ) {
-    const [v6CreatedMaps, hiddenPmsMaps] = await Promise.all([
+    const [
+      v6CreatedMaps,
+      hiddenPmsMaps,
+      v6DeptMaps,
+      hiddenDeptMaps,
+      v6CcMaps,
+      hiddenCcMaps,
+    ] = await Promise.all([
       prisma.integrationEntityMap.findMany({
         where: {
           companyId,
@@ -1308,10 +1981,50 @@ class IntegrationsService {
         },
         select: { id: true, pmsId: true },
       }),
+      prisma.integrationEntityMap.findMany({
+        where: {
+          companyId,
+          integrationId,
+          entityType: 'department_center',
+          externalRef: { startsWith: 'V6 |' },
+        },
+        select: { pmsId: true },
+      }),
+      prisma.integrationEntityMap.findMany({
+        where: {
+          companyId,
+          integrationId,
+          entityType: 'department_center_pms_hidden',
+          ...(propertyId ? { externalRef: propertyId } : {}),
+        },
+        select: { id: true, pmsId: true },
+      }),
+      prisma.integrationEntityMap.findMany({
+        where: {
+          companyId,
+          integrationId,
+          entityType: 'cost_center',
+          externalRef: { startsWith: 'V6 |' },
+        },
+        select: { pmsId: true },
+      }),
+      prisma.integrationEntityMap.findMany({
+        where: {
+          companyId,
+          integrationId,
+          entityType: 'cost_center_pms_hidden',
+          ...(propertyId ? { externalRef: propertyId } : {}),
+        },
+        select: { id: true, pmsId: true },
+      }),
     ]);
 
     const v6CreatedIds = v6CreatedMaps.map((m) => m.pmsId);
     const hiddenPmsIds = hiddenPmsMaps.map((m) => m.pmsId);
+    const v6DeptIds = v6DeptMaps.map((m) => m.pmsId);
+    const hiddenDeptIds = hiddenDeptMaps.map((m) => m.pmsId);
+    const v6CcIds = v6CcMaps.map((m) => m.pmsId);
+    const hiddenCcIds = hiddenCcMaps.map((m) => m.pmsId);
 
     if (v6CreatedIds.length > 0) {
       await prisma.glAccount.updateMany({
@@ -1343,13 +2056,75 @@ class IntegrationsService {
       });
     }
 
+    if (v6DeptIds.length > 0) {
+      await prisma.departmentCenter.updateMany({
+        where: {
+          companyId,
+          ...(propertyId ? { propertyId } : {}),
+          id: { in: v6DeptIds },
+        },
+        data: { isActive: false },
+      });
+    }
+
+    if (hiddenDeptIds.length > 0) {
+      await prisma.departmentCenter.updateMany({
+        where: {
+          companyId,
+          ...(propertyId ? { propertyId } : {}),
+          id: { in: hiddenDeptIds },
+        },
+        data: { isActive: true },
+      });
+      await prisma.integrationEntityMap.deleteMany({
+        where: {
+          companyId,
+          integrationId,
+          entityType: 'department_center_pms_hidden',
+          ...(propertyId ? { externalRef: propertyId } : {}),
+        },
+      });
+    }
+
+    if (v6CcIds.length > 0) {
+      await prisma.costCenter.updateMany({
+        where: {
+          companyId,
+          ...(propertyId ? { propertyId } : {}),
+          id: { in: v6CcIds },
+        },
+        data: { isActive: false },
+      });
+    }
+
+    if (hiddenCcIds.length > 0) {
+      await prisma.costCenter.updateMany({
+        where: {
+          companyId,
+          ...(propertyId ? { propertyId } : {}),
+          id: { in: hiddenCcIds },
+        },
+        data: { isActive: true },
+      });
+      await prisma.integrationEntityMap.deleteMany({
+        where: {
+          companyId,
+          integrationId,
+          entityType: 'cost_center_pms_hidden',
+          ...(propertyId ? { externalRef: propertyId } : {}),
+        },
+      });
+    }
+
     logger.info(
-      `Restored PMS Chart of Accounts after V6 ERP disable: ${hiddenPmsIds.length} PMS account(s) re-activated, ${v6CreatedIds.length} V6-only account(s) hidden.`,
+      `Restored PMS COA/Dept/CC after V6 ERP disable: ${hiddenPmsIds.length} account(s), ${hiddenDeptIds.length} dept(s), ${hiddenCcIds.length} cost center(s) re-activated.`,
     );
 
     return {
       restoredPmsAccounts: hiddenPmsIds.length,
       hiddenV6Accounts: v6CreatedIds.length,
+      restoredDepartments: hiddenDeptIds.length,
+      restoredCostCenters: hiddenCcIds.length,
     };
   }
 

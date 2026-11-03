@@ -430,6 +430,74 @@ class GlService {
 
   // ── Chart of Accounts ───────────────────────
 
+  private async getInvoiceUsedAccountCodes(
+    companyId: string,
+    propertyId?: string | null,
+  ): Promise<Set<string>> {
+    const [arLines, arTenants, apLines] = await Promise.all([
+      prisma.invoiceLine.findMany({
+        where: {
+          invoice: {
+            companyId,
+            ...(propertyId ? { propertyId } : {}),
+            status: { not: 'void' },
+          },
+          chargeType: {
+            glAccountCode: { not: null },
+          },
+        },
+        select: {
+          chargeType: { select: { glAccountCode: true } },
+        },
+        distinct: ['chargeTypeId'],
+      }),
+      prisma.invoice.findMany({
+        where: {
+          companyId,
+          ...(propertyId ? { propertyId } : {}),
+          status: { not: 'void' },
+          tenant: {
+            glAccountCode: { not: null },
+          },
+        },
+        select: {
+          tenant: { select: { glAccountCode: true } },
+        },
+        distinct: ['tenantId'],
+      }),
+      prisma.apInvoiceLine.findMany({
+        where: {
+          apInvoice: {
+            companyId,
+            ...(propertyId ? { propertyId } : {}),
+            status: { not: 'void' },
+          },
+        },
+        select: {
+          glAccountCode: true,
+          chargeType: { select: { glAccountCode: true } },
+        },
+      }),
+    ]);
+
+    const codes = new Set<string>();
+    for (const line of arLines) {
+      const code = line.chargeType?.glAccountCode?.trim().toLowerCase();
+      if (code) codes.add(code);
+    }
+    for (const inv of arTenants) {
+      const code = inv.tenant?.glAccountCode?.trim().toLowerCase();
+      if (code) codes.add(code);
+    }
+    for (const line of apLines) {
+      const directCode = line.glAccountCode?.trim().toLowerCase();
+      if (directCode) codes.add(directCode);
+      const chargeCode = line.chargeType?.glAccountCode?.trim().toLowerCase();
+      if (chargeCode) codes.add(chargeCode);
+    }
+    return codes;
+  }
+
   async getAccounts(
     companyId: string,
     filters: { propertyId?: string; accountType?: string; tree?: boolean },
@@ -442,28 +510,57 @@ class GlService {
     const childrenWhere: any = { isActive: true };
     if (filters.propertyId) childrenWhere.propertyId = filters.propertyId;
 
-    const accounts = await prisma.glAccount.findMany({
-      where,
-      orderBy: [{ code: 'asc' }, { createdAt: 'asc' }],
-      include: {
-        departmentCenter: { select: { id: true, code: true, name: true } },
-        costCenter: { select: { id: true, code: true, name: true } },
-        children: {
-          where: childrenWhere,
-          orderBy: [{ code: 'asc' }, { createdAt: 'asc' }],
-          include: {
-            departmentCenter: { select: { id: true, code: true, name: true } },
-            costCenter: { select: { id: true, code: true, name: true } },
+    const [accounts, invoiceCodes] = await Promise.all([
+      prisma.glAccount.findMany({
+        where,
+        orderBy: [{ code: 'asc' }, { createdAt: 'asc' }],
+        include: {
+          departmentCenter: { select: { id: true, code: true, name: true } },
+          costCenter: { select: { id: true, code: true, name: true } },
+          _count: { select: { journalLines: true } },
+          children: {
+            where: childrenWhere,
+            orderBy: [{ code: 'asc' }, { createdAt: 'asc' }],
+            include: {
+              departmentCenter: { select: { id: true, code: true, name: true } },
+              costCenter: { select: { id: true, code: true, name: true } },
+              _count: { select: { journalLines: true } },
+            },
           },
         },
-      },
-    });
+      }),
+      this.getInvoiceUsedAccountCodes(companyId, filters.propertyId),
+    ]);
+
+    // Also check if any account with the same code in this scope has journal lines
+    const journalCodes = new Set<string>();
+    for (const acc of accounts) {
+      if ((acc._count?.journalLines ?? 0) > 0) {
+        journalCodes.add(acc.code.trim().toLowerCase());
+      }
+    }
+
+    const enrichAccount = (acc: any) => {
+      const codeLower = (acc.code || '').trim().toLowerCase();
+      const hasJournal = (acc._count?.journalLines ?? 0) > 0 || journalCodes.has(codeLower);
+      const hasInvoice = invoiceCodes.has(codeLower);
+      const isLockedByTransaction = hasJournal || hasInvoice;
+      return {
+        ...acc,
+        hasJournal,
+        hasInvoice,
+        isLockedByTransaction,
+        children: Array.isArray(acc.children) ? acc.children.map(enrichAccount) : acc.children,
+      };
+    };
+
+    const enriched = accounts.map(enrichAccount);
 
     if (filters.tree) {
       // Return only root-level accounts (parentId null) with children nested
-      return accounts.filter(a => !a.parentId);
+      return enriched.filter(a => !a.parentId);
     }
-    return accounts;
+    return enriched;
   }
 
   async createAccount(companyId: string, data: any) {
@@ -515,22 +612,59 @@ class GlService {
   async updateAccount(id: string, companyId: string, data: any) {
     await ensurePropertySetupScope();
 
-    const current = await prisma.glAccount.findFirst({ where: { id, companyId } });
+    const current = await prisma.glAccount.findFirst({
+      where: { id, companyId },
+      include: { _count: { select: { journalLines: true } } },
+    });
     if (!current) throw AppError.notFound('Account');
 
+    const [invoiceCodes, journalLineByCodeCount] = await Promise.all([
+      this.getInvoiceUsedAccountCodes(companyId, current.propertyId),
+      prisma.journalEntryLine.count({
+        where: {
+          account: {
+            companyId,
+            ...(current.propertyId ? { propertyId: current.propertyId } : {}),
+            code: { equals: current.code.trim(), mode: 'insensitive' },
+          },
+        },
+      }),
+    ]);
+
+    const hasJournal = (current._count?.journalLines ?? 0) > 0 || journalLineByCodeCount > 0;
+    const hasInvoice = invoiceCodes.has(current.code.trim().toLowerCase());
+    if (hasJournal || hasInvoice) {
+      const reasons = [
+        hasInvoice ? 'Invoice' : null,
+        hasJournal ? 'Journal Entry' : null,
+      ]
+        .filter(Boolean)
+        .join(' / ');
+      throw AppError.badRequest(
+        `Cannot edit account "${current.code}" because ${reasons} already exists. View mode only.`,
+      );
+    }
+
+    const nextCode = data.code !== undefined ? data.code.trim() : current.code;
     const targetPropertyId =
       data.propertyId !== undefined ? (data.propertyId || null) : current.propertyId;
     const nextDepartmentCenterId =
       data.departmentCenterId !== undefined ? (data.departmentCenterId || null) : current.departmentCenterId;
     const nextCostCenterId =
       data.costCenterId !== undefined ? (data.costCenterId || null) : current.costCenterId;
+    const nextParentId =
+      data.parentId !== undefined ? (data.parentId || null) : current.parentId;
+
+    if (nextParentId === id) {
+      throw AppError.badRequest('An account cannot be its own parent account');
+    }
 
     const duplicate = await prisma.glAccount.findFirst({
       where: {
         companyId,
         propertyId: targetPropertyId,
         id: { not: id },
-        code: { equals: current.code, mode: 'insensitive' },
+        code: { equals: nextCode, mode: 'insensitive' },
         departmentCenterId: nextDepartmentCenterId,
         costCenterId: nextCostCenterId,
       },
@@ -545,15 +679,18 @@ class GlService {
       where: { id },
       data: {
         ...(data.propertyId !== undefined ? { propertyId: targetPropertyId } : {}),
-        name: data.name,
+        ...(data.code !== undefined ? { code: nextCode } : {}),
+        ...(data.parentId !== undefined ? { parentId: nextParentId } : {}),
+        ...(data.name !== undefined ? { name: data.name } : {}),
         ...(data.departmentCenterId !== undefined ? { departmentCenterId: nextDepartmentCenterId } : {}),
         ...(data.costCenterId !== undefined ? { costCenterId: nextCostCenterId } : {}),
         ...(data.accountType !== undefined ? { accountType: data.accountType } : {}),
-        accountSubtype: data.accountSubtype,
+        ...(data.accountSubtype !== undefined ? { accountSubtype: data.accountSubtype } : {}),
         ...(data.normalBalance !== undefined ? { normalBalance: data.normalBalance } : {}),
-        description: data.description,
-        isActive: data.isActive,
-        sortOrder: data.sortOrder,
+        ...(data.isControl !== undefined ? { isControl: data.isControl } : {}),
+        ...(data.description !== undefined ? { description: data.description } : {}),
+        ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
+        ...(data.sortOrder !== undefined ? { sortOrder: data.sortOrder } : {}),
       },
       include: {
         departmentCenter: { select: { id: true, code: true, name: true } },

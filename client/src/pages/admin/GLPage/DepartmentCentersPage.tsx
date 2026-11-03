@@ -68,7 +68,7 @@ export default function DepartmentCentersPage() {
           </div>
           <div>
             <h1>Department</h1>
-            <p>{departmentCenters.length} total departments for accounting & GL</p>
+            <p>{departmentCenters.length} total departments for accounting & GL{isV6Active ? ' • Synced with V6 ERP' : ''}</p>
           </div>
         </div>
         <PermissionGuard permission="finance-coa.write">

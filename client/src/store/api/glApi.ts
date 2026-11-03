@@ -41,6 +41,10 @@ interface GlAccount {
   departmentCenter?: { id: string; code: string; name: string } | null;
   costCenter?: { id: string; code: string; name: string } | null;
   children?: GlAccount[];
+  hasJournal?: boolean;
+  hasInvoice?: boolean;
+  isLockedByTransaction?: boolean;
+  _count?: { journalLines?: number };
 }
 
 interface FiscalPeriod {

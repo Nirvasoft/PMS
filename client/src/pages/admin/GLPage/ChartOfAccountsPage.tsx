@@ -2,7 +2,7 @@ import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
-import { BookOpen, Search, X, Check, GitBranch, Layers, Pencil, RefreshCw } from 'lucide-react';
+import { BookOpen, Search, X, Check, GitBranch, Layers, Pencil, RefreshCw, Eye, Lock } from 'lucide-react';
 import {
   useGetGlAccountsQuery,
   useCreateGlAccountMutation,
@@ -197,6 +197,7 @@ function AccountNode({
   filterGroup,
   searchQuery,
   onEdit,
+  onView,
   isV6Active = false,
   ancestors = new Set<string>(),
 }: {
@@ -205,6 +206,7 @@ function AccountNode({
   filterGroup: string;
   searchQuery: string;
   onEdit: (a: GlAccount) => void;
+  onView: (a: GlAccount) => void;
   isV6Active?: boolean;
   ancestors?: Set<string>;
 }) {
@@ -219,6 +221,16 @@ function AccountNode({
   const isExpanded = searchQuery.trim() ? true : open;
   const normSubtype = normalizeSubtype(account.accountSubtype);
   const groupLabel = getGroupLabel(account.accountType, account.accountSubtype);
+
+  const hasInvoice = Boolean(account.hasInvoice);
+  const hasJournal = Boolean(account.hasJournal || (account._count?.journalLines ?? 0) > 0);
+  const isLockedByTx = Boolean(account.isLockedByTransaction || hasInvoice || hasJournal);
+  const lockReasonText = [
+    hasInvoice ? 'Invoice' : '',
+    hasJournal ? 'Journal Entry' : '',
+  ]
+    .filter(Boolean)
+    .join(' & ');
 
   return (
     <li>
@@ -239,7 +251,7 @@ function AccountNode({
               textTransform: 'none',
             }}
           >
-            DEPT: {account.departmentCenter.code}
+            DEPT: {account.departmentCenter.code}{account.departmentCenter.name && account.departmentCenter.name.toLowerCase() !== account.departmentCenter.code.toLowerCase() ? ` (${account.departmentCenter.name})` : ''}
           </span>
         )}
         {account.costCenter && (
@@ -253,7 +265,7 @@ function AccountNode({
               textTransform: 'none',
             }}
           >
-            CC: {account.costCenter.code}
+            CC: {account.costCenter.code}{account.costCenter.name && account.costCenter.name.toLowerCase() !== account.costCenter.code.toLowerCase() ? ` (${account.costCenter.name})` : ''}
           </span>
         )}
         {normSubtype && (
@@ -272,10 +284,26 @@ function AccountNode({
         <span className={`gl-type-chip ${account.accountType}`} style={{ textTransform: 'none' }}>
           {groupLabel}
         </span>
-        {account.isControl && <span className="gl-badge closed" style={{fontSize:'0.65rem'}}>Control</span>}
-        {!isV6Active && (
-          <PermissionGuard permission="finance-coa.write">
-            <button className="btn-icon" onClick={() => onEdit(account)} title="Edit">
+        {account.isControl ? <span className="gl-badge closed" style={{fontSize:'0.65rem',textTransform:'none'}} title="Acc Type: Header (Control Account)">Header</span> : <span className="gl-badge" style={{fontSize:'0.65rem',background:'rgba(16, 185, 129, 0.12)',color:'#34d399',textTransform:'none'}} title="Acc Type: Posting Account">Posting</span>}
+        {isLockedByTx ? (
+          <button
+            className="btn-icon"
+            onClick={() => onView(account)}
+            title={`View Mode Only (${lockReasonText} exists — cannot edit)`}
+            style={{ color: '#fbbf24' }}
+          >
+            <Eye size={14} />
+          </button>
+        ) : (
+          <PermissionGuard
+            permission="finance-coa.write"
+            fallback={
+              <button className="btn-icon" onClick={() => onView(account)} title="View Account">
+                <Eye size={14} />
+              </button>
+            }
+          >
+            <button className="btn-icon" onClick={() => onEdit(account)} title="Edit Account">
               <Pencil size={14} />
             </button>
           </PermissionGuard>
@@ -291,6 +319,7 @@ function AccountNode({
               filterGroup={filterGroup}
               searchQuery={searchQuery}
               onEdit={onEdit}
+              onView={onView}
               isV6Active={isV6Active}
               ancestors={nextAncestors}
             />
@@ -318,6 +347,7 @@ export default function ChartOfAccountsPage() {
   const [syncV6Coa, { isLoading: isSyncingCoa }] = useSyncV6CoaMutation();
   const [showModal, setShowModal] = useState(false);
   const [editAccount, setEditAccount] = useState<GlAccount | null>(null);
+  const [modalViewOnly, setModalViewOnly] = useState(false);
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('');
 
@@ -371,13 +401,22 @@ export default function ChartOfAccountsPage() {
     : rootAccounts;
 
   const handleEdit = (a: GlAccount) => {
-    if (isV6Active) return;
+    const locked = Boolean(
+      a.isLockedByTransaction || a.hasInvoice || a.hasJournal || (a._count?.journalLines ?? 0) > 0,
+    );
     setEditAccount(a);
+    setModalViewOnly(locked);
+    setShowModal(true);
+  };
+  const handleView = (a: GlAccount) => {
+    setEditAccount(a);
+    setModalViewOnly(true);
     setShowModal(true);
   };
   const handleNew = () => {
     if (isV6Active) return;
     setEditAccount(null);
+    setModalViewOnly(false);
     setShowModal(true);
   };
 
@@ -493,6 +532,7 @@ export default function ChartOfAccountsPage() {
                 filterGroup={filterType}
                 searchQuery={search}
                 onEdit={handleEdit}
+                onView={handleView}
                 isV6Active={isV6Active}
               />
             ))}
@@ -514,6 +554,7 @@ export default function ChartOfAccountsPage() {
       {showModal && (
         <AccountModal
           account={editAccount}
+          viewOnly={modalViewOnly}
           propertyId={propertyId || undefined}
           accounts={accounts}
           departmentCenters={departmentCenters}
@@ -529,6 +570,7 @@ export default function ChartOfAccountsPage() {
 
 function AccountModal({
   account,
+  viewOnly = false,
   propertyId,
   accounts,
   departmentCenters,
@@ -538,6 +580,7 @@ function AccountModal({
   onUpdate,
 }: {
   account: GlAccount | null;
+  viewOnly?: boolean;
   propertyId?: string;
   accounts: GlAccount[];
   departmentCenters: DepartmentCenter[];
@@ -547,6 +590,11 @@ function AccountModal({
   onUpdate: any;
 }) {
   const isEdit = !!account;
+  const hasInvoice = Boolean(account?.hasInvoice);
+  const hasJournal = Boolean(account?.hasJournal || (account?._count?.journalLines ?? 0) > 0);
+  const isLockedByTx = Boolean(account?.isLockedByTransaction || hasInvoice || hasJournal);
+  const isReadOnly = Boolean(viewOnly || isLockedByTx);
+
   const alertDialog = useAlertDialog();
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
@@ -574,6 +622,7 @@ function AccountModal({
     ACCOUNT_TYPE_GROUPS.find((g) => g.group === typeGroup) || ACCOUNT_TYPE_GROUPS[0];
 
   const handleGroupChange = (nextGroup: string) => {
+    if (isReadOnly) return;
     setTypeGroup(nextGroup);
     const grp = ACCOUNT_TYPE_GROUPS.find((g) => g.group === nextGroup);
     if (!grp) return;
@@ -587,6 +636,7 @@ function AccountModal({
   };
 
   const handleSubtypeChange = (nextSubtype: string) => {
+    if (isReadOnly) return;
     const subDef = currentGroupObj.subtypes.find((s) => s.value === nextSubtype);
     setForm((prev) => ({
       ...prev,
@@ -601,8 +651,8 @@ function AccountModal({
   const [showCostLookup, setShowCostLookup] = useState(false);
   const [costSearch, setCostSearch] = useState('');
 
-  const selectedDept = departmentCenters.find((d) => d.id === form.departmentCenterId);
-  const selectedCost = costCenters.find((c) => c.id === form.costCenterId);
+  const selectedDept = departmentCenters.find((d) => d.id === form.departmentCenterId) || account?.departmentCenter || null;
+  const selectedCost = costCenters.find((c) => c.id === form.costCenterId) || account?.costCenter || null;
 
   const filteredDepts = departmentCenters.filter((d) => {
     if (!d.isActive && d.id !== form.departmentCenterId) return false;
@@ -632,55 +682,90 @@ function AccountModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isReadOnly) return;
     setHasAttemptedSubmit(true);
-    if ((!isEdit && !form.code.trim()) || !form.name.trim()) return;
+    if (!form.code.trim() || !form.name.trim()) return;
     try {
       if (isEdit) {
         await onUpdate({
           id: account.id,
           data: {
             ...(propertyId ? { propertyId } : {}),
-            name: form.name,
+            code: form.code.trim(),
+            parentId: form.parentId || null,
+            name: form.name.trim(),
             departmentCenterId: form.departmentCenterId || null,
             costCenterId: form.costCenterId || null,
             accountType: form.accountType,
             accountSubtype: form.accountSubtype || null,
             normalBalance: form.normalBalance,
+            isControl: form.isControl,
             description: form.description || null,
             isActive: form.isActive,
           },
         }).unwrap();
+        toast.success('Account updated successfully');
       } else {
         await onCreate({
           ...form,
+          code: form.code.trim(),
+          name: form.name.trim(),
           ...(propertyId ? { propertyId } : {}),
           parentId: form.parentId || undefined,
           departmentCenterId: form.departmentCenterId || null,
           costCenterId: form.costCenterId || null,
           accountSubtype: form.accountSubtype || undefined,
         }).unwrap();
+        toast.success('Account created successfully');
       }
       onClose();
     } catch (err: any) {
-      alertDialog(err.data?.errors?.[0]?.message || 'Error saving account');
+      alertDialog(err.data?.message || err.data?.errors?.[0]?.message || 'Error saving account');
     }
   };
+
+  const hasCustomSubtype =
+    Boolean(form.accountSubtype) &&
+    !currentGroupObj.subtypes.some((s) => s.value === form.accountSubtype);
 
   return (
     <div className="gl-modal-overlay">
       <div className="gl-modal" onClick={e => e.stopPropagation()}>
-        <h3>{isEdit ? 'Edit Account' : 'New Account'}</h3>
+        <h3>{!isEdit ? 'New Account' : isReadOnly ? 'View Account' : 'Edit Account'}</h3>
+        {isLockedByTx && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '10px 12px',
+              marginBottom: 14,
+              borderRadius: 8,
+              background: 'rgba(245, 158, 11, 0.12)',
+              border: '1px solid rgba(245, 158, 11, 0.35)',
+              color: '#fbbf24',
+              fontSize: '0.82rem',
+            }}
+          >
+            <Lock size={15} style={{ flexShrink: 0 }} />
+            <span>
+              <strong>View Mode Only:</strong> Cannot edit this account because{' '}
+              {[hasInvoice ? 'Invoice' : '', hasJournal ? 'Journal Entry' : ''].filter(Boolean).join(' and ')}{' '}
+              already exists.
+            </span>
+          </div>
+        )}
         <form onSubmit={handleSubmit} noValidate>
           <div className="gl-form-row">
             <div className="gl-form-group">
               <label>Account Code <span className="req">*</span></label>
               <input
-                className={hasAttemptedSubmit && !isEdit && !form.code.trim() ? 'gl-input-error' : ''}
+                className={hasAttemptedSubmit && !form.code.trim() ? 'gl-input-error' : ''}
                 value={form.code}
                 onChange={e => setForm({...form, code: e.target.value})}
-                disabled={isEdit}
+                disabled={isReadOnly}
               />
-              {hasAttemptedSubmit && !isEdit && !form.code.trim() && (
+              {hasAttemptedSubmit && !form.code.trim() && (
                 <span className="gl-error-text">Account code is required</span>
               )}
             </div>
@@ -690,6 +775,7 @@ function AccountModal({
                 className={hasAttemptedSubmit && !form.name.trim() ? 'gl-input-error' : ''}
                 value={form.name}
                 onChange={e => setForm({...form, name: e.target.value})}
+                disabled={isReadOnly}
               />
               {hasAttemptedSubmit && !form.name.trim() && (
                 <span className="gl-error-text">Account name is required</span>
@@ -702,7 +788,7 @@ function AccountModal({
               <select
                 value={typeGroup}
                 onChange={e => handleGroupChange(e.target.value)}
-                disabled={isEdit}
+                disabled={isReadOnly}
               >
                 {ACCOUNT_TYPE_GROUPS.map((g) => (
                   <option key={g.group} value={g.group}>
@@ -716,9 +802,13 @@ function AccountModal({
               <select
                 value={form.accountSubtype}
                 onChange={e => handleSubtypeChange(e.target.value)}
+                disabled={isReadOnly}
               >
                 {isEdit && !form.accountSubtype && (
                   <option value="">— Select Subtype —</option>
+                )}
+                {hasCustomSubtype && (
+                  <option value={form.accountSubtype}>{form.accountSubtype}</option>
                 )}
                 {currentGroupObj.subtypes.map((s) => (
                   <option key={s.value} value={s.value}>
@@ -731,15 +821,15 @@ function AccountModal({
           <div className="gl-form-row">
             <div className="gl-form-group">
               <label>Normal Balance</label>
-              <select value={form.normalBalance} onChange={e => setForm({...form, normalBalance: e.target.value})} disabled={isEdit}>
+              <select value={form.normalBalance} onChange={e => setForm({...form, normalBalance: e.target.value})} disabled={isReadOnly}>
                 <option value="debit">Debit</option><option value="credit">Credit</option>
               </select>
             </div>
             <div className="gl-form-group">
               <label>Parent Account</label>
-              <select value={form.parentId} onChange={e => setForm({...form, parentId: e.target.value})} disabled={isEdit}>
+              <select value={form.parentId} onChange={e => setForm({...form, parentId: e.target.value})} disabled={isReadOnly}>
                 <option value="">— None (Root) —</option>
-                {accounts.filter((a: GlAccount) => !a.parentId).map((a: GlAccount) => (
+                {accounts.filter((a: GlAccount) => a.id !== account?.id).map((a: GlAccount) => (
                   <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
                 ))}
               </select>
@@ -756,13 +846,15 @@ function AccountModal({
                   placeholder="Select Department…"
                   value={selectedDept ? `${selectedDept.code} — ${selectedDept.name}` : ''}
                   readOnly
+                  disabled={isReadOnly}
                   tabIndex={-1}
                   onClick={() => {
+                    if (isReadOnly) return;
                     setDeptSearch('');
                     setShowDeptLookup(true);
                   }}
                 />
-                {form.departmentCenterId && (
+                {!isReadOnly && form.departmentCenterId && (
                   <button
                     type="button"
                     className="coa-clear-inline-btn"
@@ -775,17 +867,19 @@ function AccountModal({
                     <X size={13} />
                   </button>
                 )}
-                <button
-                  type="button"
-                  className="coa-lookup-btn"
-                  onClick={() => {
-                    setDeptSearch('');
-                    setShowDeptLookup(true);
-                  }}
-                  title="Search Departments"
-                >
-                  <Search size={15} />
-                </button>
+                {!isReadOnly && (
+                  <button
+                    type="button"
+                    className="coa-lookup-btn"
+                    onClick={() => {
+                      setDeptSearch('');
+                      setShowDeptLookup(true);
+                    }}
+                    title="Search Departments"
+                  >
+                    <Search size={15} />
+                  </button>
+                )}
               </div>
             </div>
 
@@ -797,13 +891,15 @@ function AccountModal({
                   placeholder="Select Cost Center…"
                   value={selectedCost ? `${selectedCost.code} — ${selectedCost.name}` : ''}
                   readOnly
+                  disabled={isReadOnly}
                   tabIndex={-1}
                   onClick={() => {
+                    if (isReadOnly) return;
                     setCostSearch('');
                     setShowCostLookup(true);
                   }}
                 />
-                {form.costCenterId && (
+                {!isReadOnly && form.costCenterId && (
                   <button
                     type="button"
                     className="coa-clear-inline-btn"
@@ -816,36 +912,61 @@ function AccountModal({
                     <X size={13} />
                   </button>
                 )}
-                <button
-                  type="button"
-                  className="coa-lookup-btn"
-                  onClick={() => {
-                    setCostSearch('');
-                    setShowCostLookup(true);
-                  }}
-                  title="Search Cost Centers"
-                >
-                  <Search size={15} />
-                </button>
+                {!isReadOnly && (
+                  <button
+                    type="button"
+                    className="coa-lookup-btn"
+                    onClick={() => {
+                      setCostSearch('');
+                      setShowCostLookup(true);
+                    }}
+                    title="Search Cost Centers"
+                  >
+                    <Search size={15} />
+                  </button>
+                )}
               </div>
             </div>
           </div>
 
           <div className="gl-form-group">
             <label>Description</label>
-            <textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} rows={2} />
+            <textarea
+              value={form.description}
+              onChange={e => setForm({...form, description: e.target.value})}
+              rows={2}
+              disabled={isReadOnly}
+            />
           </div>
           <div className="gl-form-group" style={{display:'flex',gap:16,alignItems:'center'}}>
             <label style={{marginBottom:0}}>
-              <input type="checkbox" checked={form.isControl} onChange={e => setForm({...form, isControl: e.target.checked})} disabled={isEdit} /> Control Account
+              <input
+                type="checkbox"
+                checked={form.isControl}
+                onChange={e => setForm({...form, isControl: e.target.checked})}
+                disabled={isReadOnly}
+              />{' '}
+              Control Account
             </label>
             {isEdit && <label style={{marginBottom:0}}>
-              <input type="checkbox" checked={form.isActive} onChange={e => setForm({...form, isActive: e.target.checked})} /> Active
+              <input
+                type="checkbox"
+                checked={form.isActive}
+                onChange={e => setForm({...form, isActive: e.target.checked})}
+                disabled={isReadOnly}
+              />{' '}
+              Active
             </label>}
           </div>
           <div className="gl-modal-actions">
-            <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn-primary">{isEdit ? 'Save' : 'Create'}</button>
+            <button type="button" className="btn-secondary" onClick={onClose}>
+              {isReadOnly ? 'Close' : 'Cancel'}
+            </button>
+            {!isReadOnly && (
+              <button type="submit" className="btn-primary">
+                {isEdit ? 'Save' : 'Create'}
+              </button>
+            )}
           </div>
         </form>
       </div>
