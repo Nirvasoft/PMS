@@ -2380,10 +2380,23 @@ class IntegrationsService {
     const invoices = await prisma.invoice.findMany({
       where: whereClause,
       include: {
-        tenant:   { select: { id: true, firstName: true, lastName: true, companyName: true, tenantType: true } },
-        unit:     { select: { id: true, unitNumber: true } },
+        tenant:           { select: { id: true, firstName: true, lastName: true, companyName: true, tenantType: true } },
+        unit:             { select: { id: true, unitNumber: true } },
+        departmentCenter: { select: { id: true, code: true, name: true } },
+        costCenter:       { select: { id: true, code: true, name: true } },
         lines: {
-          include: { chargeType: { select: { id: true, code: true, name: true } } },
+          include: {
+            chargeType: {
+              select: {
+                id: true,
+                code: true,
+                name: true,
+                glAccountCode: true,
+                departmentCenter: { select: { id: true, code: true, name: true } },
+                costCenter:       { select: { id: true, code: true, name: true } },
+              },
+            },
+          },
           orderBy: { sortOrder: 'asc' },
         },
       },
@@ -2417,10 +2430,260 @@ class IntegrationsService {
       return { sent: 0, failed: 0, skipped: 0, results: [], message: 'No issued invoices found to send.' };
     }
 
-    // ── 3. V6 ERP Endpoints & Helpers ─────────────────────────────────────
+    // ── 3. V6 ERP Endpoints, Auth & Dept/CC Syskey Lookup ─────────────────
     const integrationEndpoint = `${cleanRoot}/v6IntegrationAPIlogin/saveInvoice`;
+    const saleInvoiceEndpoint = `${cleanRoot}/saleInvoice/saveInvoice`;
     const customerEndpoint    = `${cleanRoot}/v6IntegrationAPIlogin/getCustomer`;
     const headers = { 'Content-Type': 'application/json' };
+
+    // Obtain V6 JWT token & user syskey for native saleInvoice/saveInvoice (supports n56 Dept & n57 CC syskeys)
+    let v6Token = '';
+    let v6Usk = '10150000188';
+    let v6UserId = 'admin';
+    let v6UserName = 'Admin';
+    try {
+      const tokenResp = await fetch(`${cleanRoot}/lkn/getotkenlogin`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ domain }),
+        signal: AbortSignal.timeout(8000),
+      });
+      if (tokenResp.ok) {
+        const tokenJson = (await tokenResp.json().catch(() => null)) as any;
+        if (tokenJson?.token) v6Token = String(tokenJson.token);
+      }
+    } catch { /* fallback below */ }
+
+    if (!v6Token) {
+      try {
+        const refreshResp = await fetch(`${cleanRoot}/main/loginRefreshToken`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ domain, userId: 'admin', oid: '001' }),
+          signal: AbortSignal.timeout(8000),
+        });
+        if (refreshResp.ok) {
+          const refreshJson = (await refreshResp.json().catch(() => null)) as any;
+          if (refreshJson?.token) v6Token = String(refreshJson.token);
+        }
+      } catch { /* ignore */ }
+    }
+
+    if (v6Token) {
+      try {
+        const parts = v6Token.split('.');
+        if (parts.length >= 2) {
+          const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+          if (payload?.usk) v6Usk = String(payload.usk);
+          if (payload?.uid) v6UserId = String(payload.uid);
+          if (payload?.uname) v6UserName = String(payload.uname);
+        }
+      } catch { /* keep defaults */ }
+    }
+
+    const authHeaders = v6Token
+      ? { 'Content-Type': 'application/json', 'Content-Over': v6Token, 'APP-CALLER': '1' }
+      : headers;
+
+    // Load V6 Departments, Cost Centers, and COA to map Invoice Dept/CC -> V6 Syskey (n56, n57)
+    const v6DeptByCode = new Map<string, { code: string; name: string; syskey: string }>();
+    const v6DeptByName = new Map<string, { code: string; name: string; syskey: string }>();
+    const v6CcByCode   = new Map<string, { code: string; name: string; syskey: string }>();
+    const v6CcByName   = new Map<string, { code: string; name: string; syskey: string }>();
+    let activeCoaRows: any[] = [];
+    let defaultSalePersonSk = v6Usk;
+    let v6WhskStr = '0';
+    let v6CusTypesArr: string[] = ['0'];
+    let v6DefAccList: any = null;
+
+    try {
+      const [bundle, entityMaps, spResp, locResp, bpResp, defAccResp] = await Promise.all([
+        this.fetchV6CoaBundle(cleanRoot, domain).catch(() => ({
+          coaRows: [],
+          departments: [],
+          costCenters: [],
+          categories: [],
+        })),
+        prisma.integrationEntityMap.findMany({
+          where: {
+            companyId,
+            integrationId: config.id,
+            entityType: { in: ['department_center', 'cost_center'] },
+          },
+        }).catch(() => []),
+        v6Token
+          ? fetch(`${cleanRoot}/main/saleperson/`, { method: 'GET', headers: authHeaders, signal: AbortSignal.timeout(6000) }).catch(() => null)
+          : Promise.resolve(null),
+        v6Token
+          ? fetch(`${cleanRoot}/main/locations/${encodeURIComponent(v6Usk)}`, { method: 'GET', headers: authHeaders, signal: AbortSignal.timeout(6000) }).catch(() => null)
+          : Promise.resolve(null),
+        v6Token
+          ? fetch(`${cleanRoot}/bptype/getBPTypes/1`, { method: 'GET', headers: authHeaders, signal: AbortSignal.timeout(6000) }).catch(() => null)
+          : Promise.resolve(null),
+        v6Token
+          ? fetch(`${cleanRoot}/saleInvoice/getDefAccountList`, { method: 'POST', headers: authHeaders, body: JSON.stringify({}), signal: AbortSignal.timeout(6000) }).catch(() => null)
+          : Promise.resolve(null),
+      ]);
+
+      activeCoaRows = (bundle.coaRows || []).filter((item: any) => item?.recordStatus !== 4);
+
+      for (const d of bundle.departments || []) {
+        if (d?.recordStatus === 4) continue;
+        const code = String(d?.t1 || d?.code || '').trim();
+        const name = String(d?.t2 || d?.description || d?.name || code).trim();
+        const syskey = String(d?.syskey || '').trim();
+        if (code && syskey && syskey !== '0') {
+          const entry = { code, name, syskey };
+          v6DeptByCode.set(code.toLowerCase(), entry);
+          if (name) v6DeptByName.set(name.toLowerCase(), entry);
+        }
+      }
+      for (const item of activeCoaRows) {
+        const code = String(item?.deptCode || '').trim();
+        const name = String(item?.t5 || code).trim();
+        const syskey = String(item?.n12 || '').trim();
+        if (code && syskey && syskey !== '0' && !v6DeptByCode.has(code.toLowerCase())) {
+          const entry = { code, name, syskey };
+          v6DeptByCode.set(code.toLowerCase(), entry);
+          if (name) v6DeptByName.set(name.toLowerCase(), entry);
+        }
+      }
+
+      for (const cc of bundle.costCenters || []) {
+        if (cc?.recordStatus === 4) continue;
+        const code = String(cc?.t1 || cc?.code || '').trim();
+        const name = String(cc?.t2 || cc?.description || cc?.name || code).trim();
+        const syskey = String(cc?.syskey || '').trim();
+        if (code && syskey && syskey !== '0') {
+          const entry = { code, name, syskey };
+          v6CcByCode.set(code.toLowerCase(), entry);
+          if (name) v6CcByName.set(name.toLowerCase(), entry);
+        }
+      }
+      for (const item of activeCoaRows) {
+        const code = String(item?.ccCode || '').trim();
+        const name = String(item?.t3 || code).trim();
+        const syskey = String(item?.n11 || '').trim();
+        if (code && syskey && syskey !== '0' && !v6CcByCode.has(code.toLowerCase())) {
+          const entry = { code, name, syskey };
+          v6CcByCode.set(code.toLowerCase(), entry);
+          if (name) v6CcByName.set(name.toLowerCase(), entry);
+        }
+      }
+
+      // Fallback from IntegrationEntityMap if any syskey is stored in externalRef ("Syskey: 12345")
+      for (const m of entityMaps) {
+        const skMatch = String(m.externalRef || '').match(/Syskey:\s*([0-9]+)/i);
+        const syskey = skMatch?.[1] || '';
+        const code = String(m.externalId || '').trim();
+        if (!code || !syskey) continue;
+        if (m.entityType === 'department_center' && !v6DeptByCode.has(code.toLowerCase())) {
+          v6DeptByCode.set(code.toLowerCase(), { code, name: code, syskey });
+        } else if (m.entityType === 'cost_center' && !v6CcByCode.has(code.toLowerCase())) {
+          v6CcByCode.set(code.toLowerCase(), { code, name: code, syskey });
+        }
+      }
+
+      if (spResp && spResp.ok) {
+        const spList = (await spResp.json().catch(() => null)) as any[];
+        if (Array.isArray(spList) && spList.length > 0) {
+          const adminSp = spList.find((s: any) => String(s?.t1 || '').toLowerCase() === 'admin') || spList[0];
+          if (adminSp?.code && adminSp.code !== '0') {
+            defaultSalePersonSk = String(adminSp.code);
+          }
+        }
+      }
+      if (locResp && locResp.ok) {
+        const locList = (await locResp.json().catch(() => null)) as any[];
+        if (Array.isArray(locList) && locList.length > 0) {
+          v6WhskStr = locList.map((l: any) => String(l.code)).join(',');
+        }
+      }
+      if (bpResp && bpResp.ok) {
+        const bpList = (await bpResp.json().catch(() => null)) as any[];
+        if (Array.isArray(bpList) && bpList.length > 0) {
+          v6CusTypesArr = bpList.map((b: any) => String(b.code));
+        }
+      }
+      if (defAccResp && defAccResp.ok) {
+        v6DefAccList = await defAccResp.json().catch(() => null);
+      }
+    } catch (bundleErr: any) {
+      logger.warn(`V6 ERP: Failed to preload Dept/CC/COA bundle: ${bundleErr?.message}`);
+    }
+
+    const resolveV6DeptSyskey = (dept?: { code?: string | null; name?: string | null } | null) => {
+      if (!dept) return { syskey: '0', name: '', code: '' };
+      const code = String(dept.code || '').trim();
+      const name = String(dept.name || '').trim();
+      const found =
+        (code ? v6DeptByCode.get(code.toLowerCase()) : undefined) ||
+        (name ? v6DeptByName.get(name.toLowerCase()) : undefined) ||
+        (code ? v6DeptByName.get(code.toLowerCase()) : undefined);
+      return found
+        ? { syskey: found.syskey, name: found.name, code: found.code }
+        : { syskey: '0', name, code };
+    };
+
+    const resolveV6CcSyskey = (cc?: { code?: string | null; name?: string | null } | null) => {
+      if (!cc) return { syskey: '0', name: '', code: '' };
+      const code = String(cc.code || '').trim();
+      const name = String(cc.name || '').trim();
+      const found =
+        (code ? v6CcByCode.get(code.toLowerCase()) : undefined) ||
+        (name ? v6CcByName.get(name.toLowerCase()) : undefined) ||
+        (code ? v6CcByName.get(code.toLowerCase()) : undefined);
+      return found
+        ? { syskey: found.syskey, name: found.name, code: found.code }
+        : { syskey: '0', name, code };
+    };
+
+    const resolveV6GlAccountForDeptCc = (
+      preferredCode: string | undefined | null,
+      deptSk: string,
+      ccSk: string,
+      fallbackCodePrefix?: string,
+      defaultEntry?: { code?: string; t1?: string },
+    ): { syskey: string; code: string } => {
+      const cleanCode = String(preferredCode || '').trim().toLowerCase();
+      if (cleanCode) {
+        const codeMatches = activeCoaRows.filter(
+          (r: any) => String(r?.t1 || r?.code || '').trim().toLowerCase() === cleanCode,
+        );
+        const exact =
+          codeMatches.find((r: any) => String(r?.n12 || '0') === deptSk && String(r?.n11 || '0') === ccSk) ||
+          codeMatches.find((r: any) => String(r?.n11 || '0') === ccSk && (String(r?.n12 || '0') === '0' || !r?.n12)) ||
+          codeMatches.find((r: any) => String(r?.n12 || '0') === deptSk && (String(r?.n11 || '0') === '0' || !r?.n11)) ||
+          codeMatches[0];
+        if (exact?.syskey) {
+          return { syskey: String(exact.syskey), code: String(exact.t1 || exact.code || preferredCode) };
+        }
+      }
+
+      if (fallbackCodePrefix) {
+        const prefixLower = fallbackCodePrefix.toLowerCase();
+        const comboMatch =
+          activeCoaRows.find(
+            (r: any) =>
+              String(r?.n12 || '0') === deptSk &&
+              String(r?.n11 || '0') === ccSk &&
+              String(r?.t1 || r?.code || '').trim().toLowerCase().startsWith(prefixLower),
+          ) ||
+          activeCoaRows.find(
+            (r: any) =>
+              String(r?.n11 || '0') === ccSk &&
+              String(r?.t1 || r?.code || '').trim().toLowerCase().startsWith(prefixLower),
+          );
+        if (comboMatch?.syskey) {
+          return { syskey: String(comboMatch.syskey), code: String(comboMatch.t1 || comboMatch.code || '') };
+        }
+      }
+
+      if (defaultEntry?.t1 && defaultEntry.t1 !== '0') {
+        return { syskey: String(defaultEntry.t1), code: String(defaultEntry.code || '') };
+      }
+      return { syskey: '0', code: cleanCode || '' };
+    };
 
     // Customer syskey cache (avoid repeated lookups for same customer in one batch)
     const customerSyskeyCache: Record<string, string> = {};
@@ -2495,61 +2758,557 @@ class IntegrationsService {
         }
 
         const unitNumber = (inv.unit?.unitNumber || (inv as any).unitNumber || '').trim();
+        const docDateStr = fmtV6Date(inv.invoiceDate);
+        const dueDateStr = fmtV6Date(inv.dueDate || inv.invoiceDate);
+        const currencyCode = (inv.currency || 'MMK').trim() || 'MMK';
+        const currRate = Number(inv.currencyRate) > 0 ? Number(inv.currencyRate) : 1;
 
-        // ── Build Integration API payload (simple!) ───────────────────────
-        // V6 ERP handles all GL accounts, UOM, ref number auto-generation
-        const integrationPayload = {
-          cuskey,
-          cuscode:    customerCode,
-          date:       fmtV6Date(inv.invoiceDate),
-          refno:      'TBA',             // V6 ERP auto-generates (e.g. INV-000012)
-          secref:     inv.invoiceNumber, // PMS Invoice No as Second Ref
-          amount:     Number(inv.totalAmount),
-          savestatus: 4,                 // 4 = Posted
-          domain,
-          remark:     `PMS: ${inv.invoiceNumber}`,
-          remark1:    customerName,
-          remark2:    (inv as any).lines.map((l: any) => l.description || l.chargeType?.name || '').filter(Boolean).join(', ') || 'PMS Invoice',
-          intime:     unitNumber,        // Maps to SOP002.t2 (Unit/Stock Code) via trigger
-          details: (inv as any).lines.map((line: any) => {
-            const lineDesc = line.description || line.chargeType?.name || '';
-            return {
-              qty:          Number(line.quantity)  || 1,
-              price:        Number(line.unitPrice) || 0,
-              amount:       Number(line.lineTotal) || Number(line.amount) || 0,
-              desc:         lineDesc,
-              actualweight: lineDesc,          // Transferred via V6 Java API into SOP002.t13 -> SOP002.t3
-              uom:          line.unit || 'Each',
-            };
-          }),
-        };
+        // ── Resolve V6 Department (n56) & Cost Center (n57) Syskeys from Invoice / Line ChargeType ──
+        const pmsDept =
+          (inv as any).departmentCenter ||
+          (inv as any).lines?.find((l: any) => l.chargeType?.departmentCenter)?.chargeType?.departmentCenter ||
+          null;
+        const pmsCc =
+          (inv as any).costCenter ||
+          (inv as any).lines?.find((l: any) => l.chargeType?.costCenter)?.chargeType?.costCenter ||
+          null;
 
-        logger.info(`V6 ERP: Pushing invoice ${inv.invoiceNumber} | customer=${customerCode} | amt=${inv.totalAmount}`);
+        const v6Dept = resolveV6DeptSyskey(pmsDept);
+        const v6Cc   = resolveV6CcSyskey(pmsCc);
+        const n56    = v6Dept.syskey;
+        const n57    = v6Cc.syskey;
 
-        const abortCtrl = new AbortController();
-        const timer = setTimeout(() => abortCtrl.abort(), 30000);
-        const resp = await fetch(integrationEndpoint, {
-          method:  'POST',
-          headers,
-          body:    JSON.stringify(integrationPayload),
-          signal:  abortCtrl.signal,
-        });
-        clearTimeout(timer);
+        const lineDescriptions =
+          (inv as any).lines
+            .map((l: any) => l.description || l.chargeType?.name || '')
+            .filter(Boolean)
+            .join(', ') || 'PMS Invoice';
 
-        const respText = await resp.text().catch(() => '');
-        let v6Json: any = null;
-        try { v6Json = JSON.parse(respText); } catch { /* not JSON */ }
+        // Resolve header & detail GL accounts for (n56, n57)
+        const firstLineGlCode = (inv as any).lines?.[0]?.chargeType?.glAccountCode || '';
+        const hdrSalesAcc = resolveV6GlAccountForDeptCc(
+          firstLineGlCode || v6DefAccList?.salesInvAccount?.code,
+          n56,
+          n57,
+          '4-',
+          v6DefAccList?.salesInvAccount,
+        );
+        const hdrTaxAcc = resolveV6GlAccountForDeptCc(
+          v6DefAccList?.salesTaxAccount?.code,
+          n56,
+          n57,
+          '2-CT',
+          v6DefAccList?.salesTaxAccount,
+        );
+        const hdrDiscAcc = resolveV6GlAccountForDeptCc(
+          v6DefAccList?.discAccount?.code,
+          n56,
+          n57,
+          '7-',
+          v6DefAccList?.discAccount,
+        );
+        const hdrStkAcc = resolveV6GlAccountForDeptCc(
+          v6DefAccList?.stkAccount?.code,
+          n56,
+          n57,
+          undefined,
+          v6DefAccList?.stkAccount,
+        );
+        const hdrCosAcc = resolveV6GlAccountForDeptCc(
+          v6DefAccList?.cosAccount?.code,
+          n56,
+          n57,
+          undefined,
+          v6DefAccList?.cosAccount,
+        );
 
-        // Integration API response: {status: "SUCCESS"} or {status: "FAIL", message: "..."}
-        const v6Status        = v6Json?.status  || '';
-        const v6Msg           = v6Json?.message || '';
-        const isSuccess       = v6Status === 'SUCCESS';
-        const isAlreadyExists = v6Msg   === 'ManualRefExist';
+        let isSuccess = false;
+        let isAlreadyExists = false;
+        let v6Status = '';
+        let v6Msg = '';
+        let respText = '';
+        let savedV6InvoiceNo = '';
+        let savedV6Syskey = '';
+
+        // ── Check if invoice already exists in V6 by Second Ref (inv.invoiceNumber) ──
+        if (v6Token) {
+          try {
+            const existResp = await fetch(`${cleanRoot}/saleInvoice/searchsalelistSIByRoleAllowed`, {
+              method: 'POST',
+              headers: authHeaders,
+              body: JSON.stringify({
+                showAmount: 1,
+                referenceno: '',
+                secondrefno: inv.invoiceNumber,
+                crossrefno: '',
+                remark: '',
+                customerCodeOpt: 'c',
+                customerNameOpt: 'c',
+                customerCode: '',
+                customerName: '',
+                fromDate: docDateStr,
+                toDate: docDateStr,
+                docdateoptr: 'all',
+                status: '0',
+                CurCode: '-1',
+                whsk: v6WhskStr,
+                deptSK: '-1',
+                ccSK: '-1',
+                PONo: '',
+                salePersonOpt: 'c',
+                salesPerson: '',
+                amountOpt: 'all',
+                amount: '0.0',
+                _amountOption: '0',
+                balanceOpt: 'all',
+                balance: '0.0',
+                currentPage: 1,
+                pageSize: 10,
+                userId: '',
+                subTransType: 0,
+                locSyskey: '-1',
+                locGrpSyskey: '-1',
+                isMultiLoc: '0',
+                cusTypes: v6CusTypesArr,
+                saleType: '',
+                deliTime: '',
+                sortBy: 't1',
+                sort: 1,
+                cuscurcode: '',
+              }),
+              signal: AbortSignal.timeout(8000),
+            });
+            if (existResp.ok) {
+              const existJson = (await existResp.json().catch(() => null)) as any;
+              const matchExisting = (existJson?.saleInvListData || []).find(
+                (row: any) =>
+                  String(row?.secondRef || '').trim().toLowerCase() === inv.invoiceNumber.trim().toLowerCase() &&
+                  Number(row?.saveStatus) !== 6,
+              );
+              if (matchExisting) {
+                isAlreadyExists = true;
+                savedV6InvoiceNo = String(matchExisting.manualRef || inv.invoiceNumber);
+                savedV6Syskey = String(matchExisting.syskey || '');
+              }
+            }
+          } catch { /* ignore duplicate check failure */ }
+        }
+
+        // ── Push via native V6 saleInvoice/saveInvoice (sets n56 = Dept Syskey & n57 = CC Syskey) ──
+        if (!isAlreadyExists && v6Token) {
+          const totalAmt = Number(inv.totalAmount) || 0;
+          const taxAmt   = Number(inv.taxAmount) || 0;
+          const discAmt  = Number(inv.discountAmount) || 0;
+
+          const saleInvoicePayload = {
+            syskey: '0',
+            autokey: '0',
+            createddate: '',
+            modifieddate: '',
+            userid: v6UserId,
+            username: v6UserName,
+            voidReason: '',
+            territorycode: '0',
+            salescode: '0',
+            salesSK: hdrSalesAcc.syskey,
+            discode: '',
+            disSK: hdrDiscAcc.syskey,
+            discAcc: hdrDiscAcc.code,
+            salesAcc: hdrSalesAcc.code,
+            projectcode: '0',
+            ref1: '0',
+            ref2: '0',
+            ref3: '0',
+            ref4: '0',
+            ref5: '0',
+            ref6: '0',
+            saveStatus: 4,
+            recordStatus: 1,
+            syncStatus: 0,
+            syncBatch: '0',
+            transType: 231,
+            t1: 'TBA',
+            t2: inv.invoiceNumber,
+            t3: docDateStr,
+            t4: dueDateStr,
+            t5: docDateStr,
+            t6: dueDateStr,
+            t7: '',
+            t8: currencyCode,
+            t9: `PMS: ${inv.invoiceNumber}`,
+            t10: customerName,
+            t11: lineDescriptions,
+            n1: cuskey,
+            n2: '0',
+            n3: '0',
+            n4: currRate,
+            n5: totalAmt,
+            n6: 0,
+            n7: discAmt,
+            n8: 0,
+            n9: discAmt,
+            n10: totalAmt - taxAmt,
+            n11: '0',
+            n12: 0,
+            n13: 0,
+            n14: taxAmt,
+            n15: 0,
+            n16: '0',
+            n17: 0,
+            n18: 0,
+            n19: 0,
+            n20: 0,
+            n21: defaultSalePersonSk,
+            n22: '0',
+            n23: '0',
+            n24: '0',
+            n25: '0',
+            convertamount: 0,
+            n26: '0',
+            n27: '0',
+            n28: '0',
+            n29: '0',
+            t12: '',
+            t13: '',
+            t14: '',
+            t15: '',
+            t16: '',
+            t17: '',
+            t18: unitNumber,
+            n30: 0,
+            userSysKey: v6Usk,
+            n31: 0,
+            n32: 0,
+            n33: 0,
+            n34: 0,
+            n35: 0,
+            n36: 0,
+            n37: 0,
+            n38: 0,
+            n39: 0,
+            n40: 0,
+            n41: 0,
+            n42: 0,
+            n43: 0,
+            n44: 0,
+            n45: 0,
+            n46: 0,
+            n47: 0,
+            t19: '',
+            t20: '',
+            t21: '',
+            t22: '',
+            t23: '',
+            t24: dueDateStr,
+            t25: customerName,
+            t26: '',
+            t27: '',
+            t28: '',
+            t29: '',
+            t30: '',
+            t31: '',
+            t32: '',
+            t33: '',
+            n48: 0,
+            n49: 1,
+            n50: 0,
+            n51: 0,
+            n52: 1,
+            n53: '0',
+            n54: hdrTaxAcc.syskey,
+            n55: '0',
+            n56, // V6 Department Syskey
+            n57, // V6 Cost Center Syskey
+            n58: 0,
+            t34: '',
+            t35: '',
+            t36: '',
+            t37: '',
+            t38: '',
+            t39: '',
+            t40: '',
+            t41: '',
+            t42: String(Date.now()),
+            t43: dueDateStr,
+            t44: dueDateStr,
+            t45: '',
+            customerCode,
+            customerName,
+            refCustomerCode: '',
+            refCustomerName: '',
+            createdtime: '',
+            modifiedtime: '',
+            transactionID: '0',
+            glTransID: '0',
+            crossJunParent: '',
+            crossJunChild: '',
+            checkYearCode: 0,
+            checkMinMaxQty: 0,
+            checkReOrderLvl: 0,
+            isChangeCustomer: 0,
+            isRenewRefno: 0,
+            customer: customerName,
+            location: '-',
+            department: v6Dept.name,
+            costcentre: v6Cc.name,
+            priceband: '',
+            subtranType: 0,
+            discpercent: 0,
+            transDetailsData: (inv as any).lines.map((line: any, idx: number) => {
+              const lineDesc = line.description || line.chargeType?.name || '';
+              const qty = Number(line.quantity) || 1;
+              const unitPrice = Number(line.unitPrice) || 0;
+              const lineAmt = Number(line.lineTotal) || Number(line.amount) || 0;
+              const lineTax = Number(line.taxAmount) || 0;
+              const lineGl = resolveV6GlAccountForDeptCc(
+                line.chargeType?.glAccountCode || hdrSalesAcc.code,
+                n56,
+                n57,
+                '4-',
+                v6DefAccList?.salesInvAccount,
+              );
+
+              return {
+                syskey: '0',
+                autokey: '0',
+                createddate: '',
+                modifieddate: '',
+                userid: v6UserId,
+                username: v6UserName,
+                territorycode: '0',
+                salescode: '0',
+                salesAcc: lineGl.code,
+                discode: '',
+                discAcc: hdrDiscAcc.code,
+                projectcode: '0',
+                ref1: '0',
+                ref2: '0',
+                ref3: '0',
+                ref4: '0',
+                ref5: '0',
+                ref6: '0',
+                parentid: '0',
+                recordStatus: 1,
+                syncStatus: 0,
+                syncBatch: '0',
+                t1: String(1000000 + idx),
+                t2: unitNumber || line.chargeType?.code || '',
+                t3: lineDesc,
+                t4: currencyCode,
+                t5: currencyCode,
+                t6: currencyCode,
+                n1: '0',
+                n2: '0',
+                n3: 0,
+                n4: '0',
+                n5: 0,
+                n6: qty,
+                n7: '0',
+                n8: qty,
+                n9: 0,
+                n10: 0,
+                n11: 0,
+                n12: 0,
+                n13: 0,
+                n14: unitPrice,
+                n15: 1,
+                n16: currRate,
+                n17: currRate,
+                n18: 0,
+                n19: 0,
+                n20: 0,
+                n21: 0,
+                n22: 0,
+                n23: lineTax,
+                n24: lineGl.syskey,
+                n25: '0',
+                n26: hdrStkAcc.syskey,
+                n27: '0',
+                n28: hdrCosAcc.syskey,
+                n29: hdrDiscAcc.syskey,
+                n30: hdrTaxAcc.syskey,
+                n31: '0',
+                n32: 0,
+                n33: '0',
+                n34: lineAmt,
+                n35: '0',
+                n36: 0,
+                n37: 0,
+                n38: lineAmt,
+                n39: 0,
+                n40: 231,
+                n41: 0,
+                n42: 0,
+                n43: '0',
+                n44: 1,
+                t7: '*',
+                n45: '0',
+                n46: 1,
+                t8: '*',
+                n47: 1,
+                t9: '*',
+                n48: 0,
+                n49: unitPrice,
+                t10: line.unit || 'Each',
+                t11: '',
+                n50: 0,
+                n51: 0,
+                n52: 0,
+                n53: 0,
+                n54: 0,
+                n55: 0,
+                n56: 0,
+                n57: 0,
+                n58: 0,
+                n59: 0,
+                n60: '0',
+                n61: '0',
+                n62: '0',
+                t12: lineDesc,
+                t13: lineDesc,
+                t14: '',
+                t15: '',
+                t16: '',
+                t17: '',
+                uomsk: '0',
+                parenthdrsk: '0',
+                parenttype: 0,
+                parentdtlsk: '0',
+                parentrefno: '',
+                retrieveRefNo: '',
+                batchSerialOutData: [],
+                stockUomData: [],
+                checkOnhand: 0,
+              };
+            }),
+            giftCardList: [],
+            deletedTransDetails: [],
+            discountGroupSK: '',
+            transAddrData: {
+              syskey: '0',
+              createddate: '',
+              modifieddate: '',
+              userid: '',
+              username: '',
+              recordStatus: 1,
+              syncStatus: 0,
+              syncBatch: '0',
+              t1: '',
+              t2: '',
+              t3: '',
+              t4: '',
+              t5: '',
+              t6: '',
+              t7: '',
+              t8: '',
+              t9: '',
+              t10: '',
+              t11: '',
+              t12: '',
+              t13: '',
+              t14: '',
+              t15: '',
+              t16: '',
+              n1: '0',
+              n2: 0,
+              n3: 0,
+              n4: '0',
+              userSysKey: '0',
+              n5: '0',
+              n6: '0',
+              n7: 0,
+            },
+            crossJunParentList: {},
+            crossJunChildList: {},
+            domain,
+          };
+
+          logger.info(
+            `V6 ERP: Pushing invoice ${inv.invoiceNumber} via saleInvoice/saveInvoice | customer=${customerCode} | amt=${inv.totalAmount} | n56(Dept)=${n56}(${v6Dept.code}) | n57(CC)=${n57}(${v6Cc.code})`,
+          );
+
+          const abortCtrl = new AbortController();
+          const timer = setTimeout(() => abortCtrl.abort(), 30000);
+          const siResp = await fetch(saleInvoiceEndpoint, {
+            method: 'POST',
+            headers: authHeaders,
+            body: JSON.stringify(saleInvoicePayload),
+            signal: abortCtrl.signal,
+          });
+          clearTimeout(timer);
+
+          respText = await siResp.text().catch(() => '');
+          let siJson: any = null;
+          try { siJson = JSON.parse(respText); } catch { /* not JSON */ }
+
+          v6Status = siJson?.status || '';
+          v6Msg    = siJson?.message || '';
+          isSuccess = v6Msg === 'SUCCESS' || v6Status === 'SUCCESS';
+          isAlreadyExists = v6Msg === 'ManualRefExist';
+          if (isSuccess) {
+            savedV6InvoiceNo = String(siJson?.saleInvoiceNo || inv.invoiceNumber);
+            savedV6Syskey    = String(siJson?.syskey || '');
+          }
+        }
+
+        // ── Fallback to /v6IntegrationAPIlogin/saveInvoice if token was unavailable ──
+        if (!isSuccess && !isAlreadyExists && !v6Token) {
+          const integrationPayload = {
+            cuskey,
+            cuscode:    customerCode,
+            date:       docDateStr,
+            refno:      'TBA',             // V6 ERP auto-generates (e.g. INV-000012)
+            secref:     inv.invoiceNumber, // PMS Invoice No as Second Ref
+            amount:     Number(inv.totalAmount),
+            savestatus: 4,                 // 4 = Saved/Posted
+            domain,
+            n56,                           // V6 Department Syskey
+            n57,                           // V6 Cost Center Syskey
+            remark:     `PMS: ${inv.invoiceNumber}`,
+            remark1:    customerName,
+            remark2:    lineDescriptions,
+            intime:     unitNumber,        // Maps to SOP002.t2 (Unit/Stock Code) via trigger
+            details: (inv as any).lines.map((line: any) => {
+              const lineDesc = line.description || line.chargeType?.name || '';
+              return {
+                qty:          Number(line.quantity)  || 1,
+                price:        Number(line.unitPrice) || 0,
+                amount:       Number(line.lineTotal) || Number(line.amount) || 0,
+                desc:         lineDesc,
+                actualweight: lineDesc,          // Transferred via V6 Java API into SOP002.t13 -> SOP002.t3
+                uom:          line.unit || 'Each',
+              };
+            }),
+          };
+
+          logger.info(`V6 ERP: Pushing invoice ${inv.invoiceNumber} via integration API | customer=${customerCode} | amt=${inv.totalAmount} | n56=${n56} | n57=${n57}`);
+
+          const abortCtrl = new AbortController();
+          const timer = setTimeout(() => abortCtrl.abort(), 30000);
+          const resp = await fetch(integrationEndpoint, {
+            method:  'POST',
+            headers,
+            body:    JSON.stringify(integrationPayload),
+            signal:  abortCtrl.signal,
+          });
+          clearTimeout(timer);
+
+          respText = await resp.text().catch(() => '');
+          let v6Json: any = null;
+          try { v6Json = JSON.parse(respText); } catch { /* not JSON */ }
+
+          v6Status        = v6Json?.status  || '';
+          v6Msg           = v6Json?.message || '';
+          isSuccess       = v6Status === 'SUCCESS' || v6Msg === 'SUCCESS';
+          isAlreadyExists = v6Msg   === 'ManualRefExist';
+        }
 
         if (isSuccess || isAlreadyExists) {
           results.push({
             invoiceId: inv.id, invoiceNumber: inv.invoiceNumber, customerCode, status: 'sent',
-            error: isSuccess ? '✅ V6 ERP saved successfully' : '⚠️ Already exists in V6 ERP (ManualRefExist)',
+            error: isSuccess
+              ? `✅ V6 ERP saved successfully${savedV6InvoiceNo ? ` (${savedV6InvoiceNo})` : ''}`
+              : '⚠️ Already exists in V6 ERP (ManualRefExist)',
           });
           logger.info(`V6 ERP: Invoice ${inv.invoiceNumber} → ${isSuccess ? '✅ SUCCESS' : '⚠️ Already exists'}`);
 
@@ -2561,6 +3320,13 @@ class IntegrationsService {
               sentAt: new Date(),
             },
           }).catch(upErr => logger.warn(`Failed to update invoice status for ${inv.invoiceNumber}: ${upErr.message}`));
+
+          const extId = savedV6InvoiceNo || inv.invoiceNumber;
+          const extRefParts = [`Customer: ${customerCode}`];
+          if (savedV6Syskey) extRefParts.push(`Syskey: ${savedV6Syskey}`);
+          if (n56 !== '0') extRefParts.push(`Dept(n56): ${v6Dept.code || n56}`);
+          if (n57 !== '0') extRefParts.push(`CC(n57): ${v6Cc.code || n57}`);
+          const extRef = extRefParts.join(' | ').substring(0, 255);
 
           // Persist to IntegrationEntityMap
           await prisma.integrationEntityMap.upsert({
@@ -2576,13 +3342,13 @@ class IntegrationsService {
               integrationId: config.id,
               entityType: 'invoice',
               pmsId: inv.id,
-              externalId: inv.invoiceNumber,
-              externalRef: `Customer: ${customerCode}`,
+              externalId: extId,
+              externalRef: extRef,
               syncedAt: new Date(),
             },
             update: {
-              externalId: inv.invoiceNumber,
-              externalRef: `Customer: ${customerCode}`,
+              externalId: extId,
+              externalRef: extRef,
               syncedAt: new Date(),
             },
           }).catch(mapErr => logger.warn(`Failed to update entity map for ${inv.invoiceNumber}: ${mapErr.message}`));
