@@ -478,6 +478,12 @@
 .shop-map-tile.has-unit-photo .shop-map-tile-photo {
   display: block;
 }
+.shop-map-tile-photo.is-loading {
+  opacity: 0;
+}
+.shop-map-tile-photo.is-ready {
+  opacity: 1;
+}
 
 /* ── Distinct Decoration / Landmark Tiles ── */
 .shop-map-tile.st-decor:not(.editing) {
@@ -1392,12 +1398,28 @@
   background: rgba(16, 185, 129, 0.35) !important;
 }
 
+.shop-map-unit-box {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  container-type: size;
+  pointer-events: none;
+}
 .shop-map-tile-photo-clip {
   position: absolute;
   inset: 0;
   border-radius: inherit;
   overflow: hidden;
+  container-type: size;
   pointer-events: none;
+  z-index: 1;
+}
+.shop-map-tile.has-unit-photo.is-trapezoid-tile .shop-map-tile-photo-clip {
+  background: rgba(15, 23, 42, 0.78);
+}
+[data-theme="light"] .shop-map-tile.has-unit-photo.is-trapezoid-tile .shop-map-tile-photo-clip {
+  background: #f8fafc;
 }
 .shop-map-group-photo-frame {
   position: absolute;
@@ -2490,6 +2512,13 @@
   height: 100%;
   object-fit: cover;
   display: block;
+  transition: opacity 0.18s ease;
+}
+.public-mall-shop-photo.is-loading {
+  opacity: 0;
+}
+.public-mall-shop-photo.is-ready {
+  opacity: 1;
 }
 .public-mall-tags {
   display: flex;

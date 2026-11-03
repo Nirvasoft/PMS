@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Store, Search, X, MapPin, Tag, Star, Layers, Maximize2 } from 'lucide-react';
 import { useGetPublicDirectoryQuery } from '../../store/api/mallApi';
-import { isUnitPhotoImage } from '../../utils/unitPhotoCache';
+import { isUnitPhotoImage, resolveImageAssetUrl } from '../../utils/unitPhotoCache';
 import { CachedUnitPhoto } from '../../components/common/CachedUnitPhoto';
 import ShopMapView from '../admin/ShopDirectory/ShopMapView';
 import {
@@ -20,7 +20,7 @@ export default function PublicMallNavigationPage() {
 
   const [search, setSearch] = useState('');
   const [detailShop, setDetailShop] = useState<any>(null);
-  const [brandImgError, setBrandImgError] = useState(false);
+  const [brandImgIdx, setBrandImgIdx] = useState(0);
 
   const { data, isLoading, isError } = useGetPublicDirectoryQuery(
     { propertyId },
@@ -39,11 +39,33 @@ export default function PublicMallNavigationPage() {
   const cachedDir = useMemo(() => getCachedDirectory(propertyId), [propertyId, data]);
   const property = data?.data?.property ?? cachedDir?.property;
   const allShops = data?.data?.shops ?? cachedDir?.shops ?? [];
-  const propertyImageUrl = property?.coverImageUrl || property?.imageUrl || null;
+
+  const propertyImageCandidates = useMemo(() => {
+    const rawList = [
+      resolveImageAssetUrl(property?.coverImageUrl),
+      property?.coverImageUrl,
+      resolveImageAssetUrl(property?.imageUrl),
+      property?.imageUrl,
+    ].filter((u): u is string => Boolean(u && typeof u === 'string' && u.trim()));
+    return Array.from(new Set(rawList));
+  }, [property?.coverImageUrl, property?.imageUrl]);
+
+  const activePropertyImageUrl = propertyImageCandidates[brandImgIdx] || null;
 
   useEffect(() => {
-    setBrandImgError(false);
-  }, [propertyImageUrl]);
+    setBrandImgIdx(0);
+  }, [propertyImageCandidates]);
+
+  useEffect(() => {
+    if (!detailShop?.unitId) return;
+    const fresh = allShops.find((s: any) => s.unitId === detailShop.unitId);
+    if (fresh && fresh !== detailShop) {
+      setDetailShop(fresh);
+    }
+  }, [allShops, detailShop]);
+
+  const detailShopPhotoUrl =
+    detailShop?.unit?.floorPlanUrl || detailShop?.shopfrontUrl || detailShop?.logoUrl || null;
 
   if (!propertyId) {
     return (
@@ -65,12 +87,12 @@ export default function PublicMallNavigationPage() {
       <div className="public-mall-header">
         <div className="public-mall-brand">
           <div className="public-mall-brand-icon">
-            {propertyImageUrl && !brandImgError ? (
+            {activePropertyImageUrl ? (
               <img
-                src={propertyImageUrl}
+                src={activePropertyImageUrl}
                 alt={property?.name || 'Property'}
                 className="public-mall-brand-img"
-                onError={() => setBrandImgError(true)}
+                onError={() => setBrandImgIdx((prev) => prev + 1)}
               />
             ) : (
               <Store size={20} />
@@ -147,9 +169,9 @@ export default function PublicMallNavigationPage() {
               </button>
             </div>
             <div className="shop-map-qr-body">
-              {detailShop.unit?.floorPlanUrl && isUnitPhotoImage(detailShop.unit.floorPlanUrl) && (
+              {detailShopPhotoUrl && isUnitPhotoImage(detailShopPhotoUrl) && (
                 <CachedUnitPhoto
-                  photoUrl={detailShop.unit.floorPlanUrl}
+                  photoUrl={detailShopPhotoUrl}
                   alt={shopDisplayName(detailShop, 'Shop')}
                   wrapperAs="div"
                   wrapperClassName="public-mall-shop-photo-wrap"

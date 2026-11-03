@@ -842,8 +842,9 @@ export default function ShopMapView({
   // Preload and cache unit photos in the background as soon as shops load
   useEffect(() => {
     let cancelled = false;
-    const currentFloorUrls = floorShops.map((s) => s?.unit?.floorPlanUrl);
-    const otherFloorUrls = shops.filter((s) => floorKeyOf(s) !== floor).map((s) => s?.unit?.floorPlanUrl);
+    const shopPhotoOf = (s: any) => (s?.unit?.floorPlanUrl || s?.shopfrontUrl || s?.logoUrl) as string | undefined;
+    const currentFloorUrls = floorShops.map(shopPhotoOf);
+    const otherFloorUrls = shops.filter((s) => floorKeyOf(s) !== floor).map(shopPhotoOf);
 
     preloadUnitPhotosBatch(currentFloorUrls).then(() => {
       if (!cancelled) preloadUnitPhotosBatch(otherFloorUrls);
@@ -2234,7 +2235,8 @@ export default function ShopMapView({
     if (!propertyId || !targetFloor) return '';
     const params = new URLSearchParams({ propertyId, floor: targetFloor, view: 'photo', pitch: '2.5d', ...extra });
     if (mapRotation) params.set('rotate', String(mapRotation));
-    return `${window.location.origin}/mall/navigate?${params.toString()}`;
+    const basePath = window.location.pathname.startsWith('/pms') ? '/pms' : '';
+    return `${window.location.origin}${basePath}/mall/navigate?${params.toString()}`;
   };
 
   const floorQrUrl = useMemo(
@@ -2948,7 +2950,7 @@ export default function ShopMapView({
                         Math.floor(Math.min(shortSidePx * 0.38, (longSidePx - 6) / Math.max(2.4, labelLen * 0.54))),
                       ),
                     );
-                    const rawPhotoUrl = shop?.unit?.floorPlanUrl as string | undefined;
+                    const rawPhotoUrl = (shop?.unit?.floorPlanUrl || shop?.shopfrontUrl || shop?.logoUrl) as string | undefined;
                     const hasPhotoImage = isUnitPhotoImage(rawPhotoUrl);
                     const showPhotoMode = !decor && mapView === 'photo';
                     const hasUnitPhoto = showPhotoMode && hasPhotoImage;

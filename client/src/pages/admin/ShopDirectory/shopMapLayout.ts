@@ -143,7 +143,7 @@ function computeCircleRingRadii(
 }
 
 interface CircleCorridorUnitMatch {
-  ring: { kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number };
+  ring: { key?: string; kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number };
   cx: number;
   cy: number;
   rxOut: number;
@@ -187,7 +187,7 @@ function getClosestPointOnTileToPoint(
 
 function findNearestCircleCorridorForUnit(
   it: { x: number; y: number; w: number; h: number; angle?: number },
-  allItems: ReadonlyArray<{ kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number }>,
+  allItems: ReadonlyArray<{ key?: string; kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number }>,
 ): CircleCorridorUnitMatch | null {
   const rings = allItems.filter(isCircleRingCorridor);
   if (rings.length === 0) return null;
@@ -235,7 +235,7 @@ function findNearestCircleCorridorForUnit(
 }
 
 interface CircleRingUnitSector {
-  ring: { kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number };
+  ring: { key?: string; kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number };
   cx: number;
   cy: number;
   rxOut: number;
@@ -4193,7 +4193,8 @@ interface WalkwayRouteResult {
 
 /**
  * Builds a smooth SVG path string (`M ... L ... Q ...`) with rounded corners (`cornerRadiusPx`)
- * from pixel-space route waypoints so wayfinding paths render with Mappedin-style fluid turns.
+ * from pixel-space route waypoints so wayfinding paths render with Mappedin-style fluid turns
+ * and seamless tangent transitions onto/off circular ring walkways.
  */
 export function buildSmoothRouteSvgPath(
   pxPoints: ReadonlyArray<{ x: number; y: number }>,
@@ -4205,8 +4206,27 @@ export function buildSmoothRouteSvgPath(
     return `M ${pxPoints[0].x.toFixed(1)} ${pxPoints[0].y.toFixed(1)} L ${pxPoints[1].x.toFixed(1)} ${pxPoints[1].y.toFixed(1)}`;
   }
 
+  const n = pxPoints.length;
+  const turnAngles = new Float32Array(n);
+  for (let i = 1; i < n - 1; i++) {
+    const prev = pxPoints[i - 1];
+    const curr = pxPoints[i];
+    const next = pxPoints[i + 1];
+    const d1x = curr.x - prev.x;
+    const d1y = curr.y - prev.y;
+    const d2x = next.x - curr.x;
+    const d2y = next.y - curr.y;
+    const len1 = Math.hypot(d1x, d1y);
+    const len2 = Math.hypot(d2x, d2y);
+    if (len1 < 1e-3 || len2 < 1e-3) continue;
+    const cross = d1x * d2y - d1y * d2x;
+    const dot = d1x * d2x + d1y * d2y;
+    turnAngles[i] = Math.abs((Math.atan2(cross, dot) * 180) / Math.PI);
+  }
+
+  const SMOOTH_ARC_ANGLE_THRESHOLD_DEG = 11;
   const parts: string[] = [`M ${pxPoints[0].x.toFixed(1)} ${pxPoints[0].y.toFixed(1)}`];
-  for (let i = 1; i < pxPoints.length - 1; i++) {
+  for (let i = 1; i < n - 1; i++) {
     const prev = pxPoints[i - 1];
     const curr = pxPoints[i];
     const next = pxPoints[i + 1];
@@ -4218,7 +4238,17 @@ export function buildSmoothRouteSvgPath(
     const len2 = Math.hypot(d2x, d2y);
     if (len1 < 1e-3 || len2 < 1e-3) continue;
 
-    const r = Math.min(cornerRadiusPx, len1 * 0.42, len2 * 0.42);
+    // Interior sample along a finely subdivided circular ring arc
+    if (turnAngles[i] < SMOOTH_ARC_ANGLE_THRESHOLD_DEG) {
+      parts.push(`L ${curr.x.toFixed(1)} ${curr.y.toFixed(1)}`);
+      continue;
+    }
+
+    const prevIsSmoothArc = i > 1 && turnAngles[i - 1] < SMOOTH_ARC_ANGLE_THRESHOLD_DEG;
+    const nextIsSmoothArc = i < n - 2 && turnAngles[i + 1] < SMOOTH_ARC_ANGLE_THRESHOLD_DEG;
+    const maxBack = len1 * (prevIsSmoothArc ? 0.92 : 0.45);
+    const maxFwd = len2 * (nextIsSmoothArc ? 0.92 : 0.45);
+    const r = Math.min(cornerRadiusPx, maxBack, maxFwd);
     if (r < 1.5) {
       parts.push(`L ${curr.x.toFixed(1)} ${curr.y.toFixed(1)}`);
       continue;
@@ -4231,42 +4261,55 @@ export function buildSmoothRouteSvgPath(
       `L ${pEnterX.toFixed(1)} ${pEnterY.toFixed(1)} Q ${curr.x.toFixed(1)} ${curr.y.toFixed(1)} ${pExitX.toFixed(1)} ${pExitY.toFixed(1)}`,
     );
   }
-  const last = pxPoints[pxPoints.length - 1];
+  const last = pxPoints[n - 1];
   parts.push(`L ${last.x.toFixed(1)} ${last.y.toFixed(1)}`);
   return parts.join(' ');
 }
 
 /**
  * Computes evenly spaced directional arrow markers (`{ x, y, angleDeg }`) along a pixel-space route
- * for Mappedin-style animated wayfinding chevrons.
+ * by cumulative arc-length so chevrons flow smoothly along both straight corridors and circular ring arcs.
  */
 export function computeRouteDirectionArrows(
   pxPoints: ReadonlyArray<{ x: number; y: number }>,
   spacingPx = 46,
 ): Array<{ x: number; y: number; angleDeg: number }> {
   const arrows: Array<{ x: number; y: number; angleDeg: number }> = [];
-  if (pxPoints.length < 2) return arrows;
+  const n = pxPoints.length;
+  if (n < 2) return arrows;
 
-  let carry = spacingPx * 0.55;
-  for (let i = 1; i < pxPoints.length; i++) {
-    const p0 = pxPoints[i - 1];
-    const p1 = pxPoints[i];
-    const dx = p1.x - p0.x;
-    const dy = p1.y - p0.y;
-    const segLen = Math.hypot(dx, dy);
-    if (segLen < 4) continue;
-    const angleDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
-    let d = carry;
-    while (d < segLen - 10) {
-      const t = d / segLen;
+  const cumLen = new Float64Array(n);
+  for (let i = 1; i < n; i++) {
+    const dx = pxPoints[i].x - pxPoints[i - 1].x;
+    const dy = pxPoints[i].y - pxPoints[i - 1].y;
+    cumLen[i] = cumLen[i - 1] + Math.hypot(dx, dy);
+  }
+  const totalLen = cumLen[n - 1];
+  if (totalLen < 20) return arrows;
+
+  const endMargin = 12;
+  let targetDist = Math.max(12, Math.min(spacingPx * 0.55, totalLen * 0.5));
+  let segIdx = 1;
+
+  while (targetDist <= totalLen - endMargin) {
+    while (segIdx < n - 1 && cumLen[segIdx] < targetDist) {
+      segIdx++;
+    }
+    const segStart = cumLen[segIdx - 1];
+    const segLen = cumLen[segIdx] - segStart;
+    if (segLen > 1e-4) {
+      const p0 = pxPoints[segIdx - 1];
+      const p1 = pxPoints[segIdx];
+      const dx = p1.x - p0.x;
+      const dy = p1.y - p0.y;
+      const t = Math.max(0, Math.min(1, (targetDist - segStart) / segLen));
       arrows.push({
         x: p0.x + dx * t,
         y: p0.y + dy * t,
-        angleDeg,
+        angleDeg: (Math.atan2(dy, dx) * 180) / Math.PI,
       });
-      d += spacingPx;
     }
-    carry = Math.max(8, d - segLen);
+    targetDist += spacingPx;
   }
   return arrows;
 }
@@ -4302,9 +4345,40 @@ export function computeFloorplateBounds(
   };
 }
 
+function simplifyCollinearWaypoints(pts: ReadonlyArray<{ x: number; y: number }>): Array<{ x: number; y: number }> {
+  const simplified: Array<{ x: number; y: number }> = [];
+  for (const pt of pts) {
+    if (simplified.length === 0) {
+      simplified.push(pt);
+      continue;
+    }
+    const prev = simplified[simplified.length - 1];
+    if (Math.hypot(prev.x - pt.x, prev.y - pt.y) < 0.015) continue;
+    if (simplified.length >= 2) {
+      const prev2 = simplified[simplified.length - 2];
+      const v1x = prev.x - prev2.x;
+      const v1y = prev.y - prev2.y;
+      const v2x = pt.x - prev.x;
+      const v2y = pt.y - prev.y;
+      const len1 = Math.hypot(v1x, v1y);
+      const len2 = Math.hypot(v2x, v2y);
+      if (len1 > 1e-4 && len2 > 1e-4) {
+        const cross = Math.abs(v1x * v2y - v1y * v2x) / (len1 * len2);
+        const dot = v1x * v2x + v1y * v2y;
+        if (cross < 0.015 && dot > 0) {
+          simplified[simplified.length - 1] = pt;
+          continue;
+        }
+      }
+    }
+    simplified.push(pt);
+  }
+  return simplified;
+}
+
 /**
  * Computes an indoor walking path from `fromItem` to `toItem` that follows
- * `corridor` (Walkway) centerlines — including 15°-tilted straight walkways
+ * `corridor` (Walkway) centerlines — including tilted straight walkways
  * and hollow circular ring roundabouts — while avoiding shop units.
  */
 export function computeWalkwayPath(
@@ -4317,15 +4391,101 @@ export function computeWalkwayPath(
   const cols = Math.max(columns, ...items.map((i) => i.x + i.w), 12);
   const rows = Math.max(12, ...items.map((i) => i.y + i.h)) + 3;
 
-  const startCx = Math.max(0, Math.min(cols - 1, Math.floor(fromItem.x + fromItem.w / 2)));
-  const startCy = Math.max(0, Math.min(rows - 1, Math.floor(fromItem.y + fromItem.h / 2)));
-  const endCx = Math.max(0, Math.min(cols - 1, Math.floor(toItem.x + toItem.w / 2)));
-  const endCy = Math.max(0, Math.min(rows - 1, Math.floor(toItem.y + toItem.h / 2)));
-
   const corridors = items.filter((i) => i.kind === 'corridor');
   const nonCorridors = items.filter((i) => i.kind !== 'corridor');
   const shapeMap = buildCorridorShapeMap(corridors, items);
   const circleCorridors = corridors.filter((c) => shapeMap.get(c.key)?.shape === 'circle');
+
+  type CircleRingRouteMeta = {
+    corridor: MapItem;
+    info: CorridorShapeInfo;
+    rcx: number;
+    rcy: number;
+    rxOut: number;
+    ryOut: number;
+    rxIn: number;
+    ryIn: number;
+    rxMid: number;
+    ryMid: number;
+  };
+  const circleRingMetaByKey = new Map<string, CircleRingRouteMeta>();
+  for (const c of circleCorridors) {
+    const info = shapeMap.get(c.key);
+    if (!info) continue;
+    const rxMid = info.rxIn > 0.2 ? (info.rxOut + info.rxIn) * 0.5 : info.rxOut * 0.62;
+    const ryMid = info.ryIn > 0.2 ? (info.ryOut + info.ryIn) * 0.5 : info.ryOut * 0.62;
+    circleRingMetaByKey.set(c.key, {
+      corridor: c,
+      info,
+      rcx: c.x + info.cx,
+      rcy: c.y + info.cy,
+      rxOut: info.rxOut,
+      ryOut: info.ryOut,
+      rxIn: info.rxIn,
+      ryIn: info.ryIn,
+      rxMid,
+      ryMid,
+    });
+  }
+
+  const sectorByUnitKey = new Map<string, CircleRingUnitSector>();
+  for (const it of nonCorridors) {
+    if (it.kind === 'unit') {
+      const sec = computeCircleRingUnitSector(it, items);
+      if (sec) sectorByUnitKey.set(it.key, sec);
+    }
+  }
+
+  const resolveTileVisualCenter = (it: MapItem): { x: number; y: number } => {
+    const sec = sectorByUnitKey.get(it.key);
+    if (sec) {
+      const thOutMid = 0.5 * (sec.thetaStartOut + sec.thetaEndOut);
+      const thVis = 0.5 * (sec.thetaMid + thOutMid);
+      const rxVis = sec.rxOut + sec.radialDepth * 0.48;
+      const ryVis = sec.ryOut + sec.radialDepth * 0.48;
+      return {
+        x: sec.cx + rxVis * Math.cos(thVis),
+        y: sec.cy + ryVis * Math.sin(thVis),
+      };
+    }
+    const align = getAtriumFaceAlignment(it, items);
+    if (align) {
+      return {
+        x: it.x + it.w * 0.5 + align.dx,
+        y: it.y + it.h * 0.5 + align.dy,
+      };
+    }
+    return { x: it.x + it.w * 0.5, y: it.y + it.h * 0.5 };
+  };
+
+  const fromSector = sectorByUnitKey.get(fromItem.key) ?? null;
+  const toSector = sectorByUnitKey.get(toItem.key) ?? null;
+  const exactStart = resolveTileVisualCenter(fromItem);
+  const exactEnd = resolveTileVisualCenter(toItem);
+
+  const resolveGridEndpointCell = (
+    sector: CircleRingUnitSector | null,
+    visualCenter: { x: number; y: number },
+  ): { cx: number; cy: number } => {
+    if (sector) {
+      const ringMeta = sector.ring.key ? circleRingMetaByKey.get(sector.ring.key) : undefined;
+      const rxMid = ringMeta ? ringMeta.rxMid : sector.rxOut * 0.82;
+      const ryMid = ringMeta ? ringMeta.ryMid : sector.ryOut * 0.82;
+      const entryX = sector.cx + rxMid * Math.cos(sector.thetaMid);
+      const entryY = sector.cy + ryMid * Math.sin(sector.thetaMid);
+      return {
+        cx: Math.max(0, Math.min(cols - 1, Math.floor(entryX))),
+        cy: Math.max(0, Math.min(rows - 1, Math.floor(entryY))),
+      };
+    }
+    return {
+      cx: Math.max(0, Math.min(cols - 1, Math.floor(visualCenter.x))),
+      cy: Math.max(0, Math.min(rows - 1, Math.floor(visualCenter.y))),
+    };
+  };
+
+  const { cx: startCx, cy: startCy } = resolveGridEndpointCell(fromSector, exactStart);
+  const { cx: endCx, cy: endCy } = resolveGridEndpointCell(toSector, exactEnd);
 
   const isStartOrDestTile = (it: MapItem) =>
     it.key === fromItem.key ||
@@ -4334,6 +4494,26 @@ export function computeWalkwayPath(
     (Boolean(toItem.unitId) && it.unitId === toItem.unitId);
 
   const pointInTile = (wx: number, wy: number, it: MapItem): boolean => {
+    const sec = sectorByUnitKey.get(it.key);
+    if (sec) {
+      const dx = wx - sec.cx;
+      const dy = wy - sec.cy;
+      const rNormIn = Math.hypot(dx / Math.max(0.5, sec.rxOut), dy / Math.max(0.5, sec.ryOut));
+      const rNormOut = Math.hypot(
+        dx / Math.max(0.5, sec.rxOut + sec.radialDepth),
+        dy / Math.max(0.5, sec.ryOut + sec.radialDepth),
+      );
+      if (rNormIn < 0.98 || rNormOut > 1.04) return false;
+      const th = Math.atan2(dy / Math.max(0.5, sec.ryOut), dx / Math.max(0.5, sec.rxOut));
+      const kWrap = Math.round((sec.thetaMid - th) / (2 * Math.PI));
+      const thUnwrapped = th + kWrap * 2 * Math.PI;
+      return thUnwrapped >= sec.thetaStart - 0.03 && thUnwrapped <= sec.thetaEnd + 0.03;
+    }
+    if (it.kind === 'atrium' && isCircleTile(it, items)) {
+      const acx = it.x + it.w * 0.5;
+      const acy = it.y + it.h * 0.5;
+      return Math.hypot((wx - acx) / Math.max(0.5, it.w * 0.5), (wy - acy) / Math.max(0.5, it.h * 0.5)) <= 1;
+    }
     const [u, v] = worldToLocal(getLocalTileFrame(it), wx, wy);
     return u >= 0 && u <= it.w && v >= 0 && v <= it.h;
   };
@@ -4354,35 +4534,11 @@ export function computeWalkwayPath(
         (toItem.kind === 'corridor' && pointInTile(wx, wy, toItem))
       ) {
         cellCost[idx] = 0.85;
+        allowDiag[idx] = 1;
         continue;
       }
 
-      // Check non-corridor tiles first so inner kiosks / atriums / transits inside an atrium or circle ring hole are respected
-      let matchedNonCorridor: MapItem | null = null;
-      for (const it of nonCorridors) {
-        if (pointInTile(wx, wy, it)) {
-          if (isStartOrDestTile(it)) {
-            matchedNonCorridor = it;
-            break;
-          }
-          if (!matchedNonCorridor || isTransitLandmark(it.kind)) {
-            matchedNonCorridor = it;
-          }
-        }
-      }
-      if (matchedNonCorridor) {
-        if (isStartOrDestTile(matchedNonCorridor)) {
-          cellCost[idx] = 0.85;
-        } else if (matchedNonCorridor.kind !== 'unit' && matchedNonCorridor.kind !== 'toilet') {
-          const inHole = circleCorridors.some((c) => isInsideCircleCorridorHole(c, matchedNonCorridor!));
-          cellCost[idx] = inHole ? 16.0 : 1.8;
-        } else {
-          cellCost[idx] = 48.0;
-        }
-        continue;
-      }
-
-      // Check corridor bodies (straight + sleeves, circle ring bands)
+      // Check corridor bodies first so circle ring and straight corridor lanes are always known
       let bestCorridorCost = Infinity;
       let diagHere = 0;
       let insideCircleHole = false;
@@ -4406,22 +4562,22 @@ export function computeWalkwayPath(
             if (c.angle) diagHere = 1;
           }
         } else {
-          // Circle ring (pad band slightly by 0.32 cells so narrow curved bands stay connected)
-          if (u < -0.35 || u > c.w + 0.35 || v < -0.35 || v > c.h + 0.35) continue;
+          // Circle ring (pad band slightly by 0.35 cells so narrow curved bands stay connected)
+          if (u < -0.4 || u > c.w + 0.4 || v < -0.4 || v > c.h + 0.4) continue;
           const du = u - info.cx;
           const dv = v - info.cy;
-          const normOut = Math.hypot(du / (info.rxOut + 0.32), dv / (info.ryOut + 0.32));
+          const normOut = Math.hypot(du / (info.rxOut + 0.35), dv / (info.ryOut + 0.35));
           if (normOut > 1) continue;
           if (info.rxIn > 0.45 && info.ryIn > 0.45) {
             const inRx = Math.max(0.15, info.rxIn - 0.32);
             const inRy = Math.max(0.15, info.ryIn - 0.32);
             if (Math.hypot(du / inRx, dv / inRy) < 1) {
-              if (info.shape === 'circle') insideCircleHole = true;
+              insideCircleHole = true;
               continue;
             }
           }
-          const rxMid = info.rxIn > 0.2 ? (info.rxOut + info.rxIn) / 2 : info.rxOut * 0.58;
-          const ryMid = info.ryIn > 0.2 ? (info.ryOut + info.ryIn) / 2 : info.ryOut * 0.58;
+          const rxMid = info.rxIn > 0.2 ? (info.rxOut + info.rxIn) / 2 : info.rxOut * 0.62;
+          const ryMid = info.ryIn > 0.2 ? (info.ryOut + info.ryIn) / 2 : info.ryOut * 0.62;
           const normMid = Math.hypot(du / Math.max(0.5, rxMid), dv / Math.max(0.5, ryMid));
           const centerOffset = Math.abs(normMid - 1) * Math.min(rxMid, ryMid);
           const cost = 1.0 + 0.22 * centerOffset;
@@ -4430,15 +4586,65 @@ export function computeWalkwayPath(
         }
       }
 
+      // Check non-corridor tiles
+      let matchedNonCorridor: MapItem | null = null;
+      for (const it of nonCorridors) {
+        if (pointInTile(wx, wy, it)) {
+          if (isStartOrDestTile(it)) {
+            matchedNonCorridor = it;
+            break;
+          }
+          if (!matchedNonCorridor || isTransitLandmark(it.kind)) {
+            matchedNonCorridor = it;
+          }
+        }
+      }
+
+      if (matchedNonCorridor) {
+        if (isStartOrDestTile(matchedNonCorridor)) {
+          cellCost[idx] = 0.85;
+          allowDiag[idx] = 1;
+          continue;
+        }
+        // If a cell is on a valid corridor lane and only overlaps a non-blocking atrium edge, keep the corridor lane open
+        if (bestCorridorCost < Infinity && matchedNonCorridor.kind === 'atrium') {
+          cellCost[idx] = bestCorridorCost;
+          allowDiag[idx] = diagHere;
+          continue;
+        }
+        if (
+          matchedNonCorridor.kind !== 'unit' &&
+          matchedNonCorridor.kind !== 'toilet' &&
+          matchedNonCorridor.kind !== 'atrium'
+        ) {
+          const inHole = circleCorridors.some((c) => isInsideCircleCorridorHole(c, matchedNonCorridor!));
+          cellCost[idx] = inHole ? 24.0 : 1.8;
+        } else if (matchedNonCorridor.kind === 'atrium') {
+          // Discourage cutting across open atrium voids when walkways wrap around them
+          cellCost[idx] = 28.0;
+        } else {
+          cellCost[idx] = 48.0;
+        }
+        continue;
+      }
+
       if (bestCorridorCost < Infinity) {
         cellCost[idx] = bestCorridorCost;
         allowDiag[idx] = diagHere;
       } else if (insideCircleHole) {
         // Discourage cutting straight across the hollow center of a circular roundabout
-        cellCost[idx] = 16.0;
+        cellCost[idx] = 28.0;
       }
     }
   }
+
+  // Ensure start and end cells are always low-cost and diagonal-capable
+  const startCellIdx = startCy * cols + startCx;
+  const endCellIdx = endCy * cols + endCx;
+  cellCost[startCellIdx] = 0.85;
+  cellCost[endCellIdx] = 0.85;
+  allowDiag[startCellIdx] = 1;
+  allowDiag[endCellIdx] = 1;
 
   // Hybrid 4-dir / 8-dir Dijkstra (0..3: orthogonal, 4..7: diagonal on tilted/curved corridors, 8: initial)
   const DIRS = [
@@ -4465,7 +4671,7 @@ export function computeWalkwayPath(
   const parent = new Int32Array(stateCount);
   parent.fill(-1);
 
-  const startState = (startCy * cols + startCx) * STATE_STRIDE + INIT_DIR;
+  const startState = startCellIdx * STATE_STRIDE + INIT_DIR;
   dist[startState] = 0;
 
   const heap: number[] = [startState];
@@ -4560,63 +4766,324 @@ export function computeWalkwayPath(
   }
 
   const rawPoints = rawCells.map(({ cx, cy }) => ({ x: cx + 0.5, y: cy + 0.5 }));
-  const exactStart = { x: fromItem.x + fromItem.w / 2, y: fromItem.y + fromItem.h / 2 };
-  const exactEnd = { x: toItem.x + toItem.w / 2, y: toItem.y + toItem.h / 2 };
-  if (rawPoints.length > 0) {
+  if (fromSector) {
+    rawPoints.unshift(exactStart);
+  } else if (rawPoints.length > 0) {
     rawPoints[0] = exactStart;
+  }
+  if (toSector) {
+    rawPoints.push(exactEnd);
+  } else if (rawPoints.length > 0) {
     rawPoints[rawPoints.length - 1] = exactEnd;
   }
 
-  // Simplify collinear consecutive segments (orthogonal and diagonal)
-  const simplified: Array<{ x: number; y: number }> = [];
-  for (const pt of rawPoints) {
-    if (simplified.length === 0) {
-      simplified.push(pt);
-      continue;
-    }
-    const prev = simplified[simplified.length - 1];
-    if (Math.abs(prev.x - pt.x) < 0.01 && Math.abs(prev.y - pt.y) < 0.01) continue;
-    if (simplified.length >= 2) {
-      const prev2 = simplified[simplified.length - 2];
-      const v1x = prev.x - prev2.x;
-      const v1y = prev.y - prev2.y;
-      const v2x = pt.x - prev.x;
-      const v2y = pt.y - prev.y;
-      const cross = Math.abs(v1x * v2y - v1y * v2x);
-      const dot = v1x * v2x + v1y * v2y;
-      if (cross < 0.01 && dot > 0) {
-        simplified[simplified.length - 1] = pt;
-        continue;
+  // Helper to test whether a waypoint belongs to a Circle Ring corridor
+  const findCircleRingForPoint = (pt: { x: number; y: number }, pad = 0.48): CircleRingRouteMeta | null => {
+    let bestMeta: CircleRingRouteMeta | null = null;
+    let bestScore = Infinity;
+    for (const meta of circleRingMetaByKey.values()) {
+      const du = pt.x - meta.rcx;
+      const dv = pt.y - meta.rcy;
+      const normOut = Math.hypot(du / (meta.rxOut + pad), dv / (meta.ryOut + pad));
+      if (normOut > 1) continue;
+      if (meta.rxIn > 0.45 && meta.ryIn > 0.45) {
+        const inRx = Math.max(0.2, meta.rxIn - pad);
+        const inRy = Math.max(0.2, meta.ryIn - pad);
+        if (Math.hypot(du / inRx, dv / inRy) < 1) continue;
+      }
+      const normMid = Math.hypot(du / Math.max(0.5, meta.rxMid), dv / Math.max(0.5, meta.ryMid));
+      const score = Math.abs(normMid - 1);
+      if (score < bestScore) {
+        bestScore = score;
+        bestMeta = meta;
       }
     }
-    simplified.push(pt);
+    return bestMeta;
+  };
+
+  // Project interior points on straight corridors onto their true centerline so walkways carry routes dead-center
+  const straightCorridors = corridors.filter(
+    (c) => shapeMap.get(c.key)?.shape === 'straight' && Math.min(c.w, c.h) <= 5 && (c.w !== c.h || Boolean(c.angle)),
+  );
+  if (straightCorridors.length > 0 && rawPoints.length >= 3) {
+    for (let i = 1; i < rawPoints.length - 1; i++) {
+      const pt = rawPoints[i];
+      if (findCircleRingForPoint(pt, 0.35)) continue;
+      const matching: MapItem[] = [];
+      for (const sc of straightCorridors) {
+        const info = shapeMap.get(sc.key);
+        if (!info) continue;
+        const [u, v] = worldToLocal(info.frame, pt.x, pt.y);
+        if (u >= -0.05 && u <= sc.w + 0.05 && v >= -0.05 && v <= sc.h + 0.05) {
+          matching.push(sc);
+        }
+      }
+      if (matching.length === 1) {
+        const sc = matching[0];
+        const info = shapeMap.get(sc.key)!;
+        const alongU = sc.w >= sc.h;
+        const refPt =
+          i === 1 && fromItem.kind !== 'corridor'
+            ? exactStart
+            : i === rawPoints.length - 2 && toItem.kind !== 'corridor'
+              ? exactEnd
+              : pt;
+        const [uRaw, vRaw] = worldToLocal(info.frame, refPt.x, refPt.y);
+        const uClamped = Math.max(0.2, Math.min(sc.w - 0.2, uRaw));
+        const vClamped = Math.max(0.2, Math.min(sc.h - 0.2, vRaw));
+        const [wx, wy] = localToWorld(info.frame, alongU ? uClamped : sc.w * 0.5, alongU ? sc.h * 0.5 : vClamped);
+        rawPoints[i] = { x: wx, y: wy };
+      } else if (matching.length >= 2) {
+        const horiz = matching.find((c) => !c.angle && c.w > c.h);
+        const vert = matching.find((c) => !c.angle && c.h > c.w);
+        if (horiz && vert) {
+          rawPoints[i] = {
+            x: vert.x + vert.w * 0.5,
+            y: horiz.y + horiz.h * 0.5,
+          };
+        }
+      }
+    }
+  }
+
+  // Intersect a directed approach ray p0 -> p1 with a Circle Ring centerline ellipse
+  const intersectRayWithRingCenterline = (
+    p0: { x: number; y: number },
+    p1: { x: number; y: number },
+    ring: CircleRingRouteMeta,
+  ): { theta: number; absorbed: boolean } | null => {
+    const u0 = (p0.x - ring.rcx) / Math.max(0.5, ring.rxMid);
+    const v0 = (p0.y - ring.rcy) / Math.max(0.5, ring.ryMid);
+    const u1 = (p1.x - ring.rcx) / Math.max(0.5, ring.rxMid);
+    const v1 = (p1.y - ring.rcy) / Math.max(0.5, ring.ryMid);
+    const du = u1 - u0;
+    const dv = v1 - v0;
+    const a = du * du + dv * dv;
+    if (a < 1e-4) return null;
+    const b = 2 * (u0 * du + v0 * dv);
+    const c = u0 * u0 + v0 * v0 - 1;
+    const disc = b * b - 4 * a * c;
+    if (disc < 0) return null;
+    const sqrtD = Math.sqrt(disc);
+    const t1 = (-b - sqrtD) / (2 * a);
+    const t2 = (-b + sqrtD) / (2 * a);
+    let bestT: number | null = null;
+    for (const cand of [t1, t2]) {
+      if (cand >= 0.15 && cand <= 2.5) {
+        if (bestT === null || Math.abs(cand - 1) < Math.abs(bestT - 1)) {
+          bestT = cand;
+        }
+      }
+    }
+    if (bestT === null) return null;
+    const theta = Math.atan2(v0 + bestT * dv, u0 + bestT * du);
+    return { theta, absorbed: true };
+  };
+
+  const ringAngleAt = (ring: CircleRingRouteMeta, pt: { x: number; y: number }): number =>
+    Math.atan2((pt.y - ring.rcy) / Math.max(0.5, ring.ryMid), (pt.x - ring.rcx) / Math.max(0.5, ring.rxMid));
+
+  const ringPointAt = (ring: CircleRingRouteMeta, theta: number): { x: number; y: number } => ({
+    x: ring.rcx + ring.rxMid * Math.cos(theta),
+    y: ring.rcy + ring.ryMid * Math.sin(theta),
+  });
+
+  const normalizeSignedRad = (rad: number): number => {
+    let d = rad;
+    while (d <= -Math.PI) d += 2 * Math.PI;
+    while (d > Math.PI) d -= 2 * Math.PI;
+    return d;
+  };
+
+  // Tag interior points with their Circle Ring (if any)
+  const pointRingKeys: Array<string | null> = rawPoints.map((pt, idx) => {
+    if (idx === 0 || idx === rawPoints.length - 1) return null;
+    if (idx === 1 && fromSector?.ring.key && circleRingMetaByKey.has(fromSector.ring.key)) {
+      return fromSector.ring.key;
+    }
+    if (idx === rawPoints.length - 2 && toSector?.ring.key && circleRingMetaByKey.has(toSector.ring.key)) {
+      return toSector.ring.key;
+    }
+    return findCircleRingForPoint(pt)?.corridor.key ?? null;
+  });
+
+  const pushUniquePoint = (arr: Array<{ x: number; y: number }>, pt: { x: number; y: number }) => {
+    if (arr.length === 0 || Math.hypot(arr[arr.length - 1].x - pt.x, arr[arr.length - 1].y - pt.y) >= 0.012) {
+      arr.push(pt);
+    }
+  };
+
+  // Build final route waypoints by replacing Circle Ring runs with smooth analytical ellipse arcs
+  let smoothedPoints: Array<{ x: number; y: number }>;
+  if (circleRingMetaByKey.size === 0 || !pointRingKeys.some(Boolean)) {
+    smoothedPoints = simplifyCollinearWaypoints(rawPoints);
+  } else {
+    smoothedPoints = [];
+    let idx = 0;
+    while (idx < rawPoints.length) {
+      const rKey = pointRingKeys[idx];
+      if (!rKey) {
+        const nonRingStart = idx;
+        while (idx < rawPoints.length && !pointRingKeys[idx]) {
+          idx++;
+        }
+        const simplifiedChunk = simplifyCollinearWaypoints(rawPoints.slice(nonRingStart, idx));
+        for (const pt of simplifiedChunk) {
+          pushUniquePoint(smoothedPoints, pt);
+        }
+      } else {
+        const ring = circleRingMetaByKey.get(rKey)!;
+        const runStart = idx;
+        while (idx < rawPoints.length && pointRingKeys[idx] === rKey) {
+          idx++;
+        }
+        const runEnd = idx - 1;
+        const nextOutsideRaw = rawPoints.slice(idx);
+        let nextOutsideEnd = 0;
+        while (nextOutsideEnd < nextOutsideRaw.length && !pointRingKeys[idx + nextOutsideEnd]) {
+          nextOutsideEnd++;
+        }
+        const simplifiedAfter = simplifyCollinearWaypoints(nextOutsideRaw.slice(0, nextOutsideEnd));
+
+        // 1. Determine exact entry angle onto the Circle Ring
+        const firstRingTheta = ringAngleAt(ring, rawPoints[runStart]);
+        let thetaEnter = firstRingTheta;
+        if (runStart === 1 && fromSector && fromSector.ring.key === rKey) {
+          thetaEnter = fromSector.thetaMid;
+        } else if (smoothedPoints.length >= 2) {
+          const pPrev = smoothedPoints[smoothedPoints.length - 2];
+          const pOut = smoothedPoints[smoothedPoints.length - 1];
+          const hit = intersectRayWithRingCenterline(pPrev, pOut, ring);
+          if (hit && Math.abs(normalizeSignedRad(hit.theta - firstRingTheta)) <= (42 * Math.PI) / 180) {
+            thetaEnter = hit.theta;
+            smoothedPoints.pop(); // Absorb intermediate bend point so straight corridor connects directly into ring
+          }
+        } else if (smoothedPoints.length === 1) {
+          const pOut = smoothedPoints[0];
+          const candTheta = ringAngleAt(ring, pOut);
+          if (Math.abs(normalizeSignedRad(candTheta - firstRingTheta)) <= (36 * Math.PI) / 180) {
+            thetaEnter = candTheta;
+          }
+        }
+
+        // 2. Unwrap angles along the Dijkstra cells in this ring run
+        let unwrapped = thetaEnter;
+        for (let k = runStart; k <= runEnd; k++) {
+          const cellTh = ringAngleAt(ring, rawPoints[k]);
+          unwrapped += normalizeSignedRad(cellTh - unwrapped);
+        }
+
+        // 3. Determine exact exit angle off the Circle Ring
+        const lastRingTheta = ringAngleAt(ring, rawPoints[runEnd]);
+        let thetaExitRaw = lastRingTheta;
+        let absorbFirstAfter = false;
+        if (runEnd === rawPoints.length - 2 && toSector && toSector.ring.key === rKey) {
+          thetaExitRaw = toSector.thetaMid;
+        } else if (simplifiedAfter.length >= 2) {
+          const pOut = simplifiedAfter[0];
+          const pNext = simplifiedAfter[1];
+          const hit = intersectRayWithRingCenterline(pNext, pOut, ring);
+          if (hit && Math.abs(normalizeSignedRad(hit.theta - lastRingTheta)) <= (42 * Math.PI) / 180) {
+            thetaExitRaw = hit.theta;
+            absorbFirstAfter = true;
+          }
+        } else if (simplifiedAfter.length === 1) {
+          const candTheta = ringAngleAt(ring, simplifiedAfter[0]);
+          if (Math.abs(normalizeSignedRad(candTheta - lastRingTheta)) <= (36 * Math.PI) / 180) {
+            thetaExitRaw = candTheta;
+          }
+        }
+
+        let thetaExit = unwrapped + normalizeSignedRad(thetaExitRaw - unwrapped);
+        const shortDelta = normalizeSignedRad(thetaExit - thetaEnter);
+        if (Math.abs(shortDelta) + 0.12 < Math.abs(thetaExit - thetaEnter)) {
+          // Verify shorter arc around the ring is unobstructed before preferring it
+          let shortArcClear = true;
+          const checkSteps = 16;
+          for (let s = 1; s < checkSteps; s++) {
+            const testPt = ringPointAt(ring, thetaEnter + (s / checkSteps) * shortDelta);
+            const tcx = Math.max(0, Math.min(cols - 1, Math.floor(testPt.x)));
+            const tcy = Math.max(0, Math.min(rows - 1, Math.floor(testPt.y)));
+            if (cellCost[tcy * cols + tcx] >= 12) {
+              shortArcClear = false;
+              break;
+            }
+          }
+          if (shortArcClear) {
+            thetaExit = thetaEnter + shortDelta;
+          }
+        }
+
+        const deltaTheta = thetaExit - thetaEnter;
+        const absDelta = Math.abs(deltaTheta);
+        const sign = deltaTheta >= 0 ? 1 : -1;
+
+        pushUniquePoint(smoothedPoints, ringPointAt(ring, thetaEnter));
+
+        if (absDelta >= (5 * Math.PI) / 180) {
+          const rAvg = Math.max(1.2, 0.5 * (ring.rxMid + ring.ryMid));
+          const filletIn = smoothedPoints.length >= 2 ? Math.min(absDelta * 0.32, 0.56 / rAvg) : 0;
+          const filletOut = simplifiedAfter.length > 0 ? Math.min(absDelta * 0.32, 0.56 / rAvg) : 0;
+          const arcStart = thetaEnter + sign * filletIn;
+          const arcEnd = thetaExit - sign * filletOut;
+          const innerSpan = Math.abs(arcEnd - arcStart);
+          const stepRad = (3.5 * Math.PI) / 180;
+          const numSteps = Math.max(2, Math.ceil(innerSpan / stepRad));
+          for (let s = 0; s <= numSteps; s++) {
+            const th = arcStart + (s / numSteps) * (arcEnd - arcStart);
+            pushUniquePoint(smoothedPoints, ringPointAt(ring, th));
+          }
+        }
+
+        if (absDelta >= 0.01) {
+          pushUniquePoint(smoothedPoints, ringPointAt(ring, thetaExit));
+        }
+
+        if (absorbFirstAfter && idx < rawPoints.length) {
+          // Skip rawPoints up to the absorbed straight corridor endpoint so the exit ray is collinear
+          const targetKeep = simplifiedAfter[1];
+          while (
+            idx < rawPoints.length - 1 &&
+            Math.hypot(rawPoints[idx].x - targetKeep.x, rawPoints[idx].y - targetKeep.y) > 0.05
+          ) {
+            idx++;
+          }
+        }
+      }
+    }
   }
 
   let cellDistance = 0;
-  for (let i = 1; i < simplified.length; i++) {
-    cellDistance += Math.hypot(simplified[i].x - simplified[i - 1].x, simplified[i].y - simplified[i - 1].y);
+  for (let i = 1; i < smoothedPoints.length; i++) {
+    cellDistance += Math.hypot(
+      smoothedPoints[i].x - smoothedPoints[i - 1].x,
+      smoothedPoints[i].y - smoothedPoints[i - 1].y,
+    );
   }
   const cellSideFeet = Math.sqrt(Math.max(10, sqftPerCell || DEFAULT_SQFT_PER_CELL));
   const distanceFeet = Math.max(10, Math.round(cellDistance * cellSideFeet));
   const distanceMeters = Math.max(3, Math.round(distanceFeet * 0.3048));
   const estimatedMinutes = Math.max(1, Math.ceil(distanceFeet / 220));
 
-  // Build Mappedin-style turn-by-turn steps
+  // Build Mappedin-style turn-by-turn steps (accumulating exact cell lengths across smooth arc segments)
   const steps: WalkwayRouteStep[] = [];
-  if (simplified.length >= 2) {
-    for (let i = 1; i < simplified.length; i++) {
-      const p0 = simplified[i - 1];
-      const p1 = simplified[i];
+  const stepCellsList: number[] = [];
+  if (smoothedPoints.length >= 2) {
+    for (let i = 1; i < smoothedPoints.length; i++) {
+      const p0 = smoothedPoints[i - 1];
+      const p1 = smoothedPoints[i];
       const segCells = Math.hypot(p1.x - p0.x, p1.y - p0.y);
-      const segMeters = Math.max(1, Math.round(segCells * cellSideFeet * 0.3048));
-      if (i === 1) {
+      if (segCells < 1e-3) continue;
+      if (steps.length === 0) {
+        stepCellsList.push(segCells);
+        const segMeters = Math.max(1, Math.round(segCells * cellSideFeet * 0.3048));
         steps.push({
           instruction: `Head straight along walkway (${segMeters} m)`,
           distanceMeters: segMeters,
           direction: 'straight',
         });
       } else {
-        const prev = simplified[i - 2];
+        const prev = smoothedPoints[i - 2];
         const v1x = p0.x - prev.x;
         const v1y = p0.y - prev.y;
         const v2x = p1.x - p0.x;
@@ -4626,25 +5093,29 @@ export function computeWalkwayPath(
         const turnAngle = Math.abs(Math.atan2(cross, dot) * (180 / Math.PI));
         if (turnAngle >= 22) {
           const dir: 'left' | 'right' = cross < 0 ? 'left' : 'right';
+          const segMeters = Math.max(1, Math.round(segCells * cellSideFeet * 0.3048));
+          stepCellsList.push(segCells);
           steps.push({
             instruction: `Turn ${dir} and continue ${segMeters} m`,
             distanceMeters: segMeters,
             direction: dir,
           });
-        } else if (steps.length > 0) {
-          const lastStep = steps[steps.length - 1];
-          lastStep.distanceMeters += segMeters;
-          lastStep.instruction =
-            lastStep.direction === 'straight'
-              ? `Head straight along walkway (${lastStep.distanceMeters} m)`
-              : `Turn ${lastStep.direction} and continue ${lastStep.distanceMeters} m`;
+        } else {
+          const lastIdx = steps.length - 1;
+          stepCellsList[lastIdx] += segCells;
+          const totalStepMeters = Math.max(1, Math.round(stepCellsList[lastIdx] * cellSideFeet * 0.3048));
+          steps[lastIdx].distanceMeters = totalStepMeters;
+          steps[lastIdx].instruction =
+            steps[lastIdx].direction === 'straight'
+              ? `Head straight along walkway (${totalStepMeters} m)`
+              : `Turn ${steps[lastIdx].direction} and continue ${totalStepMeters} m`;
         }
       }
     }
   }
 
   return {
-    points: simplified,
+    points: smoothedPoints,
     distanceFeet,
     distanceMeters,
     estimatedMinutes,

@@ -21,11 +21,16 @@ export function subscribeUnitPhotoCache(listener: () => void): () => void {
 }
 
 export function isUnitPhotoImage(rawPhotoUrl?: string | null): boolean {
-  return Boolean(rawPhotoUrl && (rawPhotoUrl.startsWith('blob:') || /\.(png|jpe?g|webp|gif)(\?.*)?$/i.test(rawPhotoUrl)));
+  return Boolean(
+    rawPhotoUrl &&
+      (rawPhotoUrl.startsWith('blob:') ||
+        rawPhotoUrl.startsWith('data:image/') ||
+        /\.(png|jpe?g|webp|gif|svg|avif)(\?.*)?$/i.test(rawPhotoUrl)),
+  );
 }
 
 export function isImageFileName(fileName: string): boolean {
-  return /\.(png|jpe?g|webp|gif)$/i.test(fileName);
+  return /\.(png|jpe?g|webp|gif|svg|avif)$/i.test(fileName);
 }
 
 export function validateUnitPhotoFile(file: File): string | null {
@@ -38,12 +43,27 @@ export function validateUnitPhotoFile(file: File): string | null {
   return null;
 }
 
+export function resolveImageAssetUrl(rawUrl?: string | null): string | null {
+  if (!rawUrl) return null;
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return null;
+  if (
+    trimmed.startsWith('http://') ||
+    trimmed.startsWith('https://') ||
+    trimmed.startsWith('blob:') ||
+    trimmed.startsWith('data:image/') ||
+    trimmed.startsWith('/api/v1') ||
+    trimmed.startsWith('/seed-photos') ||
+    trimmed.startsWith('/storage')
+  ) {
+    return trimmed;
+  }
+  return `/api/v1${trimmed.startsWith('/') ? '' : '/'}${trimmed}`;
+}
+
 export function resolveUnitPhotoSrc(rawPhotoUrl?: string | null): string | null {
   if (!rawPhotoUrl || !isUnitPhotoImage(rawPhotoUrl)) return null;
-  if (rawPhotoUrl.startsWith('http') || rawPhotoUrl.startsWith('blob:') || rawPhotoUrl.startsWith('/api/v1')) {
-    return rawPhotoUrl;
-  }
-  return `/api/v1${rawPhotoUrl}`;
+  return resolveImageAssetUrl(rawPhotoUrl);
 }
 
 export function getCachedUnitPhotoSrc(rawPhotoUrl?: string | null): string | null {
@@ -139,38 +159,47 @@ export function preloadUnitPhoto(rawOrResolvedUrl?: string | null): Promise<stri
 
   const promise = (async () => {
     try {
-      if (typeof window !== 'undefined' && 'caches' in window) {
+      if (typeof window !== 'undefined' && 'caches' in window && !src.startsWith('blob:') && !src.startsWith('data:')) {
         const cache = await window.caches.open(PHOTO_CACHE_NAME);
         let res = await cache.match(src);
+        if (res && (!res.ok || !res.headers.get('content-type')?.toLowerCase().startsWith('image/'))) {
+          await cache.delete(src).catch(() => {});
+          res = undefined;
+        }
         if (!res) {
           const netRes = await fetch(src, { cache: 'force-cache' });
-          if (netRes.ok) {
-            await cache.put(src, netRes.clone());
+          if (netRes.ok && netRes.headers.get('content-type')?.toLowerCase().startsWith('image/')) {
+            await cache.put(src, netRes.clone()).catch(() => {});
             res = netRes;
           }
         }
         if (res) {
           const blob = await res.blob();
-          const blobUrl = URL.createObjectURL(blob);
-          const img = new Image();
-          img.decoding = 'async';
-          img.src = blobUrl;
-          if (img.decode) await img.decode().catch(() => {});
-          memoryPhotoCache.set(src, blobUrl);
-          notifyCacheListeners();
-          return blobUrl;
+          if (blob.size > 0 && (!blob.type || blob.type.toLowerCase().startsWith('image/'))) {
+            const blobUrl = URL.createObjectURL(blob);
+            try {
+              const img = new Image();
+              img.decoding = 'async';
+              img.src = blobUrl;
+              if (img.decode) await img.decode();
+              memoryPhotoCache.set(src, blobUrl);
+              notifyCacheListeners();
+              return blobUrl;
+            } catch {
+              URL.revokeObjectURL(blobUrl);
+              await cache.delete(src).catch(() => {});
+            }
+          }
         }
       }
       const img = new Image();
       img.decoding = 'async';
       img.src = src;
-      if (img.decode) await img.decode().catch(() => {});
+      if (img.decode) await img.decode();
       memoryPhotoCache.set(src, src);
       notifyCacheListeners();
       return src;
     } catch {
-      memoryPhotoCache.set(src, src);
-      notifyCacheListeners();
       return src;
     } finally {
       inflightPhotoCache.delete(src);

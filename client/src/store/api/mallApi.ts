@@ -1,18 +1,35 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import type { RootState } from '../index';
 
+const rawMallBaseQuery = fetchBaseQuery({
+  baseUrl: '/api/v1/mall',
+  credentials: 'include',
+  prepareHeaders: (headers, { getState }) => {
+    const token = (getState() as RootState).auth.accessToken;
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    headers.set('X-Requested-With', 'XMLHttpRequest');
+    return headers;
+  },
+});
+
+const rawRootBaseQuery = fetchBaseQuery({
+  baseUrl: '',
+  credentials: 'include',
+  prepareHeaders: (headers) => {
+    headers.set('X-Requested-With', 'XMLHttpRequest');
+    return headers;
+  },
+});
+
 export const mallApi = createApi({
   reducerPath: 'mallApi',
-  baseQuery: fetchBaseQuery({
-    baseUrl: '/api/v1/mall',
-    credentials: 'include',
-    prepareHeaders: (headers, { getState }) => {
-      const token = (getState() as RootState).auth.accessToken;
-      if (token) headers.set('Authorization', `Bearer ${token}`);
-      headers.set('X-Requested-With', 'XMLHttpRequest');
-      return headers;
-    },
-  }),
+  baseQuery: (args, api, extraOptions) => {
+    const url = typeof args === 'string' ? args : args.url;
+    if (url.startsWith('/api/v1/public/')) {
+      return rawRootBaseQuery(args, api, extraOptions);
+    }
+    return rawMallBaseQuery(args, api, extraOptions);
+  },
   tagTypes: ['Shops', 'FloorPlan', 'GtoSubmissions', 'CamPools', 'CamBillings', 'Events', 'Footfall', 'MallDashboard'],
   endpoints: (builder) => ({
     // ── Mall Config ──
@@ -236,20 +253,20 @@ export const mallApi = createApi({
     // ── Public Indoor Navigation (No Auth Required) ──
     getPublicDirectory: builder.query<any, { propertyId: string }>({
       query: ({ propertyId }) => ({
-        url: `${window.location.origin}/api/v1/public/mall/properties/${propertyId}/directory`,
+        url: `/api/v1/public/mall/properties/${propertyId}/directory`,
       }),
       providesTags: ['Shops'],
     }),
     getPublicFloorPlan: builder.query<any, { propertyId: string; floor: string }>({
       query: ({ propertyId, floor }) => ({
-        url: `${window.location.origin}/api/v1/public/mall/properties/${propertyId}/floor-plan`,
+        url: `/api/v1/public/mall/properties/${propertyId}/floor-plan`,
         params: { floor },
       }),
       providesTags: ['FloorPlan'],
     }),
     getMallQrCode: builder.query<any, { text: string }>({
       query: ({ text }) => ({
-        url: `${window.location.origin}/api/v1/public/mall/qr`,
+        url: `/api/v1/public/mall/qr`,
         params: { text },
       }),
     }),

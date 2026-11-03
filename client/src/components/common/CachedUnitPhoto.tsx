@@ -1,8 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import {
+  evictUnitPhotoCache,
   getCachedUnitPhotoSrc,
   hasCachedUnitPhoto,
   markUnitPhotoCached,
+  resolveUnitPhotoSrc,
   subscribeUnitPhotoCache,
 } from '../../utils/unitPhotoCache';
 
@@ -47,7 +49,14 @@ export function CachedUnitPhoto({
 }: CachedUnitPhotoProps) {
   useUnitPhotoCache();
   const [domLoadedUrl, setDomLoadedUrl] = useState<string | null>(null);
-  const src = getCachedUnitPhotoSrc(photoUrl);
+  const [fallbackSrc, setFallbackSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    setFallbackSrc(null);
+  }, [photoUrl]);
+
+  const cachedSrc = getCachedUnitPhotoSrc(photoUrl);
+  const src = fallbackSrc || cachedSrc;
   const isReady = Boolean(
     photoUrl &&
       !forceLoading &&
@@ -73,6 +82,16 @@ export function CachedUnitPhoto({
             if (photoUrl) {
               markUnitPhotoCached(photoUrl);
               setDomLoadedUrl(photoUrl);
+            }
+          }}
+          onError={() => {
+            if (!photoUrl) return;
+            const directResolved = resolveUnitPhotoSrc(photoUrl);
+            if (src.startsWith('blob:') && directResolved && directResolved !== src) {
+              evictUnitPhotoCache(photoUrl);
+              setFallbackSrc(directResolved);
+            } else if (src !== photoUrl && !photoUrl.startsWith('blob:')) {
+              setFallbackSrc(photoUrl);
             }
           }}
         />

@@ -98,7 +98,9 @@ async function bootstrap() {
   httpServer.requestTimeout = 300_000;
 
   // Global middleware
-  app.use(helmet());
+  app.use(helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  }));
   app.use(cors({
     origin: config.frontendUrl,
     credentials: true,

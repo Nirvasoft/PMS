@@ -1782,6 +1782,8 @@ class MallService {
         franchiseGroup: true,
         isAnchor: true,
         shopZone: true,
+        logoUrl: true,
+        shopfrontUrl: true,
         unit: {
           select: {
             id: true,
@@ -1803,6 +1805,7 @@ class MallService {
         code: property.code,
         address: [property.addressLine1, property.city].filter(Boolean).join(', '),
         coverImageUrl: property.coverImageUrl ?? property.photos[0]?.url ?? property.imageUrl ?? null,
+        imageUrl: property.photos[0]?.url ?? property.imageUrl ?? null,
       },
       shops,
     };
