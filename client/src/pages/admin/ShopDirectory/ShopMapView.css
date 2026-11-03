@@ -2800,3 +2800,59 @@
   background: rgba(16, 185, 129, 0.08);
 }
 
+/* ── Edit Mode Multi-Select / Group Controls & Bounding Box ── */
+.shop-map-group-toolbar {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 6px;
+  border-radius: 8px;
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+}
+.shop-map-group-btn.active {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
+  color: #ffffff !important;
+  border-color: #3b82f6 !important;
+}
+.shop-map-group-nudge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.shop-map-group-nudge .btn {
+  min-width: 24px;
+  padding: 2px 6px;
+  font-weight: 700;
+}
+.shop-map-grid-item.is-group-selected > .shop-map-tile {
+  outline: 2.5px solid #3b82f6 !important;
+  outline-offset: 1px;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.28), 0 8px 18px rgba(37, 99, 235, 0.25) !important;
+}
+.shop-map-group-bounds-box {
+  position: absolute;
+  pointer-events: none;
+  z-index: 38;
+  border: 2px dashed #3b82f6;
+  border-radius: 10px;
+  background: rgba(59, 130, 246, 0.06);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25) inset;
+  transition: left 40ms linear, top 40ms linear;
+}
+.shop-map-group-bounds-badge {
+  position: absolute;
+  top: -22px;
+  left: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 0.66rem;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.35);
+}

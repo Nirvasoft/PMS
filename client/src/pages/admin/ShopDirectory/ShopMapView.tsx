@@ -31,6 +31,7 @@ import {
   UNIT_SHAPE_LABELS, parseUnitShapeMode, encodeUnitShapeMode, nextUnitShapeMode, isTrapezoidUnitMode, getTrapezoidUnitGeometry,
   LANDMARK_VARIANTS, parseLandmarkMeta, encodeLandmarkMeta, nextLandmarkVariant, getPolygonAtriumGeometry, getAtriumFaceAlignment,
   parseFloorPlanData, buildCopiedFloorLayout, saveCachedFloorPlan, getCachedFloorPlan,
+  expandTouchingGroupKeys, computeGroupBoundingBox, moveTileGroupByDelta,
   type MapItem, type TileKind, type MapRotationAngle, type SharpCorners, type EdgeMergeGeometry, type CorridorShapeMode, type CorridorMergeData, type UnitShapeMode, type TrapezoidUnitGeometry, type MagneticSnapGuide,
 } from './shopMapLayout';
 import {
@@ -907,6 +908,12 @@ export default function ShopMapView({
   const [showRouteQrModal, setShowRouteQrModal] = useState(false);
   const [editingLandmarkKey, setEditingLandmarkKey] = useState<string | null>(null);
   const [focusedLayerKey, setFocusedLayerKey] = useState<string | null>(null);
+  const [groupSelectMode, setGroupSelectMode] = useState(false);
+  const [selectedGroupKeys, setSelectedGroupKeys] = useState<string[]>([]);
+  const [dragGroupDelta, setDragGroupDelta] = useState<{ dx: number; dy: number } | null>(null);
+  const selectedGroupSet = useMemo(() => new Set(selectedGroupKeys), [selectedGroupKeys]);
+  const selectedGroupSetRef = useRef<Set<string>>(selectedGroupSet);
+  selectedGroupSetRef.current = selectedGroupSet;
   const [landmarkVariantDraft, setLandmarkVariantDraft] = useState<string>('default');
   const [landmarkCustomDraft, setLandmarkCustomDraft] = useState<string>('');
   const [landmarkShowLabelDraft, setLandmarkShowLabelDraft] = useState<boolean>(false);
@@ -1040,8 +1047,33 @@ export default function ShopMapView({
   const resolveInteractionLayout = (
     nextLayout: readonly any[],
     baseItems: ReadonlyArray<MapItem>,
-  ): { conflict: boolean; items: MapItem[] } => {
+  ): { conflict: boolean; items: MapItem[]; groupDelta?: { dx: number; dy: number } | null } => {
     const layoutByKey = new Map(nextLayout.map((x) => [x.i, x]));
+    const activeGroup = selectedGroupSetRef.current;
+
+    if (activeGroup.size > 1) {
+      const movedOrig = baseItems.find((orig) => {
+        if (!activeGroup.has(orig.key)) return false;
+        const l = layoutByKey.get(orig.key);
+        return Boolean(l && (l.x !== orig.x || l.y !== orig.y) && l.w === orig.w && l.h === orig.h);
+      });
+      if (movedOrig) {
+        const l = layoutByKey.get(movedOrig.key)!;
+        const groupRes = moveTileGroupByDelta(
+          baseItems,
+          activeGroup,
+          l.x - movedOrig.x,
+          l.y - movedOrig.y,
+          columns,
+        );
+        return {
+          conflict: groupRes.conflict,
+          items: groupRes.items,
+          groupDelta: { dx: groupRes.clampedDx, dy: groupRes.clampedDy },
+        };
+      }
+    }
+
     let candidateItems = baseItems.map((it) => {
       const l = layoutByKey.get(it.key);
       return l ? { ...it, x: l.x, y: l.y, w: l.w, h: l.h } : { ...it };
@@ -1060,9 +1092,9 @@ export default function ShopMapView({
 
     const resolvedLayout = candidateItems.map((it) => ({ i: it.key, x: it.x, y: it.y, w: it.w, h: it.h, angle: it.angle }));
     if (hasLayoutConflict(resolvedLayout, baseItems)) {
-      return { conflict: true, items: baseItems.map((i) => ({ ...i })) };
+      return { conflict: true, items: baseItems.map((i) => ({ ...i })), groupDelta: null };
     }
-    return { conflict: false, items: candidateItems };
+    return { conflict: false, items: candidateItems, groupDelta: null };
   };
 
   // No-push compactor: allows smooth dragging across the canvas while handleInteractionMove/Stop
@@ -1694,8 +1726,84 @@ export default function ShopMapView({
     return { shape: mode, clipPath: 'none' };
   };
 
-  const remove = (key: string) =>
+  const remove = (key: string) => {
+    setSelectedGroupKeys((prev) => prev.filter((k) => k !== key));
     update((prev) => prev.filter((i) => i.key !== key || i.kind === 'marker'));
+  };
+
+  const toggleGroupSelection = (key: string) => {
+    setSelectedGroupKeys((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
+  };
+
+  const handleExpandGroupTouching = () => {
+    if (selectedGroupSet.size === 0) return;
+    const expanded = expandTouchingGroupKeys(items, selectedGroupSet);
+    const added = expanded.length - selectedGroupSet.size;
+    setSelectedGroupKeys(expanded);
+    if (added > 0) {
+      toast.success(`Added ${added} connected tile${added === 1 ? '' : 's'} to group (${expanded.length} total)`);
+    } else {
+      toast.success(`All touching tiles are already in the group (${expanded.length})`);
+    }
+  };
+
+  const handleSelectAllGroup = () => {
+    setSelectedGroupKeys(items.map((i) => i.key));
+  };
+
+  const clearGroupSelection = () => {
+    setSelectedGroupKeys([]);
+    setGroupSelectMode(false);
+    setDragGroupDelta(null);
+  };
+
+  const nudgeSelectedGroup = (dx: number, dy: number) => {
+    if (selectedGroupSetRef.current.size === 0) return;
+    const res = moveTileGroupByDelta(itemsRef.current, selectedGroupSetRef.current, dx, dy, columns);
+    if (res.conflict) {
+      toast.error('Cannot move group — blocked by another tile');
+      return;
+    }
+    if (res.moved) {
+      setItems(res.items);
+      setLayoutResetTick((n) => n + 1);
+      setDirty(true);
+    }
+  };
+
+  useEffect(() => {
+    if (!editing) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+      if (e.key === 'Escape' && (selectedGroupSetRef.current.size > 0 || groupSelectMode)) {
+        clearGroupSelection();
+        return;
+      }
+      if (selectedGroupSetRef.current.size === 0) return;
+      const step = e.shiftKey ? 3 : 1;
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        nudgeSelectedGroup(-step, 0);
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        nudgeSelectedGroup(step, 0);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        nudgeSelectedGroup(0, -step);
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        nudgeSelectedGroup(0, step);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [editing, groupSelectMode, columns]);
+
+  const groupBounds = useMemo(
+    () => (editing && selectedGroupSet.size > 1 ? computeGroupBoundingBox(displayItems, selectedGroupSet) : null),
+    [editing, displayItems, selectedGroupSet],
+  );
 
   const onLayoutChange = (nextLayout: readonly any[]) => {
     if (!editing || dragOriginItemsRef.current !== null) return;
@@ -1720,6 +1828,7 @@ export default function ShopMapView({
     dragOriginItemsRef.current = itemsRef.current.map((i) => ({ ...i }));
     const orig = itemsRef.current.find((t) => t.key === oldItem?.i);
     setDragPreviewItem(orig ? { ...orig } : null);
+    setDragGroupDelta(null);
     setDragSnapGuide(null);
     const align = orig ? getAtriumFaceAlignment(orig, itemsRef.current) : null;
     setDragAngle(align ? align.exactAngleDeg : (orig?.angle ?? 0));
@@ -1739,7 +1848,7 @@ export default function ShopMapView({
       }
     }
     const baseItems = dragOriginItemsRef.current ?? itemsRef.current;
-    const { conflict, items: resolvedItems } = resolveInteractionLayout(nextLayout, baseItems);
+    const { conflict, items: resolvedItems, groupDelta } = resolveInteractionLayout(nextLayout, baseItems);
     const resolved = resolvedItems.find((i) => i.key === l.i);
     if (!resolved) return;
 
@@ -1748,13 +1857,14 @@ export default function ShopMapView({
     placeholder.w = resolved.w;
     placeholder.h = resolved.h;
     setDragPreviewItem(resolved);
+    setDragGroupDelta(groupDelta ?? null);
     const align = getAtriumFaceAlignment(resolved, resolvedItems);
     setDragAngle(align ? align.exactAngleDeg : (resolved.angle ?? 0));
     setDragScale(align ? `${align.scaleX} ${align.scaleY}` : '1 1');
     const vis = resolveDragVisuals(resolved, resolvedItems);
     setDragShape(vis.shape);
     setDragClipPath(vis.clipPath);
-    if (!conflict && magnetEnabled && !bypassMagnetKeyRef.current) {
+    if (!conflict && !groupDelta && magnetEnabled && !bypassMagnetKeyRef.current) {
       setDragSnapGuide(computeMagneticSnapGuide(resolved, resolvedItems));
     } else {
       setDragSnapGuide(null);
@@ -1767,7 +1877,7 @@ export default function ShopMapView({
     const resolvedByKey = new Map(resolvedItems.map((i) => [i.key, i]));
 
     // Mutate finalLayout in-place so ReactGridLayout's internal setLayout(finalLayout)
-    // immediately commits the reset (or border-snapped) coordinates on mouse release
+    // immediately commits the reset (or border-snapped / group-shifted) coordinates on mouse release
     for (const l of finalLayout) {
       const r = resolvedByKey.get(l.i);
       if (r) {
@@ -1791,6 +1901,7 @@ export default function ShopMapView({
     }
     dragOriginItemsRef.current = null;
     setDragPreviewItem(null);
+    setDragGroupDelta(null);
     setDragSnapGuide(null);
     setDragAngle(0);
     setDragScale('1 1');
@@ -1800,11 +1911,13 @@ export default function ShopMapView({
 
   const startEditingLayout = () => {
     setDecorKind('marker');
+    clearGroupSelection();
     setEditing(true);
     addDecor('marker');
   };
 
   const discard = () => {
+    clearGroupSelection();
     setDirty(false);
     setEditing(false);
   };
@@ -1856,6 +1969,7 @@ export default function ShopMapView({
       } as any).unwrap();
       saveCachedFloorPlan(propertyId, floor, payloadData);
       toast.success('Floor plan saved');
+      clearGroupSelection();
       setDirty(false);
       setEditing(false);
     } catch (e: any) {
@@ -1874,6 +1988,7 @@ export default function ShopMapView({
   const switchFloor = (f: string, keepTransit = false) => {
     if (f === floor) return;
     if (dirty && !window.confirm('Discard unsaved map changes?')) return;
+    clearGroupSelection();
     setDirty(false);
     setEditing(false);
     setCustomStartKey('');
@@ -2352,9 +2467,90 @@ export default function ShopMapView({
           >
             <Magnet size={13} /> Magnet: {magnetEnabled ? (magnetBypassActive ? 'BYPASS (Alt/Shift)' : 'ON') : 'OFF'}
           </button>
+          <div className="shop-map-group-toolbar">
+            <button
+              type="button"
+              className={`btn btn-secondary shop-map-group-btn ${groupSelectMode || selectedGroupKeys.length > 0 ? 'active' : ''}`}
+              onClick={() => setGroupSelectMode((prev) => !prev)}
+              title="Toggle Group Select mode (or Ctrl+Click tiles) to select multiple tiles and drag/move them together"
+            >
+              <Layers size={13} /> Group{selectedGroupKeys.length > 0 ? ` (${selectedGroupKeys.length})` : ''}
+            </button>
+            {(groupSelectMode || selectedGroupKeys.length > 0) && (
+              <>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={handleExpandGroupTouching}
+                  disabled={selectedGroupKeys.length === 0}
+                  title="Add all touching or enclosed tiles into the active group"
+                >
+                  + Touching
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={handleSelectAllGroup}
+                  disabled={items.length === 0 || selectedGroupKeys.length === items.length}
+                  title="Select all tiles on this floor"
+                >
+                  All
+                </button>
+                {selectedGroupKeys.length > 0 && (
+                  <>
+                    <div className="shop-map-group-nudge" role="group" aria-label="Move selected group">
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => nudgeSelectedGroup(-1, 0)}
+                        title="Move group left (ArrowLeft)"
+                      >
+                        ←
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => nudgeSelectedGroup(0, -1)}
+                        title="Move group up (ArrowUp)"
+                      >
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => nudgeSelectedGroup(0, 1)}
+                        title="Move group down (ArrowDown)"
+                      >
+                        ↓
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => nudgeSelectedGroup(1, 0)}
+                        title="Move group right (ArrowRight)"
+                      >
+                        →
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={clearGroupSelection}
+                      title="Ungroup / Clear selection (Esc)"
+                    >
+                      <X size={12} /> Ungroup
+                    </button>
+                  </>
+                )}
+              </>
+            )}
+          </div>
           <button
             className="btn btn-secondary shop-map-clear-btn"
-            onClick={() => update((prev) => prev.filter((i) => i.kind === 'marker'))}
+            onClick={() => {
+              clearGroupSelection();
+              update((prev) => prev.filter((i) => i.kind === 'marker'));
+            }}
             disabled={items.every((i) => i.kind === 'marker')}
             title="Remove all tiles from this floor"
           >
@@ -2460,6 +2656,22 @@ export default function ShopMapView({
                     aria-hidden="true"
                   />
                 )}
+                {groupBounds && (
+                  <div
+                    className="shop-map-group-bounds-box"
+                    style={{
+                      left: `${((groupBounds.x + (dragGroupDelta?.dx ?? 0)) * colStepPx).toFixed(1)}px`,
+                      top: `${((groupBounds.y + (dragGroupDelta?.dy ?? 0)) * rowStepPx).toFixed(1)}px`,
+                      width: `${(groupBounds.w * colStepPx).toFixed(1)}px`,
+                      height: `${(groupBounds.h * rowStepPx).toFixed(1)}px`,
+                    }}
+                    aria-hidden="true"
+                  >
+                    <span className="shop-map-group-bounds-badge">
+                      Group ({groupBounds.count}) • Drag any selected tile or use Arrows
+                    </span>
+                  </div>
+                )}
                 <ReactGridLayout
                   width={gridWidth}
                   layout={layout as any}
@@ -2478,6 +2690,10 @@ export default function ShopMapView({
                 >
                   {displayItems.map((it) => {
                     const isDraggingThisTile = Boolean(dragPreviewItem && dragPreviewItem.key === it.key && mapRotation === 0);
+                    const isGroupSelected = Boolean(editing && selectedGroupSet.has(it.key));
+                    const isGroupPeerMoving = Boolean(
+                      isGroupSelected && !isDraggingThisTile && dragGroupDelta && (dragGroupDelta.dx !== 0 || dragGroupDelta.dy !== 0),
+                    );
                     const effectiveIt = isDraggingThisTile && dragPreviewItem ? dragPreviewItem : it;
                     const cachedMeta = !isDraggingThisTile ? staticTileMetaMap.get(it.key) : null;
                     const effectiveDisplayItems =
@@ -2619,9 +2835,15 @@ export default function ShopMapView({
                     const atriumFaceNudge = !isDraggingThisTile && atriumFaceAlign
                       ? { dx: atriumFaceAlign.dx, dy: atriumFaceAlign.dy }
                       : null;
+                    const groupMoveNudge = isGroupPeerMoving && dragGroupDelta
+                      ? { dx: dragGroupDelta.dx, dy: dragGroupDelta.dy }
+                      : null;
+                    const totalNudgeDx = (atriumFaceNudge?.dx ?? 0) + (groupMoveNudge?.dx ?? 0);
+                    const totalNudgeDy = (atriumFaceNudge?.dy ?? 0) + (groupMoveNudge?.dy ?? 0);
+                    const hasTotalNudge = totalNudgeDx !== 0 || totalNudgeDy !== 0;
                     const hasSizeOverride = wPx !== gridItemWPx || hPx !== gridItemHPx;
                     const tileStyle: CSSProperties | undefined =
-                      effectiveAngle || atriumFaceNudge || hasSizeOverride
+                      effectiveAngle || hasTotalNudge || hasSizeOverride
                         ? ({
                             ...(hasSizeOverride
                               ? {
@@ -2632,9 +2854,9 @@ export default function ShopMapView({
                                 }
                               : {}),
                             ...(effectiveAngle ? { rotate: `${effectiveAngle}deg` } : {}),
-                            ...(atriumFaceNudge
+                            ...(hasTotalNudge
                               ? {
-                                  translate: `${(atriumFaceNudge.dx * cellPx).toFixed(1)}px ${(atriumFaceNudge.dy * cellPx).toFixed(1)}px`,
+                                  translate: `${(totalNudgeDx * colStepPx).toFixed(1)}px ${(totalNudgeDy * rowStepPx).toFixed(1)}px`,
                                 }
                               : {}),
                           } as CSSProperties)
@@ -2663,7 +2885,7 @@ export default function ShopMapView({
                         key={it.key}
                         data-tile-key={it.key}
                         title={title}
-                        className={`shop-map-grid-item ${it.kind === 'corridor' ? 'is-corridor-item' : ''} ${it.kind === 'atrium' ? 'is-atrium-item' : ''} ${isTransitLandmark(it.kind) ? 'is-transit-item' : ''} ${hasInnerItems ? 'has-inner-items' : ''} ${isLayerFocused ? 'is-layer-focused' : ''} ${effectiveAngle ? 'is-rotated-item' : ''} ${editing ? 'editing' : ''} ${isTarget ? 'active-target' : ''} ${isStart ? 'active-start' : ''} ${isAmenityHighlighted ? 'is-amenity-highlighted' : ''}`}
+                        className={`shop-map-grid-item ${it.kind === 'corridor' ? 'is-corridor-item' : ''} ${it.kind === 'atrium' ? 'is-atrium-item' : ''} ${isTransitLandmark(it.kind) ? 'is-transit-item' : ''} ${hasInnerItems ? 'has-inner-items' : ''} ${isLayerFocused ? 'is-layer-focused' : ''} ${isGroupSelected ? 'is-group-selected' : ''} ${effectiveAngle ? 'is-rotated-item' : ''} ${editing ? 'editing' : ''} ${isTarget ? 'active-target' : ''} ${isStart ? 'active-start' : ''} ${isAmenityHighlighted ? 'is-amenity-highlighted' : ''}`}
                         onMouseEnter={() => {
                           if (!editing && it.unitId) setHoveredUnitId(it.unitId);
                         }}
@@ -2672,6 +2894,11 @@ export default function ShopMapView({
                         }}
                         onClick={(e) => {
                           if (editing) {
+                            if (groupSelectMode || e.ctrlKey || e.metaKey) {
+                              e.stopPropagation();
+                              toggleGroupSelection(it.key);
+                              return;
+                            }
                             if (e.altKey) {
                               e.stopPropagation();
                               if (parentAtrium) {

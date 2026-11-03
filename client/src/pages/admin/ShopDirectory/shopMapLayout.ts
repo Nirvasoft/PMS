@@ -5342,4 +5342,136 @@ export function getCachedDirectory(
   return parsed && Array.isArray(parsed.shops) ? parsed : null;
 }
 
+/* ── Edit Mode Multi-Select / Group Helpers ── */
+
+function tilesTouchOrOverlapForGroup(a: MapItem, b: MapItem, allItems: ReadonlyArray<MapItem>): boolean {
+  if (a.key === b.key) return false;
+  // Direct overlap or enclosure (e.g. Atrium inside Circle Ring Walkway, or Lift/Escalator inside Atrium)
+  if (a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y) {
+    return true;
+  }
+  // Cardinal border touch (gap === 0 with positive shared edge span)
+  const overlapX = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+  const overlapY = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+  const touchH = (Math.abs(a.x + a.w - b.x) <= 0.5 || Math.abs(b.x + b.w - a.x) <= 0.5) && overlapY > 0;
+  const touchV = (Math.abs(a.y + a.h - b.y) <= 0.5 || Math.abs(b.y + b.h - a.y) <= 0.5) && overlapX > 0;
+  if (touchH || touchV) return true;
+
+  // Polygon Atrium slanted face alignment touch
+  if (a.kind === 'atrium' || b.kind === 'atrium') {
+    const atrium = a.kind === 'atrium' ? a : b;
+    const other = a.kind === 'atrium' ? b : a;
+    const align = getAtriumFaceAlignment(other, allItems);
+    if (align) {
+      const dist = Math.hypot(
+        other.x + other.w * 0.5 - (atrium.x + atrium.w * 0.5),
+        other.y + other.h * 0.5 - (atrium.y + atrium.h * 0.5),
+      );
+      if (dist <= Math.max(atrium.w, atrium.h) + Math.max(other.w, other.h) + 1.5) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Expands the active group selection by adding all tiles that directly touch or sit inside
+ * any currently selected tile (1-hop expansion per click).
+ */
+export function expandTouchingGroupKeys(
+  items: ReadonlyArray<MapItem>,
+  seedKeys: ReadonlySet<string>,
+): string[] {
+  const result = new Set<string>(seedKeys);
+  const seeds = items.filter((i) => seedKeys.has(i.key));
+  for (const s of seeds) {
+    for (const cand of items) {
+      if (result.has(cand.key)) continue;
+      if (tilesTouchOrOverlapForGroup(s, cand, items)) {
+        result.add(cand.key);
+      }
+    }
+  }
+  return Array.from(result);
+}
+
+export function computeGroupBoundingBox(
+  items: ReadonlyArray<MapItem>,
+  groupKeys: ReadonlySet<string>,
+): { x: number; y: number; w: number; h: number; count: number } | null {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  let count = 0;
+  for (const it of items) {
+    if (!groupKeys.has(it.key)) continue;
+    minX = Math.min(minX, it.x);
+    minY = Math.min(minY, it.y);
+    maxX = Math.max(maxX, it.x + it.w);
+    maxY = Math.max(maxY, it.y + it.h);
+    count++;
+  }
+  if (count === 0 || !Number.isFinite(minX)) return null;
+  return { x: minX, y: minY, w: maxX - minX, h: maxY - minY, count };
+}
+
+/**
+ * Moves all tiles in `groupKeys` together by `(dx, dy)` while clamping to floor boundaries
+ * and verifying zero conflict with unselected tiles.
+ */
+export function moveTileGroupByDelta(
+  items: ReadonlyArray<MapItem>,
+  groupKeys: ReadonlySet<string>,
+  dx: number,
+  dy: number,
+  columns: number,
+): { moved: boolean; conflict: boolean; clampedDx: number; clampedDy: number; items: MapItem[] } {
+  const groupItems = items.filter((i) => groupKeys.has(i.key));
+  if (groupItems.length === 0) {
+    return { moved: false, conflict: false, clampedDx: 0, clampedDy: 0, items: items.map((i) => ({ ...i })) };
+  }
+  const minDx = -Math.min(...groupItems.map((i) => i.x));
+  const maxDx = Math.min(...groupItems.map((i) => columns - (i.x + i.w)));
+  const minDy = -Math.min(...groupItems.map((i) => i.y));
+  const clampedDx = Math.max(minDx, Math.min(maxDx, Math.round(dx)));
+  const clampedDy = Math.max(minDy, Math.round(dy));
+
+  if (clampedDx === 0 && clampedDy === 0) {
+    return { moved: false, conflict: false, clampedDx: 0, clampedDy: 0, items: items.map((i) => ({ ...i })) };
+  }
+
+  const candidateItems = items.map((it) =>
+    groupKeys.has(it.key)
+      ? { ...it, x: it.x + clampedDx, y: it.y + clampedDy }
+      : { ...it },
+  );
+
+  const movedGroup = candidateItems.filter((i) => groupKeys.has(i.key));
+  const staticOthers = candidateItems.filter((i) => !groupKeys.has(i.key));
+
+  for (const g of movedGroup) {
+    for (const o of staticOthers) {
+      if (tilesConflict(g, o)) {
+        return {
+          moved: false,
+          conflict: true,
+          clampedDx: 0,
+          clampedDy: 0,
+          items: items.map((i) => ({ ...i })),
+        };
+      }
+    }
+  }
+
+  return {
+    moved: true,
+    conflict: false,
+    clampedDx,
+    clampedDy,
+    items: candidateItems,
+  };
+}
+
 
