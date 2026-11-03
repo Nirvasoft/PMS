@@ -23,8 +23,6 @@ async function ensurePaymentMethodsTable(companyId: string, propertyId?: string 
   if (companyId && !seededPaymentMethodScopes.has(scopeKey)) {
     try {
       // Seed default payment methods only once for the company's initial property
-      // Seed default payment methods only once for the company's initial property
-
       const count = await prisma.paymentMethod.count({ where: { companyId } });
       if (count === 0) {
         await prisma.paymentMethod.createMany({
@@ -59,8 +57,12 @@ class GlService {
     filters?: { propertyId?: string; isActive?: boolean; search?: string },
   ) {
     await ensurePropertySetupScope();
-    const effectivePropertyId = filters?.propertyId?.trim() || (await resolveEffectivePropertyId(companyId)); const where: any = { companyId, ...(effectivePropertyId ? { propertyId: effectivePropertyId } : {}) };
-    if (filters?.propertyId) where.propertyId = filters.propertyId;
+    const effectivePropertyId =
+      filters?.propertyId?.trim() || (await resolveEffectivePropertyId(companyId));
+    const where: any = {
+      companyId,
+      ...(effectivePropertyId ? { propertyId: effectivePropertyId } : {}),
+    };
     if (filters?.isActive !== undefined) where.isActive = filters.isActive;
     if (filters?.search) {
       where.OR = [
@@ -163,8 +165,12 @@ class GlService {
     filters?: { propertyId?: string; isActive?: boolean; departmentCenterId?: string; search?: string },
   ) {
     await ensurePropertySetupScope();
-    const effectivePropertyId = filters?.propertyId?.trim() || (await resolveEffectivePropertyId(companyId)); const where: any = { companyId, ...(effectivePropertyId ? { propertyId: effectivePropertyId } : {}) };
-    if (filters?.propertyId) where.propertyId = filters.propertyId;
+    const effectivePropertyId =
+      filters?.propertyId?.trim() || (await resolveEffectivePropertyId(companyId));
+    const where: any = {
+      companyId,
+      ...(effectivePropertyId ? { propertyId: effectivePropertyId } : {}),
+    };
     if (filters?.isActive !== undefined) where.isActive = filters.isActive;
     if (filters?.departmentCenterId) where.departmentCenterId = filters.departmentCenterId;
     if (filters?.search) {
@@ -274,8 +280,12 @@ class GlService {
   ) {
     await ensurePaymentMethodsTable(companyId, filters?.propertyId);
 
-    const effectivePropertyId = filters?.propertyId?.trim() || (await resolveEffectivePropertyId(companyId)); const where: any = { companyId, ...(effectivePropertyId ? { propertyId: effectivePropertyId } : {}) };
-    if (filters?.propertyId) where.propertyId = filters.propertyId;
+    const effectivePropertyId =
+      filters?.propertyId?.trim() || (await resolveEffectivePropertyId(companyId));
+    const where: any = {
+      companyId,
+      ...(effectivePropertyId ? { propertyId: effectivePropertyId } : {}),
+    };
     if (filters?.isActive !== undefined) where.isActive = filters.isActive;
     if (filters?.search) {
       where.OR = [
@@ -312,7 +322,18 @@ class GlService {
         },
         include: paymentMethodInclude,
       });
-      if (byProperty) return byProperty; return prisma.paymentMethod.findFirst({ where: { companyId, propertyId: null, OR: [{ code: { equals: normalized, mode: 'insensitive' } }, { name: { equals: normalized, mode: 'insensitive' } }] }, include: paymentMethodInclude });
+      if (byProperty) return byProperty;
+      return prisma.paymentMethod.findFirst({
+        where: {
+          companyId,
+          propertyId: null,
+          OR: [
+            { code: { equals: normalized, mode: 'insensitive' } },
+            { name: { equals: normalized, mode: 'insensitive' } },
+          ],
+        },
+        include: paymentMethodInclude,
+      });
     }
 
     return prisma.paymentMethod.findFirst({

@@ -1864,7 +1864,7 @@ export const generalImportService = {
 
       const INVOICE_BATCH_SIZE = 500;
       let pendingBatch: PreparedInvoice[] = [];
-      const v6Active = await isV6ErpActive(companyId);
+      const v6Active = await isV6ErpActive(companyId, propertyId);
 
       const flushInvoiceBatch = async (batch: PreparedInvoice[]) => {
         if (batch.length === 0) return;

@@ -178,11 +178,32 @@ export const API_KEY_SCOPES = [
 class IntegrationsService {
   private activeCoaSyncs = new Map<string, Promise<any>>();
 
+  private resolveV6Config(config: any): { cleanRoot: string; domain: string } {
+    const cfg = (config?.config || {}) as Record<string, string>;
+    const creds = (config?.credentials || {}) as Record<string, string>;
+    const baseUrl = (cfg.baseUrl || creds.apiUrl || '').replace(/\/+$/, '');
+    if (!baseUrl) {
+      throw new AppError(
+        400,
+        'V6ERP_NOT_CONFIGURED',
+        '🔶 V6 ERP API URL is not configured. Edit the integration and set config.baseUrl (e.g. http://localhost:8080).',
+      );
+    }
+    const domain = cfg.domain || 'demo';
+    const cleanRoot = /\/(V6|v6_addon)$/i.test(baseUrl) ? baseUrl : `${baseUrl}/V6`;
+    return { cleanRoot, domain };
+  }
+
   // ── Integration Configs ──
 
-  async list(companyId: string) {
+  async list(companyId: string, propertyId?: string) {
+    await ensurePropertySetupScope();
+    const effectivePropertyId = await resolveEffectivePropertyId(companyId, propertyId);
     const configs = await prisma.integrationConfig.findMany({
-      where: { companyId },
+      where: {
+        companyId,
+        ...(effectivePropertyId ? { propertyId: effectivePropertyId } : {}),
+      },
       include: {
         _count: { select: { syncLogs: true } },
         syncLogs: { take: 1, orderBy: { startedAt: 'desc' }, select: { status: true, startedAt: true } },
@@ -200,9 +221,24 @@ class IntegrationsService {
   }
 
   async create(companyId: string, userId: string, data: any) {
+    await ensurePropertySetupScope();
+    const effectivePropertyId = await resolveEffectivePropertyId(companyId, data.propertyId);
+
+    const duplicate = await prisma.integrationConfig.findFirst({
+      where: {
+        companyId,
+        ...(effectivePropertyId ? { propertyId: effectivePropertyId } : {}),
+        integrationType: data.integrationType,
+      },
+    });
+    if (duplicate) {
+      throw AppError.conflict(`Integration "${data.integrationType}" is already configured for this property`);
+    }
+
     const created = await prisma.integrationConfig.create({
       data: {
         companyId,
+        propertyId: effectivePropertyId,
         integrationType: data.integrationType,
         name: data.name,
         description: data.description,
@@ -214,7 +250,7 @@ class IntegrationsService {
     });
 
     if (created.integrationType === 'v6erp' && created.isActive && created.status !== 'disabled') {
-      await this.syncV6ChartOfAccounts(companyId, data.propertyId, userId, false, created).catch((err) => {
+      await this.syncV6ChartOfAccounts(companyId, effectivePropertyId || undefined, userId, false, created).catch((err) => {
         logger.warn(`Initial V6 ERP COA auto-sync skipped on create: ${err.message}`);
       });
     }
@@ -223,6 +259,7 @@ class IntegrationsService {
   }
 
   async update(id: string, companyId: string, data: any, userId?: string) {
+    await ensurePropertySetupScope();
     const existing = await prisma.integrationConfig.findFirst({ where: { id, companyId } });
     if (!existing) throw AppError.notFound('Integration');
 
@@ -250,13 +287,14 @@ class IntegrationsService {
       },
     });
 
+    const targetPropertyId = existing.propertyId || data.propertyId;
     if (updated.integrationType === 'v6erp') {
       if (updated.isActive && updated.status !== 'disabled') {
-        await this.syncV6ChartOfAccounts(companyId, data.propertyId, userId, false, updated).catch((err) => {
+        await this.syncV6ChartOfAccounts(companyId, targetPropertyId || undefined, userId, false, updated).catch((err) => {
           logger.warn(`V6 ERP COA auto-sync warning on update: ${err.message}`);
         });
       } else {
-        await this.restorePmsChartOfAccountsOnV6Disable(updated.id, companyId).catch((err) => {
+        await this.restorePmsChartOfAccountsOnV6Disable(updated.id, companyId, targetPropertyId).catch((err) => {
           logger.warn(`V6 ERP COA restore warning on disable: ${err.message}`);
         });
       }
@@ -271,10 +309,11 @@ class IntegrationsService {
 
 
   async delete(id: string, companyId: string) {
+    await ensurePropertySetupScope();
     const existing = await prisma.integrationConfig.findFirst({ where: { id, companyId } });
     if (!existing) throw AppError.notFound('Integration');
     if (existing.integrationType === 'v6erp') {
-      await this.restorePmsChartOfAccountsOnV6Disable(existing.id, companyId).catch((err) => {
+      await this.restorePmsChartOfAccountsOnV6Disable(existing.id, companyId, existing.propertyId).catch((err) => {
         logger.warn(`V6 ERP COA restore warning on delete: ${err.message}`);
       });
     }
@@ -282,22 +321,14 @@ class IntegrationsService {
   }
 
   async testConnection(id: string, companyId: string, propertyId?: string, userId?: string) {
+    await ensurePropertySetupScope();
     const config = await prisma.integrationConfig.findFirst({ where: { id, companyId } });
     if (!config) throw AppError.notFound('Integration');
+    const targetPropertyId = config.propertyId || propertyId;
 
     if (config.integrationType === 'v6erp') {
-      const cfg = (config.config || {}) as Record<string, string>;
-      const creds = (config.credentials || {}) as Record<string, string>;
-      const rawBase = (cfg.baseUrl || creds.apiUrl || '').replace(/\/+$/, '');
-      if (!rawBase) {
-        throw new AppError(400, 'V6ERP_NOT_CONFIGURED', 'baseUrl is required in configuration (e.g. https://v6gold.mitcloud.com/v6_addon)');
-      }
-      let cleanRoot = rawBase;
-      if (!/\/V6$/i.test(cleanRoot) && !/\/v6_addon$/i.test(cleanRoot)) {
-        cleanRoot = `${cleanRoot}/V6`;
-      }
+      const { cleanRoot, domain } = this.resolveV6Config(config);
       const customerEndpoint = `${cleanRoot}/v6IntegrationAPIlogin/getCustomer`;
-      const domain = cfg.domain || 'demo';
       const t0 = Date.now();
       try {
         const resp = await fetch(customerEndpoint, {
@@ -315,7 +346,7 @@ class IntegrationsService {
             where: { id },
             data: { status: 'active', isActive: true, lastError: null },
           });
-          await this.syncV6ChartOfAccounts(companyId, propertyId, userId, false, activated).catch((err) => {
+          await this.syncV6ChartOfAccounts(companyId, targetPropertyId || undefined, userId, false, activated).catch((err) => {
             logger.warn(`V6 ERP COA auto-sync warning after testConnection: ${err.message}`);
           });
           return {
@@ -359,11 +390,12 @@ class IntegrationsService {
   }
 
   async triggerSync(id: string, companyId: string, userId: string, data: any) {
+    await ensurePropertySetupScope();
     const config = await prisma.integrationConfig.findFirst({ where: { id, companyId } });
     if (!config) throw AppError.notFound('Integration');
 
     if (config.integrationType === 'v6erp') {
-      return this.syncV6Erp(config, companyId, userId, data?.propertyId);
+      return this.syncV6Erp(config, companyId, userId, config.propertyId || data?.propertyId);
     }
 
     // Stub: simulate sync result
@@ -803,11 +835,18 @@ class IntegrationsService {
     preloadedConfig?: any,
     initiatedBy: 'user' | 'cron' = 'user',
   ) {
+    await ensurePropertySetupScope();
+    const targetPropertyId = await resolveEffectivePropertyId(
+      companyId,
+      propertyId || preloadedConfig?.propertyId,
+    );
+
     const config =
       preloadedConfig ||
       (await prisma.integrationConfig.findFirst({
         where: {
           companyId,
+          ...(targetPropertyId ? { propertyId: targetPropertyId } : {}),
           integrationType: 'v6erp',
           isActive: true,
           status: { not: 'disabled' },
@@ -822,8 +861,6 @@ class IntegrationsService {
       );
     }
 
-    await ensurePropertySetupScope();
-    const targetPropertyId = await resolveEffectivePropertyId(companyId, propertyId);
     const lockKey = `${companyId}:${targetPropertyId || 'default'}`;
 
     const inflight = this.activeCoaSyncs.get(lockKey);
@@ -832,22 +869,7 @@ class IntegrationsService {
     }
 
     const runner = (async () => {
-      const cfg = (config.config || {}) as Record<string, string>;
-      const creds = (config.credentials || {}) as Record<string, string>;
-      const baseUrl = (cfg.baseUrl || creds.apiUrl || '').replace(/\/+$/, '');
-      if (!baseUrl) {
-        throw new AppError(
-          400,
-          'V6ERP_NOT_CONFIGURED',
-          '🔶 V6 ERP API URL is not configured. Edit the integration and set config.baseUrl.',
-        );
-      }
-
-      const domain = cfg.domain || 'demo';
-      let cleanRoot = baseUrl;
-      if (!/\/V6$/i.test(cleanRoot) && !/\/v6_addon$/i.test(cleanRoot)) {
-        cleanRoot = `${cleanRoot}/V6`;
-      }
+      const { cleanRoot, domain } = this.resolveV6Config(config);
 
       const t0 = Date.now();
       const coaEndpoint = `${cleanRoot}/v6IntegrationAPIlogin/getCOA`;
@@ -1262,7 +1284,11 @@ class IntegrationsService {
    * - Hides accounts that were created solely by V6 sync ('V6 | ...').
    * - Re-activates pre-existing PMS accounts that were hidden during V6 sync ('gl_account_pms_hidden').
    */
-  async restorePmsChartOfAccountsOnV6Disable(integrationId: string, companyId: string) {
+  async restorePmsChartOfAccountsOnV6Disable(
+    integrationId: string,
+    companyId: string,
+    propertyId?: string | null,
+  ) {
     const [v6CreatedMaps, hiddenPmsMaps] = await Promise.all([
       prisma.integrationEntityMap.findMany({
         where: {
@@ -1278,6 +1304,7 @@ class IntegrationsService {
           companyId,
           integrationId,
           entityType: 'gl_account_pms_hidden',
+          ...(propertyId ? { externalRef: propertyId } : {}),
         },
         select: { id: true, pmsId: true },
       }),
@@ -1288,14 +1315,22 @@ class IntegrationsService {
 
     if (v6CreatedIds.length > 0) {
       await prisma.glAccount.updateMany({
-        where: { companyId, id: { in: v6CreatedIds } },
+        where: {
+          companyId,
+          ...(propertyId ? { propertyId } : {}),
+          id: { in: v6CreatedIds },
+        },
         data: { isActive: false },
       });
     }
 
     if (hiddenPmsIds.length > 0) {
       await prisma.glAccount.updateMany({
-        where: { companyId, id: { in: hiddenPmsIds } },
+        where: {
+          companyId,
+          ...(propertyId ? { propertyId } : {}),
+          id: { in: hiddenPmsIds },
+        },
         data: { isActive: true },
       });
       await prisma.integrationEntityMap.deleteMany({
@@ -1303,6 +1338,7 @@ class IntegrationsService {
           companyId,
           integrationId,
           entityType: 'gl_account_pms_hidden',
+          ...(propertyId ? { externalRef: propertyId } : {}),
         },
       });
     }
@@ -1331,20 +1367,12 @@ class IntegrationsService {
     propertyId?: string,
     initiatedBy: 'user' | 'cron' = 'user',
   ) {
-    const cfg   = (config.config      || {}) as Record<string, string>;
-    const creds = (config.credentials || {}) as Record<string, string>;
-    const baseUrl = (cfg.baseUrl || creds.apiUrl || '').replace(/\/+$/, '');
-    if (!baseUrl) {
-      throw new AppError(
-        400, 'V6ERP_NOT_CONFIGURED',
-        '🔶 V6 ERP API URL is not configured. Edit the integration and set config.baseUrl (e.g. http://localhost:8080).',
-      );
-    }
-    const domain = cfg.domain || 'demo';
-    let cleanRoot = baseUrl;
-    if (!/\/V6$/i.test(cleanRoot) && !/\/v6_addon$/i.test(cleanRoot)) {
-      cleanRoot = `${cleanRoot}/V6`;
-    }
+    await ensurePropertySetupScope();
+    const effectivePropertyId = await resolveEffectivePropertyId(
+      companyId,
+      propertyId || config?.propertyId,
+    );
+    const { cleanRoot, domain } = this.resolveV6Config(config);
 
     const t0 = Date.now();
     let customersImported = 0;
@@ -1399,6 +1427,7 @@ class IntegrationsService {
             const newTenant = await prisma.tenant.create({
               data: {
                 companyId,
+                ...(effectivePropertyId ? { propertyId: effectivePropertyId } : {}),
                 tenantType: 'individual',
                 code: cuscode,
                 firstName: cuscode,
@@ -1446,37 +1475,11 @@ class IntegrationsService {
     // 2. Inbound Chart of Accounts Sync from V6 ERP (when V6 Flag is ON)
     if (config.isActive && config.status !== 'disabled') {
       try {
-        if (propertyId) {
-          const coaRes = await this.syncV6ChartOfAccounts(companyId, propertyId, userId, true, config, initiatedBy);
+        if (effectivePropertyId) {
+          const coaRes = await this.syncV6ChartOfAccounts(companyId, effectivePropertyId, userId, true, config, initiatedBy);
           coaCreated += coaRes.created || 0;
           coaUpdated += coaRes.updated || 0;
           coaTotal += coaRes.totalV6Accounts || 0;
-        } else {
-          // For scheduled/company sync without explicit propertyId, refresh any properties already using V6 COA (or default property)
-          const mappedGl = await prisma.integrationEntityMap.findMany({
-            where: { companyId, integrationId: config.id, entityType: 'gl_account' },
-            select: { pmsId: true },
-            take: 500,
-          });
-          let targetPropIds: string[] = [];
-          if (mappedGl.length > 0) {
-            const propRows = await prisma.glAccount.findMany({
-              where: { companyId, id: { in: mappedGl.map((m) => m.pmsId) }, propertyId: { not: null } },
-              select: { propertyId: true },
-              distinct: ['propertyId'],
-            });
-            targetPropIds = propRows.map((r) => r.propertyId!).filter(Boolean);
-          }
-          if (targetPropIds.length === 0) {
-            const defProp = await resolveEffectivePropertyId(companyId);
-            if (defProp) targetPropIds = [defProp];
-          }
-          for (const pid of targetPropIds) {
-            const coaRes = await this.syncV6ChartOfAccounts(companyId, pid, userId, true, config, initiatedBy);
-            coaCreated += coaRes.created || 0;
-            coaUpdated += coaRes.updated || 0;
-            coaTotal = Math.max(coaTotal, coaRes.totalV6Accounts || 0);
-          }
         }
       } catch (coaErr: any) {
         logger.warn(`V6 ERP COA sync warning: ${coaErr.message}`);
@@ -1487,7 +1490,13 @@ class IntegrationsService {
     // 3. Outbound Invoice Push to V6 ERP
     let invoiceRes: any = { sent: 0, failed: 0, skipped: 0, results: [] };
     try {
-      invoiceRes = await this.pushInvoicesToV6Erp(companyId, undefined, true);
+      invoiceRes = await this.pushInvoicesToV6Erp(
+        companyId,
+        undefined,
+        true,
+        effectivePropertyId || undefined,
+        config,
+      );
     } catch (invErr: any) {
       logger.warn(`V6 ERP invoice sync warning: ${invErr.message}`);
       errors.push({ error: `Invoice push warning: ${invErr.message}` });
@@ -1547,56 +1556,48 @@ class IntegrationsService {
   }
 
   /**
-   * Push PMS "issued" invoices to V6 ERP.
-   *
-   * V6 ERP Integration API:
-   *   POST {baseUrl}/V6/v6IntegrationAPIlogin/saveInvoice
-   *
-   * PMS → V6 ERP field mapping:
-   *   tenant.firstName     → hdr.customerCode   (must match V6 Customer Code)
-   *   tenant name          → hdr.customerName
-   *   invoiceNumber        → hdr.t1
-   *   invoiceDate          → hdr.t3  (DD/MM/YYYY)
-   *   dueDate              → hdr.t4  (DD/MM/YYYY)
-   *   currency             → hdr.t8
-   *   totalAmount          → hdr.n5, hdr.n10, hdr.subTotal
-   *   lines[].chargeType   → dtls[].t2 (code), dtls[].t3 (name)
-   *   lines[].quantity     → dtls[].n6, dtls[].n44
-   *   lines[].unitPrice    → dtls[].n34
-   *   lines[].lineTotal    → dtls[].n38, dtls[].n49, dtls[].n14
-   *
-   * Config (stored in IntegrationConfig for type = 'v6erp'):
-   *   config.baseUrl          — e.g. http://localhost:8080
-   *   config.domain           — V6 ERP domain name  e.g. "demo"  (default: "demo")
+   * Push PMS "issued" invoices for the active property to V6 ERP
+   * via POST {cleanRoot}/v6IntegrationAPIlogin/saveInvoice.
    */
-  async pushInvoicesToV6Erp(companyId: string, invoiceIds?: string[], skipLog = false) {
+  async pushInvoicesToV6Erp(
+    companyId: string,
+    invoiceIds?: string[],
+    skipLog = false,
+    propertyId?: string,
+    preloadedConfig?: any,
+  ) {
     // ── 1. Load V6 ERP integration config ──────────────────────────────────
-    const config = await prisma.integrationConfig.findFirst({
-      where: { companyId, integrationType: 'v6erp', status: { not: 'disabled' } },
-    });
+    await ensurePropertySetupScope();
+    const targetPropertyId = await resolveEffectivePropertyId(
+      companyId,
+      propertyId || preloadedConfig?.propertyId,
+    );
+    const config =
+      preloadedConfig ||
+      (await prisma.integrationConfig.findFirst({
+        where: {
+          companyId,
+          ...(targetPropertyId ? { propertyId: targetPropertyId } : {}),
+          integrationType: 'v6erp',
+          status: { not: 'disabled' },
+        },
+      }));
 
     if (!config) {
       throw AppError.notFound(
-        'V6 ERP integration not configured. Go to Developer → Integrations → Add Integration (V6 ERP).',
+        'V6 ERP integration not configured for this property. Go to Developer → Integrations → Add Integration (V6 ERP).',
       );
     }
 
-    const cfg   = (config.config      || {}) as Record<string, string>;
-    const creds = (config.credentials || {}) as Record<string, string>;
-
-    // Accept base URL from either config.baseUrl OR credentials.apiUrl
-    const baseUrl = (cfg.baseUrl || creds.apiUrl || '').replace(/\/$/, '');
-    if (!baseUrl) {
-      throw new AppError(
-        400, 'V6ERP_NOT_CONFIGURED',
-        '🔶 V6 ERP API URL is not configured. Edit the integration and set config.baseUrl (e.g. http://localhost:8080).',
-      );
-    }
-
-    const domain = cfg.domain || 'demo';
+    const { cleanRoot, domain } = this.resolveV6Config(config);
+    const t0 = Date.now();
 
     // ── 2. Fetch issued invoices WITH line items ────────────────────────────
-    const whereClause: any = { companyId, status: 'issued' };
+    const whereClause: any = {
+      companyId,
+      status: 'issued',
+      ...(targetPropertyId ? { propertyId: targetPropertyId } : {}),
+    };
     if (invoiceIds && invoiceIds.length > 0) {
       whereClause.id = { in: invoiceIds };
     }
@@ -1628,7 +1629,7 @@ class IntegrationsService {
             recordsUpdated: 0,
             recordsFailed: 0,
             errorDetails: [],
-            durationMs: 50,
+            durationMs: Date.now() - t0,
             initiatedBy: 'user',
             completedAt: new Date(),
           },
@@ -1642,10 +1643,6 @@ class IntegrationsService {
     }
 
     // ── 3. V6 ERP Endpoints & Helpers ─────────────────────────────────────
-    let cleanRoot = baseUrl.replace(/\/+$/, '');
-    if (!/\/V6$/i.test(cleanRoot) && !/\/v6_addon$/i.test(cleanRoot)) {
-      cleanRoot = `${cleanRoot}/V6`;
-    }
     const integrationEndpoint = `${cleanRoot}/v6IntegrationAPIlogin/saveInvoice`;
     const customerEndpoint    = `${cleanRoot}/v6IntegrationAPIlogin/getCustomer`;
     const headers = { 'Content-Type': 'application/json' };
@@ -1834,9 +1831,11 @@ class IntegrationsService {
       }
     }
 
-    // ── 7. Record sync log & update last sync timestamp ───────────────────
+    // ── 4. Record sync log & update last sync timestamp ───────────────────
     const sentCount = results.filter(r => r.status === 'sent').length;
-    const failedCount = results.filter(r => r.status === 'failed').length;
+    const failedResults = results.filter(r => r.status === 'failed');
+    const failedCount = failedResults.length;
+    const skippedCount = results.filter(r => r.status === 'skipped').length;
 
     if (!skipLog) {
       await prisma.integrationSyncLog.create({
@@ -1850,8 +1849,8 @@ class IntegrationsService {
           recordsCreated: sentCount,
           recordsUpdated: 0,
           recordsFailed: failedCount,
-          errorDetails: results.filter(r => r.status === 'failed'),
-          durationMs: 1200,
+          errorDetails: failedResults,
+          durationMs: Date.now() - t0,
           initiatedBy: 'user',
           completedAt: new Date(),
         },
@@ -1867,8 +1866,8 @@ class IntegrationsService {
 
     return {
       sent:    sentCount,
-      failed:  results.filter(r => r.status === 'failed').length,
-      skipped: results.filter(r => r.status === 'skipped').length,
+      failed:  failedCount,
+      skipped: skippedCount,
       results,
       message: `${sentCount} invoice(s) sent to V6 ERP.`,
     };

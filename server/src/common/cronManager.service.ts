@@ -495,7 +495,7 @@ export const SYSTEM_CRON_REGISTRY: CronJobDefinition[] = [
               intg,
               intg.companyId,
               undefined,
-              undefined,
+              intg.propertyId || undefined,
               'cron',
             );
             syncedCompanies++;

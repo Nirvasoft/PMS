@@ -192,7 +192,7 @@ export default function InvoiceListPage() {
   const [sendInvoice] = useSendInvoiceMutation();
   const [triggerPdf] = useLazyGetInvoicePdfQuery();
   const [pushInvoicesToV6Erp, { isLoading: pushingToV6 }] = usePushInvoicesToV6ErpMutation();
-  const { isV6Active } = useV6IntegrationStatus();
+  const { isV6Active } = useV6IntegrationStatus(activePropertyFilter || undefined);
   const confirmDialog = useConfirm();
 
   const invoices = data?.data || [];
@@ -342,7 +342,7 @@ export default function InvoiceListPage() {
       `Send ${issuedCount} issued invoice(s) to V6 ERP?\n\nOnly invoices with status "issued" will be sent. Status will change to "sent" upon completion.`,
     ))) return;
     try {
-      const result = await pushInvoicesToV6Erp().unwrap();
+      const result = await pushInvoicesToV6Erp({ propertyId: activePropertyFilter || undefined }).unwrap();
       setV6ErpResult(result.data);
       refetch();
       if (result.data.sent > 0) toast.success(`${result.data.sent} invoice(s) sent to V6 ERP (status changed to sent).`);
@@ -367,7 +367,7 @@ export default function InvoiceListPage() {
       `Send ${issuedSelected.length} selected issued invoice(s) to V6 ERP?\n\nStatus will change to "sent" upon completion.`,
     ))) return;
     try {
-      const result = await pushInvoicesToV6Erp({ invoiceIds: issuedSelected.map(i => i.id) }).unwrap();
+      const result = await pushInvoicesToV6Erp({ invoiceIds: issuedSelected.map(i => i.id), propertyId: activePropertyFilter || undefined }).unwrap();
       setV6ErpResult(result.data);
       clearSelection();
       refetch();

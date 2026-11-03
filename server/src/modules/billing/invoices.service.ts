@@ -585,7 +585,7 @@ export class InvoicesService {
       null;
 
     // GL auto-posting: Dr Accounts Receivable (linked to Invoice Dept/CC) / Cr per ChargeType GL Account / Cr Tax Payable
-    if (!(await isV6ErpActive(companyId))) {
+    if (!(await isV6ErpActive(companyId, invoice.propertyId))) {
       const glLines: Array<{
         accountCode: string;
         debit: number;
@@ -912,7 +912,7 @@ export class InvoicesService {
    */
   private async _postInvoiceGlAndNotify(invoice: any, companyId: string, invoiceDate: Date, currency: string): Promise<void> {
     try {
-      if (!(await isV6ErpActive(companyId))) {
+      if (!(await isV6ErpActive(companyId, invoice.propertyId))) {
         const subtotal    = Number(invoice.subtotal);
         const totalAmount = Number(invoice.totalAmount);
         const taxAmount   = Number(invoice.taxAmount);
@@ -1221,7 +1221,7 @@ export class InvoicesService {
     );
 
     // GL auto-posting: Dr AR (linked to Invoice Dept/CC) / Cr per ChargeType GL Account / Cr Tax Payable
-    if (!(await isV6ErpActive(first.companyId))) {
+    if (!(await isV6ErpActive(first.companyId, first.propertyId))) {
       const glLines: Array<{
         accountCode: string;
         debit: number;
@@ -1358,7 +1358,7 @@ export class InvoicesService {
     });
 
     // 1. Reverse posted GL journal entry(s) for this invoice
-    if (!(await isV6ErpActive(companyId))) {
+    if (!(await isV6ErpActive(companyId, invoice.propertyId))) {
       try {
         const postedJournals = await prisma.journalEntry.findMany({
           where: {

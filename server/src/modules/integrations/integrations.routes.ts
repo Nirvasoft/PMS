@@ -17,7 +17,8 @@ integrationsRouter.get('/types', asyncHandler(async (_req, res) => {
 
 // CRUD
 integrationsRouter.get('/', asyncHandler(async (req, res) => {
-  const data = await integrationsService.list(getCompanyId(req));
+  const propertyId = (req.query.propertyId as string) || undefined;
+  const data = await integrationsService.list(getCompanyId(req), propertyId);
   res.json({ success: true, data });
 }));
 
@@ -158,15 +159,15 @@ developerRouter.post('/api-keys/:id/revoke', asyncHandler(async (req, res) => {
  * POST /api/v1/developer/v6erp/push-invoices
  *
  * Pushes "issued" invoices from PMS to V6 ERP.
- * Body (optional): { invoiceIds: string[] }  — omit to send ALL issued invoices.
+ * Body (optional): { invoiceIds?: string[]; propertyId?: string }  — omit invoiceIds to send ALL issued invoices for the active property.
  *
  * The integration config must have:
  *   config.baseUrl         e.g.  "http://localhost:8080"
  *   config.domain          e.g.  "demo" (optional, default: "demo")
  */
 developerRouter.post('/v6erp/push-invoices', asyncHandler(async (req, res) => {
-  const { invoiceIds } = req.body as { invoiceIds?: string[] };
-  const data = await integrationsService.pushInvoicesToV6Erp(getCompanyId(req), invoiceIds);
+  const { invoiceIds, propertyId } = (req.body || {}) as { invoiceIds?: string[]; propertyId?: string };
+  const data = await integrationsService.pushInvoicesToV6Erp(getCompanyId(req), invoiceIds, false, propertyId);
   res.json({ success: true, data });
 }));
 

@@ -1089,7 +1089,8 @@ model Property {
   // Relations â€” BI (Module 6.3)
   biForecasts BiForecast[]
   biAnomalies BiAnomaly[]
-  bmsDevices  BmsDevice[]
+  bmsDevices         BmsDevice[]
+  integrationConfigs IntegrationConfig[]
 
   @@unique([code, companyId], name: "uq_property_code_company")
   @@index([companyId])
@@ -5700,6 +5701,7 @@ model BylawViolation {
 model IntegrationConfig {
   id              String    @id @default(uuid()) @db.Uuid
   companyId       String    @map("company_id") @db.Uuid
+  propertyId      String?   @map("property_id") @db.Uuid
   integrationType String    @map("integration_type") @db.VarChar(50)
   name            String    @db.VarChar(150)
   description     String?   @db.Text
@@ -5715,11 +5717,13 @@ model IntegrationConfig {
   updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
   company    Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property   Property?              @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   creator    User?                  @relation("IntegrationCreator", fields: [createdBy], references: [id])
   syncLogs   IntegrationSyncLog[]
   entityMaps IntegrationEntityMap[]
 
-  @@unique([companyId, integrationType])
+  @@unique([companyId, propertyId, integrationType])
+  @@index([propertyId])
   @@index([companyId])
   @@map("integration_configs")
 }

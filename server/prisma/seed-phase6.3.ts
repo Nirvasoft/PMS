@@ -10,6 +10,12 @@ async function main() {
   const admin = await prisma.user.findFirst({ where: { email: 'admin@acmeproperty.com', companyId: COMPANY_ID } });
   if (!admin) { console.log('  ⚠️ Admin not found, skipping...'); return; }
 
+  const primaryProp = await prisma.property.findFirst({
+    where: { companyId: COMPANY_ID, deletedAt: null },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true },
+  });
+
   // ── Integration Configs ──
   const integrations = [
     {
@@ -52,11 +58,23 @@ async function main() {
 
   const createdIntgs: any[] = [];
   for (const intg of integrations) {
-    const created = await prisma.integrationConfig.upsert({
-      where: { companyId_integrationType: { companyId: COMPANY_ID, integrationType: intg.integrationType } },
-      update: {},
-      create: { companyId: COMPANY_ID, createdBy: admin.id, ...intg },
+    const existing = await prisma.integrationConfig.findFirst({
+      where: {
+        companyId: COMPANY_ID,
+        propertyId: primaryProp?.id ?? null,
+        integrationType: intg.integrationType,
+      },
     });
+    const created = existing
+      ? existing
+      : await prisma.integrationConfig.create({
+          data: {
+            companyId: COMPANY_ID,
+            propertyId: primaryProp?.id ?? null,
+            createdBy: admin.id,
+            ...intg,
+          },
+        });
     createdIntgs.push(created);
     console.log(`  ✅ Integration: ${created.name} [${created.status}]`);
   }

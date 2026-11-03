@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import {
@@ -39,7 +39,10 @@ const STATUS_STYLES: Record<string, { bg: string; color: string; label: string }
 
 export default function IntegrationsPage() {
   const activePropertyId = useSelectedPropertyId();
-  const { data: res, isLoading } = useGetIntegrationsQuery();
+  const { data: res, isLoading } = useGetIntegrationsQuery(
+    activePropertyId ? { propertyId: activePropertyId } : undefined,
+    { skip: !activePropertyId },
+  );
   const [createIntegration, { isLoading: isCreating }] = useCreateIntegrationMutation();
   const [updateIntegration, { isLoading: isUpdating }] = useUpdateIntegrationMutation();
   const [deleteIntegration] = useDeleteIntegrationMutation();
@@ -65,6 +68,17 @@ export default function IntegrationsPage() {
   const [syncingId, setSyncingId] = useState<string | null>(null);
 
   const integrations = res?.data || [];
+
+  useEffect(() => {
+    setShowCreate(false);
+    setCreateSubmitted(false);
+    setTypeDropdownOpen(false);
+    setShowEdit(null);
+    setEditSubmitted(false);
+    setShowLogs(null);
+    setShowEntityMap(null);
+    setTestResult(null);
+  }, [activePropertyId]);
 
   const handleCreate = async () => {
     setCreateSubmitted(true);
@@ -876,7 +890,7 @@ function EntityMapDrawer({ integrationId, integration, onClose }: { integrationI
   const meta = TYPE_META[integration?.integrationType] || { name: integration?.name || 'External System', icon: '🔗' };
   const extSystemName = integration?.name || meta.name;
 
-  const ENTITY_TYPES = ['tenant', 'invoice', 'property', 'unit', 'payment', 'vendor', 'lease'];
+  const ENTITY_TYPES = ['gl_account', 'tenant', 'invoice', 'property', 'unit', 'payment', 'vendor', 'lease'];
 
   const filteredMaps = maps.filter((m: any) => {
     if (!searchQuery.trim()) return true;

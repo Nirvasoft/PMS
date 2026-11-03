@@ -9,11 +9,11 @@ export const integrationsApi = createApi({
   endpoints: (builder) => ({
 
     // ── Integrations ──
-    getIntegrationTypes: builder.query<any, void>({
-      query: () => '/integrations/types',
-    }),
-    getIntegrations: builder.query<any, void>({
-      query: () => '/integrations',
+    getIntegrations: builder.query<any, { propertyId?: string } | void>({
+      query: (params) => ({
+        url: '/integrations',
+        params: params?.propertyId ? { propertyId: params.propertyId } : undefined,
+      }),
       providesTags: ['Integrations'],
     }),
     createIntegration: builder.mutation<any, any>({
@@ -142,7 +142,7 @@ export const integrationsApi = createApi({
     }),
 
     // ── V6 ERP Push & COA Sync ──
-    pushInvoicesToV6Erp: builder.mutation<any, { invoiceIds?: string[] } | void>({
+    pushInvoicesToV6Erp: builder.mutation<any, { invoiceIds?: string[]; propertyId?: string } | void>({
       query: (body) => ({
         url: '/developer/v6erp/push-invoices',
         method: 'POST',
@@ -181,16 +181,8 @@ export const integrationsApi = createApi({
       },
       providesTags: ['BmsDevices'],
     }),
-    getBmsDevice: builder.query<any, string>({
-      query: (id) => `/bms/devices/${id}`,
-      providesTags: ['BmsDevices'],
-    }),
     createBmsDevice: builder.mutation<any, any>({
       query: (body) => ({ url: '/bms/devices', method: 'POST', body }),
-      invalidatesTags: ['BmsDevices'],
-    }),
-    updateBmsDevice: builder.mutation<any, { id: string; data: any }>({
-      query: ({ id, data }) => ({ url: `/bms/devices/${id}`, method: 'PUT', body: data }),
       invalidatesTags: ['BmsDevices'],
     }),
     deleteBmsDevice: builder.mutation<any, string>({
@@ -243,7 +235,6 @@ export const integrationsApi = createApi({
 });
 
 export const {
-  useGetIntegrationTypesQuery,
   useGetIntegrationsQuery,
   useCreateIntegrationMutation,
   useUpdateIntegrationMutation,
@@ -273,9 +264,7 @@ export const {
   useGetBmsSummaryQuery,
   useGetBmsMetaQuery,
   useGetBmsDevicesQuery,
-  useGetBmsDeviceQuery,
   useCreateBmsDeviceMutation,
-  useUpdateBmsDeviceMutation,
   useDeleteBmsDeviceMutation,
   useGetBmsReadingsQuery,
   useGetBmsFaultsQuery,
@@ -286,4 +275,3 @@ export const {
   useRunCronJobNowMutation,
   useGetCronJobLogsQuery,
 } = integrationsApi;
-

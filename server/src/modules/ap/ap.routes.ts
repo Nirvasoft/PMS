@@ -32,7 +32,7 @@ apInvoicesRouter.get('/', asyncHandler(async (req, res) => {
 }));
 
 apInvoicesRouter.post('/', validateRequest(createApInvoiceSchema), asyncHandler(async (req, res) => {
-  await assertV6ErpNotActive(req.user!.companyId, 'AP invoice');
+  await assertV6ErpNotActive(req.user!.companyId, 'AP invoice', req.body?.propertyId);
   const data = await apInvoicesService.create(req.user!.companyId, req.body, req.user!.sub);
   res.status(201).json({ success: true, data });
 }));
@@ -69,7 +69,7 @@ paymentVouchersRouter.get('/', asyncHandler(async (req, res) => {
 }));
 
 paymentVouchersRouter.post('/', validateRequest(createPaymentVoucherSchema), asyncHandler(async (req, res) => {
-  await assertV6ErpNotActive(req.user!.companyId, 'Payment voucher');
+  await assertV6ErpNotActive(req.user!.companyId, 'Payment voucher', req.body?.propertyId);
   const data = await paymentVouchersService.create(req.user!.companyId, req.body, req.user!.sub);
   res.status(201).json({ success: true, data });
 }));
@@ -98,7 +98,7 @@ expensesRouter.get('/', asyncHandler(async (req, res) => {
 }));
 
 expensesRouter.post('/', validateRequest(createExpenseSchema), asyncHandler(async (req, res) => {
-  await assertV6ErpNotActive(req.user!.companyId, 'Expense');
+  await assertV6ErpNotActive(req.user!.companyId, 'Expense', req.body?.propertyId);
   const data = await expensesService.create(req.user!.companyId, req.body, req.user!.sub);
   res.status(201).json({ success: true, data });
 }));

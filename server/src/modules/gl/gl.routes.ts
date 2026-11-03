@@ -31,13 +31,13 @@ glRouter.get('/accounts', asyncHandler(async (req, res) => {
 }));
 
 glRouter.post('/accounts', validateRequest(createAccountSchema), asyncHandler(async (req, res) => {
-  await assertV6ErpNotActive(req.user!.companyId, 'GL account');
+  await assertV6ErpNotActive(req.user!.companyId, 'GL account', req.body?.propertyId);
   const data = await glService.createAccount(req.user!.companyId, req.body);
   res.status(201).json({ success: true, data });
 }));
 
 glRouter.put('/accounts/:id', validateRequest(updateAccountSchema), asyncHandler(async (req, res) => {
-  await assertV6ErpNotActive(req.user!.companyId, 'GL account update');
+  await assertV6ErpNotActive(req.user!.companyId, 'GL account update', req.body?.propertyId);
   const data = await glService.updateAccount(p(req, 'id'), req.user!.companyId, req.body);
   res.json({ success: true, data });
 }));
@@ -57,7 +57,7 @@ glRouter.get('/department-centers', asyncHandler(async (req, res) => {
 }));
 
 glRouter.post('/department-centers', validateRequest(createDepartmentCenterSchema), asyncHandler(async (req, res) => {
-  await assertV6ErpNotActive(req.user!.companyId, 'Department');
+  await assertV6ErpNotActive(req.user!.companyId, 'Department', req.body?.propertyId);
   const data = await glService.createDepartmentCenter(req.user!.companyId, req.body);
   res.status(201).json({ success: true, data });
 }));
@@ -88,7 +88,7 @@ glRouter.get('/cost-centers', asyncHandler(async (req, res) => {
 }));
 
 glRouter.post('/cost-centers', validateRequest(createCostCenterSchema), asyncHandler(async (req, res) => {
-  await assertV6ErpNotActive(req.user!.companyId, 'Cost center');
+  await assertV6ErpNotActive(req.user!.companyId, 'Cost center', req.body?.propertyId);
   const data = await glService.createCostCenter(req.user!.companyId, req.body);
   res.status(201).json({ success: true, data });
 }));
@@ -118,7 +118,7 @@ glRouter.get('/payment-methods', asyncHandler(async (req, res) => {
 }));
 
 glRouter.post('/payment-methods', validateRequest(createPaymentMethodSchema), asyncHandler(async (req, res) => {
-  await assertV6ErpNotActive(req.user!.companyId, 'Payment method');
+  await assertV6ErpNotActive(req.user!.companyId, 'Payment method', req.body?.propertyId);
   const data = await glService.createPaymentMethod(req.user!.companyId, req.body);
   res.status(201).json({ success: true, data });
 }));
@@ -143,13 +143,13 @@ glRouter.get('/fiscal-periods', asyncHandler(async (req, res) => {
 }));
 
 glRouter.post('/fiscal-periods', validateRequest(createFiscalPeriodSchema), asyncHandler(async (req, res) => {
-  await assertV6ErpNotActive(req.user!.companyId, 'Fiscal period');
+  await assertV6ErpNotActive(req.user!.companyId, 'Fiscal period', req.body?.propertyId);
   const data = await glService.createFiscalPeriod(req.user!.companyId, req.body);
   res.status(201).json({ success: true, data });
 }));
 
 glRouter.post('/fiscal-periods/generate', asyncHandler(async (req, res) => {
-  await assertV6ErpNotActive(req.user!.companyId, 'Fiscal period');
+  await assertV6ErpNotActive(req.user!.companyId, 'Fiscal period', req.body?.propertyId);
   const year = parseInt(req.body.year);
   if (!year || year < 2020 || year > 2099) throw new Error('Invalid year (2020-2099)');
   const data = await glService.generateFiscalYear(req.user!.companyId, year);
@@ -181,7 +181,7 @@ glRouter.get('/journal-entries/:id', asyncHandler(async (req, res) => {
 }));
 
 glRouter.post('/journal-entries', validateRequest(createJournalEntrySchema), asyncHandler(async (req, res) => {
-  await assertV6ErpNotActive(req.user!.companyId, 'Journal entry');
+  await assertV6ErpNotActive(req.user!.companyId, 'Journal entry', req.body?.propertyId);
   const data = await glService.createJournalEntry(req.user!.companyId, req.user!.sub, req.body);
   res.status(201).json({ success: true, data });
 }));

@@ -11,6 +11,7 @@ let propertySetupScopePromise: Promise<void> | null = null;
  * - cost_centers
  * - payment_methods
  * - gl_accounts
+ * - integration_configs
  *
  * Also backfills existing company records (`property_id IS NULL`) to the company's
  * first active property so existing setup data is preserved under the primary property.
@@ -52,6 +53,7 @@ async function runPropertySetupScopeMigration(): Promise<void> {
     'cost_centers',
     'payment_methods',
     'gl_accounts',
+    'integration_configs',
   ];
 
   for (const table of tables) {
@@ -74,7 +76,8 @@ async function runPropertySetupScopeMigration(): Promise<void> {
         'department_centers',
         'cost_centers',
         'payment_methods',
-        'gl_accounts'
+        'gl_accounts',
+        'integration_configs'
       )
   `);
 
@@ -98,6 +101,7 @@ async function runPropertySetupScopeMigration(): Promise<void> {
     { table: 'gl_accounts', name: 'gl_accounts_code_company_dept_cc_key' },
     { table: 'gl_accounts', name: 'gl_accounts_code_company_id_department_center_id_cost_cente_key' },
     { table: 'gl_accounts', name: 'gl_accounts_code_company_id_property_id_dept_cc_key' },
+    { table: 'integration_configs', name: 'integration_configs_company_id_integration_type_key' },
   ];
 
   for (const item of legacyConstraints) {
@@ -127,6 +131,9 @@ async function runPropertySetupScopeMigration(): Promise<void> {
   );
   await prisma.$executeRawUnsafe(
     `CREATE UNIQUE INDEX IF NOT EXISTS "gl_accounts_code_company_id_property_id_department_center_i_key" ON "gl_accounts"("code", "company_id", "property_id", "department_center_id", "cost_center_id")`,
+  );
+  await prisma.$executeRawUnsafe(
+    `CREATE UNIQUE INDEX IF NOT EXISTS "integration_configs_company_id_property_id_integration_type_key" ON "integration_configs"("company_id", "property_id", "integration_type")`,
   );
 
   // Backfill existing company-scoped records with property_id IS NULL to the company's first active property
@@ -205,6 +212,25 @@ async function runPropertySetupScopeMigration(): Promise<void> {
     ) sub
     WHERE t."company_id" = sub."company_id"
       AND t."property_id" IS NULL
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    UPDATE "integration_configs" t
+    SET "property_id" = sub.prop_id
+    FROM (
+      SELECT DISTINCT ON ("company_id") "company_id", "id" AS prop_id
+      FROM "properties"
+      WHERE "deleted_at" IS NULL
+      ORDER BY "company_id", "created_at" ASC
+    ) sub
+    WHERE t."company_id" = sub."company_id"
+      AND t."property_id" IS NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM "integration_configs" existing
+        WHERE existing."company_id" = t."company_id"
+          AND existing."property_id" = sub.prop_id
+          AND existing."integration_type" = t."integration_type"
+      )
   `);
 }
 

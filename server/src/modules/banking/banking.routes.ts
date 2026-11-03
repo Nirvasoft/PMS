@@ -16,7 +16,7 @@ bankingRouter.get('/bank-accounts', asyncHandler(async (req, res) => {
 }));
 
 bankingRouter.post('/bank-accounts', asyncHandler(async (req, res) => {
-  await assertV6ErpNotActive(req.user!.companyId, 'Bank account');
+  await assertV6ErpNotActive(req.user!.companyId, 'Bank account', req.body?.propertyId);
   const data = await bankingService.createBankAccount(req.user!.companyId, req.body);
   res.status(201).json({ success: true, data });
 }));
@@ -33,7 +33,7 @@ bankingRouter.get('/bank-accounts/:id/balance', asyncHandler(async (req, res) =>
 
 // ── Statement Import ──────────────────────────
 bankingRouter.post('/bank-accounts/:id/reconcile', asyncHandler(async (req, res) => {
-  await assertV6ErpNotActive(req.user!.companyId, 'Bank statement import');
+  await assertV6ErpNotActive(req.user!.companyId, 'Bank statement import', req.body?.propertyId);
   const data = await bankingService.importStatement(
     req.user!.companyId, req.user!.sub, p(req, 'id'), req.body,
   );

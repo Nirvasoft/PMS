@@ -18,7 +18,7 @@ budgetsRouter.get('/', asyncHandler(async (req, res) => {
 }));
 
 budgetsRouter.post('/', asyncHandler(async (req, res) => {
-  await assertV6ErpNotActive(req.user!.companyId, 'Budget');
+  await assertV6ErpNotActive(req.user!.companyId, 'Budget', req.body?.propertyId);
   const data = await budgetsService.create(req.user!.companyId, req.user!.sub, req.body);
   res.status(201).json({ success: true, data });
 }));
@@ -62,7 +62,7 @@ assetsRouter.get('/:id', asyncHandler(async (req, res) => {
 }));
 
 assetsRouter.post('/', asyncHandler(async (req, res) => {
-  await assertV6ErpNotActive(req.user!.companyId, 'Fixed asset');
+  await assertV6ErpNotActive(req.user!.companyId, 'Fixed asset', req.body?.propertyId);
   const data = await assetsService.create(req.user!.companyId, req.body);
   res.status(201).json({ success: true, data });
 }));

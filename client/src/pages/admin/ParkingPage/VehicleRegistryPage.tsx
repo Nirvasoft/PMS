@@ -185,7 +185,7 @@ export default function VehicleRegistryPage() {
             onSearch={setTenantSearch}
             loading={isFetchingTenants}
             placeholder="Search tenant by code or name…"
-            emptyMessage="No verified tenants found"
+            emptyText="No verified tenants found"
           />
         </div>
 
