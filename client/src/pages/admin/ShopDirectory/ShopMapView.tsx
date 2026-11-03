@@ -31,7 +31,7 @@ import {
   UNIT_SHAPE_LABELS, parseUnitShapeMode, encodeUnitShapeMode, nextUnitShapeMode, isTrapezoidUnitMode, getTrapezoidUnitGeometry,
   LANDMARK_VARIANTS, parseLandmarkMeta, encodeLandmarkMeta, nextLandmarkVariant, autoSquareCircleLandmark, getPolygonAtriumGeometry, getAtriumFaceAlignment,
   parseFloorPlanData, buildCopiedFloorLayout, saveCachedFloorPlan, getCachedFloorPlan,
-  expandTouchingGroupKeys, computeGroupBoundingBox, moveTileGroupByDelta,
+  expandTouchingGroupKeys, computeGroupBoundingBox, moveTileGroupByDelta, rotateTileGroup,
   type MapItem, type TileKind, type MapRotationAngle, type SharpCorners, type EdgeMergeGeometry, type CorridorShapeMode, type CorridorMergeData, type UnitShapeMode, type TrapezoidUnitGeometry, type MagneticSnapGuide,
 } from './shopMapLayout';
 import {
@@ -911,12 +911,22 @@ export default function ShopMapView({
   const [editingLandmarkKey, setEditingLandmarkKey] = useState<string | null>(null);
   const [focusedLayerKey, setFocusedLayerKey] = useState<string | null>(null);
   const [rotatingTileKey, setRotatingTileKey] = useState<string | null>(null);
+  const [isRotatingGroup, setIsRotatingGroup] = useState(false);
+  const [groupFrameAngle, setGroupFrameAngle] = useState(0);
+  const groupFrameAngleRef = useRef(0);
+  groupFrameAngleRef.current = groupFrameAngle;
   const [groupSelectMode, setGroupSelectMode] = useState(false);
   const [selectedGroupKeys, setSelectedGroupKeys] = useState<string[]>([]);
   const [dragGroupDelta, setDragGroupDelta] = useState<{ dx: number; dy: number } | null>(null);
   const selectedGroupSet = useMemo(() => new Set(selectedGroupKeys), [selectedGroupKeys]);
   const selectedGroupSetRef = useRef<Set<string>>(selectedGroupSet);
   selectedGroupSetRef.current = selectedGroupSet;
+  const groupRotBaseRef = useRef<{
+    keysSig: string;
+    baseItems: MapItem[];
+    baseFrameAngle: number;
+    cumulativeDeg: number;
+  } | null>(null);
   const [landmarkVariantDraft, setLandmarkVariantDraft] = useState<string>('default');
   const [landmarkCustomDraft, setLandmarkCustomDraft] = useState<string>('');
   const [landmarkShowLabelDraft, setLandmarkShowLabelDraft] = useState<boolean>(false);
@@ -1618,7 +1628,8 @@ export default function ShopMapView({
     }
   };
 
-  const rotate = (key: string, stepDeg = TILE_ANGLE_STEP) =>
+  const rotate = (key: string, stepDeg = TILE_ANGLE_STEP) => {
+    groupRotBaseRef.current = null;
     update((prev) =>
       prev.map((i) => {
         if (i.key !== key) return i;
@@ -1646,15 +1657,16 @@ export default function ShopMapView({
               return cand;
             }
           }
-          if (stepDeg === 90 && !i.angle) return i;
         }
         return { ...i, angle: nextAngle };
       }),
     );
+  };
 
   const startDragRotateTile = (e: React.PointerEvent<HTMLButtonElement>, key: string) => {
     e.stopPropagation();
     e.preventDefault();
+    groupRotBaseRef.current = null;
     const gridEl = e.currentTarget.closest('.shop-map-grid-item') as HTMLElement | null;
     if (!gridEl) return;
     const rect = gridEl.getBoundingClientRect();
@@ -1668,7 +1680,7 @@ export default function ShopMapView({
       if (Math.hypot(dx, dy) < 4) return;
       // Handle sits at +90 deg (bottom of unrotated tile: dx=0, dy=+1 -> atan2 = +90 deg -> angle = 0 deg)
       const rawDeg = (Math.atan2(dy, dx) * 180) / Math.PI - 90 - mapRotation;
-      const step = ev.shiftKey ? 45 : TILE_ANGLE_STEP;
+      const step = ev.shiftKey ? TILE_ANGLE_STEP * 3 : TILE_ANGLE_STEP;
       const snapped = Math.round(rawDeg / step) * step;
       const nextAngle = normalizeTileAngle(snapped);
       setItems((prev) =>
@@ -1780,17 +1792,25 @@ export default function ShopMapView({
     return { shape: mode, clipPath: 'none' };
   };
 
+  const resetGroupRotation = () => {
+    groupRotBaseRef.current = null;
+    setGroupFrameAngle(0);
+  };
+
   const remove = (key: string) => {
+    resetGroupRotation();
     setSelectedGroupKeys((prev) => prev.filter((k) => k !== key));
     update((prev) => prev.filter((i) => i.key !== key || i.kind === 'marker'));
   };
 
   const toggleGroupSelection = (key: string) => {
+    resetGroupRotation();
     setSelectedGroupKeys((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
   };
 
   const handleExpandGroupTouching = () => {
     if (selectedGroupSet.size === 0) return;
+    resetGroupRotation();
     const expanded = expandTouchingGroupKeys(items, selectedGroupSet);
     const added = expanded.length - selectedGroupSet.size;
     setSelectedGroupKeys(expanded);
@@ -1802,10 +1822,12 @@ export default function ShopMapView({
   };
 
   const handleSelectAllGroup = () => {
+    resetGroupRotation();
     setSelectedGroupKeys(items.map((i) => i.key));
   };
 
   const clearGroupSelection = () => {
+    resetGroupRotation();
     setSelectedGroupKeys([]);
     setGroupSelectMode(false);
     setDragGroupDelta(null);
@@ -1813,6 +1835,7 @@ export default function ShopMapView({
 
   const nudgeSelectedGroup = (dx: number, dy: number) => {
     if (selectedGroupSetRef.current.size === 0) return;
+    groupRotBaseRef.current = null;
     const res = moveTileGroupByDelta(itemsRef.current, selectedGroupSetRef.current, dx, dy, columns);
     if (res.conflict) {
       toast.error('Cannot move group — blocked by another tile');
@@ -1823,6 +1846,82 @@ export default function ShopMapView({
       setLayoutResetTick((n) => n + 1);
       setDirty(true);
     }
+  };
+
+  const startDragRotateGroup = (e: React.PointerEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (selectedGroupSetRef.current.size === 0) return;
+    const boxEl = e.currentTarget.closest('.shop-map-group-bounds-box') as HTMLElement | null;
+    if (!boxEl) return;
+    const rect = boxEl.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const keysSig = Array.from(selectedGroupSetRef.current).sort().join('|');
+    if (!groupRotBaseRef.current || groupRotBaseRef.current.keysSig !== keysSig) {
+      groupRotBaseRef.current = {
+        keysSig,
+        baseItems: itemsRef.current.map((i) => ({ ...i })),
+        baseFrameAngle:
+          computeGroupBoundingBox(
+            itemsRef.current,
+            selectedGroupSetRef.current,
+            groupFrameAngleRef.current,
+          )?.angle ?? 0,
+        cumulativeDeg: 0,
+      };
+    }
+    const startCumDeg = groupRotBaseRef.current.cumulativeDeg;
+    const startRawDeg =
+      (Math.atan2(e.clientY - cy, e.clientX - cx) * 180) / Math.PI - 90 - mapRotation;
+    setIsRotatingGroup(true);
+
+    const onMove = (ev: PointerEvent) => {
+      const dx = ev.clientX - cx;
+      const dy = ev.clientY - cy;
+      if (Math.hypot(dx, dy) < 6) return;
+      const currRawDeg = (Math.atan2(dy, dx) * 180) / Math.PI - 90 - mapRotation;
+      const deltaFromDragStart = ((((currRawDeg - startRawDeg) % 360) + 540) % 360) - 180;
+      const step = ev.shiftKey ? TILE_ANGLE_STEP * 3 : TILE_ANGLE_STEP;
+      const snappedCum =
+        (((Math.round((startCumDeg + deltaFromDragStart) / step) * step) % 360) + 360) % 360;
+      if (!groupRotBaseRef.current) return;
+      if (snappedCum === groupRotBaseRef.current.cumulativeDeg) return;
+      const nextFrameAngle =
+        (((groupRotBaseRef.current.baseFrameAngle + snappedCum) % 360) + 360) % 360;
+      if (snappedCum === 0) {
+        groupRotBaseRef.current.cumulativeDeg = 0;
+        setGroupFrameAngle(nextFrameAngle);
+        setItems(groupRotBaseRef.current.baseItems.map((i) => ({ ...i })));
+        setLayoutResetTick((n) => n + 1);
+        setDirty(true);
+        return;
+      }
+      const res = rotateTileGroup(
+        groupRotBaseRef.current.baseItems,
+        selectedGroupSetRef.current,
+        snappedCum,
+        columns,
+      );
+      if (!res.conflict) {
+        groupRotBaseRef.current.cumulativeDeg = snappedCum;
+        setGroupFrameAngle(nextFrameAngle);
+        setItems(res.items);
+        setLayoutResetTick((n) => n + 1);
+        setDirty(true);
+      }
+    };
+
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      setIsRotatingGroup(false);
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
   };
 
   useEffect(() => {
@@ -1855,8 +1954,11 @@ export default function ShopMapView({
   }, [editing, groupSelectMode, columns]);
 
   const groupBounds = useMemo(
-    () => (editing && selectedGroupSet.size > 1 ? computeGroupBoundingBox(displayItems, selectedGroupSet) : null),
-    [editing, displayItems, selectedGroupSet],
+    () =>
+      editing && selectedGroupSet.size > 1
+        ? computeGroupBoundingBox(displayItems, selectedGroupSet, groupFrameAngle)
+        : null,
+    [editing, displayItems, selectedGroupSet, groupFrameAngle],
   );
 
   const onLayoutChange = (nextLayout: readonly any[]) => {
@@ -1954,6 +2056,7 @@ export default function ShopMapView({
       setDirty(true);
     }
     dragOriginItemsRef.current = null;
+    groupRotBaseRef.current = null;
     setDragPreviewItem(null);
     setDragGroupDelta(null);
     setDragSnapGuide(null);
@@ -2551,50 +2654,14 @@ export default function ShopMapView({
                   All
                 </button>
                 {selectedGroupKeys.length > 0 && (
-                  <>
-                    <div className="shop-map-group-nudge" role="group" aria-label="Move selected group">
-                      <button
-                        type="button"
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => nudgeSelectedGroup(-1, 0)}
-                        title="Move group left (ArrowLeft)"
-                      >
-                        ←
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => nudgeSelectedGroup(0, -1)}
-                        title="Move group up (ArrowUp)"
-                      >
-                        ↑
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => nudgeSelectedGroup(0, 1)}
-                        title="Move group down (ArrowDown)"
-                      >
-                        ↓
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => nudgeSelectedGroup(1, 0)}
-                        title="Move group right (ArrowRight)"
-                      >
-                        →
-                      </button>
-                    </div>
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-sm"
-                      onClick={clearGroupSelection}
-                      title="Ungroup / Clear selection (Esc)"
-                    >
-                      <X size={12} /> Ungroup
-                    </button>
-                  </>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={clearGroupSelection}
+                    title="Ungroup / Clear selection (Esc)"
+                  >
+                    <X size={12} /> Ungroup
+                  </button>
                 )}
               </>
             )}
@@ -2712,18 +2779,35 @@ export default function ShopMapView({
                 )}
                 {groupBounds && (
                   <div
-                    className="shop-map-group-bounds-box"
+                    className={`shop-map-group-bounds-box ${isRotatingGroup ? 'is-rotating-group' : ''}`}
                     style={{
                       left: `${((groupBounds.x + (dragGroupDelta?.dx ?? 0)) * colStepPx).toFixed(1)}px`,
                       top: `${((groupBounds.y + (dragGroupDelta?.dy ?? 0)) * rowStepPx).toFixed(1)}px`,
                       width: `${(groupBounds.w * colStepPx).toFixed(1)}px`,
                       height: `${(groupBounds.h * rowStepPx).toFixed(1)}px`,
+                      transform: groupBounds.angle ? `rotate(${groupBounds.angle}deg)` : undefined,
                     }}
-                    aria-hidden="true"
                   >
-                    <span className="shop-map-group-bounds-badge">
-                      Group ({groupBounds.count}) • Drag any selected tile or use Arrows
+                    <span
+                      className="shop-map-group-bounds-badge"
+                      style={
+                        groupBounds.angle > 90 && groupBounds.angle < 270
+                          ? { transform: 'rotate(180deg)' }
+                          : undefined
+                      }
+                    >
+                      Group ({groupBounds.count})
                     </span>
+                    <button
+                      type="button"
+                      className="shop-map-group-rot-handle"
+                      title="Drag to rotate group"
+                      onClick={(e) => e.stopPropagation()}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onPointerDown={startDragRotateGroup}
+                    >
+                      <span className="shop-map-group-rot-dot" />
+                    </button>
                   </div>
                 )}
                 <ReactGridLayout
@@ -3281,7 +3365,7 @@ export default function ShopMapView({
                             )}
                             <button
                               className="shop-map-tile-btn rot"
-                              title={`Rotate ${TILE_ANGLE_STEP}° (Shift+Click for 90°)`}
+                              title="Rotate"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 rotate(it.key, e.shiftKey ? 90 : TILE_ANGLE_STEP);
@@ -3301,6 +3385,7 @@ export default function ShopMapView({
                             type="button"
                             className="shop-map-rot-handle"
                             title="Drag to rotate"
+                            onClick={(e) => e.stopPropagation()}
                             onMouseDown={(e) => e.stopPropagation()}
                             onPointerDown={(e) => startDragRotateTile(e, it.key)}
                           >

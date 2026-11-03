@@ -250,6 +250,17 @@ class MallService {
       };
       const ga = getCornersAndAxes(a);
       const gb = getCornersAndAxes(b);
+      const centerDist = Math.hypot(
+        a.x + a.w * 0.5 - (b.x + b.w * 0.5),
+        a.y + a.h * 0.5 - (b.y + b.h * 0.5),
+      );
+      const minSpan = Math.min(a.w, a.h, b.w, b.h);
+      const sepTol =
+        centerDist >= Math.max(1.2, minSpan * 0.72)
+          ? angleA !== 0 && angleB !== 0
+            ? 0.88
+            : 0.62
+          : 0.32;
       for (const ax of [...ga.axes, ...gb.axes]) {
         let minA = Infinity;
         let maxA = -Infinity;
@@ -265,7 +276,7 @@ class MallService {
           if (p < minB) minB = p;
           if (p > maxB) maxB = p;
         }
-        if (maxA <= minB + 0.32 || maxB <= minA + 0.32) return true;
+        if (maxA <= minB + sepTol || maxB <= minA + sepTol) return true;
       }
       return false;
     };

@@ -26,16 +26,21 @@ export interface MapItem {
   y: number;
   w: number;
   h: number;
-  /** Visual tilt in degrees (multiples of 15). 0/undefined = upright. */
+  /** Visual tilt in degrees (multiples of 12). 0/undefined = upright. */
   angle?: number;
 }
 
-export const TILE_ANGLE_STEP = 15;
+export const TILE_ANGLE_STEP = 12;
 
-/** Normalizes any value to one of 0, 15, 30 ... 345 (returns undefined for upright so it is not persisted). */
+/** Normalizes any value to one of 0, 12, 24 ... 348 (or cardinal 90/180/270; returns undefined for upright). */
 export function normalizeTileAngle(val: unknown): number | undefined {
-  const n = Math.round(Number(val) / TILE_ANGLE_STEP) * TILE_ANGLE_STEP;
-  if (!Number.isFinite(n)) return undefined;
+  const raw = Number(val);
+  if (!Number.isFinite(raw)) return undefined;
+  const roundedInt = Math.round(raw);
+  const mod360 = ((roundedInt % 360) + 360) % 360;
+  if (mod360 === 0) return undefined;
+  if (mod360 % 90 === 0) return mod360;
+  const n = Math.round(raw / TILE_ANGLE_STEP) * TILE_ANGLE_STEP;
   const a = ((n % 360) + 360) % 360;
   return a === 0 ? undefined : a;
 }
@@ -1029,12 +1034,7 @@ export function isOutsidePolygonAtrium(
     const polyFaces = getPolygonAtriumWorldFaces(atr);
     if (!polyFaces) return false;
     const f = getLocalTileFrame(other);
-    const corners = [
-      { x: f.tlx, y: f.tly },
-      { x: f.trx, y: f.try_ },
-      { x: f.trx + other.h * f.vx, y: f.try_ + other.h * f.vy },
-      { x: f.blx, y: f.bly },
-    ];
+    const corners = getTileWorldCorners(other, f);
     for (const face of polyFaces) {
       let minProj = Infinity;
       for (const c of corners) {
@@ -1070,24 +1070,25 @@ export function areRotatedRectsSeparated(
   }
   const fa = getLocalTileFrame(a);
   const fb = getLocalTileFrame(b);
-  const cornersA = [
-    { x: fa.tlx, y: fa.tly },
-    { x: fa.trx, y: fa.try_ },
-    { x: fa.trx + a.h * fa.vx, y: fa.try_ + a.h * fa.vy },
-    { x: fa.blx, y: fa.bly },
-  ];
-  const cornersB = [
-    { x: fb.tlx, y: fb.tly },
-    { x: fb.trx, y: fb.try_ },
-    { x: fb.trx + b.h * fb.vx, y: fb.try_ + b.h * fb.vy },
-    { x: fb.blx, y: fb.bly },
-  ];
+  const cornersA = getTileWorldCorners(a, fa);
+  const cornersB = getTileWorldCorners(b, fb);
   const axes = [
     { x: fa.ux, y: fa.uy },
     { x: fa.vx, y: fa.vy },
     { x: fb.ux, y: fb.uy },
     { x: fb.vx, y: fb.vy },
   ];
+  const centerDist = Math.hypot(
+    a.x + a.w * 0.5 - (b.x + b.w * 0.5),
+    a.y + a.h * 0.5 - (b.y + b.h * 0.5),
+  );
+  const minSpan = Math.min(a.w, a.h, b.w, b.h);
+  const sepTol =
+    centerDist >= Math.max(1.2, minSpan * 0.72)
+      ? angleA !== 0 && angleB !== 0
+        ? 0.88
+        : 0.62
+      : 0.32;
   for (const ax of axes) {
     let minA = Infinity;
     let maxA = -Infinity;
@@ -1103,7 +1104,7 @@ export function areRotatedRectsSeparated(
       if (p < minB) minB = p;
       if (p > maxB) maxB = p;
     }
-    if (maxA <= minB + 0.32 || maxB <= minA + 0.32) return true;
+    if (maxA <= minB + sepTol || maxB <= minA + sepTol) return true;
   }
   return false;
 }
@@ -1936,7 +1937,7 @@ function findPolygonAtriumMagneticCandidate(
 
     let snappedDeg = Math.round(bestExactDeg / TILE_ANGLE_STEP) * TILE_ANGLE_STEP;
     if (!bestFace.isCardinal && snappedDeg % 360 === 0) {
-      snappedDeg = bestExactDeg >= 180 ? 345 : 15;
+      snappedDeg = bestExactDeg >= 180 ? 360 - TILE_ANGLE_STEP : TILE_ANGLE_STEP;
     }
     const alignedAngle = normalizeTileAngle(snappedDeg);
 
@@ -3588,6 +3589,18 @@ function getLocalTileFrame(it: { x: number; y: number; w: number; h: number; ang
     vx,
     vy,
   };
+}
+
+function getTileWorldCorners(
+  it: { x: number; y: number; w: number; h: number; angle?: number },
+  f = getLocalTileFrame(it),
+): Array<{ x: number; y: number }> {
+  return [
+    { x: f.tlx, y: f.tly },
+    { x: f.trx, y: f.try_ },
+    { x: f.trx + it.h * f.vx, y: f.try_ + it.h * f.vy },
+    { x: f.blx, y: f.bly },
+  ];
 }
 
 function worldToLocal(frame: LocalTileFrame, wx: number, wy: number): [number, number] {
@@ -5583,22 +5596,84 @@ export function expandTouchingGroupKeys(
 export function computeGroupBoundingBox(
   items: ReadonlyArray<MapItem>,
   groupKeys: ReadonlySet<string>,
-): { x: number; y: number; w: number; h: number; count: number } | null {
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-  let count = 0;
-  for (const it of items) {
-    if (!groupKeys.has(it.key)) continue;
-    minX = Math.min(minX, it.x);
-    minY = Math.min(minY, it.y);
-    maxX = Math.max(maxX, it.x + it.w);
-    maxY = Math.max(maxY, it.y + it.h);
-    count++;
+  overrideAngle?: number,
+): { x: number; y: number; w: number; h: number; angle: number; count: number } | null {
+  const groupItems = items.filter((it) => groupKeys.has(it.key));
+  const count = groupItems.length;
+  if (count === 0) return null;
+
+  let frameAngle = 0;
+  if (overrideAngle !== undefined && Number.isFinite(overrideAngle) && overrideAngle !== 0) {
+    frameAngle = ((Math.round(overrideAngle) % 360) + 360) % 360;
+  } else {
+    const firstAngle = (((groupItems[0].angle ?? 0) % 360) + 360) % 360;
+    const allSameAngle = groupItems.every(
+      (it) => ((((it.angle ?? 0) % 360) + 360) % 360) === firstAngle,
+    );
+    if (allSameAngle && firstAngle !== 0) {
+      frameAngle = firstAngle;
+    }
   }
-  if (count === 0 || !Number.isFinite(minX)) return null;
-  return { x: minX, y: minY, w: maxX - minX, h: maxY - minY, count };
+
+  if (frameAngle === 0) {
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const it of groupItems) {
+      if (it.angle) {
+        const rb = rotatedVisualBounds(getLocalTileFrame(it), it.w, 0);
+        minX = Math.min(minX, it.x, rb.x);
+        minY = Math.min(minY, it.y, rb.y);
+        maxX = Math.max(maxX, it.x + it.w, rb.x + rb.w);
+        maxY = Math.max(maxY, it.y + it.h, rb.y + rb.h);
+      } else {
+        minX = Math.min(minX, it.x);
+        minY = Math.min(minY, it.y);
+        maxX = Math.max(maxX, it.x + it.w);
+        maxY = Math.max(maxY, it.y + it.h);
+      }
+    }
+    if (!Number.isFinite(minX)) return null;
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY, angle: 0, count };
+  }
+
+  const rad = (frameAngle * Math.PI) / 180;
+  const ux = Math.cos(rad);
+  const uy = Math.sin(rad);
+  const vx = -uy;
+  const vy = ux;
+  let minU = Infinity;
+  let maxU = -Infinity;
+  let minV = Infinity;
+  let maxV = -Infinity;
+
+  for (const it of groupItems) {
+    for (const c of getTileWorldCorners(it)) {
+      const pu = c.x * ux + c.y * uy;
+      const pv = c.x * vx + c.y * vy;
+      if (pu < minU) minU = pu;
+      if (pu > maxU) maxU = pu;
+      if (pv < minV) minV = pv;
+      if (pv > maxV) maxV = pv;
+    }
+  }
+
+  const w = Math.max(1, maxU - minU);
+  const h = Math.max(1, maxV - minV);
+  const centerU = (minU + maxU) * 0.5;
+  const centerV = (minV + maxV) * 0.5;
+  const worldCx = centerU * ux + centerV * vx;
+  const worldCy = centerU * uy + centerV * vy;
+
+  return {
+    x: worldCx - w * 0.5,
+    y: worldCy - h * 0.5,
+    w,
+    h,
+    angle: frameAngle,
+    count,
+  };
 }
 
 /**
@@ -5657,5 +5732,148 @@ export function moveTileGroupByDelta(
     items: candidateItems,
   };
 }
+
+/**
+ * Orbits and rotates all tiles in `groupKeys` together around the group's center pivot `(groupCx, groupCy)`
+ * by `deltaDeg` degrees (snapped to `TILE_ANGLE_STEP = 12°` or cardinal `90°`), clamping to floor boundaries and resolving
+ * any integer-rounding overlap inside the group or with adjacent unselected tiles.
+ */
+export function rotateTileGroup(
+  baseItems: ReadonlyArray<MapItem>,
+  groupKeys: ReadonlySet<string>,
+  deltaDeg: number,
+  columns: number,
+): { rotated: boolean; conflict: boolean; items: MapItem[] } {
+  const groupItems = baseItems.filter((i) => groupKeys.has(i.key));
+  if (groupItems.length === 0) {
+    return { rotated: false, conflict: false, items: baseItems.map((i) => ({ ...i })) };
+  }
+
+  const rawMod = ((Math.round(deltaDeg) % 360) + 360) % 360;
+  const normDelta =
+    rawMod % 90 === 0
+      ? rawMod
+      : (((Math.round(deltaDeg / TILE_ANGLE_STEP) * TILE_ANGLE_STEP) % 360) + 360) % 360;
+  if (normDelta === 0) {
+    return { rotated: false, conflict: false, items: baseItems.map((i) => ({ ...i })) };
+  }
+
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const it of groupItems) {
+    minX = Math.min(minX, it.x);
+    minY = Math.min(minY, it.y);
+    maxX = Math.max(maxX, it.x + it.w);
+    maxY = Math.max(maxY, it.y + it.h);
+  }
+  const groupCx = (minX + maxX) * 0.5;
+  const groupCy = (minY + maxY) * 0.5;
+  const rad = (normDelta * Math.PI) / 180;
+  const cosA = Math.cos(rad);
+  const sinA = Math.sin(rad);
+
+  const rotatedGroup: MapItem[] = groupItems.map((it) => {
+    const cx = it.x + it.w * 0.5;
+    const cy = it.y + it.h * 0.5;
+    const dx = cx - groupCx;
+    const dy = cy - groupCy;
+    const rotCx = groupCx + dx * cosA - dy * sinA;
+    const rotCy = groupCy + dx * sinA + dy * cosA;
+    const nextAngle = normalizeTileAngle((it.angle ?? 0) + normDelta);
+    const swapAxes =
+      it.w !== it.h &&
+      ((!it.angle && (normDelta === 90 || normDelta === 270)) ||
+        (it.kind === 'corridor' && (nextAngle === 90 || nextAngle === 270)));
+    const newW = swapAxes ? Math.min(columns, it.h) : Math.min(columns, it.w);
+    const newH = swapAxes ? it.w : it.h;
+    const newAngle = swapAxes ? undefined : nextAngle;
+    return {
+      ...it,
+      x: Math.round(rotCx - newW * 0.5),
+      y: Math.round(rotCy - newH * 0.5),
+      w: newW,
+      h: newH,
+      angle: newAngle,
+    };
+  });
+
+  // Clamp the rotated group as a rigid block within [0, columns] and y >= 0
+  const gMinX = Math.min(...rotatedGroup.map((g) => g.x));
+  const gMaxX = Math.max(...rotatedGroup.map((g) => g.x + g.w));
+  const gMinY = Math.min(...rotatedGroup.map((g) => g.y));
+  const shiftX = gMinX < 0 ? -gMinX : gMaxX > columns ? columns - gMaxX : 0;
+  const shiftY = gMinY < 0 ? -gMinY : 0;
+  for (const g of rotatedGroup) {
+    g.x = Math.max(0, Math.min(columns - g.w, g.x + shiftX));
+    g.y = Math.max(0, g.y + shiftY);
+  }
+
+  // Resolve any internal integer-rounding collision inside the rotated group by nudging outward from group center
+  for (let pass = 0; pass < 3; pass++) {
+    let fixedAny = false;
+    for (let i = 0; i < rotatedGroup.length; i++) {
+      for (let j = i + 1; j < rotatedGroup.length; j++) {
+        const a = rotatedGroup[i];
+        const b = rotatedGroup[j];
+        if (!tilesConflict(a, b)) continue;
+        const acx = a.x + a.w * 0.5;
+        const acy = a.y + a.h * 0.5;
+        const bcx = b.x + b.w * 0.5;
+        const bcy = b.y + b.h * 0.5;
+        const distA = Math.hypot(acx - groupCx, acy - groupCy);
+        const distB = Math.hypot(bcx - groupCx, bcy - groupCy);
+        const mover = distB >= distA ? b : a;
+        const anchor = mover === b ? a : b;
+        const vx = mover.x + mover.w * 0.5 - (anchor.x + anchor.w * 0.5);
+        const vy = mover.y + mover.h * 0.5 - (anchor.y + anchor.h * 0.5);
+        const stepX = Math.abs(vx) >= Math.abs(vy) * 0.5 ? (vx >= 0 ? 1 : -1) : 0;
+        const stepY = Math.abs(vy) >= Math.abs(vx) * 0.5 ? (vy >= 0 ? 1 : -1) : 0;
+        const nx = Math.max(0, Math.min(columns - mover.w, mover.x + (stepX || 1)));
+        const ny = Math.max(0, mover.y + (stepY || 1));
+        if (nx !== mover.x || ny !== mover.y) {
+          mover.x = nx;
+          mover.y = ny;
+          fixedAny = true;
+        }
+      }
+    }
+    if (!fixedAny) break;
+  }
+
+  const staticOthers = baseItems.filter((i) => !groupKeys.has(i.key));
+  const minOffsetX = -Math.min(...rotatedGroup.map((g) => g.x));
+  const maxOffsetX = Math.min(...rotatedGroup.map((g) => columns - (g.x + g.w)));
+  const minOffsetY = -Math.min(...rotatedGroup.map((g) => g.y));
+
+  const offsets: Array<[number, number]> = [];
+  for (let oy = Math.max(-3, minOffsetY); oy <= 3; oy++) {
+    for (let ox = Math.max(-3, minOffsetX); ox <= Math.min(3, maxOffsetX); ox++) {
+      offsets.push([ox, oy]);
+    }
+  }
+  offsets.sort((a, b) => Math.hypot(a[0], a[1]) - Math.hypot(b[0], b[1]));
+
+  for (const [ox, oy] of offsets) {
+    const shifted = rotatedGroup.map((g) => ({ ...g, x: g.x + ox, y: g.y + oy }));
+    const conflictsWithOutside = shifted.some((g) => staticOthers.some((o) => tilesConflict(g, o)));
+    if (!conflictsWithOutside) {
+      const byKey = new Map(shifted.map((g) => [g.key, g]));
+      return {
+        rotated: true,
+        conflict: false,
+        items: baseItems.map((it) => byKey.get(it.key) ?? { ...it }),
+      };
+    }
+  }
+
+  return {
+    rotated: false,
+    conflict: true,
+    items: baseItems.map((i) => ({ ...i })),
+  };
+}
+
 
 
