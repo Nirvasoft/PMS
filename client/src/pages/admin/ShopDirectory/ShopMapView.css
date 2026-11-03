@@ -275,7 +275,7 @@
 .shop-map-grid-item.active-target {
   z-index: 7;
 }
-.shop-map-grid-item:not(.has-inner-items):hover,
+.shop-map-grid-item:not(.has-inner-items):not(.is-corridor-item):hover,
 .shop-map-grid-item.editing:not(.has-inner-items):hover {
   z-index: 8;
 }
@@ -534,45 +534,144 @@
   outline: none;
   filter: drop-shadow(0 0 3px rgba(139, 92, 246, 0.55));
 }
+.shop-map-grid-item.is-rotated-item.editing:hover > .shop-map-tile:not(.is-circle-tile):not(.is-polygon-atrium):not(.is-trapezoid-tile),
+.shop-map-grid-item.is-rotated-item.editing.resizing > .shop-map-tile:not(.is-circle-tile):not(.is-polygon-atrium):not(.is-trapezoid-tile),
+.shop-map-grid-item.is-rotating-item > .shop-map-tile:not(.is-circle-tile):not(.is-polygon-atrium):not(.is-trapezoid-tile) {
+  outline: 1.5px dashed rgba(16, 185, 129, 0.72);
+  outline-offset: 0px;
+}
 .shop-map-stage .react-grid-item > .react-resizable-handle {
+  left: calc(50% + var(--tile-nudge-x, 0px)) !important;
+  top: calc(50% + var(--tile-nudge-y, 0px)) !important;
+  right: auto !important;
+  bottom: auto !important;
+  margin: 0 !important;
   width: 14px;
   height: 14px;
-  z-index: 6;
+  z-index: 12;
   opacity: 0;
   pointer-events: none;
   background-image: none;
+  transform: translate(-50%, -50%) rotate(var(--tile-angle, 0deg))
+    translate(
+      calc(var(--handle-x, 0px) * var(--rot-flip, 1)),
+      calc(var(--handle-y, 0px) * var(--rot-flip, 1))
+    );
   transition: opacity 0.14s ease;
 }
 .shop-map-stage .react-grid-item:hover > .react-resizable-handle,
 .shop-map-stage .react-grid-item:focus-within > .react-resizable-handle,
-.shop-map-stage .react-grid-item.resizing > .react-resizable-handle {
+.shop-map-stage .react-grid-item.resizing > .react-resizable-handle,
+.shop-map-stage .react-grid-item.is-rotating-item > .react-resizable-handle {
   opacity: 1;
   pointer-events: auto;
 }
 .shop-map-stage .react-grid-item > .react-resizable-handle::after {
-  right: 2px;
-  bottom: 2px;
-  width: 6px;
-  height: 6px;
-  border-right: 2.5px solid var(--accent, #10b981) !important;
-  border-bottom: 2.5px solid var(--accent, #10b981) !important;
-  border-radius: 1px;
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  right: auto;
+  bottom: auto;
+  width: 7px;
+  height: 7px;
+  transform: translate(-50%, -50%);
+  background: var(--accent, #10b981);
+  border: 1.5px solid #ffffff !important;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.38);
+}
+.shop-map-stage .react-grid-item > .react-resizable-handle:hover::after {
+  transform: translate(-50%, -50%) scale(1.25);
 }
 .shop-map-stage .react-grid-item > .react-resizable-handle.react-resizable-handle-nw {
-  top: -2px;
-  left: -2px;
+  --handle-x: calc(var(--tile-w, 100%) * -0.5);
+  --handle-y: calc(var(--tile-h, 100%) * -0.5);
 }
 .shop-map-stage .react-grid-item > .react-resizable-handle.react-resizable-handle-ne {
-  top: -2px;
-  right: -2px;
+  --handle-x: calc(var(--tile-w, 100%) * 0.5);
+  --handle-y: calc(var(--tile-h, 100%) * -0.5);
 }
 .shop-map-stage .react-grid-item > .react-resizable-handle.react-resizable-handle-sw {
-  bottom: -2px;
-  left: -2px;
+  --handle-x: calc(var(--tile-w, 100%) * -0.5);
+  --handle-y: calc(var(--tile-h, 100%) * 0.5);
 }
 .shop-map-stage .react-grid-item > .react-resizable-handle.react-resizable-handle-se {
-  bottom: -2px;
-  right: -2px;
+  --handle-x: calc(var(--tile-w, 100%) * 0.5);
+  --handle-y: calc(var(--tile-h, 100%) * 0.5);
+}
+.shop-map-stage .react-grid-item > .react-resizable-handle.react-resizable-handle-n {
+  --handle-x: 0px;
+  --handle-y: calc(var(--tile-h, 100%) * -0.5);
+}
+.shop-map-stage .react-grid-item > .react-resizable-handle.react-resizable-handle-s {
+  --handle-x: 0px;
+  --handle-y: calc(var(--tile-h, 100%) * 0.5);
+}
+.shop-map-stage .react-grid-item > .react-resizable-handle.react-resizable-handle-e {
+  --handle-x: calc(var(--tile-w, 100%) * 0.5);
+  --handle-y: 0px;
+}
+.shop-map-stage .react-grid-item > .react-resizable-handle.react-resizable-handle-w {
+  --handle-x: calc(var(--tile-w, 100%) * -0.5);
+  --handle-y: 0px;
+}
+
+/* ── Draggable Green Dot Rotation Handle ── */
+.shop-map-rot-handle {
+  position: absolute;
+  left: calc(50% + var(--tile-nudge-x, 0px));
+  top: calc(50% + var(--tile-nudge-y, 0px));
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  z-index: 14;
+  cursor: grab;
+  opacity: 0;
+  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transform: translate(-50%, -50%) rotate(var(--tile-angle, 0deg))
+    translate(0px, calc(var(--tile-h, 40px) * 0.5 + 16px));
+  transition: opacity 0.14s ease;
+}
+.shop-map-grid-item:hover > .shop-map-rot-handle,
+.shop-map-grid-item:focus-within > .shop-map-rot-handle,
+.shop-map-grid-item.is-rotating-item > .shop-map-rot-handle {
+  opacity: 1;
+  pointer-events: auto;
+}
+.shop-map-rot-handle:active,
+.shop-map-grid-item.is-rotating-item > .shop-map-rot-handle {
+  cursor: grabbing;
+}
+.shop-map-rot-handle::before {
+  content: '';
+  position: absolute;
+  bottom: 50%;
+  left: 50%;
+  width: 1.5px;
+  height: 14px;
+  transform: translateX(-50%);
+  background: var(--accent, #10b981);
+  pointer-events: none;
+}
+.shop-map-rot-dot {
+  position: relative;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent, #10b981);
+  border: 2px solid #ffffff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.42);
+  transition: transform 0.12s ease;
+}
+.shop-map-rot-handle:hover .shop-map-rot-dot,
+.shop-map-grid-item.is-rotating-item .shop-map-rot-dot {
+  transform: scale(1.22);
 }
 
 /* 2. Stairs — Stepped Treads Pattern (Amber) */
@@ -622,14 +721,21 @@
 
 /* 4. Corridor / Walking Area — Walkway Lane with Auto-Merging Borders & Center Line (Teal) */
 .shop-map-tile.st-decor-corridor {
+  --corridor-fill: color-mix(in srgb, #14b8a6 13%, var(--card-bg, #0f172a));
   z-index: 1;
-  background: rgba(20, 184, 166, 0.10);
+  background: var(--corridor-fill);
   border: none;
   padding: 0;
   overflow: visible;
 }
+[data-theme="light"] .shop-map-tile.st-decor-corridor {
+  --corridor-fill: color-mix(in srgb, #14b8a6 11%, #f1f5f9);
+}
+.shop-map-tile.st-decor-corridor.editing:not(.is-curved-corridor) {
+  background: rgba(20, 184, 166, 0.12);
+}
 .shop-map-tile.st-decor-corridor.is-curved-corridor {
-  background: transparent;
+  background: transparent !important;
 }
 .shop-map-tile.st-decor-corridor.is-curved-corridor.editing:hover {
   outline: none;
@@ -651,7 +757,11 @@
 }
 .shop-map-corridor-fill,
 .shop-map-corridor-bridge {
-  fill: rgba(20, 184, 166, 0.10);
+  fill: var(--corridor-fill, rgba(20, 184, 166, 0.13));
+}
+.shop-map-tile.st-decor-corridor.editing .shop-map-corridor-fill,
+.shop-map-tile.st-decor-corridor.editing .shop-map-corridor-bridge {
+  fill: rgba(20, 184, 166, 0.12);
 }
 .shop-map-corridor-border {
   fill: none;
@@ -714,7 +824,17 @@
   --glass-lip: rgba(131, 24, 67, 0.72);
 }
 .shop-map-tile.st-decor-marker {
-  background: radial-gradient(circle at center, rgba(236, 72, 153, 0.25) 0%, rgba(236, 72, 153, 0.06) 75%);
+  background: radial-gradient(circle at center, rgba(236, 72, 153, 0.28) 0%, rgba(236, 72, 153, 0.1) 78%);
+}
+.shop-map-tile.st-decor-marker .shop-map-decor-badge,
+.shop-map-view2 .shop-map-tile.st-decor-marker .shop-map-decor-badge,
+[data-theme="light"] .shop-map-view2 .shop-map-tile.st-decor-marker .shop-map-decor-badge {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border-radius: inherit;
 }
 
 /* 7. Entrance — Emerald Green Entry Gate */
@@ -1109,19 +1229,17 @@
   color: color-mix(in srgb, var(--decor-fg) 80%, #0f172a);
 }
 
-.shop-map-view2 .shop-map-tile.st-decor-corridor {
-  background: rgba(148, 163, 184, 0.07);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+.shop-map-view2 .shop-map-tile.st-decor-corridor:not(.editing):not(.is-curved-corridor) {
+  background: var(--corridor-fill);
 }
 .shop-map-view2 .shop-map-tile.st-decor-corridor.is-curved-corridor {
-  background: transparent;
+  background: transparent !important;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
-.shop-map-view2 .shop-map-corridor-fill,
-.shop-map-view2 .shop-map-corridor-bridge {
-  fill: rgba(148, 163, 184, 0.07);
+.shop-map-view2 .shop-map-tile.st-decor-corridor:not(.editing) .shop-map-corridor-fill,
+.shop-map-view2 .shop-map-tile.st-decor-corridor:not(.editing) .shop-map-corridor-bridge {
+  fill: var(--corridor-fill);
 }
 .shop-map-view2 .shop-map-corridor-border {
   stroke: rgba(148, 163, 184, 0.42);
@@ -1404,7 +1522,8 @@
   pointer-events: none;
   transition: opacity 0.14s ease;
 }
-.shop-map-grid-item.has-inner-items > .shop-map-tile-actions {
+.shop-map-grid-item.has-inner-items > .shop-map-tile-actions,
+.shop-map-grid-item.is-rotated-item > .shop-map-tile-actions {
   top: -18px;
   padding-bottom: 6px;
 }
@@ -2142,6 +2261,9 @@
   color: var(--accent, #10b981);
   flex-shrink: 0;
 }
+.shop-map-lm-variant-icon.is-circle {
+  border-radius: 50%;
+}
 .shop-map-lm-variant-btn.emergency .shop-map-lm-variant-icon {
   color: #ef4444;
   background: rgba(239, 68, 68, 0.14);
@@ -2176,10 +2298,6 @@
 .shop-map-lm-custom-input:focus {
   border-color: var(--accent, #10b981);
   box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.15);
-}
-.shop-map-lm-modal-hint {
-  font-size: 0.71rem;
-  color: var(--text-secondary);
 }
 .shop-map-lm-toggle-row {
   display: flex;
@@ -2475,17 +2593,9 @@
   .shop-map-nav-field {
     flex: 1 1 100%;
   }
-  .shop-map-nav-label {
-    font-size: 0.7rem;
-    min-width: 48px;
-  }
   .shop-map-nav-select-btn {
     padding: 5px 8px;
     font-size: 0.73rem;
-  }
-  .shop-map-nav-group-header {
-    font-size: 0.64rem;
-    padding: 4px 7px;
   }
   .shop-map-nav-option {
     font-size: 0.72rem;
@@ -2579,19 +2689,19 @@
 }
 
 /* Seamless Mappedin Concourse Walkway in View Mode */
-.shop-map-tile.st-decor-corridor:not(.editing) {
-  background: rgba(20, 184, 166, 0.13);
+.shop-map-tile.st-decor-corridor:not(.editing):not(.is-curved-corridor) {
+  background: var(--corridor-fill);
 }
-[data-theme="light"] .shop-map-tile.st-decor-corridor:not(.editing) {
-  background: rgba(20, 184, 166, 0.11);
+[data-theme="light"] .shop-map-tile.st-decor-corridor:not(.editing):not(.is-curved-corridor) {
+  background: var(--corridor-fill);
 }
 .shop-map-tile.st-decor-corridor:not(.editing) .shop-map-corridor-fill,
 .shop-map-tile.st-decor-corridor:not(.editing) .shop-map-corridor-bridge {
-  fill: rgba(20, 184, 166, 0.13);
+  fill: var(--corridor-fill);
 }
 [data-theme="light"] .shop-map-tile.st-decor-corridor:not(.editing) .shop-map-corridor-fill,
 [data-theme="light"] .shop-map-tile.st-decor-corridor:not(.editing) .shop-map-corridor-bridge {
-  fill: rgba(20, 184, 166, 0.11);
+  fill: var(--corridor-fill);
 }
 .shop-map-tile.st-decor-corridor:not(.editing) .shop-map-corridor-border {
   stroke-dasharray: none;

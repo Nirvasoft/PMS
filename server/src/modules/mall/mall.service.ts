@@ -218,8 +218,13 @@ class MallService {
     ) => {
       const angleA = a.angle ?? 0;
       const angleB = b.angle ?? 0;
-      if (angleA === angleB) return false;
-      if (a.kind === 'atrium' || b.kind === 'atrium' || a.kind === 'corridor' || b.kind === 'corridor') return false;
+      if (angleA === 0 && angleB === 0) return false;
+      if (
+        (a.kind === 'corridor' && a.label === 'walkway:circle') ||
+        (b.kind === 'corridor' && b.label === 'walkway:circle')
+      ) {
+        return false;
+      }
       const getCornersAndAxes = (t: { x: number; y: number; w: number; h: number; angle?: number }) => {
         const cx = t.x + t.w / 2;
         const cy = t.y + t.h / 2;
@@ -276,6 +281,7 @@ class MallService {
           p.x + p.w > q.x &&
           p.y < q.y + q.h &&
           p.y + p.h > q.y &&
+          !(p.kind === 'corridor' && q.kind === 'corridor') &&
           !isInsideCircleHole(p, q) &&
           !isInsideCircleHole(q, p) &&
           !isAtriumTransitOverlap(p, q) &&
