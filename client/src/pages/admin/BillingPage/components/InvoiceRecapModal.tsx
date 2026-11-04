@@ -13,11 +13,9 @@ export interface RecapCenterInfo {
 export interface RecapLineInput {
   description?: string | null;
   amount: number;
-  taxAmount?: number;
   lineTotal?: number;
   glAccountCode?: string | null;
   chargeTypeName?: string | null;
-  chargeTypeCode?: string | null;
   departmentCenter?: RecapCenterInfo | null;
   costCenter?: RecapCenterInfo | null;
 }
@@ -27,9 +25,6 @@ export interface InvoiceRecapModalProps {
   onClose: () => void;
   propertyId?: string;
   invoiceNumber?: string | null;
-  externalInvoiceNumber?: string | null;
-  secondRef?: string | null;
-  notes?: string | null;
   currency?: string | null;
   currencyRate?: number | string | null;
   tenantGlAccountCode?: string | null;
@@ -75,9 +70,6 @@ export const InvoiceRecapModal: React.FC<InvoiceRecapModalProps> = ({
   onClose,
   propertyId,
   invoiceNumber,
-  externalInvoiceNumber,
-  secondRef,
-  notes,
   currency,
   currencyRate,
   tenantGlAccountCode,
@@ -313,10 +305,6 @@ export const InvoiceRecapModal: React.FC<InvoiceRecapModalProps> = ({
     departmentCenter,
     costCenter,
     tenantGlAccountCode,
-    invoiceNumber,
-    externalInvoiceNumber,
-    secondRef,
-    notes,
     totalAmount,
     taxAmount,
     lines,
@@ -431,5 +419,3 @@ export const InvoiceRecapModal: React.FC<InvoiceRecapModalProps> = ({
     </div>
   );
 };
-
-export default InvoiceRecapModal;

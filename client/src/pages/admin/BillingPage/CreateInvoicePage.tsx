@@ -335,9 +335,6 @@ export default function CreateInvoicePage() {
             <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>Create a manual ad-hoc invoice for a tenant</p>
           </div>
         </div>
-      </div>
-
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: -56, marginBottom: 24 }}>
         <button
           type="button"
           className="btn btn-secondary"
@@ -660,8 +657,6 @@ export default function CreateInvoicePage() {
         onClose={() => setShowRecapModal(false)}
         propertyId={resolvedPropertyId || undefined}
         invoiceNumber={null}
-        secondRef={form.secondRef}
-        notes={form.notes}
         currency={effectiveCurrency}
         currencyRate={effectiveRate}
         tenantGlAccountCode={selectedTenant?.glAccountCode}
@@ -676,11 +671,9 @@ export default function CreateInvoicePage() {
           return {
             description: line.description,
             amount: lineAmt,
-            taxAmount: lineTax,
             lineTotal: lineAmt + lineTax,
             glAccountCode: ct?.glAccountCode ?? null,
             chargeTypeName: ct?.name ?? null,
-            chargeTypeCode: ct?.code ?? null,
             departmentCenter: ct?.departmentCenter || departmentCenters.find((d) => d.id === form.departmentCenterId) || null,
             costCenter: ct?.costCenter || costCenters.find((c) => c.id === form.costCenterId) || null,
           };

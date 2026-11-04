@@ -207,7 +207,6 @@ export interface InvoiceListItem {
 }
 
 export interface InvoiceDetail extends InvoiceListItem {
-  externalInvoiceNumber?: string | null;
   periodFrom: string | null;
   periodTo: string | null;
   discountAmount: string;

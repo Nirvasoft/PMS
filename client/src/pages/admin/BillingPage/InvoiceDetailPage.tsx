@@ -595,9 +595,6 @@ export default function InvoiceDetailPage() {
         onClose={() => setShowRecapModal(false)}
         propertyId={inv.property?.id}
         invoiceNumber={inv.invoiceNumber}
-        externalInvoiceNumber={inv.externalInvoiceNumber}
-        secondRef={inv.secondRef}
-        notes={inv.notes}
         currency={inv.currency}
         currencyRate={inv.currencyRate ?? effectiveRate}
         tenantGlAccountCode={inv.tenant?.glAccountCode}
@@ -610,11 +607,9 @@ export default function InvoiceDetailPage() {
           return {
             description: line.description,
             amount: Number(line.amount) || 0,
-            taxAmount: Number(line.taxAmount) || 0,
             lineTotal: Number(line.lineTotal) || Number(line.amount) || 0,
             glAccountCode: line.chargeType?.glAccountCode ?? fullCt?.glAccountCode ?? null,
             chargeTypeName: line.chargeType?.name ?? fullCt?.name ?? null,
-            chargeTypeCode: line.chargeType?.code ?? fullCt?.code ?? null,
             departmentCenter: line.chargeType?.departmentCenter ?? fullCt?.departmentCenter ?? inv.departmentCenter,
             costCenter: line.chargeType?.costCenter ?? fullCt?.costCenter ?? inv.costCenter,
           };
