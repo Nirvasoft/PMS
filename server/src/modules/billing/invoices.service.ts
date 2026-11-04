@@ -320,35 +320,71 @@ export class InvoicesService {
   }
 
   async findById(id: string, companyId: string) {
-    const invoice = await prisma.invoice.findFirst({
-      where: { id, companyId },
-      include: {
-        lines: {
-          include: { chargeType: { select: { id: true, code: true, name: true, category: true } } },
-          orderBy: { sortOrder: 'asc' },
-        },
-        tenant: { select: { id: true, firstName: true, lastName: true, companyName: true, tenantType: true, email: true, currency: true } },
-        unit: { select: { id: true, unitNumber: true, floorNumber: true, floorLabel: true } },
-        property: { select: { id: true, name: true, coverImageUrl: true, imageUrl: true } },
-        departmentCenter: { select: { id: true, code: true, name: true } },
-        costCenter: { select: { id: true, code: true, name: true } },
-        creditNotes: { select: { id: true, invoiceNumber: true, totalAmount: true, status: true } },
-        receiptAllocations: {
-          include: {
-            receipt: {
-              select: {
-                id: true, receiptNumber: true, receiptDate: true,
-                paymentMethod: true, paymentReference: true,
-                amount: true, currency: true, status: true,
+    const [invoice, entityMap] = await Promise.all([
+      prisma.invoice.findFirst({
+        where: { id, companyId },
+        include: {
+          lines: {
+            include: {
+              chargeType: {
+                select: {
+                  id: true,
+                  code: true,
+                  name: true,
+                  category: true,
+                  glAccountCode: true,
+                  departmentCenterId: true,
+                  costCenterId: true,
+                  departmentCenter: { select: { id: true, code: true, name: true } },
+                  costCenter: { select: { id: true, code: true, name: true } },
+                },
               },
             },
+            orderBy: { sortOrder: 'asc' },
           },
-          orderBy: { allocatedAt: 'desc' },
+          tenant: {
+            select: {
+              id: true,
+              code: true,
+              firstName: true,
+              lastName: true,
+              companyName: true,
+              tenantType: true,
+              email: true,
+              currency: true,
+              glAccountCode: true,
+            },
+          },
+          unit: { select: { id: true, unitNumber: true, floorNumber: true, floorLabel: true } },
+          property: { select: { id: true, name: true, coverImageUrl: true, imageUrl: true } },
+          departmentCenter: { select: { id: true, code: true, name: true } },
+          costCenter: { select: { id: true, code: true, name: true } },
+          creditNotes: { select: { id: true, invoiceNumber: true, totalAmount: true, status: true } },
+          receiptAllocations: {
+            include: {
+              receipt: {
+                select: {
+                  id: true, receiptNumber: true, receiptDate: true,
+                  paymentMethod: true, paymentReference: true,
+                  amount: true, currency: true, status: true,
+                },
+              },
+            },
+            orderBy: { allocatedAt: 'desc' },
+          },
         },
-      },
-    });
+      }),
+      prisma.integrationEntityMap.findFirst({
+        where: { companyId, entityType: 'invoice', pmsId: id },
+        orderBy: { syncedAt: 'desc' },
+        select: { externalId: true },
+      }),
+    ]);
     if (!invoice) throw AppError.notFound('Invoice');
-    return withOutstanding(invoice);
+    return {
+      ...withOutstanding(invoice),
+      externalInvoiceNumber: entityMap?.externalId || null,
+    };
   }
 
   // ── Dashboard Summary ───────────────────────

@@ -7,7 +7,8 @@ import {
   useSendInvoiceMutation, useCreateCreditNoteMutation, useGetChargeTypesQuery,
   useGetCurrencyRatesQuery,
 } from '../../../store/api/billingApi';
-import { List, FileText, Ban, CreditCard, Send, Plus, Trash2, X, Banknote, History, ShieldAlert, Timer, Eye, UploadCloud } from 'lucide-react';
+import { List, FileText, Ban, CreditCard, Send, Plus, Trash2, X, Banknote, History, ShieldAlert, Timer, Eye, UploadCloud, Table2 } from 'lucide-react';
+import { InvoiceRecapModal } from './components/InvoiceRecapModal';
 import { format, differenceInDays } from 'date-fns';
 import toast from 'react-hot-toast';
 import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
@@ -83,6 +84,7 @@ export default function InvoiceDetailPage() {
 
   // Credit Note modal state
   const [showCreditModal, setShowCreditModal] = useState(false);
+  const [showRecapModal, setShowRecapModal] = useState(false);
   const [creditReason, setCreditReason] = useState('');
   const [creditLines, setCreditLines] = useState<CreditLine[]>([
     { chargeTypeId: '', description: '', quantity: 1, unitPrice: 0, taxRate: 0 },
@@ -240,6 +242,14 @@ export default function InvoiceDetailPage() {
           <button className="btn btn-primary" onClick={handleViewPdf}
             style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <Eye size={14} /> View PDF
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => setShowRecapModal(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+          >
+            <Table2 size={14} /> Recap
           </button>
           <PermissionGuard permission="billing-invoices.write">
             {['draft', 'issued'].includes(inv.status) && (
@@ -580,6 +590,36 @@ export default function InvoiceDetailPage() {
       )}
 
       {/* ═══ Credit Note Modal ═══ */}
+      <InvoiceRecapModal
+        open={showRecapModal}
+        onClose={() => setShowRecapModal(false)}
+        propertyId={inv.property?.id}
+        invoiceNumber={inv.invoiceNumber}
+        externalInvoiceNumber={inv.externalInvoiceNumber}
+        secondRef={inv.secondRef}
+        notes={inv.notes}
+        currency={inv.currency}
+        currencyRate={inv.currencyRate ?? effectiveRate}
+        tenantGlAccountCode={inv.tenant?.glAccountCode}
+        departmentCenter={inv.departmentCenter}
+        costCenter={inv.costCenter}
+        totalAmount={Number(inv.totalAmount) || 0}
+        taxAmount={Number(inv.taxAmount) || 0}
+        lines={inv.lines.map((line) => {
+          const fullCt = chargeTypes.find((c) => c.id === line.chargeType?.id);
+          return {
+            description: line.description,
+            amount: Number(line.amount) || 0,
+            taxAmount: Number(line.taxAmount) || 0,
+            lineTotal: Number(line.lineTotal) || Number(line.amount) || 0,
+            glAccountCode: line.chargeType?.glAccountCode ?? fullCt?.glAccountCode ?? null,
+            chargeTypeName: line.chargeType?.name ?? fullCt?.name ?? null,
+            chargeTypeCode: line.chargeType?.code ?? fullCt?.code ?? null,
+            departmentCenter: line.chargeType?.departmentCenter ?? fullCt?.departmentCenter ?? inv.departmentCenter,
+            costCenter: line.chargeType?.costCenter ?? fullCt?.costCenter ?? inv.costCenter,
+          };
+        })}
+      />
       {showCreditModal && (
         <div className="modal-overlay">
           <div className="modal-content modal-lg" onClick={e => e.stopPropagation()}>

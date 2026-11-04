@@ -125,7 +125,17 @@ export interface BillingSchedule {
   costCenterId?: string | null;
   departmentCenter?: { id: string; code: string; name: string } | null;
   costCenter?: { id: string; code: string; name: string } | null;
-  chargeType: { id: string; code: string; name: string; category: string };
+  chargeType: {
+    id: string;
+    code: string;
+    name: string;
+    category: string;
+    glAccountCode?: string | null;
+    departmentCenterId?: string | null;
+    costCenterId?: string | null;
+    departmentCenter?: { id: string; code: string; name: string } | null;
+    costCenter?: { id: string; code: string; name: string } | null;
+  };
   tenant: { id: string; firstName: string | null; lastName: string | null; companyName: string | null; tenantType: string };
   unit: { id: string; unitNumber: string; floorNumber?: number | null; floorLabel?: string | null } | null;
   property: { id: string; name: string };
@@ -145,7 +155,17 @@ export interface InvoiceLine {
   lineTotal: string;
   periodFrom: string | null;
   periodTo: string | null;
-  chargeType: { id: string; code: string; name: string; category: string };
+  chargeType: {
+    id: string;
+    code: string;
+    name: string;
+    category: string;
+    glAccountCode?: string | null;
+    departmentCenterId?: string | null;
+    costCenterId?: string | null;
+    departmentCenter?: { id: string; code: string; name: string } | null;
+    costCenter?: { id: string; code: string; name: string } | null;
+  };
 }
 
 export interface InvoiceListItem {
@@ -167,7 +187,16 @@ export interface InvoiceListItem {
   costCenterId?: string | null;
   departmentCenter?: { id: string; code: string; name: string } | null;
   costCenter?: { id: string; code: string; name: string } | null;
-  tenant: { id: string; firstName: string | null; lastName: string | null; companyName: string | null; tenantType: string; currency: string | null };
+  tenant: {
+    id: string;
+    code?: string | null;
+    firstName: string | null;
+    lastName: string | null;
+    companyName: string | null;
+    tenantType: string;
+    currency: string | null;
+    glAccountCode?: string | null;
+  };
   unit: { id: string; unitNumber: string; floorNumber?: number | null; floorLabel?: string | null } | null;
   property: { id: string; name: string; coverImageUrl?: string | null; imageUrl?: string | null };
   periodFrom?: string | null;
@@ -178,6 +207,7 @@ export interface InvoiceListItem {
 }
 
 export interface InvoiceDetail extends InvoiceListItem {
+  externalInvoiceNumber?: string | null;
   periodFrom: string | null;
   periodTo: string | null;
   discountAmount: string;

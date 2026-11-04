@@ -7,7 +7,8 @@ import { useGetPropertiesQuery, useGetMyPropertyScopeQuery } from '../../../stor
 import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
 import { useGetLeasesQuery } from '../../../store/api/leasesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
-import { ArrowLeft, Plus, Trash2, FileText, ClipboardList, Building2, Send } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, FileText, ClipboardList, Building2, Send, Table2 } from 'lucide-react';
+import { InvoiceRecapModal } from './components/InvoiceRecapModal';
 import { useAlertDialog } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import ComboBox from '../../../components/ComboBox';
@@ -53,6 +54,7 @@ export default function CreateInvoicePage() {
     dueDate: '', secondRef: '', notes: '',
   });
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
+  const [showRecapModal, setShowRecapModal] = useState(false);
 
   const resolvedPropertyId = form.propertyId || effectivePropertyId;
 
@@ -323,7 +325,7 @@ export default function CreateInvoicePage() {
         <ArrowLeft size={14} /> Back to Invoices
       </button>
 
-      <div className="page-header" style={{ marginBottom: 28 }}>
+      <div className="page-header" style={{ marginBottom: 28, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div className="page-title-row">
           <div className="page-icon-lg" style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent)', borderRadius: 12 }}>
             <FileText size={22} />
@@ -333,6 +335,17 @@ export default function CreateInvoicePage() {
             <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>Create a manual ad-hoc invoice for a tenant</p>
           </div>
         </div>
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: -56, marginBottom: 24 }}>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => setShowRecapModal(true)}
+          style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+        >
+          <Table2 size={14} /> Recap
+        </button>
       </div>
 
       <form onSubmit={handleSubmit} noValidate>
@@ -623,14 +636,56 @@ export default function CreateInvoicePage() {
               <span className="t-value">{formatCurrency(total, effectiveCurrency)}</span>
             </div>
           </div>
-          <PermissionGuard permission="billing-invoices.write">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setShowRecapModal(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, height: 42, padding: '0 18px' }}
+            >
+              <Table2 size={15} /> Recap
+            </button>
+            <PermissionGuard permission="billing-invoices.write">
             <button type="submit" className="inv-submit-btn" disabled={isLoading}>
               <Send size={16} />
               {isLoading ? 'Creating…' : 'Create Invoice'}
             </button>
-          </PermissionGuard>
+            </PermissionGuard>
+          </div>
         </div>
       </form>
+
+      <InvoiceRecapModal
+        open={showRecapModal}
+        onClose={() => setShowRecapModal(false)}
+        propertyId={resolvedPropertyId || undefined}
+        invoiceNumber={null}
+        secondRef={form.secondRef}
+        notes={form.notes}
+        currency={effectiveCurrency}
+        currencyRate={effectiveRate}
+        tenantGlAccountCode={selectedTenant?.glAccountCode}
+        departmentCenter={departmentCenters.find((d) => d.id === form.departmentCenterId) || null}
+        costCenter={costCenters.find((c) => c.id === form.costCenterId) || null}
+        totalAmount={total}
+        taxAmount={tax}
+        lines={lines.map((line) => {
+          const ct = chargeTypes.find((c) => c.id === line.chargeTypeId);
+          const lineAmt = line.quantity * line.unitPrice;
+          const lineTax = lineAmt * line.taxRate;
+          return {
+            description: line.description,
+            amount: lineAmt,
+            taxAmount: lineTax,
+            lineTotal: lineAmt + lineTax,
+            glAccountCode: ct?.glAccountCode ?? null,
+            chargeTypeName: ct?.name ?? null,
+            chargeTypeCode: ct?.code ?? null,
+            departmentCenter: ct?.departmentCenter || departmentCenters.find((d) => d.id === form.departmentCenterId) || null,
+            costCenter: ct?.costCenter || costCenters.find((c) => c.id === form.costCenterId) || null,
+          };
+        })}
+      />
     </div>
   );
 }
