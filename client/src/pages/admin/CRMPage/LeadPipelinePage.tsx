@@ -8,6 +8,7 @@ import { Target, Plus, Search, X, Filter, ShieldOff, ChevronLeft, ChevronRight }
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
+import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import './CRMPage.css';
 
 const STAGE_META: Record<string, { label: string; color: string }> = {
@@ -37,14 +38,22 @@ export default function LeadPipelinePage() {
     setPage(1);
   }, [debouncedSearch, stageFilter, priorityFilter]);
 
-  const { data: statsData } = useGetLeadStatsQuery({});
-  const { data: leadsData, isFetching } = useGetLeadsQuery({
-    search: debouncedSearch || undefined,
-    stage: stageFilter || undefined,
-    priority: priorityFilter || undefined,
-    page,
-    limit: pageSize,
-  });
+  const selectedPropertyId = useSelectedPropertyId();
+  const { data: statsData } = useGetLeadStatsQuery(
+    { propertyId: selectedPropertyId },
+    { skip: !selectedPropertyId },
+  );
+  const { data: leadsData, isFetching } = useGetLeadsQuery(
+    {
+      propertyId: selectedPropertyId,
+      search: debouncedSearch || undefined,
+      stage: stageFilter || undefined,
+      priority: priorityFilter || undefined,
+      page,
+      limit: pageSize,
+    },
+    { skip: !selectedPropertyId },
+  );
 
   const stats = statsData?.data;
   const leads = leadsData?.data || [];

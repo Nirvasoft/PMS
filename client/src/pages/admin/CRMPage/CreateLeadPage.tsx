@@ -7,10 +7,12 @@ import { List } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { format } from 'date-fns';
+import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import './CreateLeadPage.css';
 
 export default function CreateLeadPage() {
   const navigate = useNavigate();
+  const selectedPropertyId = useSelectedPropertyId();
   const [createLead, { isLoading }] = useCreateLeadMutation();
   const { data: usersData } = useGetUsersQuery({ page: '1', limit: '200' });
   const users = usersData?.data || [];
@@ -62,6 +64,7 @@ export default function CreateLeadPage() {
       });
 
       const body: Record<string, unknown> = {
+        propertyId: selectedPropertyId || undefined,
         lastName: form.lastName,
         email: form.email ? form.email.trim().toLowerCase() : undefined,
         phone: form.phone || undefined,
