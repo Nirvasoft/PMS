@@ -66,6 +66,23 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
     return missing;
   }, [form.fromFloor, form.toFloor, floorPrefixMap]);
 
+  const hasMissingPrefixWarning = form.useFloorLabelPrefix && !!form.unitTypeId && !invalidFloorRange && floorsMissingPrefix.length > 0;
+  const [plainPrefixConfirmed, setPlainPrefixConfirmed] = useState<boolean | null>(null);
+  const [showPrefixConfirmPopup, setShowPrefixConfirmPopup] = useState(false);
+
+  const missingPrefixKey = floorsMissingPrefix.join(',');
+  useEffect(() => {
+    setPlainPrefixConfirmed(null);
+    if (!hasMissingPrefixWarning) {
+      setShowPrefixConfirmPopup(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setShowPrefixConfirmPopup(true);
+    }, 450);
+    return () => clearTimeout(timer);
+  }, [missingPrefixKey, hasMissingPrefixWarning, form.useFloorLabelPrefix, form.unitTypeId]);
+
   // ── Conflict pre-check state ────────────────
   const [conflicts, setConflicts] = useState<Set<string>>(new Set());
   const [checking, setChecking] = useState(false);
@@ -128,12 +145,18 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
   }, [allUnitNumbers, runConflictCheck]);
 
   const conflictCount = conflicts.size;
+  const creatableUnits = Math.max(0, totalUnits - conflictCount);
+  const isPrefixUnconfirmed = hasMissingPrefixWarning && plainPrefixConfirmed !== true;
 
   const handleCreate = async () => {
     if (!form.unitTypeId) { toast.error('Select a unit type'); return; }
     if (invalidFloorRange) { toast.error('To Floor must be greater than or equal to From Floor'); return; }
     if (totalUnits > 500) { toast.error('Maximum 500 units per bulk operation'); return; }
-    if (conflictCount > 0) { toast.error(`${conflictCount} unit number(s) already exist — change the range`); return; }
+    if (creatableUnits === 0) { toast.error(`All ${conflictCount} unit number(s) already exist — change the range`); return; }
+    if (isPrefixUnconfirmed) {
+      setShowPrefixConfirmPopup(true);
+      return;
+    }
 
     try {
       const result = await bulkCreate({
@@ -255,8 +278,13 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
             )}
 
             {/* Missing floor prefix warning */}
-            {form.useFloorLabelPrefix && form.unitTypeId && floorsMissingPrefix.length > 0 && (
-              <div className="conflict-warning">
+            {hasMissingPrefixWarning && (
+              <div
+                className="conflict-warning"
+                style={{ cursor: 'pointer' }}
+                title="Click to confirm or cancel using plain floor number prefix"
+                onClick={() => setShowPrefixConfirmPopup(true)}
+              >
                 <AlertTriangle size={14} />
                 <span>
                   Floor{floorsMissingPrefix.length !== 1 ? 's' : ''} {floorsMissingPrefix.join(', ')} {floorsMissingPrefix.length !== 1 ? "don't" : "doesn't"} have a prefix in Floor Setup — they'll use the plain floor number
@@ -301,11 +329,64 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
         <div className="modal-footer">
           <button className="btn-ghost" onClick={() => dispatch(setBulkCreateOpen(false))}>Cancel</button>
           <button className="btn-primary" onClick={handleCreate}
-            disabled={isLoading || checking || invalidFloorRange || totalUnits > 500 || !form.unitTypeId || conflictCount > 0}>
+            disabled={isLoading || checking || invalidFloorRange || totalUnits > 500 || !form.unitTypeId || creatableUnits === 0 || isPrefixUnconfirmed}>
             {isLoading ? 'Creating…' : `Create ${totalUnits} Units`}
           </button>
         </div>
       </div>
+
+      {/* Popup Confirm Modal for Missing Floor Setup Prefix */}
+      {showPrefixConfirmPopup && hasMissingPrefixWarning && (
+        <div className="modal-overlay" style={{ zIndex: 600 }} onClick={(e) => e.stopPropagation()}>
+          <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title">
+                <AlertTriangle size={18} style={{ color: 'var(--warning, #f59e0b)' }} />
+                <span>Confirm Plain Prefix</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setPlainPrefixConfirmed(false);
+                  setShowPrefixConfirmPopup(false);
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <p style={{ margin: 0, lineHeight: 1.5, color: 'var(--text-primary)' }}>
+                Floor{floorsMissingPrefix.length !== 1 ? 's' : ''} <strong>{floorsMissingPrefix.join(', ')}</strong> {floorsMissingPrefix.length !== 1 ? "don't" : "doesn't"} have a prefix in Floor Setup — they'll use the plain floor number.
+              </p>
+              <p style={{ margin: 0, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
+                Do you want to proceed with plain prefix?
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => {
+                  setPlainPrefixConfirmed(false);
+                  setShowPrefixConfirmPopup(false);
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => {
+                  setPlainPrefixConfirmed(true);
+                  setShowPrefixConfirmPopup(false);
+                }}
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

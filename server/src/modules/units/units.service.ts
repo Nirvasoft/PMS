@@ -422,13 +422,18 @@ export class UnitsService {
 
       const floorSetups = await prisma.floorSetup.findMany({
         where: { propertyId, isActive: true, floorNumber: { gte: from, lte: to } },
-        select: { floorNumber: true, floorLabel: true },
+        select: { floorNumber: true, floorLabel: true, prefix: true },
       });
       const floorLabelMap = new Map(floorSetups.map((f) => [f.floorNumber, f.floorLabel]));
+      const floorPrefixMap = new Map<number, string>();
+      for (const f of floorSetups) {
+        if (f.prefix) floorPrefixMap.set(f.floorNumber, f.prefix);
+      }
 
       for (let floor = from; floor <= to; floor++) {
         const floorLabel = floorLabelMap.get(floor) ?? String(floor);
-        const numberPrefix = useFloorLabelPrefix ? floorLabel : String(floor);
+        const floorPrefix = floorPrefixMap.get(floor) ?? String(floor);
+        const numberPrefix = useFloorLabelPrefix ? floorPrefix : String(floor);
         for (let u = 1; u <= unitsPerFloor; u++) {
           const unitNum = u.toString().padStart(2, '0');
           const unitNumber = `${numberPrefix}${prefix ?? ''}${unitNum}`;
@@ -448,14 +453,17 @@ export class UnitsService {
       }
     }
 
-    // Check for conflicts (case-insensitive)
+    // Check for conflicts (case-insensitive) and skip existing units
     const unitNumbers = units.map((u) => u.unitNumber as string);
     const lowerNumbers = unitNumbers.map((n) => n.toLowerCase());
     const existing = await prisma.unit.findMany({
       where: { propertyId, deletedAt: null },
       select: { unitNumber: true },
     }).then((rows) => rows.filter((r) => lowerNumbers.includes(r.unitNumber.toLowerCase())));
-    if (existing.length > 0) {
+    const existingLowerSet = new Set(existing.map((e) => e.unitNumber.toLowerCase()));
+    const unitsToCreate = units.filter((u) => !existingLowerSet.has((u.unitNumber as string).toLowerCase()));
+
+    if (unitsToCreate.length === 0 && existing.length > 0) {
       throw new AppError(409, 'UNIT_NUMBER_CONFLICT', `${existing.length} unit number(s) already exist`, {
         conflicts: existing.map((e) => e.unitNumber),
       });
@@ -466,7 +474,7 @@ export class UnitsService {
     try {
       created = await prisma.$transaction(async (tx) => {
         const createdUnits = await Promise.all(
-          units.map((u) => tx.unit.create({ data: u as any }))
+          unitsToCreate.map((u) => tx.unit.create({ data: u as any }))
         );
         // Bulk status history
         await tx.unitStatusHistory.createMany({
