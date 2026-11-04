@@ -6107,16 +6107,6 @@ function getTileWorldCorners(
   ];
 }
 
-function worldToLocal(frame: LocalTileFrame, wx: number, wy: number): [number, number] {
-  const rx = wx - frame.tlx;
-  const ry = wy - frame.tly;
-  return [rx * frame.ux + ry * frame.uy, rx * frame.vx + ry * frame.vy];
-}
-
-function localToWorld(frame: LocalTileFrame, u: number, v: number): [number, number] {
-  return [frame.tlx + u * frame.ux + v * frame.vx, frame.tly + u * frame.uy + v * frame.vy];
-}
-
 interface PolygonAtriumWorldFace {
   index: number;
   x0: number;

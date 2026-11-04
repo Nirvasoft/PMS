@@ -2129,6 +2129,196 @@ class IntegrationsService {
   }
 
   /**
+   * Pull customers from V6 ERP (/v6IntegrationAPIlogin/getCustomer) and upsert them as PMS tenants:
+   * - Matches an existing tenant by code / firstName, otherwise creates a new tenant for the property.
+   * - Records the V6 customer code (and syskey) in IntegrationEntityMap.
+   * Returns ok=false (without throwing) when V6 answers with a non-2xx HTTP status.
+   */
+  private async importV6Customers(config: any, companyId: string, effectivePropertyId?: string) {
+    const { cleanRoot, domain } = this.resolveV6Config(config);
+    const customerEndpoint = `${cleanRoot}/v6IntegrationAPIlogin/getCustomer`;
+    const custResp = await fetch(customerEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ domain, code: '', date: '' }),
+      signal: AbortSignal.timeout(10000),
+    });
+
+    let imported = 0;
+    let updated = 0;
+    let total = 0;
+
+    if (!custResp.ok) {
+      return { ok: false, status: custResp.status, imported, updated, total };
+    }
+
+    const custJson = (await custResp.json().catch(() => null)) as any;
+    const list: any[] = custJson?.list || [];
+    total = list.length;
+    for (const item of list) {
+      const cuscode = (item.code || item.customerCode || item.t1 || '').trim();
+      const cusname = (item.name || item.customerName || item.t2 || '').trim();
+      const syskey = String(item.syskey || item.customerSyskey || '').trim();
+
+      if (!cuscode) continue;
+
+      const existingTenant = await prisma.tenant.findFirst({
+        where: {
+          companyId,
+          OR: [
+            { code: cuscode },
+            { firstName: cuscode },
+          ],
+        },
+      });
+
+      let tenantId = existingTenant?.id;
+
+      if (existingTenant) {
+        await prisma.tenant.update({
+          where: { id: existingTenant.id },
+          data: {
+            code: cuscode,
+            lastName: cusname || existingTenant.lastName,
+            // Every tenant synced from V6 is treated as already verified
+            kycStatus: 'verified',
+            kycVerifiedAt: existingTenant.kycVerifiedAt ?? new Date(),
+          },
+        });
+        updated++;
+      } else {
+        const newTenant = await prisma.tenant.create({
+          data: {
+            companyId,
+            ...(effectivePropertyId ? { propertyId: effectivePropertyId } : {}),
+            tenantType: 'individual',
+            code: cuscode,
+            firstName: cuscode,
+            lastName: cusname || cuscode,
+            email: item.email || null,
+            phone: item.phone || item.mobile || null,
+            // Every tenant synced from V6 is treated as already verified
+            kycStatus: 'verified',
+            kycVerifiedAt: new Date(),
+          },
+        });
+        tenantId = newTenant.id;
+        imported++;
+      }
+
+      if (tenantId) {
+        await prisma.integrationEntityMap.upsert({
+          where: {
+            integrationId_entityType_pmsId: {
+              integrationId: config.id,
+              entityType: 'tenant',
+              pmsId: tenantId,
+            },
+          },
+          create: {
+            companyId,
+            integrationId: config.id,
+            entityType: 'tenant',
+            pmsId: tenantId,
+            externalId: cuscode,
+            externalRef: syskey ? `Syskey: ${syskey}` : cusname,
+            syncedAt: new Date(),
+          },
+          update: {
+            externalId: cuscode,
+            externalRef: syskey ? `Syskey: ${syskey}` : cusname,
+            syncedAt: new Date(),
+          },
+        }).catch(() => {});
+      }
+    }
+
+    return { ok: true, status: custResp.status, imported, updated, total };
+  }
+
+  /**
+   * Pull customers from V6 ERP into PMS tenants for the active property (when the V6 ERP flag is ON).
+   * Standalone counterpart of the customer step in syncV6Erp, used by the Tenants page
+   * "Sync V6 Customers" button.
+   */
+  async syncV6Customers(companyId: string, propertyId?: string, userId?: string) {
+    await ensurePropertySetupScope();
+    const targetPropertyId = await resolveEffectivePropertyId(companyId, propertyId);
+
+    const config = await prisma.integrationConfig.findFirst({
+      where: {
+        companyId,
+        ...(targetPropertyId ? { propertyId: targetPropertyId } : {}),
+        integrationType: 'v6erp',
+        isActive: true,
+        status: { not: 'disabled' },
+      },
+    });
+
+    if (!config) {
+      throw new AppError(
+        400,
+        'V6ERP_NOT_ACTIVE',
+        'V6 ERP integration is not active. Turn ON the V6 ERP flag in Integrations first.',
+      );
+    }
+
+    const t0 = Date.now();
+    let result = { ok: true, status: 200, imported: 0, updated: 0, total: 0 };
+    let failure: AppError | null = null;
+
+    try {
+      result = await this.importV6Customers(config, companyId, targetPropertyId || undefined);
+      if (!result.ok) {
+        failure = new AppError(
+          502,
+          'V6ERP_CUSTOMER_FETCH_FAILED',
+          `V6 ERP getCustomer failed with HTTP ${result.status}`,
+        );
+      }
+    } catch (err: any) {
+      failure =
+        err instanceof AppError
+          ? err
+          : new AppError(502, 'V6ERP_CUSTOMER_FETCH_FAILED', `Cannot reach V6 ERP: ${err?.message || err}`);
+    }
+
+    await prisma.integrationSyncLog.create({
+      data: {
+        companyId,
+        integrationId: config.id,
+        syncType: 'customer_sync',
+        direction: 'pull',
+        status: failure ? 'failed' : 'success',
+        recordsProcessed: result.total,
+        recordsCreated: result.imported,
+        recordsUpdated: result.updated,
+        recordsFailed: failure ? 1 : 0,
+        errorDetails: failure ? [{ error: failure.message }] : [],
+        durationMs: Date.now() - t0,
+        initiatedBy: 'user',
+        initiatedUserId: userId || null,
+        completedAt: new Date(),
+      },
+    });
+
+    if (failure) throw failure;
+
+    await prisma.integrationConfig.update({
+      where: { id: config.id },
+      data: { lastSyncAt: new Date(), lastError: null },
+    });
+
+    return {
+      success: true,
+      totalV6Customers: result.total,
+      created: result.imported,
+      updated: result.updated,
+      message: `Synced ${result.total} customer(s) from V6 ERP (${result.imported} imported, ${result.updated} updated).`,
+    };
+  }
+
+  /**
    * Bidirectional sync for V6 ERP:
    * 1. Inbound: Pull customers from V6 ERP and sync to PMS tenants & entity map.
    * 2. Inbound: Pull General Ledger Chart of Accounts from V6 ERP for active property (when V6 flag is ON).
@@ -2147,7 +2337,8 @@ class IntegrationsService {
       companyId,
       propertyId || config?.propertyId,
     );
-    const { cleanRoot, domain } = this.resolveV6Config(config);
+    // Validate V6 ERP connection settings up-front (throws when baseUrl is not configured)
+    this.resolveV6Config(config);
 
     const t0 = Date.now();
     let customersImported = 0;
@@ -2159,89 +2350,9 @@ class IntegrationsService {
 
     // 1. Inbound Customer Sync from V6 ERP
     try {
-      const customerEndpoint = `${cleanRoot}/v6IntegrationAPIlogin/getCustomer`;
-      const custResp = await fetch(customerEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ domain, code: '', date: '' }),
-        signal: AbortSignal.timeout(10000),
-      });
-
-      if (custResp.ok) {
-        const custJson = (await custResp.json().catch(() => null)) as any;
-        const list: any[] = custJson?.list || [];
-        for (const item of list) {
-          const cuscode = (item.code || item.customerCode || item.t1 || '').trim();
-          const cusname = (item.name || item.customerName || item.t2 || '').trim();
-          const syskey = String(item.syskey || item.customerSyskey || '').trim();
-
-          if (!cuscode) continue;
-
-          const existingTenant = await prisma.tenant.findFirst({
-            where: {
-              companyId,
-              OR: [
-                { code: cuscode },
-                { firstName: cuscode },
-              ],
-            },
-          });
-
-          let tenantId = existingTenant?.id;
-
-          if (existingTenant) {
-            await prisma.tenant.update({
-              where: { id: existingTenant.id },
-              data: {
-                code: cuscode,
-                lastName: cusname || existingTenant.lastName,
-              },
-            });
-            customersUpdated++;
-          } else {
-            const newTenant = await prisma.tenant.create({
-              data: {
-                companyId,
-                ...(effectivePropertyId ? { propertyId: effectivePropertyId } : {}),
-                tenantType: 'individual',
-                code: cuscode,
-                firstName: cuscode,
-                lastName: cusname || cuscode,
-                email: item.email || null,
-                phone: item.phone || item.mobile || null,
-              },
-            });
-            tenantId = newTenant.id;
-            customersImported++;
-          }
-
-          if (tenantId) {
-            await prisma.integrationEntityMap.upsert({
-              where: {
-                integrationId_entityType_pmsId: {
-                  integrationId: config.id,
-                  entityType: 'tenant',
-                  pmsId: tenantId,
-                },
-              },
-              create: {
-                companyId,
-                integrationId: config.id,
-                entityType: 'tenant',
-                pmsId: tenantId,
-                externalId: cuscode,
-                externalRef: syskey ? `Syskey: ${syskey}` : cusname,
-                syncedAt: new Date(),
-              },
-              update: {
-                externalId: cuscode,
-                externalRef: syskey ? `Syskey: ${syskey}` : cusname,
-                syncedAt: new Date(),
-              },
-            }).catch(() => {});
-          }
-        }
-      }
+      const custRes = await this.importV6Customers(config, companyId, effectivePropertyId || undefined);
+      customersImported += custRes.imported;
+      customersUpdated += custRes.updated;
     } catch (cErr: any) {
       logger.warn(`V6 ERP customer sync warning: ${cErr.message}`);
       errors.push({ error: `Customer sync warning: ${cErr.message}` });

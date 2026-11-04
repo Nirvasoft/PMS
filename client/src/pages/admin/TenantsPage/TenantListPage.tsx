@@ -4,9 +4,10 @@ import {
   useGetTenantsQuery, useDeleteTenantMutation,
   type TenantListItem,
 } from '../../../store/api/tenantsApi';
+import { useSyncV6CustomersMutation } from '../../../store/api/integrationsApi';
 import {
   Users, Plus, Search, Filter, X, Building2, User, Shield, ShieldOff, ShieldCheck,
-  Trash2, GitMerge, ChevronLeft, ChevronRight,
+  Trash2, GitMerge, ChevronLeft, ChevronRight, RefreshCw,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
@@ -59,6 +60,7 @@ export default function TenantListPage() {
   });
 
   const [deleteTenant] = useDeleteTenantMutation();
+  const [syncV6Customers, { isLoading: isSyncingCustomers }] = useSyncV6CustomersMutation();
 
   // Separate queries to get real total counts per KYC status (not just the current page)
   const { data: verifiedData }  = useGetTenantsQuery({ kycStatus: 'verified',  propertyId: propertyId || undefined, limit: 1 });
@@ -88,6 +90,16 @@ export default function TenantListPage() {
     }
   };
 
+  const handleSyncV6Customers = async () => {
+    if (!isV6Active || isSyncingCustomers) return;
+    try {
+      const res = await syncV6Customers(propertyId ? { propertyId } : {}).unwrap();
+      toast.success(res?.data?.message || 'Customers synced from V6 ERP');
+    } catch (err: any) {
+      toast.error(err?.data?.message || err?.data?.errors?.[0]?.message || err?.message || 'Failed to sync customers from V6 ERP');
+    }
+  };
+
   const resetFilters = () => {
     setTenantType(''); setKycStatus(''); setShowBlacklisted(undefined); setPage(1);
   };
@@ -114,6 +126,21 @@ export default function TenantListPage() {
               <GitMerge size={14} /> Merge
             </button>
           </PermissionGuard>
+          {isV6Active && (
+            <PermissionGuard permission="tenants.create">
+              <button
+                type="button"
+                className="btn-ghost"
+                disabled={isSyncingCustomers || !propertyId}
+                onClick={handleSyncV6Customers}
+                title="Sync Customers from V6 ERP for the active property"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: isSyncingCustomers ? 'wait' : 'pointer' }}
+              >
+                <RefreshCw size={14} className={isSyncingCustomers ? 'spin' : undefined} />
+                {isSyncingCustomers ? 'Syncing V6 Customers...' : 'Sync V6 Customers'}
+              </button>
+            </PermissionGuard>
+          )}
           {isV6Active ? (
             <button
               className="btn-primary"

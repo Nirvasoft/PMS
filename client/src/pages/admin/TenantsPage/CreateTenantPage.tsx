@@ -5,7 +5,8 @@ import { useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
 import { useGetSequencesQuery } from '../../../store/api/sequenceApi';
 import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
-import { ArrowLeft, User, Building2 } from 'lucide-react';
+import { useSyncV6CustomersMutation } from '../../../store/api/integrationsApi';
+import { ArrowLeft, User, Building2, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import GlAccountLookupField from '../../../components/GlAccountLookupField';
@@ -17,6 +18,7 @@ export default function CreateTenantPage() {
   const navigate = useNavigate();
   const [createTenant, { isLoading }] = useCreateTenantMutation();
   const { isV6Active } = useV6IntegrationStatus();
+  const [syncV6Customers, { isLoading: isSyncingCustomers }] = useSyncV6CustomersMutation();
   const [tenantType, setTenantType] = useState<TenantType>('individual');
 
   const activePropertyId = useSelectedPropertyId();
@@ -58,6 +60,17 @@ export default function CreateTenantPage() {
   const isNameMissing = hasAttemptedSubmit && tenantType === 'individual' && !form.lastName.trim();
   const isCompanyNameMissing = hasAttemptedSubmit && tenantType === 'company' && !form.companyName.trim();
   const isCurrencyMissing = hasAttemptedSubmit && !form.currency;
+
+  const handleSyncV6Customers = async () => {
+    if (!isV6Active || isSyncingCustomers) return;
+    try {
+      const res = await syncV6Customers(activePropertyId ? { propertyId: activePropertyId } : {}).unwrap();
+      toast.success(res?.data?.message || 'Customers synced from V6 ERP');
+      navigate('/admin/tenants');
+    } catch (err: any) {
+      toast.error(err?.data?.message || err?.data?.errors?.[0]?.message || err?.message || 'Failed to sync customers from V6 ERP');
+    }
+  };
 
   const handleSubmit = async () => {
     if (isV6Active) {
@@ -154,6 +167,19 @@ export default function CreateTenantPage() {
             </strong>
             V6 ERP Integration is currently active. Tenant information is synchronized from V6 ERP. Direct manual creation of new tenants is disabled.
           </div>
+          <PermissionGuard permission="tenants.create">
+            <button
+              type="button"
+              className="btn-ghost"
+              disabled={isSyncingCustomers || !activePropertyId}
+              onClick={handleSyncV6Customers}
+              title="Sync Customers from V6 ERP for the active property"
+              style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', cursor: isSyncingCustomers ? 'wait' : 'pointer' }}
+            >
+              <RefreshCw size={14} className={isSyncingCustomers ? 'spin' : undefined} />
+              {isSyncingCustomers ? 'Syncing V6 Customers...' : 'Sync V6 Customers'}
+            </button>
+          </PermissionGuard>
         </div>
       )}
 

@@ -55,7 +55,7 @@ services:
       - key: ENCRYPTION_IV_LENGTH
         value: "16"
       - key: PORT
-        value: "3000"
+        value: ""
       - key: HIBP_CHECK_ENABLED
         value: "true"
       - key: MAX_UPLOAD_SIZE
