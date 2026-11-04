@@ -246,6 +246,8 @@
   position: relative;
   margin: 0 auto;
   flex-shrink: 0;
+  transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  transform-origin: center 45%;
 }
 .shop-map-canvas-wrap.editing .shop-map-stage {
   margin: 0;
@@ -507,8 +509,34 @@
 }
 .shop-map-tile.st-decor-atrium {
   background:
-    radial-gradient(circle at center, rgba(139, 92, 246, 0.22) 0%, rgba(139, 92, 246, 0.06) 72%),
-    repeating-linear-gradient(45deg, rgba(139, 92, 246, 0.07) 0px, rgba(139, 92, 246, 0.07) 6px, transparent 6px, transparent 12px);
+    radial-gradient(circle at center, rgba(15, 23, 42, 0.32) 0%, rgba(139, 92, 246, 0.18) 46%, rgba(139, 92, 246, 0.08) 72%),
+    repeating-radial-gradient(
+      circle at center,
+      rgba(196, 181, 253, 0.14) 0px,
+      rgba(196, 181, 253, 0.14) 1.5px,
+      transparent 1.5px,
+      transparent 14px
+    ),
+    repeating-linear-gradient(45deg, rgba(139, 92, 246, 0.06) 0px, rgba(139, 92, 246, 0.06) 6px, transparent 6px, transparent 12px);
+  box-shadow:
+    inset 0 4px 10px rgba(2, 6, 23, 0.48),
+    inset 0 0 0 1.5px rgba(167, 139, 250, 0.28),
+    inset 0 -2px 6px rgba(196, 181, 253, 0.18);
+}
+[data-theme="light"] .shop-map-tile.st-decor-atrium {
+  background:
+    radial-gradient(circle at center, rgba(139, 92, 246, 0.18) 0%, rgba(221, 214, 254, 0.38) 52%, rgba(237, 233, 254, 0.65) 100%),
+    repeating-radial-gradient(
+      circle at center,
+      rgba(124, 58, 237, 0.12) 0px,
+      rgba(124, 58, 237, 0.12) 1.5px,
+      transparent 1.5px,
+      transparent 14px
+    );
+  box-shadow:
+    inset 0 4px 10px rgba(91, 33, 182, 0.18),
+    inset 0 0 0 1.5px rgba(139, 92, 246, 0.28),
+    inset 0 -2px 6px rgba(255, 255, 255, 0.75);
 }
 .shop-map-tile.is-circle-tile {
   border-radius: 50% !important;
@@ -2546,40 +2574,40 @@
 }
 
 /* ── Mappedin Experience: 3D Extruded Floorplate, 2.5D Isometric Pitch, Smart Upright Labels & Smooth Wayfinding ── */
-/* Architectural Floorplate Slab */
+/* Architectural Floorplate Slab & Concourse Walkway Tile Grid */
 .shop-map-floorplate {
   position: absolute;
   z-index: 0;
   border-radius: 16px;
   pointer-events: none;
-  background: linear-gradient(
-    165deg,
-    rgba(30, 41, 59, 0.72) 0%,
-    rgba(15, 23, 42, 0.86) 100%
-  );
-  border: 1.5px solid rgba(148, 163, 184, 0.22);
+  background-image:
+    linear-gradient(to right, rgba(148, 163, 184, 0.055) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(148, 163, 184, 0.055) 1px, transparent 1px),
+    radial-gradient(ellipse at 50% 42%, rgba(56, 189, 248, 0.075) 0%, rgba(139, 92, 246, 0.04) 42%, transparent 72%),
+    linear-gradient(165deg, rgba(30, 41, 59, 0.78) 0%, rgba(15, 23, 42, 0.90) 100%);
+  background-size: 28px 28px, 28px 28px, 100% 100%, 100% 100%;
+  border: 1.5px solid rgba(148, 163, 184, 0.24);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 0 32px rgba(2, 6, 23, 0.35),
     0 8px 24px rgba(2, 6, 23, 0.32);
   transition: box-shadow 0.28s ease, transform 0.28s ease;
 }
 [data-theme="light"] .shop-map-floorplate {
-  background: linear-gradient(
-    165deg,
-    rgba(248, 250, 252, 0.96) 0%,
-    rgba(226, 232, 240, 0.92) 100%
-  );
-  border-color: rgba(148, 163, 184, 0.42);
+  background-image:
+    linear-gradient(to right, rgba(100, 116, 139, 0.075) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(100, 116, 139, 0.075) 1px, transparent 1px),
+    radial-gradient(ellipse at 50% 42%, rgba(255, 255, 255, 0.85) 0%, rgba(224, 242, 254, 0.35) 48%, transparent 75%),
+    linear-gradient(165deg, rgba(248, 250, 252, 0.97) 0%, rgba(226, 232, 240, 0.93) 100%);
+  background-size: 28px 28px, 28px 28px, 100% 100%, 100% 100%;
+  border-color: rgba(148, 163, 184, 0.44);
   box-shadow:
     inset 0 1px 0 #ffffff,
+    inset 0 0 28px rgba(148, 163, 184, 0.14),
     0 8px 24px rgba(15, 23, 42, 0.09);
 }
 
 /* 2.5D Isometric Perspective Mode */
-.shop-map-stage {
-  transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
-  transform-origin: center 45%;
-}
 .shop-map-stage.is-3d-stage {
   transform: perspective(1450px) rotateX(25deg) scale(0.94);
   transform-style: preserve-3d;
@@ -2589,6 +2617,7 @@
 .shop-map.is-3d-pitch .shop-map-floorplate {
   box-shadow:
     inset 0 1.5px 0 rgba(255, 255, 255, 0.18),
+    inset 0 0 36px rgba(2, 6, 23, 0.42),
     0 8px 0 rgba(15, 23, 42, 0.95),
     0 10px 0 rgba(51, 65, 85, 0.55),
     0 24px 44px rgba(2, 6, 23, 0.52);
@@ -2596,25 +2625,144 @@
 [data-theme="light"] .shop-map.is-3d-pitch .shop-map-floorplate {
   box-shadow:
     inset 0 1.5px 0 #ffffff,
+    inset 0 0 28px rgba(148, 163, 184, 0.16),
     0 8px 0 #cbd5e1,
     0 10px 0 #94a3b8,
     0 24px 40px rgba(15, 23, 42, 0.18);
 }
-.shop-map.is-3d-pitch .shop-map-tile:not(.is-merged-unit):not(.is-trapezoid-tile):not(.is-polygon-atrium) {
+
+/* 1. 3D Extrusion for Standard Rectangular & Circle Units in 2.5D */
+.shop-map.is-3d-pitch .shop-map-tile:not(.is-merged-unit):not(.is-trapezoid-tile):not(.is-polygon-atrium):not(.st-decor-atrium):not(.st-decor-marker) {
   border-bottom-width: 4px;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.45),
-    0 3px 0 rgba(2, 6, 23, 0.52),
-    0 7px 14px rgba(2, 6, 23, 0.32);
+    0 3px 0 rgba(2, 6, 23, 0.58),
+    0 7px 14px rgba(2, 6, 23, 0.34);
 }
-[data-theme="light"] .shop-map.is-3d-pitch .shop-map-tile:not(.is-merged-unit):not(.is-trapezoid-tile):not(.is-polygon-atrium) {
+[data-theme="light"] .shop-map.is-3d-pitch .shop-map-tile:not(.is-merged-unit):not(.is-trapezoid-tile):not(.is-polygon-atrium):not(.st-decor-atrium):not(.st-decor-marker) {
   box-shadow:
     inset 0 1px 0 #ffffff,
-    0 3px 0 rgba(100, 116, 139, 0.45),
-    0 7px 14px rgba(15, 23, 42, 0.14);
+    0 3px 0 rgba(100, 116, 139, 0.48),
+    0 7px 14px rgba(15, 23, 42, 0.15);
 }
-.shop-map.is-3d-pitch .shop-map-tile:not(.is-merged-unit):not(.is-trapezoid-tile):not(.is-polygon-atrium):hover {
+.shop-map.is-3d-pitch .shop-map-tile:not(.is-merged-unit):not(.is-trapezoid-tile):not(.is-polygon-atrium):not(.st-decor-atrium):not(.st-decor-marker):hover {
   transform: translateY(-3px);
+}
+
+/* 1b. 3D Extrusion for Curved (ring-curve), Trapezoid, Slanted & Merged (L/T/U) Units in 2.5D */
+.shop-map.is-3d-pitch .shop-map-tile:is(.is-merged-unit, .is-trapezoid-tile) :is(.shop-map-merged-border-svg, .shop-map-trapezoid-svg) {
+  filter:
+    drop-shadow(0 1.5px 0 rgba(15, 23, 42, 0.88))
+    drop-shadow(0 3.5px 0 rgba(2, 6, 23, 0.76))
+    drop-shadow(0 8px 14px rgba(2, 6, 23, 0.38));
+}
+[data-theme="light"] .shop-map.is-3d-pitch .shop-map-tile:is(.is-merged-unit, .is-trapezoid-tile) :is(.shop-map-merged-border-svg, .shop-map-trapezoid-svg) {
+  filter:
+    drop-shadow(0 1.5px 0 rgba(100, 116, 139, 0.52))
+    drop-shadow(0 3.5px 0 rgba(71, 85, 105, 0.44))
+    drop-shadow(0 8px 14px rgba(15, 23, 42, 0.16));
+}
+.shop-map.is-3d-pitch .shop-map-tile:is(.is-merged-unit, .is-trapezoid-tile) :is(.shop-map-merged-border-svg, .shop-map-trapezoid-svg) .lm-border-lip-b {
+  stroke-width: 4;
+}
+.shop-map.is-3d-pitch .shop-map-tile:is(.is-merged-unit, .is-trapezoid-tile):not(.editing):hover,
+.shop-map.is-3d-pitch .shop-map-tile.is-unit-hovered:not(.editing) {
+  transform: translateY(-3px);
+}
+
+/* 2. Atrium Sunken Multi-Level Glass Void Effect in 2.5D */
+.shop-map.is-3d-pitch .shop-map-tile.st-decor-atrium:not(.is-polygon-atrium) {
+  border-top-width: 3.5px !important;
+  border-bottom-width: 1px !important;
+  box-shadow:
+    inset 0 6px 14px rgba(2, 6, 23, 0.72),
+    inset 0 2px 0 rgba(76, 29, 149, 0.65),
+    inset 0 0 0 1.5px rgba(167, 139, 250, 0.32),
+    inset 0 -3px 8px rgba(196, 181, 253, 0.24),
+    0 1px 0 rgba(255, 255, 255, 0.18) !important;
+}
+[data-theme="light"] .shop-map.is-3d-pitch .shop-map-tile.st-decor-atrium:not(.is-polygon-atrium) {
+  border-top-width: 3.5px !important;
+  border-bottom-width: 1px !important;
+  box-shadow:
+    inset 0 6px 12px rgba(91, 33, 182, 0.24),
+    inset 0 2px 0 rgba(124, 58, 237, 0.35),
+    inset 0 0 0 1.5px rgba(139, 92, 246, 0.32),
+    inset 0 -3px 8px rgba(255, 255, 255, 0.85),
+    0 1px 0 #ffffff !important;
+}
+.shop-map.is-3d-pitch .shop-map-tile.is-polygon-atrium .shop-map-atrium-poly-svg {
+  filter:
+    drop-shadow(0 -2px 0 rgba(76, 29, 149, 0.58))
+    drop-shadow(0 2px 6px rgba(139, 92, 246, 0.24));
+}
+[data-theme="light"] .shop-map.is-3d-pitch .shop-map-tile.is-polygon-atrium .shop-map-atrium-poly-svg {
+  filter:
+    drop-shadow(0 -2px 0 rgba(124, 58, 237, 0.36))
+    drop-shadow(0 2px 6px rgba(139, 92, 246, 0.16));
+}
+
+/* 3. Elevated Pop-Up & Glowing 3D Pedestal for Active Target / Start Units in 2.5D */
+.shop-map.is-3d-pitch .shop-map-grid-item:has(> .shop-map-tile:is(.active-target, .active-start)) {
+  z-index: 9;
+}
+.shop-map.is-3d-pitch .shop-map-tile:is(.active-target, .active-start):not(.st-decor-marker) {
+  transform: translateY(-5px) !important;
+}
+.shop-map.is-3d-pitch .shop-map-tile.active-target:not(.is-merged-unit):not(.is-trapezoid-tile):not(.is-polygon-atrium):not(.st-decor-marker) {
+  border-bottom-width: 5px !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.68),
+    0 4px 0 #047857,
+    0 6px 0 rgba(2, 6, 23, 0.65),
+    0 0 14px rgba(16, 185, 129, 0.55),
+    0 12px 22px rgba(2, 6, 23, 0.45) !important;
+}
+.shop-map.is-3d-pitch .shop-map-tile.active-start:not(.is-merged-unit):not(.is-trapezoid-tile):not(.is-polygon-atrium):not(.st-decor-marker) {
+  border-bottom-width: 5px !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.68),
+    0 4px 0 #15803d,
+    0 6px 0 rgba(2, 6, 23, 0.65),
+    0 0 14px rgba(34, 197, 94, 0.52),
+    0 12px 22px rgba(2, 6, 23, 0.45) !important;
+}
+.shop-map.is-3d-pitch .shop-map-tile:is(.is-merged-unit, .is-trapezoid-tile).active-target :is(.shop-map-merged-border-svg, .shop-map-trapezoid-svg) {
+  filter:
+    drop-shadow(0 2px 0 #059669)
+    drop-shadow(0 4.5px 0 #064e3b)
+    drop-shadow(0 0 10px rgba(16, 185, 129, 0.68))
+    drop-shadow(0 10px 18px rgba(2, 6, 23, 0.44)) !important;
+}
+.shop-map.is-3d-pitch .shop-map-tile:is(.is-merged-unit, .is-trapezoid-tile).active-start :is(.shop-map-merged-border-svg, .shop-map-trapezoid-svg) {
+  filter:
+    drop-shadow(0 2px 0 #16a34a)
+    drop-shadow(0 4.5px 0 #14532d)
+    drop-shadow(0 0 10px rgba(34, 197, 94, 0.65))
+    drop-shadow(0 10px 18px rgba(2, 6, 23, 0.44)) !important;
+}
+
+/* 4. Billboard Upright Counter-Tilt for Pins, Badges & Labels in 2.5D Mode */
+.shop-map.is-3d-pitch .shop-map-tile.st-decor-marker .shop-map-decor-content {
+  transform: perspective(600px) rotateX(-24deg) translateY(-4px) scale(1.08);
+  transform-origin: center bottom;
+}
+.shop-map.is-3d-pitch .shop-map-tile.st-decor-marker .shop-map-decor-icon {
+  filter:
+    drop-shadow(0 4px 3px rgba(2, 6, 23, 0.52))
+    drop-shadow(0 0 10px var(--accent-glow, rgba(16, 185, 129, 0.55)));
+}
+.shop-map.is-3d-pitch .shop-map-tile:not(.st-decor-marker) .shop-map-decor-content {
+  transform: perspective(600px) rotateX(-20deg) translateY(-2px);
+  transform-origin: center bottom;
+}
+.shop-map.is-3d-pitch .shop-map-tile-name {
+  transform: perspective(600px) rotateX(-20deg) translateY(-1.5px);
+  transform-origin: center bottom;
+  text-shadow: 0 2px 4px rgba(2, 6, 23, 0.55);
+}
+[data-theme="light"] .shop-map.is-3d-pitch .shop-map-tile-name {
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.92);
 }
 
 /* Smart Always-Upright Labels & Unit Sub-Number */
@@ -2625,6 +2773,7 @@
   justify-content: center;
   gap: 1px;
   z-index: 3;
+  transition: transform 0.24s ease;
 }
 .shop-map-tile-name-main {
   display: block;
@@ -2825,3 +2974,116 @@
   cursor: grabbing;
 }
 
+/* ── Feature #7: Blueprint Reference Image Overlay (Edit Layout) ── */
+.shop-map-blueprint-toolbar {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.shop-map-blueprint-toolbar.has-blueprint {
+  padding: 2px 6px;
+  border-radius: 8px;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.28);
+}
+.shop-map-bp-btn.active,
+.shop-map-bp-move-btn.active {
+  background: rgba(16, 185, 129, 0.16) !important;
+  border-color: rgba(16, 185, 129, 0.65) !important;
+  color: #10b981 !important;
+  font-weight: 700;
+}
+.shop-map-bp-slider {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+  padding: 0 4px;
+  user-select: none;
+}
+.shop-map-bp-slider input[type="range"] {
+  width: 64px;
+  height: 4px;
+  accent-color: #10b981;
+  cursor: pointer;
+}
+.shop-map-bp-remove {
+  color: #ef4444 !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+}
+.shop-map-bp-remove:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.14) !important;
+  border-color: #ef4444 !important;
+  color: #ef4444 !important;
+}
+
+.shop-map-blueprint-layer {
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+  user-select: none;
+  transform-origin: center center;
+  transition: opacity 0.12s ease;
+}
+.shop-map-blueprint-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  pointer-events: none;
+  user-select: none;
+  border-radius: 4px;
+}
+.shop-map-blueprint-layer.is-adjusting {
+  z-index: 45;
+  pointer-events: auto;
+  cursor: grab;
+  outline: 2px dashed #4f46e5;
+  outline-offset: 2px;
+  background: rgba(79, 70, 229, 0.04);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16);
+}
+.shop-map-blueprint-layer.is-adjusting:active {
+  cursor: grabbing;
+}
+.shop-map-blueprint-badge {
+  position: absolute;
+  top: -28px;
+  left: 0;
+  background: #4f46e5;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+  box-shadow: 0 3px 10px rgba(79, 70, 229, 0.35);
+  pointer-events: none;
+}
+.shop-map-blueprint-scale-handle {
+  position: absolute;
+  right: -8px;
+  bottom: -8px;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  background: #4f46e5;
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.35);
+  cursor: nwse-resize;
+  padding: 0;
+}
+.shop-map-blueprint-scale-handle:hover {
+  transform: scale(1.2);
+  background: #4338ca;
+}
+
+/* Keep placed tiles slightly translucent over active blueprint so lines remain visible while tracing */
+.shop-map-stage.has-blueprint-overlay .shop-map-tile {
+  opacity: 0.88;
+}
+.shop-map-stage.has-blueprint-overlay .shop-map-tile:hover {
+  opacity: 0.96;
+}

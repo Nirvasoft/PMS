@@ -9,6 +9,7 @@ import {
   Map as MapIcon, QrCode, Navigation, MapPin, Layers, Magnet,
   Printer, Copy, ExternalLink, Info, ArrowRight, WifiOff, ChevronDown,
   Compass, CornerUpLeft, CornerUpRight, MoveUp,
+  Image as ImageIcon, Eye, EyeOff, Lock, Unlock,
 } from 'lucide-react';
 import {
   useGetFloorPlanQuery,
@@ -20,13 +21,13 @@ import {
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import {
   DECORATION_DEFAULT_SIZES, DECORATION_LABELS, DEFAULT_COLUMNS, DEFAULT_SQFT_PER_CELL,
-  SHOP_CATEGORIES, compareShopsByUnitNumber, findFreeSpot, addConnectedUnitWing, snapTileToBorder, computeMagneticSnapGuide, addTransitIntoAtrium, isTransitLandmark, floorKeyOf, tilesConflict, hasAnyOverlap,
+  SHOP_CATEGORIES, compareShopsByUnitNumber, findFreeSpot, addConnectedUnitWing, snapTileToBorder, curveUnitAroundCircleWithoutSnap, computeMagneticSnapGuide, addTransitIntoAtrium, isTransitLandmark, floorKeyOf, tilesConflict, hasAnyOverlap,
   tileSizeFromSqft, calibrateSqftPerCell, syncUnitTilesToSqft,
   unitKey, nextUnitBlockKey, findPrimaryUnitTile, resolveTileByKey,
   unitNumberOf, shopDisplayName, matchesShopQuery, scoreShopSearchMatch,
   computeWalkwayPath, buildSmoothRouteSvgPath, computeRouteDirectionArrows, computeFloorplateBounds, findDefaultStartItem, findNearestFacilityItem,
   rotateMapLayout, parseRotationAngle, computeUnitMergeMap,
-  normalizeTileAngle, TILE_ANGLE_STEP,
+  normalizeTileAngle,
   UNIT_SHAPE_LABELS, UNIT_SHAPE_OPTIONS, parseUnitShapeMode, encodeUnitShapeMode, nextUnitShapeMode, isTrapezoidUnitMode, getTrapezoidUnitGeometry,
   LANDMARK_VARIANTS, parseLandmarkMeta, encodeLandmarkMeta, nextLandmarkVariant, autoSquareCircleLandmark, getPolygonAtriumGeometry, getAtriumFaceAlignment,
   parseFloorPlanData, buildCopiedFloorLayout, saveCachedFloorPlan, getCachedFloorPlan,
@@ -55,6 +56,61 @@ interface Props {
 const ALL_RESIZE_HANDLES = ['se', 'sw', 'nw', 'ne', 'e', 'w', 's', 'n'] as const;
 const EDIT_LEFT_PAD = 12;
 const EDIT_RIGHT_PAD = 16;
+
+interface BlueprintOverlayConfig {
+  dataUrl: string;
+  visible: boolean;
+  opacity: number;
+  scale: number;
+  offsetX: number;
+  offsetY: number;
+  rotation: number;
+}
+
+function getBlueprintStorageKey(floorName: string): string {
+  return `pms_floor_blueprint_v1_${floorName.trim().toLowerCase()}`;
+}
+
+function compressBlueprintImageToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Failed to read image file'));
+    reader.onload = () => {
+      const rawUrl = String(reader.result || '');
+      if (file.type === 'image/svg+xml' || file.size <= 350 * 1024) {
+        resolve(rawUrl);
+        return;
+      }
+      const img = new window.Image();
+      img.onerror = () => resolve(rawUrl);
+      img.onload = () => {
+        const maxDim = 1600;
+        const w = img.naturalWidth || img.width || 1200;
+        const h = img.naturalHeight || img.height || 900;
+        const ratio = Math.min(1, maxDim / Math.max(w, h));
+        const targetW = Math.max(1, Math.round(w * ratio));
+        const targetH = Math.max(1, Math.round(h * ratio));
+        const canvas = document.createElement('canvas');
+        canvas.width = targetW;
+        canvas.height = targetH;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(rawUrl);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, targetW, targetH);
+        try {
+          const webpUrl = canvas.toDataURL('image/webp', 0.85);
+          resolve(webpUrl.startsWith('data:image/') ? webpUrl : canvas.toDataURL('image/jpeg', 0.85));
+        } catch {
+          resolve(rawUrl);
+        }
+      };
+      img.src = rawUrl;
+    };
+    reader.readAsDataURL(file);
+  });
+}
 
 function AtriumShapeIcon({ mode, size }: { mode: UnitShapeMode | string; size: number }) {
   const s = Math.max(9, size);
@@ -990,6 +1046,7 @@ export default function ShopMapView({
   });
   const [highlightedAmenityKinds, setHighlightedAmenityKinds] = useState<TileKind[]>([]);
   const [magnetEnabled, setMagnetEnabled] = useState(true);
+  const [snapAutoResize, setSnapAutoResize] = useState(true);
   const [magnetBypassActive, setMagnetBypassActive] = useState(false);
   const bypassMagnetKeyRef = useRef(false);
   const [dragSnapGuide, setDragSnapGuide] = useState<MagneticSnapGuide | null>(null);
@@ -1239,7 +1296,14 @@ export default function ShopMapView({
         const orig = baseItems[idx];
         const moved = orig && (it.x !== orig.x || it.y !== orig.y || it.w !== orig.w || it.h !== orig.h);
         if (!moved) return it;
-        return snapTileToBorder(it, candidateItems, interactionColumns, orig) ?? it;
+        return snapTileToBorder(it, candidateItems, interactionColumns, orig, snapAutoResize) ?? it;
+      });
+    } else {
+      candidateItems = candidateItems.map((it, idx) => {
+        const orig = baseItems[idx];
+        const moved = orig && (it.x !== orig.x || it.y !== orig.y || it.w !== orig.w || it.h !== orig.h);
+        if (!moved) return it;
+        return curveUnitAroundCircleWithoutSnap(it, candidateItems, orig);
       });
     }
 
@@ -1350,6 +1414,161 @@ export default function ShopMapView({
     () => (!editing ? computeFloorplateBounds(displayItems, displayColumns) : null),
     [editing, displayItems, displayColumns],
   );
+
+  // ── Feature #7: Background Floorplan Blueprint Image Overlay (Edit Layout) ──
+  const blueprintInputRef = useRef<HTMLInputElement | null>(null);
+  const [blueprint, setBlueprint] = useState<BlueprintOverlayConfig | null>(null);
+  const [adjustingBlueprint, setAdjustingBlueprint] = useState(false);
+
+  useEffect(() => {
+    if (!floor || typeof window === 'undefined') {
+      setBlueprint(null);
+      setAdjustingBlueprint(false);
+      return;
+    }
+    try {
+      const raw = window.localStorage.getItem(getBlueprintStorageKey(floor));
+      if (!raw) {
+        setBlueprint(null);
+        setAdjustingBlueprint(false);
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed.dataUrl === 'string' && parsed.dataUrl.length > 0) {
+        setBlueprint({
+          dataUrl: parsed.dataUrl,
+          visible: parsed.visible !== false,
+          opacity: typeof parsed.opacity === 'number' ? Math.min(95, Math.max(10, parsed.opacity)) : 45,
+          scale: typeof parsed.scale === 'number' ? Math.min(250, Math.max(25, parsed.scale)) : 75,
+          offsetX: typeof parsed.offsetX === 'number' ? parsed.offsetX : Math.round(EDIT_LEFT_PAD * cellPx),
+          offsetY: typeof parsed.offsetY === 'number' ? parsed.offsetY : 16,
+          rotation: typeof parsed.rotation === 'number' ? ((parsed.rotation % 360) + 360) % 360 : 0,
+        });
+      } else {
+        setBlueprint(null);
+      }
+    } catch {
+      setBlueprint(null);
+    }
+    setAdjustingBlueprint(false);
+  }, [floor]);
+
+  useEffect(() => {
+    if (!editing && adjustingBlueprint) {
+      setAdjustingBlueprint(false);
+    }
+  }, [editing, adjustingBlueprint]);
+
+  const saveBlueprintConfig = (next: BlueprintOverlayConfig | null) => {
+    setBlueprint(next);
+    if (!floor || typeof window === 'undefined') return;
+    try {
+      const key = getBlueprintStorageKey(floor);
+      if (!next) {
+        window.localStorage.removeItem(key);
+      } else {
+        window.localStorage.setItem(key, JSON.stringify(next));
+      }
+    } catch {
+      // Ignore storage quota errors; keep in-memory state active for the session
+    }
+  };
+
+  const updateBlueprint = (patch: Partial<BlueprintOverlayConfig>) => {
+    setBlueprint((prev) => {
+      if (!prev) return null;
+      const next: BlueprintOverlayConfig = { ...prev, ...patch };
+      if (floor && typeof window !== 'undefined') {
+        try {
+          window.localStorage.setItem(getBlueprintStorageKey(floor), JSON.stringify(next));
+        } catch {
+          // Ignore quota error
+        }
+      }
+      return next;
+    });
+  };
+
+  const handleBlueprintFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select a valid image file (PNG, JPG, WebP, SVG)');
+      return;
+    }
+    try {
+      const dataUrl = await compressBlueprintImageToDataUrl(file);
+      const next: BlueprintOverlayConfig = {
+        dataUrl,
+        visible: true,
+        opacity: blueprint?.opacity ?? 45,
+        scale: blueprint?.scale ?? 75,
+        offsetX: blueprint?.offsetX ?? Math.round(EDIT_LEFT_PAD * cellPx),
+        offsetY: blueprint?.offsetY ?? 16,
+        rotation: blueprint?.rotation ?? 0,
+      };
+      saveBlueprintConfig(next);
+      toast.success('Blueprint image loaded onto floor canvas');
+    } catch {
+      toast.error('Could not load blueprint image');
+    }
+  };
+
+  const handleRemoveBlueprint = () => {
+    saveBlueprintConfig(null);
+    setAdjustingBlueprint(false);
+    toast.success('Blueprint overlay removed');
+  };
+
+  const startDragBlueprintMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!editing || !adjustingBlueprint || !blueprint) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const origX = blueprint.offsetX;
+    const origY = blueprint.offsetY;
+    const onMove = (ev: PointerEvent) => {
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+      updateBlueprint({
+        offsetX: Math.round(origX + dx),
+        offsetY: Math.round(origY + dy),
+      });
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  };
+
+  const startDragBlueprintScale = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (!editing || !adjustingBlueprint || !blueprint) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const startX = e.clientX;
+    const origScale = blueprint.scale;
+    const baseW = Math.max(240, gridWidth);
+    const onMove = (ev: PointerEvent) => {
+      const dx = ev.clientX - startX;
+      const deltaPct = (dx / baseW) * 100;
+      const nextScale = Math.min(250, Math.max(25, Math.round(origScale + deltaPct)));
+      updateBlueprint({ scale: nextScale });
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  };
 
   const ensureLeftPad = (list: MapItem[], minPad = EDIT_LEFT_PAD): MapItem[] => {
     if (list.length === 0) return list;
@@ -1729,7 +1948,9 @@ export default function ShopMapView({
         h,
       };
       const nextList = [...prev, rawItem];
-      const snapped = magnetEnabled ? snapTileToBorder(rawItem, nextList, effectiveColumns) : null;
+      const snapped = magnetEnabled
+        ? snapTileToBorder(rawItem, nextList, effectiveColumns)
+        : curveUnitAroundCircleWithoutSnap(rawItem, nextList);
       return ensureLeftPad(snapped ? [...prev, snapped] : nextList, EDIT_LEFT_PAD);
     });
   };
@@ -1794,7 +2015,7 @@ export default function ShopMapView({
     return best ? best.cand : null;
   };
 
-  const rotate = (key: string, stepDeg = TILE_ANGLE_STEP) => {
+  const rotate = (key: string, stepDeg = 1) => {
     groupRotBaseRef.current = null;
     let blocked = false;
     update((prev) => {
@@ -1802,25 +2023,6 @@ export default function ShopMapView({
         if (i.key !== key) return i;
         const others = prev.filter((o) => o.key !== i.key);
         const nextAngle = normalizeTileAngle((i.angle ?? 0) + stepDeg);
-        if (i.w !== i.h && stepDeg === 90 && !i.angle) {
-          const newW = Math.min(i.h, effectiveColumns);
-          const newH = i.w;
-          const anchors: Array<[number, number]> = [
-            [
-              Math.max(0, Math.min(Math.round(i.x + (i.w - newW) / 2), effectiveColumns - newW)),
-              Math.max(0, Math.round(i.y + (i.h - newH) / 2)),
-            ],
-            [Math.min(i.x, effectiveColumns - newW), i.y],
-            [Math.max(0, Math.min(i.x + i.w - newW, effectiveColumns - newW)), i.y],
-            [Math.min(i.x, effectiveColumns - newW), Math.max(0, i.y + i.h - newH)],
-          ];
-          for (const [ax, ay] of anchors) {
-            const cand: MapItem = { ...i, x: Math.max(0, ax), y: Math.max(0, ay), w: newW, h: newH, angle: undefined };
-            if (cand.x + cand.w <= effectiveColumns && !others.some((o) => tilesConflict(cand, o))) {
-              return cand;
-            }
-          }
-        }
         const safeRotated = resolveConflictFreeRotatedTile(i, nextAngle, others, 4);
         if (safeRotated) return safeRotated;
         blocked = true;
@@ -1855,8 +2057,7 @@ export default function ShopMapView({
       if (Math.hypot(dx, dy) < 4) return;
       // Handle sits at +90 deg (bottom of unrotated tile: dx=0, dy=+1 -> atan2 = +90 deg -> angle = 0 deg)
       const rawDeg = (Math.atan2(dy, dx) * 180) / Math.PI - 90 - mapRotation;
-      const step = ev.shiftKey ? TILE_ANGLE_STEP * 3 : TILE_ANGLE_STEP;
-      const snapped = Math.round(rawDeg / step) * step;
+      const snapped = Math.round(rawDeg);
       const nextAngle = normalizeTileAngle(snapped);
       setItems((prev) => {
         const cur = prev.find((i) => i.key === key);
@@ -2073,9 +2274,8 @@ export default function ShopMapView({
       if (Math.hypot(dx, dy) < 6) return;
       const currRawDeg = (Math.atan2(dy, dx) * 180) / Math.PI - 90 - mapRotation;
       const deltaFromDragStart = ((((currRawDeg - startRawDeg) % 360) + 540) % 360) - 180;
-      const step = ev.shiftKey ? TILE_ANGLE_STEP * 3 : TILE_ANGLE_STEP;
       const snappedCum =
-        (((Math.round((startCumDeg + deltaFromDragStart) / step) * step) % 360) + 360) % 360;
+        (((Math.round(startCumDeg + deltaFromDragStart)) % 360) + 360) % 360;
       if (!groupRotBaseRef.current) return;
       if (snappedCum === groupRotBaseRef.current.cumulativeDeg) return;
       const nextFrameAngle =
@@ -2878,6 +3078,16 @@ export default function ShopMapView({
           >
             <Magnet size={13} /> Auto-Snap: {magnetEnabled ? (magnetBypassActive ? 'BYPASS (Alt/Shift)' : 'ON') : 'OFF'}
           </button>
+          {magnetEnabled && (
+            <button
+              type="button"
+              className={`btn btn-secondary shop-map-magnet-btn ${snapAutoResize ? 'active' : ''}`}
+              onClick={() => setSnapAutoResize((prev) => !prev)}
+              title="Toggle whether Auto-Snap also resizes dragged units to match neighbor dimensions, or snaps border position & degree only"
+            >
+              <Maximize2 size={13} /> Snap Size: {snapAutoResize ? 'ON' : 'OFF'}
+            </button>
+          )}
           <div className="shop-map-group-toolbar">
             <button
               type="button"
@@ -2917,6 +3127,106 @@ export default function ShopMapView({
                     <X size={12} /> Ungroup
                   </button>
                 )}
+              </>
+            )}
+          </div>
+          <div className={`shop-map-blueprint-toolbar ${blueprint ? 'has-blueprint' : ''}`}>
+            <input
+              ref={blueprintInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={handleBlueprintFileChange}
+            />
+            {!blueprint ? (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => blueprintInputRef.current?.click()}
+                title="Upload an architectural floorplan or blueprint image (PNG, JPG, WebP, SVG) to trace over"
+              >
+                <ImageIcon size={13} /> Blueprint Image
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className={`btn btn-secondary btn-sm shop-map-bp-btn ${blueprint.visible ? 'active' : ''}`}
+                  onClick={() => updateBlueprint({ visible: !blueprint.visible })}
+                  title={blueprint.visible ? 'Hide blueprint overlay' : 'Show blueprint overlay'}
+                >
+                  {blueprint.visible ? <Eye size={13} /> : <EyeOff size={13} />} Blueprint
+                </button>
+                {blueprint.visible && (
+                  <>
+                    <label className="shop-map-bp-slider" title="Adjust blueprint image transparency (Opacity)">
+                      <span>Opacity {blueprint.opacity}%</span>
+                      <input
+                        type="range"
+                        min={10}
+                        max={95}
+                        step={5}
+                        value={blueprint.opacity}
+                        onChange={(e) => updateBlueprint({ opacity: Number(e.target.value) })}
+                      />
+                    </label>
+                    <label className="shop-map-bp-slider" title="Adjust blueprint image size scale (%)">
+                      <span>Scale {blueprint.scale}%</span>
+                      <input
+                        type="range"
+                        min={25}
+                        max={250}
+                        step={5}
+                        value={blueprint.scale}
+                        onChange={(e) => updateBlueprint({ scale: Number(e.target.value) })}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className={`btn btn-secondary btn-sm shop-map-bp-move-btn ${adjustingBlueprint ? 'active' : ''}`}
+                      onClick={() => setAdjustingBlueprint((p) => !p)}
+                      title={
+                        adjustingBlueprint
+                          ? 'Click to lock blueprint position so you can place and drag shop units over it'
+                          : 'Unlock blueprint to drag/move or scale it directly on the canvas'
+                      }
+                    >
+                      {adjustingBlueprint ? (
+                        <>
+                          <Unlock size={12} /> Lock Blueprint
+                        </>
+                      ) : (
+                        <>
+                          <Lock size={12} /> Move Blueprint
+                        </>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => updateBlueprint({ rotation: (blueprint.rotation + 90) % 360 })}
+                      title="Rotate blueprint image 90°"
+                    >
+                      <RotateCw size={12} />
+                    </button>
+                  </>
+                )}
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => blueprintInputRef.current?.click()}
+                  title="Replace blueprint image"
+                >
+                  Change
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm shop-map-bp-remove"
+                  onClick={handleRemoveBlueprint}
+                  title="Remove blueprint overlay from this floor"
+                >
+                  <X size={12} />
+                </button>
               </>
             )}
           </div>
@@ -3010,7 +3320,7 @@ export default function ShopMapView({
           ) : (
             <>
               <div
-                className={`shop-map-stage ${effective3DPitch ? 'is-3d-stage' : ''}`}
+                className={`shop-map-stage ${effective3DPitch ? 'is-3d-stage' : ''} ${editing && blueprint?.visible ? 'has-blueprint-overlay' : ''}`}
                 data-drag-shape={dragShape}
                 style={{
                   width: gridWidth,
@@ -3019,6 +3329,43 @@ export default function ShopMapView({
                   ['--drag-clip-path' as string]: dragClipPath,
                 } as CSSProperties}
               >
+                {editing && blueprint && blueprint.visible && (
+                  <div
+                    className={`shop-map-blueprint-layer ${adjustingBlueprint ? 'is-adjusting' : ''}`}
+                    style={{
+                      left: `${blueprint.offsetX}px`,
+                      top: `${blueprint.offsetY}px`,
+                      width: `${Math.round((gridWidth * blueprint.scale) / 100)}px`,
+                      opacity: blueprint.opacity / 100,
+                      transform: blueprint.rotation ? `rotate(${blueprint.rotation}deg)` : undefined,
+                    }}
+                    onPointerDown={adjustingBlueprint ? startDragBlueprintMove : undefined}
+                    onClick={(e) => {
+                      if (adjustingBlueprint) e.stopPropagation();
+                    }}
+                  >
+                    <img
+                      src={blueprint.dataUrl}
+                      alt="Floorplan Blueprint Overlay"
+                      className="shop-map-blueprint-img"
+                      draggable={false}
+                    />
+                    {adjustingBlueprint && (
+                      <>
+                        <div className="shop-map-blueprint-badge">
+                          Drag to align blueprint · Drag corner to scale · Click &ldquo;Lock Blueprint&rdquo; when done
+                        </div>
+                        <button
+                          type="button"
+                          className="shop-map-blueprint-scale-handle"
+                          title="Drag to resize blueprint"
+                          onPointerDown={startDragBlueprintScale}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </>
+                    )}
+                  </div>
+                )}
                 {floorplateBounds && (
                   <div
                     className="shop-map-floorplate"
@@ -3592,10 +3939,10 @@ export default function ShopMapView({
                             )}
                             <button
                               className="shop-map-tile-btn rot"
-                              title="Rotate"
+                              title="Rotate 1°"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                rotate(it.key, e.shiftKey ? 90 : TILE_ANGLE_STEP);
+                                rotate(it.key, 1);
                               }}
                             >
                               <RotateCw size={tileActionIconPx} />

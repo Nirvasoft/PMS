@@ -26,21 +26,15 @@ export interface MapItem {
   y: number;
   w: number;
   h: number;
-  /** Visual tilt in degrees (multiples of 12). 0/undefined = upright. */
+  /** Visual tilt in degrees (1-degree steps). 0/undefined = upright. */
   angle?: number;
 }
 
-export const TILE_ANGLE_STEP = 12;
-
-/** Normalizes any value to one of 0, 12, 24 ... 348 (or cardinal 90/180/270; returns undefined for upright). */
+/** Normalizes any value to 1-degree integer steps 1..359 (returns undefined for 0 / upright). */
 export function normalizeTileAngle(val: unknown): number | undefined {
   const raw = Number(val);
   if (!Number.isFinite(raw)) return undefined;
-  const roundedInt = Math.round(raw);
-  const mod360 = ((roundedInt % 360) + 360) % 360;
-  if (mod360 === 0) return undefined;
-  if (mod360 % 90 === 0) return mod360;
-  const n = Math.round(raw / TILE_ANGLE_STEP) * TILE_ANGLE_STEP;
+  const n = Math.round(raw);
   const a = ((n % 360) + 360) % 360;
   return a === 0 ? undefined : a;
 }
@@ -96,7 +90,7 @@ export const UNIT_SHAPE_LABELS: Record<UnitShapeMode, string> = {
   'trapezoid-r': 'Trapezoid (Right Slant)',
 };
 
-export interface UnitShapeOptionDef {
+interface UnitShapeOptionDef {
   id: UnitShapeMode;
   label: string;
   group: string;
@@ -266,7 +260,7 @@ function findNearestCircleCorridorForUnit(
     const score = insideHole ? Math.abs(normCenter) * 0.1 : boxGap + radialDist * 0.6;
     const isNear =
       insideHole ||
-      (boxGap <= 3.5 && normCenter >= 0.40 && normClosest >= 0.18 && (normClosest - 1) * avgR <= 3.5);
+      (boxGap <= 6.0 && normCenter >= 0.40 && normClosest >= 0.18 && (normClosest - 1) * avgR <= 5.5);
     if (score < bestScore) {
       bestScore = score;
       best = {
@@ -285,6 +279,59 @@ function findNearestCircleCorridorForUnit(
     }
   }
   return best;
+}
+
+function isRingCurveUnitLabel(label?: string | null): boolean {
+  return Boolean(label && (label === 'unit:ring-curve' || label.startsWith('unit:ring-curve:')));
+}
+
+function parseRingCurveLabelMeta(
+  label?: string | null,
+): { mode: 'rim' | 'outer' | 'free'; radialOffset?: number } | null {
+  if (!label) return null;
+  if (label === 'unit:ring-curve') return { mode: 'rim', radialOffset: 0 };
+  if (label === 'unit:ring-curve:free') return { mode: 'free' };
+  if (label.startsWith('unit:ring-curve:r=')) {
+    const val = Number(label.slice('unit:ring-curve:r='.length));
+    if (Number.isFinite(val) && val >= 0) {
+      return { mode: val <= 0.1 ? 'rim' : 'outer', radialOffset: val <= 0.1 ? 0 : val };
+    }
+  }
+  return null;
+}
+
+function computeUnitNaturalRadialOffset(
+  u: { x: number; y: number; w: number; h: number },
+  match: { cx: number; cy: number; rxOut: number; ryOut: number },
+): number {
+  const ucx = u.x + u.w * 0.5;
+  const ucy = u.y + u.h * 0.5;
+  const thetaRaw = Math.atan2((ucy - match.cy) / match.ryOut, (ucx - match.cx) / match.rxOut);
+  const parSpan = Math.max(u.w, u.h);
+  const perpDepth = Math.max(2, Math.min(2.6, Math.min(u.w, u.h)));
+  const rRim = Math.hypot(match.rxOut * Math.cos(thetaRaw), match.ryOut * Math.sin(thetaRaw)) || match.rxOut;
+  const rCenter = Math.hypot(ucx - match.cx, ucy - match.cy);
+  const dTheta0 = Math.max(
+    (18 * Math.PI) / 180,
+    Math.min((95 * Math.PI) / 180, parSpan / Math.max(2, rRim + perpDepth * 0.5)),
+  );
+  const cHalf = Math.max(0.7, 0.5 + 0.5 * Math.cos(dTheta0 * 0.5));
+  return Math.max(0, (rCenter - 0.5 * perpDepth) / cHalf - rRim);
+}
+
+function resolveUnitCircleRadialOffset(
+  u: { label?: string | null; x: number; y: number; w: number; h: number },
+  match: { cx: number; cy: number; rxOut: number; ryOut: number },
+): number {
+  const naturalOffset = computeUnitNaturalRadialOffset(u, match);
+  const meta = parseRingCurveLabelMeta(u.label);
+  if (meta?.mode === 'rim' && naturalOffset <= 1.35) {
+    return 0;
+  }
+  if (meta?.mode === 'outer' && meta.radialOffset !== undefined && Math.abs(meta.radialOffset - naturalOffset) <= 1.5) {
+    return meta.radialOffset;
+  }
+  return naturalOffset;
 }
 
 interface CircleRingUnitSector {
@@ -317,7 +364,7 @@ function isUnitEligibleForCircleRingSector(
   u: { key?: string; label?: string | null; unitId?: string | null; x: number; y: number; w: number; h: number },
   allItems: ReadonlyArray<{ key?: string; kind: TileKind | string; unitId?: string | null; x: number; y: number; w: number; h: number }>,
 ): boolean {
-  if (u.label && u.label.startsWith('unit:') && u.label !== 'unit:ring-curve') {
+  if (u.label && u.label.startsWith('unit:') && !isRingCurveUnitLabel(u.label)) {
     return false;
   }
   const hasAdjacentSameUnit =
@@ -344,14 +391,16 @@ function computeCircleRingUnitSector(
   const match = findNearestCircleCorridorForUnit(baseIt, allItems);
   if (!match || !match.isNear || match.insideHole) return null;
 
-  // Compute sector strictly from `baseIt` itself (100% independent of any other unit tiles)
   const ucx = baseIt.x + baseIt.w * 0.5;
   const ucy = baseIt.y + baseIt.h * 0.5;
   const raw = Math.atan2((ucy - match.cy) / match.ryOut, (ucx - match.cx) / match.rxOut);
   const thetaRaw = ((raw % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
   const parSpan = Math.max(baseIt.w, baseIt.h);
   const perpDepth = Math.max(2, Math.min(2.6, Math.min(baseIt.w, baseIt.h)));
-  const rInAtTheta = Math.hypot(match.rxOut * Math.cos(thetaRaw), match.ryOut * Math.sin(thetaRaw)) || match.rxOut;
+  const radialOffset = resolveUnitCircleRadialOffset(baseIt, match);
+  const rxInSector = match.rxOut + radialOffset;
+  const ryInSector = match.ryOut + radialOffset;
+  const rInAtTheta = Math.hypot(rxInSector * Math.cos(thetaRaw), ryInSector * Math.sin(thetaRaw)) || rxInSector;
   const rMid = rInAtTheta + perpDepth * 0.5;
   const deltaThetaNat = Math.max(
     (18 * Math.PI) / 180,
@@ -361,49 +410,59 @@ function computeCircleRingUnitSector(
   let thetaStart = thetaRaw - deltaThetaNat * 0.5;
   let thetaEnd = thetaRaw + deltaThetaNat * 0.5;
 
-  // Snap shared radial boundary with immediately adjacent ring-curve units (<= 18° gap) for 0px seam
+  const meta = parseRingCurveLabelMeta(baseIt.label);
+  const isFreeUnsnapped = meta?.mode === 'free' || !baseIt.label;
+
+  // Snap shared radial boundary with immediately adjacent ring-curve units in the same concentric band (<= 18° gap) for 0px seam
   let bestStartGap: number | null = null;
   let bestStartDist = Infinity;
   let bestEndGap: number | null = null;
   let bestEndDist = Infinity;
 
-  for (const o of allItems) {
-    if (o.kind !== 'unit' || o.key === baseIt.key) continue;
-    if (baseIt.unitId && o.unitId === baseIt.unitId) continue;
-    const oShape = parseUnitShapeMode(o);
-    if (oShape && oShape !== 'ring-curve' && oShape !== 'trapezoid-ring') continue;
-    const om = findNearestCircleCorridorForUnit(o, [match.ring]);
-    if (!om || !om.isNear || om.insideHole) continue;
+  if (!isFreeUnsnapped) {
+    for (const o of allItems) {
+      if (o.kind !== 'unit' || o.key === baseIt.key) continue;
+      if (baseIt.unitId && o.unitId === baseIt.unitId) continue;
+      const oShape = parseUnitShapeMode(o);
+      if (oShape && oShape !== 'ring-curve' && oShape !== 'trapezoid-ring') continue;
+      const om = findNearestCircleCorridorForUnit(o, [match.ring]);
+      if (!om || !om.isNear || om.insideHole) continue;
 
-    const ocx = o.x + o.w * 0.5;
-    const ocy = o.y + o.h * 0.5;
-    const oRaw = Math.atan2((ocy - match.cy) / match.ryOut, (ocx - match.cx) / match.rxOut);
-    const oTheta = ((oRaw % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
-    const oPar = Math.max(o.w, o.h);
-    const oPerp = Math.max(2, Math.min(2.6, Math.min(o.w, o.h)));
-    const oRIn = Math.hypot(match.rxOut * Math.cos(oTheta), match.ryOut * Math.sin(oTheta)) || match.rxOut;
-    const oDelta = Math.max(
-      (18 * Math.PI) / 180,
-      Math.min((95 * Math.PI) / 180, oPar / Math.max(2, oRIn + oPerp * 0.5)),
-    );
-    const oStart = oTheta - oDelta * 0.5;
-    const oEnd = oTheta + oDelta * 0.5;
+      const oRadialOffset = resolveUnitCircleRadialOffset(o, om);
+      if (Math.abs(oRadialOffset - radialOffset) > 1.15) continue;
 
-    const ccwDist = (((thetaRaw - oTheta) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
-    if (ccwDist > 0.02 && ccwDist < Math.PI && ccwDist < bestStartDist) {
-      const gap = Math.atan2(Math.sin(thetaStart - oEnd), Math.cos(thetaStart - oEnd));
-      if (Math.abs(gap) <= (18 * Math.PI) / 180) {
-        bestStartDist = ccwDist;
-        bestStartGap = gap;
+      const ocx = o.x + o.w * 0.5;
+      const ocy = o.y + o.h * 0.5;
+      const oRaw = Math.atan2((ocy - match.cy) / match.ryOut, (ocx - match.cx) / match.rxOut);
+      const oTheta = ((oRaw % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+      const oPar = Math.max(o.w, o.h);
+      const oPerp = Math.max(2, Math.min(2.6, Math.min(o.w, o.h)));
+      const oRxIn = match.rxOut + oRadialOffset;
+      const oRyIn = match.ryOut + oRadialOffset;
+      const oRIn = Math.hypot(oRxIn * Math.cos(oTheta), oRyIn * Math.sin(oTheta)) || oRxIn;
+      const oDelta = Math.max(
+        (18 * Math.PI) / 180,
+        Math.min((95 * Math.PI) / 180, oPar / Math.max(2, oRIn + oPerp * 0.5)),
+      );
+      const oStart = oTheta - oDelta * 0.5;
+      const oEnd = oTheta + oDelta * 0.5;
+
+      const ccwDist = (((thetaRaw - oTheta) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+      if (ccwDist > 0.02 && ccwDist < Math.PI && ccwDist < bestStartDist) {
+        const gap = Math.atan2(Math.sin(thetaStart - oEnd), Math.cos(thetaStart - oEnd));
+        if (Math.abs(gap) <= (18 * Math.PI) / 180) {
+          bestStartDist = ccwDist;
+          bestStartGap = gap;
+        }
       }
-    }
 
-    const cwDist = (((oTheta - thetaRaw) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
-    if (cwDist > 0.02 && cwDist < Math.PI && cwDist < bestEndDist) {
-      const gap = Math.atan2(Math.sin(oStart - thetaEnd), Math.cos(oStart - thetaEnd));
-      if (Math.abs(gap) <= (18 * Math.PI) / 180) {
-        bestEndDist = cwDist;
-        bestEndGap = gap;
+      const cwDist = (((oTheta - thetaRaw) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+      if (cwDist > 0.02 && cwDist < Math.PI && cwDist < bestEndDist) {
+        const gap = Math.atan2(Math.sin(oStart - thetaEnd), Math.cos(oStart - thetaEnd));
+        if (Math.abs(gap) <= (18 * Math.PI) / 180) {
+          bestEndDist = cwDist;
+          bestEndGap = gap;
+        }
       }
     }
   }
@@ -420,8 +479,8 @@ function computeCircleRingUnitSector(
   const thetaStartOut = thetaStart;
   const thetaEndOut = thetaEnd;
 
-  const gnx = Math.cos(thetaMid) / match.rxOut;
-  const gny = Math.sin(thetaMid) / match.ryOut;
+  const gnx = Math.cos(thetaMid) / rxInSector;
+  const gny = Math.sin(thetaMid) / ryInSector;
   const gLen = Math.hypot(gnx, gny) || 1;
   const nx = gnx / gLen;
   const ny = gny / gLen;
@@ -446,10 +505,8 @@ function computeCircleRingUnitSector(
   const vx = -Math.sin(rad);
   const vy = Math.cos(rad);
 
-  const rxInSector = match.rxOut;
-  const ryInSector = match.ryOut;
-  const rxOutSector = match.rxOut + radialDepth;
-  const ryOutSector = match.ryOut + radialDepth;
+  const rxOutSector = rxInSector + radialDepth;
+  const ryOutSector = ryInSector + radialDepth;
   const N = 24;
   let uMin = Infinity;
   let uMax = -Infinity;
@@ -482,15 +539,15 @@ function computeCircleRingUnitSector(
   const hCells = Math.max(0.5, vMax - vMin + padCells);
   const midU = 0.5 * (uMin + uMax);
   const midV = 0.5 * (vMin + vMax);
-  const worldCx = match.cx + midU * ux + midV * vx;
-  const worldCy = match.cy + midU * uy + midV * vy;
+  const worldCx = isFreeUnsnapped ? ucx : match.cx + midU * ux + midV * vx;
+  const worldCy = isFreeUnsnapped ? ucy : match.cy + midU * uy + midV * vy;
 
   return {
     ring: match.ring,
     cx: match.cx,
     cy: match.cy,
-    rxOut: match.rxOut,
-    ryOut: match.ryOut,
+    rxOut: rxInSector,
+    ryOut: ryInSector,
     thetaStart,
     thetaEnd,
     thetaStartOut,
@@ -518,7 +575,7 @@ export function parseUnitShapeMode(
   isMergedUnit?: boolean,
 ): UnitShapeMode {
   if (typeof it.label === 'string' && it.label.startsWith('unit:')) {
-    const rawMode = it.label.slice(5) as UnitShapeMode;
+    const rawMode = it.label.slice(5).split(':')[0] as UnitShapeMode;
     if (VALID_UNIT_SHAPE_MODES.has(rawMode)) {
       return rawMode;
     }
@@ -2185,8 +2242,8 @@ function areRotatedRectsSeparated(
   const isRingCurvePair =
     a.kind === 'unit' &&
     b.kind === 'unit' &&
-    (a.label === 'unit:ring-curve' ||
-      b.label === 'unit:ring-curve' ||
+    (isRingCurveUnitLabel(a.label) ||
+      isRingCurveUnitLabel(b.label) ||
       a.label === 'unit:trapezoid-ring' ||
       b.label === 'unit:trapezoid-ring');
   const fa = getLocalTileFrame(a);
@@ -2563,6 +2620,8 @@ function computeFullBorderAlignedPositions(
  * - Fills exact gaps between two facing neighbors (`leftSib`..`rightSib` or `topSib`..`bottomSib`).
  * - Equalizes perpendicular depth when `moved` and `sib` are the same kind and close in size.
  */
+let activeSnapAutoResize = true;
+
 function getMatchedNeighborDimensions(
   moved: MapItem,
   sib: MapItem,
@@ -2572,7 +2631,7 @@ function getMatchedNeighborDimensions(
 ): { w: number; h: number } {
   const baseW = Math.min(moved.w, columns);
   const baseH = moved.h;
-  if (moved.kind === 'marker') {
+  if (!activeSnapAutoResize || moved.kind === 'marker') {
     return { w: baseW, h: baseH };
   }
 
@@ -2913,9 +2972,9 @@ function findPolygonAtriumMagneticCandidate(
       }
     }
 
-    let snappedDeg = Math.round(bestExactDeg / TILE_ANGLE_STEP) * TILE_ANGLE_STEP;
+    let snappedDeg = Math.round(bestExactDeg);
     if (!bestFace.isCardinal && snappedDeg % 360 === 0) {
-      snappedDeg = bestExactDeg >= 180 ? 360 - TILE_ANGLE_STEP : TILE_ANGLE_STEP;
+      snappedDeg = bestExactDeg >= 180 ? 359 : 1;
     }
     const alignedAngle = normalizeTileAngle(snappedDeg);
 
@@ -2926,8 +2985,10 @@ function findPolygonAtriumMagneticCandidate(
         : w;
     const targetDepth = Math.max(2, Math.min(h, targetSpan));
 
-    const sizePairs: Array<[number, number]> = [[targetSpan, targetDepth]];
-    if (targetSpan !== w || targetDepth !== h) {
+    const sizePairs: Array<[number, number]> = activeSnapAutoResize
+      ? [[targetSpan, targetDepth]]
+      : [[w, h]];
+    if (activeSnapAutoResize && (targetSpan !== w || targetDepth !== h)) {
       sizePairs.push([w, h]);
     }
 
@@ -2998,7 +3059,7 @@ function findCircleCorridorMagneticCandidate(
   const h = moved.h;
   const gapX = Math.max(0, ring.x - (moved.x + w), moved.x - (ring.x + ring.w));
   const gapY = Math.max(0, ring.y - (moved.y + h), moved.y - (ring.y + ring.h));
-  if (gapX > MAGNET_SNAP_GAP + 2.5 || gapY > MAGNET_SNAP_GAP + 2.5) return null;
+  if (gapX > 6.0 || gapY > 6.0) return null;
 
   const rcx = ring.x + ring.w * 0.5;
   const rcy = ring.y + ring.h * 0.5;
@@ -3022,9 +3083,9 @@ function findCircleCorridorMagneticCandidate(
   // Center hole snap: if dragged inside a Circle Ring corridor's hollow center, auto-center and switch to 'unit:circle'
   if (moved.kind === 'unit' && ring.kind === 'corridor' && (normCenterDist < 0.66 || isInsideCircleCorridorHole(ring, moved))) {
     const maxHoleSide = Math.max(2, Math.floor(Math.min(ring.w, ring.h) * 0.5));
-    const side = isMultiBlockUnit ? w : Math.max(2, Math.min(maxHoleSide, Math.max(w, h)));
+    const side = !activeSnapAutoResize || isMultiBlockUnit ? w : Math.max(2, Math.min(maxHoleSide, Math.max(w, h)));
     const holeW = Math.min(columns, side);
-    const holeH = isMultiBlockUnit ? h : side;
+    const holeH = !activeSnapAutoResize || isMultiBlockUnit ? h : side;
     const cx = Math.max(0, Math.min(columns - holeW, Math.round(rcx - holeW * 0.5)));
     const cy = Math.max(0, Math.round(rcy - holeH * 0.5));
     const holeCand: MapItem = {
@@ -3056,56 +3117,86 @@ function findCircleCorridorMagneticCandidate(
   const normClosest = Math.hypot((closestPt.x - rcx) / rxOut, (closestPt.y - rcy) / ryOut);
   const avgR = (rxOut + ryOut) * 0.5;
   const radialGap = (normClosest - 1) * avgR;
-  if (radialGap > MAGNET_SNAP_GAP + 2.8) return null;
+  if (radialGap > 5.5) return null;
 
   const rawTheta = Math.atan2(vy / ryOut, vx / rxOut);
   const parSpan = Math.max(w, h);
   const perpDepth = Math.min(w, h);
-  const candW = isMultiBlockUnit || isCircleTile(moved) ? w : Math.min(columns, parSpan);
-  const candH = isMultiBlockUnit || isCircleTile(moved) ? h : perpDepth;
-  const nextLabel =
-    moved.kind === 'unit'
-      ? moved.label === 'unit:trapezoid-ring'
-        ? 'unit:trapezoid-ring'
-        : 'unit:ring-curve'
-      : (moved.label ?? null);
-  const rMidMoved = avgR + perpDepth * 0.5;
-  const dThetaMoved = Math.max(
-    (18 * Math.PI) / 180,
-    Math.min((105 * Math.PI) / 180, parSpan / Math.max(2, rMidMoved)),
+  const candW = !activeSnapAutoResize || isMultiBlockUnit || isCircleTile(moved) ? w : Math.min(columns, parSpan);
+  const candH = !activeSnapAutoResize || isMultiBlockUnit || isCircleTile(moved) ? h : perpDepth;
+
+  const movedRawOffset = computeUnitNaturalRadialOffset(
+    { x: moved.x, y: moved.y, w: candW, h: candH },
+    { cx: rcx, cy: rcy, rxOut, ryOut },
   );
 
-  // Collect candidate polar angles: raw angle + adjacent slots next to existing tiles on this circle/ring
-  const candidateThetas: number[] = [rawTheta];
+  // Determine direct radial offset: 0 when dragged close to the Circle Atrium rim (<= 1.35 cells),
+  // or preserve the walkway space from the Circle Atrium when placed further out (> 1.35 cells).
+  let directRadialOffset = moved.kind === 'unit' && movedRawOffset > 1.35 ? Math.round(movedRawOffset * 4) / 4 : 0;
+
+  const candidateSlots: Array<{ theta: number; radialOffset: number; isNeighborSlot: boolean }> = [];
+  const mPerp = moved.kind === 'unit' ? Math.max(2, Math.min(2.6, perpDepth)) : candH;
+
   for (const o of others) {
     if (o.key === moved.key || o.kind === 'atrium' || o.kind === 'marker') continue;
     const m = findNearestCircleCorridorForUnit(o, [ring]);
     if (!m || !m.isNear || m.insideHole) continue;
+
+    const oRadialOffset = resolveUnitCircleRadialOffset(o, m);
+    if (directRadialOffset > 0 && oRadialOffset > 0.15 && Math.abs(oRadialOffset - movedRawOffset) <= 1.25) {
+      directRadialOffset = oRadialOffset;
+    }
+    if (Math.abs(movedRawOffset - oRadialOffset) > 2.2) continue;
+
     const ocx = o.x + o.w * 0.5;
     const ocy = o.y + o.h * 0.5;
     const oTheta = Math.atan2((ocy - rcy) / ryOut, (ocx - rcx) / rxOut);
     const oPar = Math.max(o.w, o.h);
-    const oPerp = Math.min(o.w, o.h);
+    const oPerp = Math.max(2, Math.min(2.6, Math.min(o.w, o.h)));
+    const oRxIn = rxOut + oRadialOffset;
+    const oRyIn = ryOut + oRadialOffset;
+    const oRIn = Math.hypot(oRxIn * Math.cos(oTheta), oRyIn * Math.sin(oTheta)) || oRxIn;
     const oSpan = Math.max(
       (18 * Math.PI) / 180,
-      Math.min((105 * Math.PI) / 180, oPar / Math.max(2, avgR + oPerp * 0.5)),
+      Math.min((95 * Math.PI) / 180, oPar / Math.max(2, oRIn + oPerp * 0.5)),
     );
-    const touchDelta = 0.5 * (oSpan + dThetaMoved);
+    const dThetaMovedAtO = Math.max(
+      (18 * Math.PI) / 180,
+      Math.min((95 * Math.PI) / 180, parSpan / Math.max(2, oRIn + mPerp * 0.5)),
+    );
+    const touchDelta = 0.5 * (oSpan + dThetaMovedAtO);
     const diff = Math.atan2(Math.sin(rawTheta - oTheta), Math.cos(rawTheta - oTheta));
-    if (Math.abs(diff) <= touchDelta + (38 * Math.PI) / 180) {
-      candidateThetas.push(oTheta + (diff >= 0 ? touchDelta : -touchDelta));
-      candidateThetas.push(oTheta + (diff >= 0 ? -touchDelta : touchDelta));
+    if (Math.abs(diff) <= touchDelta + (40 * Math.PI) / 180) {
+      candidateSlots.push({
+        theta: oTheta + (diff >= 0 ? touchDelta : -touchDelta),
+        radialOffset: oRadialOffset,
+        isNeighborSlot: true,
+      });
+      candidateSlots.push({
+        theta: oTheta + (diff >= 0 ? -touchDelta : touchDelta),
+        radialOffset: oRadialOffset,
+        isNeighborSlot: true,
+      });
     }
   }
 
-  let bestCand: { x: number; y: number; angle: number | undefined; dist: number; score: number } | null = null;
+  candidateSlots.unshift({
+    theta: rawTheta,
+    radialOffset: directRadialOffset,
+    isNeighborSlot: false,
+  });
 
-  for (let tIdx = 0; tIdx < candidateThetas.length; tIdx++) {
-    const theta = candidateThetas[tIdx];
-    const bx = rcx + rxOut * Math.cos(theta);
-    const by = rcy + ryOut * Math.sin(theta);
-    const gnx = Math.cos(theta) / rxOut;
-    const gny = Math.sin(theta) / ryOut;
+  let bestCand: { x: number; y: number; angle: number | undefined; label: string | null; dist: number; score: number } | null = null;
+
+  for (let tIdx = 0; tIdx < candidateSlots.length; tIdx++) {
+    const slot = candidateSlots[tIdx];
+    const theta = slot.theta;
+    const rxSlot = rxOut + slot.radialOffset;
+    const rySlot = ryOut + slot.radialOffset;
+    const bx = rcx + rxSlot * Math.cos(theta);
+    const by = rcy + rySlot * Math.sin(theta);
+    const gnx = Math.cos(theta) / rxSlot;
+    const gny = Math.sin(theta) / rySlot;
     const gLen = Math.hypot(gnx, gny) || 1;
     const nx = gnx / gLen;
     const ny = gny / gLen;
@@ -3125,15 +3216,25 @@ function findCircleCorridorMagneticCandidate(
       }
     }
 
-    const snappedDeg = Math.round(bestExactDeg / TILE_ANGLE_STEP) * TILE_ANGLE_STEP;
-    const alignedAngle = normalizeTileAngle(snappedDeg);
+    const alignedAngle = normalizeTileAngle(bestExactDeg);
 
-    const rPeak = Math.hypot(bx - rcx, by - rcy) || avgR;
-    const halfSpan = Math.min(rPeak * 0.92, parSpan * 0.5);
-    const baseH = Math.sqrt(Math.max(0, rPeak * rPeak - halfSpan * halfSpan));
-    const sagittaCells = moved.kind === 'unit' ? Math.min(perpDepth * 0.45, Math.max(0, rPeak - baseH)) : 0;
-    const idealCenterX = bx + nx * (candH * 0.5 - sagittaCells * 0.5);
-    const idealCenterY = by + ny * (candH * 0.5 - sagittaCells * 0.5);
+    const slotLabel =
+      moved.kind === 'unit'
+        ? moved.label === 'unit:trapezoid-ring'
+          ? 'unit:trapezoid-ring'
+          : slot.radialOffset <= 0.1
+            ? 'unit:ring-curve'
+            : `unit:ring-curve:r=${slot.radialOffset.toFixed(2)}`
+        : (moved.label ?? null);
+
+    const rInAtTheta = Math.hypot(bx - rcx, by - rcy) || (avgR + slot.radialOffset);
+    const dThetaSlot = Math.max(
+      (18 * Math.PI) / 180,
+      Math.min((95 * Math.PI) / 180, parSpan / Math.max(2, rInAtTheta + mPerp * 0.5)),
+    );
+    const cHalf = moved.kind === 'unit' ? Math.max(0.7, 0.5 + 0.5 * Math.cos(dThetaSlot * 0.5)) : 1;
+    const idealCenterX = rcx + rxSlot * Math.cos(theta) * cHalf + nx * (0.5 * mPerp);
+    const idealCenterY = rcy + rySlot * Math.sin(theta) * cHalf + ny * (0.5 * mPerp);
     const baseX = Math.round(idealCenterX - candW * 0.5);
     const baseY = Math.round(idealCenterY - candH * 0.5);
 
@@ -3149,7 +3250,7 @@ function findCircleCorridorMagneticCandidate(
           w: candW,
           h: candH,
           angle: alignedAngle,
-          label: nextLabel,
+          label: slotLabel,
         };
         if (others.some((o) => tilesConflict(cand, o))) continue;
         if (moved.kind === 'unit') {
@@ -3158,14 +3259,15 @@ function findCircleCorridorMagneticCandidate(
         }
         const centerDist = Math.hypot(cx + candW * 0.5 - idealCenterX, cy + candH * 0.5 - idealCenterY);
         const moveDist = Math.hypot(cx + candW * 0.5 - mcx, cy + candH * 0.5 - mcy);
-        const slotPenalty = tIdx === 0 ? 0 : 0.35;
-        const score = centerDist * 3.0 + moveDist * 0.35 + slotPenalty;
+        const slotBonus = slot.isNeighborSlot && moveDist <= MAGNET_SNAP_GAP + 2.2 ? -1.15 : slot.isNeighborSlot ? 0.35 : 0;
+        const score = centerDist * 3.0 + moveDist * 0.35 + slotBonus;
         if (!bestCand || score < bestCand.score) {
           bestCand = {
             x: cx,
             y: cy,
             angle: alignedAngle,
-            dist: Math.min(Math.hypot(gapX, gapY), moveDist),
+            label: slotLabel,
+            dist: slot.isNeighborSlot ? moveDist : Math.min(Math.hypot(gapX, gapY), moveDist),
             score,
           };
         }
@@ -3180,7 +3282,7 @@ function findCircleCorridorMagneticCandidate(
     w: candW,
     h: candH,
     angle: bestCand.angle,
-    label: nextLabel,
+    label: bestCand.label,
     dist: bestCand.dist,
   };
 }
@@ -3406,7 +3508,7 @@ function getVerticalComplementaryUnitLabel(
       if (sibMode === 'slope-t-r') return 'unit:slope-b-l';
     }
   }
-  if (moved.label === 'unit:ring-curve' || moved.label?.startsWith('unit:slope-')) {
+  if (isRingCurveUnitLabel(moved.label) || moved.label?.startsWith('unit:slope-')) {
     return 'unit:rect';
   }
   return null;
@@ -3476,6 +3578,28 @@ function snapBlockToSiblingsBorder(
       }
     }
 
+    if (sib.kind === 'unit' && parseUnitShapeMode(sib, items) === 'ring-curve') {
+      const sibRing = findNearestCircleCorridorForUnit(sib, items);
+      if (sibRing && sibRing.isNear && !sibRing.insideHole) {
+        const ringCand = findCircleCorridorMagneticCandidate(moved, sibRing.ring as MapItem, others, columns);
+        if (ringCand) {
+          candidates.push({
+            x: ringCand.x,
+            y: ringCand.y,
+            w: ringCand.w,
+            h: ringCand.h,
+            angle: ringCand.angle,
+            hasAngle: true,
+            label: ringCand.label,
+            hasLabel: true,
+            dist: ringCand.dist,
+            priority: -1,
+          });
+          continue;
+        }
+      }
+    }
+
     if (sib.angle) {
       const rotCand = findRotatedNeighborMagneticCandidate(moved, sib, others, columns);
       if (rotCand) {
@@ -3515,7 +3639,7 @@ function snapBlockToSiblingsBorder(
           baseYPositions,
         );
         const resetRingShape =
-          !inheritedLabel && moved.kind === 'unit' && moved.label === 'unit:ring-curve';
+          !inheritedLabel && moved.kind === 'unit' && isRingCurveUnitLabel(moved.label);
         const nextLabel = isStraightCorridorSnapForUnit || resetRingShape ? 'unit:rect' : inheritedLabel;
         const hasShapeOverride = isStraightCorridorSnapForUnit || resetRingShape || Boolean(inheritedLabel);
         const hasAngleReset = !sib.angle && Boolean(moved.angle);
@@ -3674,10 +3798,10 @@ function snapTileByMagneticProximity(
   }> = [];
 
   for (const sib of others) {
-    // 1a. Any tile near a Circle Atrium or Circle Ring: magnetically attract to touch outer arc or center hole
+    // 1a. Any tile near a Circle Atrium or Circle Ring: magnetically attract to touch outer arc, outer concentric ring, or center hole
     if (isCircleRingCorridor(sib)) {
       const ringCand = findCircleCorridorMagneticCandidate(moved, sib, others, columns);
-      if (ringCand && ringCand.dist <= MAGNET_SNAP_GAP + 4) {
+      if (ringCand && ringCand.dist <= MAGNET_SNAP_GAP + 5.5) {
         candidates.push({
           x: ringCand.x,
           y: ringCand.y,
@@ -3690,6 +3814,13 @@ function snapTileByMagneticProximity(
           dist: ringCand.dist,
           priority: -1,
         });
+        continue;
+      }
+    }
+
+    if (sib.kind === 'unit' && parseUnitShapeMode(sib, items) === 'ring-curve') {
+      const sibRing = findNearestCircleCorridorForUnit(sib, items);
+      if (sibRing && sibRing.isNear && !sibRing.insideHole) {
         continue;
       }
     }
@@ -3750,7 +3881,7 @@ function snapTileByMagneticProximity(
     const resetAngle = !sib.angle && Boolean(moved.angle);
 
     // 1e. Contiguous Unit-Row / Unit-Column Auto-Span when dragging a larger tile (Atrium, Unit, or Corridor) alongside 2+ contiguous Units
-    if (!moved.angle && sib.kind === 'unit' && !sib.angle) {
+    if (activeSnapAutoResize && !moved.angle && sib.kind === 'unit' && !sib.angle) {
       const vOvRaw = Math.min(moved.y + h, sib.y + sib.h) - Math.max(moved.y, sib.y);
       const hOvRaw = Math.min(moved.x + w, sib.x + sib.w) - Math.max(moved.x, sib.x);
       if (w > sib.w && hOvRaw >= -MAGNET_SNAP_GAP) {
@@ -3851,7 +3982,7 @@ function snapTileByMagneticProximity(
           candH,
           baseYPositions,
         );
-        const resetRing = !inheritedLabel && moved.kind === 'unit' && moved.label === 'unit:ring-curve';
+        const resetRing = !inheritedLabel && moved.kind === 'unit' && isRingCurveUnitLabel(moved.label);
         const effLabel = resetRing ? 'unit:rect' : inheritedLabel;
         const bestY = yPositions[0];
         const needsShapeReset =
@@ -3890,7 +4021,7 @@ function snapTileByMagneticProximity(
           candH,
           baseYPositions,
         );
-        const resetRing = !inheritedLabel && moved.kind === 'unit' && moved.label === 'unit:ring-curve';
+        const resetRing = !inheritedLabel && moved.kind === 'unit' && isRingCurveUnitLabel(moved.label);
         const effLabel = resetRing ? 'unit:rect' : inheritedLabel;
         const bestY = yPositions[0];
         const needsShapeReset =
@@ -4193,6 +4324,7 @@ export function snapTileToBorder(
   items: ReadonlyArray<MapItem>,
   columns: number,
   orig?: MapItem,
+  allowAutoResize = true,
 ): MapItem | null {
   if (moved.kind === 'unit' && !moved.unitId) return null;
   if (orig && (moved.w !== orig.w || moved.h !== orig.h)) {
@@ -4200,46 +4332,113 @@ export function snapTileToBorder(
     if (resized) return resized;
     if (moved.angle) return null;
   }
-  let baseMoved = moved;
-  let detachedFromRing = false;
-  if (baseMoved.kind === 'unit' && (!orig || (baseMoved.w === orig.w && baseMoved.h === orig.h))) {
-    const nearRingNow = Boolean(findNearestCircleCorridorForUnit(baseMoved, items)?.isNear);
-    const wasNearRing = Boolean(orig && findNearestCircleCorridorForUnit(orig, items)?.isNear);
-    const isNearAngledCorridor = (u: MapItem) =>
-      items.some(
-        (i) =>
-          i.kind === 'corridor' &&
-          !isCircleRingCorridor(i) &&
-          Boolean(i.angle) &&
-          Math.max(0, i.x - (u.x + u.w), u.x - (i.x + i.w)) <= MAGNET_SNAP_GAP + 2.5 &&
-          Math.max(0, i.y - (u.y + u.h), u.y - (i.y + i.h)) <= MAGNET_SNAP_GAP + 2.5,
-      );
-    const nearAngledCorridorNow = isNearAngledCorridor(baseMoved);
-    const wasNearAngledCorridor = Boolean(orig && isNearAngledCorridor(orig));
-    if (!nearRingNow && !nearAngledCorridorNow && (wasNearRing || wasNearAngledCorridor)) {
-      baseMoved = { ...baseMoved, label: 'unit:rect', angle: undefined };
-      detachedFromRing = true;
-    }
-  }
-  const siblings = items.filter((i) => {
-    if (i.key === baseMoved.key) return false;
-    if (isAtriumTransitOverlap(baseMoved, i)) {
-      const atr = baseMoved.kind === 'atrium' ? baseMoved : i;
-      const tr = baseMoved.kind === 'atrium' ? i : baseMoved;
-      if (tr.x >= atr.x && tr.x + tr.w <= atr.x + atr.w && tr.y >= atr.y && tr.y + tr.h <= atr.y + atr.h) {
-        return false;
+  activeSnapAutoResize = allowAutoResize;
+  try {
+    let baseMoved = moved;
+    let detachedFromRing = false;
+    if (baseMoved.kind === 'unit' && (!orig || (baseMoved.w === orig.w && baseMoved.h === orig.h))) {
+      const nearRingNow = Boolean(findNearestCircleCorridorForUnit(baseMoved, items)?.isNear);
+      const wasNearRing = Boolean(orig && findNearestCircleCorridorForUnit(orig, items)?.isNear);
+      const isNearAngledCorridor = (u: MapItem) =>
+        items.some(
+          (i) =>
+            i.kind === 'corridor' &&
+            !isCircleRingCorridor(i) &&
+            Boolean(i.angle) &&
+            Math.max(0, i.x - (u.x + u.w), u.x - (i.x + i.w)) <= MAGNET_SNAP_GAP + 2.5 &&
+            Math.max(0, i.y - (u.y + u.h), u.y - (i.y + i.h)) <= MAGNET_SNAP_GAP + 2.5,
+        );
+      const nearAngledCorridorNow = isNearAngledCorridor(baseMoved);
+      const wasNearAngledCorridor = Boolean(orig && isNearAngledCorridor(orig));
+      if (!nearRingNow && !nearAngledCorridorNow && (wasNearRing || wasNearAngledCorridor || isRingCurveUnitLabel(baseMoved.label))) {
+        baseMoved = { ...baseMoved, label: 'unit:rect', angle: undefined };
+        detachedFromRing = true;
       }
     }
-    if (baseMoved.kind === 'unit' && i.kind === 'unit' && i.unitId === baseMoved.unitId) {
-      return true;
+    const siblings = items.filter((i) => {
+      if (i.key === baseMoved.key) return false;
+      if (isAtriumTransitOverlap(baseMoved, i)) {
+        const atr = baseMoved.kind === 'atrium' ? baseMoved : i;
+        const tr = baseMoved.kind === 'atrium' ? i : baseMoved;
+        if (tr.x >= atr.x && tr.x + tr.w <= atr.x + atr.w && tr.y >= atr.y && tr.y + tr.h <= atr.y + atr.h) {
+          return false;
+        }
+      }
+      if (baseMoved.kind === 'unit' && i.kind === 'unit' && i.unitId === baseMoved.unitId) {
+        return true;
+      }
+      return tilesConflict(baseMoved, i) || rotatedWorldBoundsOverlap(baseMoved, i) || rectsOverlap(baseMoved, i);
+    });
+    const overlapSnapped = snapBlockToSiblingsBorder(baseMoved, siblings, items, columns);
+    if (overlapSnapped) return overlapSnapped;
+    const proximitySnapped = snapTileByMagneticProximity(baseMoved, items, columns);
+    if (proximitySnapped) return proximitySnapped;
+    return detachedFromRing ? baseMoved : null;
+  } finally {
+    activeSnapAutoResize = true;
+  }
+}
+
+/**
+ * When Auto-Snap is OFF, curves a unit tile around a nearby Circle Atrium in-place (`label: 'unit:ring-curve:free'`,
+ * matching the tangent degree `angle`) without magnetically changing its `(x, y)` position or pulling it to touch
+ * the Circle Atrium or neighbor units. If dragged away from the Circle Atrium, resets back to `'unit:rect'`.
+ */
+export function curveUnitAroundCircleWithoutSnap(
+  moved: MapItem,
+  items: ReadonlyArray<MapItem>,
+  orig?: MapItem,
+): MapItem {
+  if (moved.kind !== 'unit' || !moved.unitId) return moved;
+  if (orig && (moved.w !== orig.w || moved.h !== orig.h)) return moved;
+
+  const isMultiBlockUnit = items.some((o) => o.key !== moved.key && o.kind === 'unit' && o.unitId === moved.unitId);
+  if (isMultiBlockUnit) return moved;
+
+  const match = findNearestCircleCorridorForUnit(moved, items);
+  if (match && match.isNear && !match.insideHole) {
+    if (moved.label && moved.label.startsWith('unit:') && !isRingCurveUnitLabel(moved.label) && moved.label !== 'unit:rect') {
+      return moved;
     }
-    return tilesConflict(baseMoved, i) || rotatedWorldBoundsOverlap(baseMoved, i) || rectsOverlap(baseMoved, i);
-  });
-  const overlapSnapped = snapBlockToSiblingsBorder(baseMoved, siblings, items, columns);
-  if (overlapSnapped) return overlapSnapped;
-  const proximitySnapped = snapTileByMagneticProximity(baseMoved, items, columns);
-  if (proximitySnapped) return proximitySnapped;
-  return detachedFromRing ? baseMoved : null;
+    const ucx = moved.x + moved.w * 0.5;
+    const ucy = moved.y + moved.h * 0.5;
+    const theta = Math.atan2((ucy - match.cy) / match.ryOut, (ucx - match.cx) / match.rxOut);
+    const gnx = Math.cos(theta) / match.rxOut;
+    const gny = Math.sin(theta) / match.ryOut;
+    const gLen = Math.hypot(gnx, gny) || 1;
+    const nx = gnx / gLen;
+    const ny = gny / gLen;
+
+    const degBottom = (((Math.atan2(nx, -ny) * 180) / Math.PI) % 360 + 360) % 360;
+    const degTop = (((Math.atan2(-nx, ny) * 180) / Math.PI) % 360 + 360) % 360;
+    const bottomUpright = degBottom <= 96 || degBottom >= 264;
+    const topUpright = degTop <= 96 || degTop >= 264;
+    const exactDeg =
+      bottomUpright && !topUpright
+        ? degBottom
+        : topUpright && !bottomUpright
+          ? degTop
+          : angularDiffDeg(degBottom, moved.angle ?? 0) <= angularDiffDeg(degTop, moved.angle ?? 0)
+            ? degBottom
+            : degTop;
+    const alignedAngle = normalizeTileAngle(exactDeg);
+    const cand: MapItem = {
+      ...moved,
+      angle: alignedAngle,
+      label: 'unit:ring-curve:free',
+    };
+    const others = items.filter((o) => o.key !== moved.key);
+    if (!others.some((o) => tilesConflict(cand, o))) {
+      return cand;
+    }
+    return { ...moved, label: 'unit:ring-curve:free' };
+  }
+
+  const wasNearRing = Boolean(orig && findNearestCircleCorridorForUnit(orig, items)?.isNear);
+  if (wasNearRing || isRingCurveUnitLabel(moved.label)) {
+    return { ...moved, label: 'unit:rect', angle: undefined };
+  }
+  return moved;
 }
 
 export interface MagneticSnapGuide {
@@ -4316,11 +4515,14 @@ export function computeMagneticSnapGuide(
       const deg = Math.round(align ? align.exactAngleDeg : (snapped.angle ?? 0)) % 360;
       const ucx = snapped.x + snapped.w * 0.5;
       const ucy = snapped.y + snapped.h * 0.5;
+      const radialOffset = snapped.kind === 'unit' ? resolveUnitCircleRadialOffset(snapped, ringMatch) : 0;
+      const rxGuide = ringMatch.rxOut + radialOffset;
+      const ryGuide = ringMatch.ryOut + radialOffset;
       const theta = Math.atan2((ucy - ringMatch.cy) / ringMatch.ryOut, (ucx - ringMatch.cx) / ringMatch.rxOut);
-      const bx = ringMatch.cx + ringMatch.rxOut * Math.cos(theta);
-      const by = ringMatch.cy + ringMatch.ryOut * Math.sin(theta);
-      const gnx = Math.cos(theta) / ringMatch.rxOut;
-      const gny = Math.sin(theta) / ringMatch.ryOut;
+      const bx = ringMatch.cx + rxGuide * Math.cos(theta);
+      const by = ringMatch.cy + ryGuide * Math.sin(theta);
+      const gnx = Math.cos(theta) / rxGuide;
+      const gny = Math.sin(theta) / ryGuide;
       const gLen = Math.hypot(gnx, gny) || 1;
       const tx = -gny / gLen;
       const ty = gnx / gLen;
@@ -4341,7 +4543,7 @@ export function computeMagneticSnapGuide(
           },
         ],
         badgePos: { x: bx, y: by },
-        badgeText: `${deg}° • Circle Curve Match`,
+        badgeText: radialOffset > 0.1 ? `${deg}° • Outer Ring Curve` : `${deg}° • Circle Curve Match`,
         isPolygonAtriumSnap: true,
       };
     }
@@ -7464,11 +7666,7 @@ export function rotateTileGroup(
     return { rotated: false, conflict: false, items: baseItems.map((i) => ({ ...i })) };
   }
 
-  const rawMod = ((Math.round(deltaDeg) % 360) + 360) % 360;
-  const normDelta =
-    rawMod % 90 === 0
-      ? rawMod
-      : (((Math.round(deltaDeg / TILE_ANGLE_STEP) * TILE_ANGLE_STEP) % 360) + 360) % 360;
+  const normDelta = ((Math.round(deltaDeg) % 360) + 360) % 360;
   if (normDelta === 0) {
     return { rotated: false, conflict: false, items: baseItems.map((i) => ({ ...i })) };
   }

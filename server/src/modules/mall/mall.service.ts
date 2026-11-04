@@ -232,7 +232,7 @@ class MallService {
     ) => {
       if (t.kind !== 'unit') return null;
       const raw = (t.label ?? '').trim();
-      const mode = raw.startsWith('unit:') ? raw.slice(5) : '';
+      const mode = raw.startsWith('unit:') ? raw.slice(5).split(':')[0] : '';
       if (!mode || mode === 'rect' || mode === 'ring-curve' || mode === 'trapezoid-ring' || mode === 'circle') {
         return null;
       }
@@ -309,8 +309,8 @@ class MallService {
       const isRingCurvePair =
         a.kind === 'unit' &&
         b.kind === 'unit' &&
-        (a.label === 'unit:ring-curve' ||
-          b.label === 'unit:ring-curve' ||
+        (Boolean(a.label && (a.label === 'unit:ring-curve' || a.label.startsWith('unit:ring-curve:'))) ||
+          Boolean(b.label && (b.label === 'unit:ring-curve' || b.label.startsWith('unit:ring-curve:'))) ||
           a.label === 'unit:trapezoid-ring' ||
           b.label === 'unit:trapezoid-ring');
       const ga = getRotatedTileBox(a);
