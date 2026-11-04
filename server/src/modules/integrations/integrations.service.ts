@@ -2495,9 +2495,10 @@ class IntegrationsService {
     let v6WhskStr = '0';
     let v6CusTypesArr: string[] = ['0'];
     let v6DefAccList: any = null;
+    let v6TaxList: any[] = [];
 
     try {
-      const [bundle, entityMaps, spResp, locResp, bpResp, defAccResp] = await Promise.all([
+      const [bundle, entityMaps, spResp, locResp, bpResp, defAccResp, taxResp] = await Promise.all([
         this.fetchV6CoaBundle(cleanRoot, domain).catch(() => ({
           coaRows: [],
           departments: [],
@@ -2522,6 +2523,9 @@ class IntegrationsService {
           : Promise.resolve(null),
         v6Token
           ? fetch(`${cleanRoot}/saleInvoice/getDefAccountList`, { method: 'POST', headers: authHeaders, body: JSON.stringify({}), signal: AbortSignal.timeout(6000) }).catch(() => null)
+          : Promise.resolve(null),
+        v6Token
+          ? fetch(`${cleanRoot}/tax/taxList/`, { method: 'GET', headers: authHeaders, signal: AbortSignal.timeout(6000) }).catch(() => null)
           : Promise.resolve(null),
       ]);
 
@@ -2608,9 +2612,57 @@ class IntegrationsService {
       if (defAccResp && defAccResp.ok) {
         v6DefAccList = await defAccResp.json().catch(() => null);
       }
+      if (taxResp && taxResp.ok) {
+        const tList = (await taxResp.json().catch(() => null)) as any[];
+        if (Array.isArray(tList)) {
+          v6TaxList = tList.filter((t: any) => Number(t?.n8 ?? 0) === 0 || Number(t?.n8 ?? 0) === 2);
+        }
+      }
     } catch (bundleErr: any) {
       logger.warn(`V6 ERP: Failed to preload Dept/CC/COA bundle: ${bundleErr?.message}`);
     }
+
+    const resolveV6Tax = (
+      taxPercent: number,
+      hasTax: boolean,
+    ): { syskey: string; rate: number; isInclusive: number } => {
+      const cleanRate = hasTax && taxPercent > 0 ? Math.round(taxPercent * 100) / 100 : 0;
+      if (v6TaxList.length > 0) {
+        if (cleanRate > 0) {
+          // Match exact rate in V6 tax setup (prefer exclusive tax n4 === '0' since PMS tax is exclusive)
+          const exactExcl = v6TaxList.find(
+            (t: any) => Math.abs(Number(t?.n3 || 0) - cleanRate) < 0.01 && String(t?.n4 ?? '0') === '0',
+          );
+          const exactAny = v6TaxList.find(
+            (t: any) => Math.abs(Number(t?.n3 || 0) - cleanRate) < 0.01,
+          );
+          const defaultTax = v6TaxList.find(
+            (t: any) => String(t?.n6 || '0') === '1' && Number(t?.n3 || 0) > 0,
+          );
+          const chosen = exactExcl || exactAny || defaultTax;
+          if (chosen?.syskey) {
+            return {
+              syskey: String(chosen.syskey),
+              rate: cleanRate,
+              isInclusive: 0,
+            };
+          }
+        } else {
+          // 0% tax -> match 0% tax code (e.g. T0)
+          const zeroTax =
+            v6TaxList.find((t: any) => Number(t?.n3 || 0) === 0 && String(t?.n4 ?? '0') === '0') ||
+            v6TaxList.find((t: any) => Number(t?.n3 || 0) === 0);
+          if (zeroTax?.syskey) {
+            return {
+              syskey: String(zeroTax.syskey),
+              rate: 0,
+              isInclusive: 0,
+            };
+          }
+        }
+      }
+      return { syskey: '0', rate: cleanRate, isInclusive: 0 };
+    };
 
     const resolveV6DeptSyskey = (dept?: { code?: string | null; name?: string | null } | null) => {
       if (!dept) return { syskey: '0', name: '', code: '' };
@@ -2896,9 +2948,33 @@ class IntegrationsService {
 
         // ── Push via native V6 saleInvoice/saveInvoice (sets n56 = Dept Syskey & n57 = CC Syskey) ──
         if (!isAlreadyExists && v6Token) {
-          const totalAmt = Number(inv.totalAmount) || 0;
-          const taxAmt   = Number(inv.taxAmount) || 0;
-          const discAmt  = Number(inv.discountAmount) || 0;
+          const totalAmt    = Number(inv.totalAmount) || 0;
+          const taxAmt      = Number(inv.taxAmount) || 0;
+          const discAmt     = Number(inv.discountAmount) || 0;
+          const subTotalAmt = Number((inv as any).subtotal) || Math.round((totalAmt - taxAmt) * 100) / 100;
+
+          const lineTaxRates = ((inv as any).lines || []).map((line: any) => {
+            const qty = Number(line.quantity) || 1;
+            const unitPrice = Number(line.unitPrice) || 0;
+            const lineSubTotal = Number(line.amount) || Math.round(qty * unitPrice * 100) / 100 || 0;
+            const lineTax = Number(line.taxAmount) || 0;
+            const rawRate = Number(line.taxRate) || 0;
+            const pct =
+              rawRate > 0
+                ? rawRate < 1
+                  ? Math.round(rawRate * 10000) / 100
+                  : rawRate
+                : lineTax > 0 && lineSubTotal > 0
+                  ? Math.round((lineTax / lineSubTotal) * 10000) / 100
+                  : 0;
+            return lineTax > 0 ? pct : 0;
+          });
+          const distinctLineRates = Array.from(new Set<number>(lineTaxRates));
+          const isSingleTaxRate = distinctLineRates.length <= 1 ? 1 : 0;
+          const hdrTaxPercent =
+            distinctLineRates.find((r) => r > 0) ??
+            (taxAmt > 0 && subTotalAmt > 0 ? Math.round((taxAmt / subTotalAmt) * 10000) / 100 : 0);
+          const hdrTaxInfo = resolveV6Tax(hdrTaxPercent, taxAmt > 0);
 
           const saleInvoicePayload = {
             syskey: '0',
@@ -2947,10 +3023,10 @@ class IntegrationsService {
             n7: discAmt,
             n8: 0,
             n9: discAmt,
-            n10: totalAmt - taxAmt,
-            n11: '0',
-            n12: 0,
-            n13: 0,
+            n10: subTotalAmt,
+            n11: hdrTaxInfo.syskey,
+            n12: hdrTaxInfo.rate,
+            n13: hdrTaxInfo.isInclusive,
             n14: taxAmt,
             n15: 0,
             n16: '0',
@@ -3010,7 +3086,7 @@ class IntegrationsService {
             t32: '',
             t33: '',
             n48: 0,
-            n49: 1,
+            n49: isSingleTaxRate,
             n50: 0,
             n51: 0,
             n52: 1,
@@ -3058,8 +3134,10 @@ class IntegrationsService {
               const lineDesc = line.description || line.chargeType?.name || '';
               const qty = Number(line.quantity) || 1;
               const unitPrice = Number(line.unitPrice) || 0;
-              const lineAmt = Number(line.lineTotal) || Number(line.amount) || 0;
+              // SOP002 n34 & n38 must be Before-Tax line amount (line.amount), while n23 is lineTax
+              const lineSubTotal = Number(line.amount) || Math.round(qty * unitPrice * 100) / 100 || 0;
               const lineTax = Number(line.taxAmount) || 0;
+              const lineTaxInfo = resolveV6Tax(lineTaxRates[idx] || 0, lineTax > 0);
               const lineGl = resolveV6GlAccountForDeptCc(
                 line.chargeType?.glAccountCode || hdrSalesAcc.code,
                 n56,
@@ -3130,11 +3208,11 @@ class IntegrationsService {
                 n31: '0',
                 n32: 0,
                 n33: '0',
-                n34: lineAmt,
-                n35: '0',
-                n36: 0,
-                n37: 0,
-                n38: lineAmt,
+                n34: lineSubTotal,
+                n35: lineTaxInfo.syskey,
+                n36: lineTaxInfo.isInclusive,
+                n37: lineTaxInfo.rate,
+                n38: lineSubTotal,
                 n39: 0,
                 n40: 231,
                 n41: 0,

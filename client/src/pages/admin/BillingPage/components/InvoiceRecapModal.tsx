@@ -82,14 +82,15 @@ export const InvoiceRecapModal: React.FC<InvoiceRecapModalProps> = ({
   const [showDepartment, setShowDepartment] = useState(false);
   const [showCostCentre, setShowCostCentre] = useState(false);
 
-  const { data: propertyGlAccounts = [] } = useGetGlAccountsQuery(
+  const { data: propertyGlAccounts = [], isFetching: propertyGlFetching } = useGetGlAccountsQuery(
     propertyId ? { propertyId } : {},
     { skip: !open },
   );
-  const { data: allCompanyGlAccounts = [] } = useGetGlAccountsQuery(
+  const { data: allCompanyGlAccounts = [], isFetching: companyGlFetching } = useGetGlAccountsQuery(
     {},
     { skip: !open || !propertyId },
   );
+  const glAccountsLoading = propertyGlFetching || companyGlFetching;
 
   const glAccounts = useMemo<GlAccount[]>(() => {
     const merged: GlAccount[] = [];
@@ -230,14 +231,23 @@ export const InvoiceRecapModal: React.FC<InvoiceRecapModalProps> = ({
     const arDept = formatCenterLabel(departmentCenter || arAcc?.departmentCenter);
     const arCc = formatCenterLabel(costCenter || arAcc?.costCenter);
 
+    // Prefix a credit description with the invoice number, e.g. "INV-001847,Operating Bank Account"
+    const withInvoiceNo = (text: string): string => {
+      const invNo = (invoiceNumber || '').trim();
+      return invNo ? `${invNo},${text}` : text;
+    };
+
     // Build Credit description from the GL Account connected to the invoice charge
     const buildCreditDescription = (line: RecapLineInput, revAcc?: GlAccount): string => {
-      return (
+      // While GL accounts are still loading, don't flash the charge type name as a stand-in
+      // for the account description.
+      if (!revAcc && glAccountsLoading) return withInvoiceNo('Loading...');
+      return withInvoiceNo(
         revAcc?.name?.trim() ||
-        revAcc?.description?.trim() ||
-        line.chargeTypeName?.trim() ||
-        line.description?.trim() ||
-        'Account Revenue'
+          revAcc?.description?.trim() ||
+          line.chargeTypeName?.trim() ||
+          line.description?.trim() ||
+          'Account Revenue',
       );
     };
 
@@ -274,7 +284,7 @@ export const InvoiceRecapModal: React.FC<InvoiceRecapModalProps> = ({
       const taxAmt = Number(taxAmount) || 0;
       creditRows.push({
         accountCode: taxAcc?.code || '2200',
-        description: taxAcc?.name || 'Tax Payable',
+        description: withInvoiceNo(taxAcc?.name || 'Tax Payable'),
         department: formatCenterLabel(departmentCenter || taxAcc?.departmentCenter),
         costCentre: formatCenterLabel(costCenter || taxAcc?.costCenter),
         debit: 0,
@@ -302,12 +312,14 @@ export const InvoiceRecapModal: React.FC<InvoiceRecapModalProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     glAccounts,
+    glAccountsLoading,
     departmentCenter,
     costCenter,
     tenantGlAccountCode,
     totalAmount,
     taxAmount,
     lines,
+    invoiceNumber,
     currency,
     currencyRate,
     currencyRates,

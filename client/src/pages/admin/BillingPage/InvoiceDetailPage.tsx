@@ -7,6 +7,7 @@ import {
   useSendInvoiceMutation, useCreateCreditNoteMutation, useGetChargeTypesQuery,
   useGetCurrencyRatesQuery,
 } from '../../../store/api/billingApi';
+import { useGetGlAccountsQuery } from '../../../store/api/glApi';
 import { List, FileText, Ban, CreditCard, Send, Plus, Trash2, X, Banknote, History, ShieldAlert, Timer, Eye, UploadCloud, Table2 } from 'lucide-react';
 import { InvoiceRecapModal } from './components/InvoiceRecapModal';
 import { format, differenceInDays } from 'date-fns';
@@ -57,6 +58,12 @@ export default function InvoiceDetailPage() {
     inv?.property?.id ? { propertyId: inv.property.id } : skipToken,
   );
   const currencyRates = currencyRatesData?.data ?? [];
+
+  // Prefetch GL accounts (same query args as InvoiceRecapModal) so the Recap modal
+  // can read them straight from the RTK Query cache and open without a "Loading..." state.
+  const recapPropertyId = inv?.property?.id;
+  useGetGlAccountsQuery(recapPropertyId ? { propertyId: recapPropertyId } : {}, { skip: !inv });
+  useGetGlAccountsQuery({}, { skip: !inv || !recapPropertyId });
 
   /**
    * Convert `amount` (expressed in `fromCurrency`) into `toCurrency` using the

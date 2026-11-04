@@ -850,7 +850,19 @@ export default function InvoiceListPage() {
                         CustomerCode: <strong>{r.customerCode || '—'}</strong>
                       </div>
                       {r.error && (
-                        <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4, wordBreak: 'break-all', whiteSpace: 'pre-wrap' }}>{r.error}</div>
+                        <div style={{
+                          fontSize: 11,
+                          color: r.status === 'sent'
+                            ? (r.error.startsWith('⚠️') ? 'var(--warning)' : '#10b981')
+                            : r.status === 'failed'
+                            ? '#ef4444'
+                            : 'var(--warning)',
+                          marginTop: 4,
+                          wordBreak: 'break-all',
+                          whiteSpace: 'pre-wrap',
+                        }}>
+                          {r.error}
+                        </div>
                       )}
                     </div>
                   ))}
