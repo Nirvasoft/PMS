@@ -1,25 +1,21 @@
 import { useEffect, useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { Store, Search, X, MapPin, Tag, Star, Layers, Maximize2 } from 'lucide-react';
+import { Store, Search, X } from 'lucide-react';
 import { useGetPublicDirectoryQuery } from '../../store/api/mallApi';
-import { isUnitPhotoImage, resolveImageAssetUrl } from '../../utils/unitPhotoCache';
-import { CachedUnitPhoto } from '../../components/common/CachedUnitPhoto';
+import { resolveImageAssetUrl } from '../../utils/unitPhotoCache';
+import { useUnitPhotoCache } from '../../components/common/CachedUnitPhoto';
 import ShopMapView from '../admin/ShopDirectory/ShopMapView';
 import {
-  floorKeyOf,
   getCachedDirectory,
   saveCachedDirectory,
-  shopDisplayName,
-  unitNumberOf,
 } from '../admin/ShopDirectory/shopMapLayout';
 
 export default function PublicMallNavigationPage() {
+  useUnitPhotoCache();
   const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
   const propertyId = urlParams.get('propertyId') || '';
   const initialFloor = urlParams.get('floor') || '';
 
   const [search, setSearch] = useState('');
-  const [detailShop, setDetailShop] = useState<any>(null);
   const [brandImgIdx, setBrandImgIdx] = useState(0);
 
   const { data, isLoading, isError } = useGetPublicDirectoryQuery(
@@ -55,17 +51,6 @@ export default function PublicMallNavigationPage() {
   useEffect(() => {
     setBrandImgIdx(0);
   }, [propertyImageCandidates]);
-
-  useEffect(() => {
-    if (!detailShop?.unitId) return;
-    const fresh = allShops.find((s: any) => s.unitId === detailShop.unitId);
-    if (fresh && fresh !== detailShop) {
-      setDetailShop(fresh);
-    }
-  }, [allShops, detailShop]);
-
-  const detailShopPhotoUrl =
-    detailShop?.unit?.floorPlanUrl || detailShop?.shopfrontUrl || detailShop?.logoUrl || null;
 
   if (!propertyId) {
     return (
@@ -146,89 +131,10 @@ export default function PublicMallNavigationPage() {
           propertyId={propertyId}
           propertyName={property?.name}
           searchQuery={search}
-          onOpenShop={(shop) => setDetailShop(shop)}
           fullScreen
           initialFloor={initialFloor}
           publicMode
         />
-      )}
-
-      {/* Public Shop Info Modal */}
-      {detailShop && createPortal(
-        <div className="shop-map-qr-backdrop" onClick={() => setDetailShop(null)}>
-          <div className="shop-map-qr-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="shop-map-qr-header">
-              <div>
-                <h3>
-                  <Store size={18} /> {shopDisplayName(detailShop, 'Shop')}
-                </h3>
-                <p>Unit {unitNumberOf(detailShop) || '—'}</p>
-              </div>
-              <button type="button" className="shop-map-qr-close" onClick={() => setDetailShop(null)}>
-                <X size={18} />
-              </button>
-            </div>
-            <div className="shop-map-qr-body">
-              {detailShopPhotoUrl && isUnitPhotoImage(detailShopPhotoUrl) && (
-                <CachedUnitPhoto
-                  photoUrl={detailShopPhotoUrl}
-                  alt={shopDisplayName(detailShop, 'Shop')}
-                  wrapperAs="div"
-                  wrapperClassName="public-mall-shop-photo-wrap"
-                  imgClassName="public-mall-shop-photo"
-                  skeletonClassName="shop-map-tile-skeleton"
-                  loading="eager"
-                />
-              )}
-              <div className="public-mall-tags">
-                <span className="shop-map-quick-pill active public-mall-tag-pill">
-                  <Tag size={12} /> {detailShop.tradeCategory || 'Other'}
-                </span>
-                {detailShop.isAnchor && (
-                  <span className="shop-map-quick-pill public-mall-tag-pill">
-                    <Star size={12} /> Anchor Store
-                  </span>
-                )}
-              </div>
-
-              <div className="public-mall-info-grid">
-                <div>
-                  <div className="public-mall-info-label">
-                    <Layers size={11} /> Floor
-                  </div>
-                  <div className="public-mall-info-val">
-                    {floorKeyOf(detailShop)}
-                  </div>
-                </div>
-                <div>
-                  <div className="public-mall-info-label">
-                    <MapPin size={11} /> Unit Number
-                  </div>
-                  <div className="public-mall-info-val">
-                    {unitNumberOf(detailShop) || '—'}
-                  </div>
-                </div>
-                {detailShop.tradeSubcategory && (
-                  <div>
-                    <div className="public-mall-info-label">Subcategory</div>
-                    <div className="public-mall-info-val">{detailShop.tradeSubcategory}</div>
-                  </div>
-                )}
-                {detailShop.unit?.areaSqft && (
-                  <div>
-                    <div className="public-mall-info-label">
-                      <Maximize2 size={11} /> Area
-                    </div>
-                    <div className="public-mall-info-val">
-                      {Number(detailShop.unit.areaSqft).toLocaleString()} sqft
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>,
-        document.body,
       )}
     </div>
   );

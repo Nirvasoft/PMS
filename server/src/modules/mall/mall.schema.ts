@@ -4,7 +4,7 @@ import { z } from 'zod';
 export const saveFloorPlanSchema = z.object({
   body: z.object({
     sqftPerCell: z.number().positive().max(1_000_000),
-    columns: z.number().int().min(10).max(200),
+    columns: z.number().int().min(10).max(2000),
     items: z.array(z.object({
       kind: z.enum([
         'unit', 'atrium', 'stairs', 'escalator', 'corridor', 'toilet',
@@ -14,8 +14,8 @@ export const saveFloorPlanSchema = z.object({
       label: z.string().max(100).nullable().optional(),
       x: z.number().int().min(0),
       y: z.number().int().min(0),
-      w: z.number().int().min(1).max(200),
-      h: z.number().int().min(1).max(500),
+      w: z.number().int().min(1).max(1000),
+      h: z.number().int().min(1).max(1000),
       angle: z.number().int().min(0).max(359).refine((n) => n % 12 === 0 || n % 15 === 0, 'Angle must be a multiple of 12').optional(),
     })).max(2000),
   }),

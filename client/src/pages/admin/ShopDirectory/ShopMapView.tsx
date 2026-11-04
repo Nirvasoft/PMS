@@ -20,25 +20,25 @@ import {
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import {
   DECORATION_DEFAULT_SIZES, DECORATION_LABELS, DEFAULT_COLUMNS, DEFAULT_SQFT_PER_CELL,
-  SHOP_CATEGORIES, compareShopsByUnitNumber, findFreeSpot, addConnectedUnitWing, addConnectedWalkwayBranch, wrapWalkwayAroundAtrium, snapTileToBorder, syncCircleCorridorResizeWithInnerAndOuterItems, isOutsideCircleCorridorOuter, computeMagneticSnapGuide, addTransitIntoAtrium, isTransitLandmark, floorKeyOf, tilesConflict, hasAnyOverlap,
+  SHOP_CATEGORIES, compareShopsByUnitNumber, findFreeSpot, addConnectedUnitWing, snapTileToBorder, computeMagneticSnapGuide, addTransitIntoAtrium, isTransitLandmark, floorKeyOf, tilesConflict, hasAnyOverlap,
   tileSizeFromSqft, calibrateSqftPerCell, syncUnitTilesToSqft,
   unitKey, nextUnitBlockKey, findPrimaryUnitTile, resolveTileByKey,
   unitNumberOf, shopDisplayName, matchesShopQuery, scoreShopSearchMatch,
   computeWalkwayPath, buildSmoothRouteSvgPath, computeRouteDirectionArrows, computeFloorplateBounds, findDefaultStartItem, findNearestFacilityItem,
-  rotateMapLayout, parseRotationAngle, buildCorridorShapeMap, getCorridorMergeData, computeUnitMergeMap,
+  rotateMapLayout, parseRotationAngle, computeUnitMergeMap,
   normalizeTileAngle, TILE_ANGLE_STEP,
-  CORRIDOR_SHAPE_LABELS, parseCorridorShapeMode, encodeCorridorShapeMode, nextCorridorShapeMode,
-  UNIT_SHAPE_LABELS, parseUnitShapeMode, encodeUnitShapeMode, nextUnitShapeMode, isTrapezoidUnitMode, getTrapezoidUnitGeometry,
+  UNIT_SHAPE_LABELS, UNIT_SHAPE_OPTIONS, parseUnitShapeMode, encodeUnitShapeMode, nextUnitShapeMode, isTrapezoidUnitMode, getTrapezoidUnitGeometry,
   LANDMARK_VARIANTS, parseLandmarkMeta, encodeLandmarkMeta, nextLandmarkVariant, autoSquareCircleLandmark, getPolygonAtriumGeometry, getAtriumFaceAlignment,
   parseFloorPlanData, buildCopiedFloorLayout, saveCachedFloorPlan, getCachedFloorPlan,
   expandTouchingGroupKeys, computeGroupBoundingBox, moveTileGroupByDelta, rotateTileGroup,
-  type MapItem, type TileKind, type MapRotationAngle, type SharpCorners, type EdgeMergeGeometry, type CorridorShapeMode, type CorridorMergeData, type UnitShapeMode, type TrapezoidUnitGeometry, type MagneticSnapGuide,
+  type MapItem, type TileKind, type MapRotationAngle, type SharpCorners, type EdgeMergeGeometry, type UnitShapeMode, type TrapezoidUnitGeometry, type MagneticSnapGuide,
 } from './shopMapLayout';
 import {
+  hasFailedUnitPhoto,
   isUnitPhotoImage,
   preloadUnitPhotosBatch,
 } from '../../../utils/unitPhotoCache';
-import { CachedUnitPhoto } from '../../../components/common/CachedUnitPhoto';
+import { CachedUnitPhoto, useUnitPhotoCache } from '../../../components/common/CachedUnitPhoto';
 import './ShopMapView.css';
 
 interface Props {
@@ -46,41 +46,15 @@ interface Props {
   propertyId: string | undefined | null;
   propertyName?: string;
   searchQuery?: string;
-  onOpenShop: (shop: any) => void;
+  onOpenShop?: (shop: any) => void;
   fullScreen?: boolean;
   initialFloor?: string;
   publicMode?: boolean;
 }
 
 const ALL_RESIZE_HANDLES = ['se', 'sw', 'nw', 'ne', 'e', 'w', 's', 'n'] as const;
-
-function CorridorShapeIcon({ mode, size }: { mode: CorridorShapeMode; size: number }) {
-  const s = Math.max(9, size);
-  if (mode === 'straight') {
-    return (
-      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-        <line x1="2" y1="5" x2="14" y2="5" />
-        <line x1="2" y1="11" x2="14" y2="11" />
-        <line x1="4.5" y1="8" x2="11.5" y2="8" strokeDasharray="2 2" />
-      </svg>
-    );
-  }
-  if (mode === 'circle') {
-    return (
-      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7">
-        <circle cx="8" cy="8" r="5.8" />
-        <circle cx="8" cy="8" r="2.3" />
-      </svg>
-    );
-  }
-  // 'auto' — smart position-aware indicator
-  return (
-    <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M 8 2.2 L 9.3 5.5 L 12.8 6.8 L 9.3 8.1 L 8 11.4 L 6.7 8.1 L 3.2 6.8 L 6.7 5.5 Z" />
-      <circle cx="12.5" cy="12.5" r="1.4" fill="currentColor" stroke="none" />
-    </svg>
-  );
-}
+const EDIT_LEFT_PAD = 12;
+const EDIT_RIGHT_PAD = 16;
 
 function AtriumShapeIcon({ mode, size }: { mode: UnitShapeMode | string; size: number }) {
   const s = Math.max(9, size);
@@ -101,7 +75,7 @@ function AtriumShapeIcon({ mode, size }: { mode: UnitShapeMode | string; size: n
   if (mode === 'ring-curve') {
     return (
       <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
-        <path d="M 2.2 3.2 L 13.8 3.2 L 13.8 12.8 Q 8 8.8 2.2 12.8 Z" />
+        <path d="M 1.8 5.4 Q 8 1.6 14.2 5.4 L 11.6 13.2 Q 8 10.4 4.4 13.2 Z" />
       </svg>
     );
   }
@@ -109,6 +83,118 @@ function AtriumShapeIcon({ mode, size }: { mode: UnitShapeMode | string; size: n
     return (
       <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
         <path d="M 2.2 3.2 L 13.8 3.2 L 11.8 12.8 Q 8 9.2 4.2 12.8 Z" />
+      </svg>
+    );
+  }
+  if (mode === 'slope-b-l') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <polygon points="2.2 3.2 13.8 3.2 13.8 12.8 2.2 9.0" />
+      </svg>
+    );
+  }
+  if (mode === 'slope-b-r') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <polygon points="2.2 3.2 13.8 3.2 13.8 9.0 2.2 12.8" />
+      </svg>
+    );
+  }
+  if (mode === 'slope-t-l') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <polygon points="2.2 7.0 13.8 3.2 13.8 12.8 2.2 12.8" />
+      </svg>
+    );
+  }
+  if (mode === 'slope-t-r') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <polygon points="2.2 3.2 13.8 7.0 13.8 12.8 2.2 12.8" />
+      </svg>
+    );
+  }
+  if (mode === 'chamfer-tr') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <polygon points="2.2 3.2 9.4 3.2 13.8 7.6 13.8 12.8 2.2 12.8" />
+      </svg>
+    );
+  }
+  if (mode === 'chamfer-tl') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <polygon points="6.6 3.2 13.8 3.2 13.8 12.8 2.2 12.8 2.2 7.6" />
+      </svg>
+    );
+  }
+  if (mode === 'chamfer-br') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <polygon points="2.2 3.2 13.8 3.2 13.8 8.4 9.4 12.8 2.2 12.8" />
+      </svg>
+    );
+  }
+  if (mode === 'chamfer-bl') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <polygon points="2.2 3.2 13.8 3.2 13.8 12.8 6.6 12.8 2.2 8.4" />
+      </svg>
+    );
+  }
+  if (mode === 'curve-bl') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <path d="M 2.2 3.2 L 13.8 3.2 L 13.8 12.8 L 8.0 12.8 Q 2.2 12.8 2.2 7.0 Z" />
+      </svg>
+    );
+  }
+  if (mode === 'curve-br') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <path d="M 2.2 3.2 L 13.8 3.2 L 13.8 7.0 Q 13.8 12.8 8.0 12.8 L 2.2 12.8 Z" />
+      </svg>
+    );
+  }
+  if (mode === 'curve-tl') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <path d="M 8.0 3.2 L 13.8 3.2 L 13.8 12.8 L 2.2 12.8 L 2.2 9.0 Q 2.2 3.2 8.0 3.2 Z" />
+      </svg>
+    );
+  }
+  if (mode === 'curve-tr') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <path d="M 2.2 3.2 L 8.0 3.2 Q 13.8 3.2 13.8 9.0 L 13.8 12.8 L 2.2 12.8 Z" />
+      </svg>
+    );
+  }
+  if (mode === 'notch-tl') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <path d="M 7.8 3.2 L 13.8 3.2 L 13.8 12.8 L 2.2 12.8 L 2.2 8.8 Q 7.4 8.4 7.8 3.2 Z" />
+      </svg>
+    );
+  }
+  if (mode === 'notch-tr') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <path d="M 2.2 3.2 L 8.2 3.2 Q 8.6 8.4 13.8 8.8 L 13.8 12.8 L 2.2 12.8 Z" />
+      </svg>
+    );
+  }
+  if (mode === 'notch-bl') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <path d="M 2.2 3.2 L 13.8 3.2 L 13.8 12.8 L 7.8 12.8 Q 7.4 7.6 2.2 7.2 Z" />
+      </svg>
+    );
+  }
+  if (mode === 'notch-br') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <path d="M 2.2 3.2 L 13.8 3.2 L 13.8 7.2 Q 8.6 7.6 8.2 12.8 L 2.2 12.8 Z" />
       </svg>
     );
   }
@@ -527,9 +613,14 @@ function DecorIcon({
       );
     case 'marker':
       return (
-        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M12 22s-7.5-6.2-7.5-11.5a7.5 7.5 0 1 1 15 0C19.5 15.8 12 22 12 22Z" fill="currentColor" fillOpacity="0.28" />
-          <circle cx="12" cy="10.5" r="3" fill="currentColor" />
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
+          <path
+            d="M12 22s-7.5-6.2-7.5-11.5a7.5 7.5 0 1 1 15 0C19.5 15.8 12 22 12 22Z"
+            fill="currentColor"
+            stroke="#ffffff"
+            strokeWidth="1.5"
+          />
+          <circle cx="12" cy="10.5" r="3.1" fill="#ffffff" />
         </svg>
       );
     case 'entrance':
@@ -812,6 +903,7 @@ export default function ShopMapView({
   initialFloor,
   publicMode = false,
 }: Props) {
+  useUnitPhotoCache();
   const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
   const initialFromParam = urlParams.get('from') || '';
   const initialToParam = urlParams.get('to') || '';
@@ -842,16 +934,22 @@ export default function ShopMapView({
   // Preload and cache unit photos in the background as soon as shops load
   useEffect(() => {
     let cancelled = false;
+    let timerId: ReturnType<typeof setTimeout> | null = null;
     const shopPhotoOf = (s: any) => (s?.unit?.floorPlanUrl || s?.shopfrontUrl || s?.logoUrl) as string | undefined;
     const currentFloorUrls = floorShops.map(shopPhotoOf);
     const otherFloorUrls = shops.filter((s) => floorKeyOf(s) !== floor).map(shopPhotoOf);
 
     preloadUnitPhotosBatch(currentFloorUrls).then(() => {
-      if (!cancelled) preloadUnitPhotosBatch(otherFloorUrls);
+      if (!cancelled && otherFloorUrls.length > 0) {
+        timerId = setTimeout(() => {
+          if (!cancelled) preloadUnitPhotosBatch(otherFloorUrls);
+        }, 400);
+      }
     });
 
     return () => {
       cancelled = true;
+      if (timerId) clearTimeout(timerId);
     };
   }, [floorShops, shops, floor]);
 
@@ -910,6 +1008,7 @@ export default function ShopMapView({
   const [qrModalFloor, setQrModalFloor] = useState<string>('');
   const [showRouteQrModal, setShowRouteQrModal] = useState(false);
   const [editingLandmarkKey, setEditingLandmarkKey] = useState<string | null>(null);
+  const [editingUnitShapeKey, setEditingUnitShapeKey] = useState<string | null>(null);
   const [focusedLayerKey, setFocusedLayerKey] = useState<string | null>(null);
   const [rotatingTileKey, setRotatingTileKey] = useState<string | null>(null);
   const [isRotatingGroup, setIsRotatingGroup] = useState(false);
@@ -992,12 +1091,16 @@ export default function ShopMapView({
     [networkPlanData, propertyId, floor],
   );
 
+  const editLeftOffsetRef = useRef(0);
+  const pendingScrollAdjustPxRef = useRef(0);
+
   const applyParsedLayout = (parsed: {
     sqftPerCell: number;
     columns: number;
     decorSeq: number;
     items: MapItem[];
   }) => {
+    editLeftOffsetRef.current = 0;
     setSqftPerCell(parsed.sqftPerCell);
     setColumns(parsed.columns);
     setDecorSeq(parsed.decorSeq);
@@ -1010,23 +1113,55 @@ export default function ShopMapView({
     applyParsedLayout(parseFloorPlanData(planData, shopByUnit));
   }, [planData, shopByUnit, dirty]);
 
+  const maxEditingRight = useMemo(() => {
+    let maxR = 0;
+    for (const it of items) {
+      const dx =
+        editing && dragGroupDelta && selectedGroupSet.has(it.key) ? dragGroupDelta.dx : 0;
+      const r = it.x + dx + it.w;
+      if (r > maxR) maxR = r;
+    }
+    if (editing && dragPreviewItem) {
+      const r = dragPreviewItem.x + dragPreviewItem.w;
+      if (r > maxR) maxR = r;
+    }
+    return maxR;
+  }, [items, editing, dragPreviewItem, dragGroupDelta, selectedGroupSet]);
+
+  const effectiveColumns = editing
+    ? Math.max(columns, DEFAULT_COLUMNS + editLeftOffsetRef.current, maxEditingRight + EDIT_RIGHT_PAD)
+    : Math.max(columns, DEFAULT_COLUMNS, maxEditingRight);
+
   const effectiveRotation: MapRotationAngle = editing ? 0 : mapRotation;
   const isQuarterTurn = effectiveRotation === 90 || effectiveRotation === 270;
   const rotatedLayout = useMemo(
-    () => rotateMapLayout(items, columns, effectiveRotation),
-    [items, columns, effectiveRotation],
+    () => rotateMapLayout(items, effectiveColumns, effectiveRotation),
+    [items, effectiveColumns, effectiveRotation],
   );
-  // Render corridors first, then atriums, then units & transit/other landmarks so Elevator/Escalator/Stairs inside an Atrium are always on top
+  // Render atriums first, then units & transit/other landmarks so Elevator/Escalator/Stairs inside an Atrium are always on top
   const displayItems = useMemo(
     () => [
-      ...rotatedLayout.items.filter((i) => i.kind === 'corridor'),
       ...rotatedLayout.items.filter((i) => i.kind === 'atrium'),
       ...rotatedLayout.items.filter((i) => i.kind !== 'corridor' && i.kind !== 'atrium'),
     ],
     [rotatedLayout.items],
   );
   const displayColumns = rotatedLayout.columns;
-  const rows = Math.max(10, ...displayItems.map((i) => i.y + i.h)) + (editing ? 6 : 1);
+  const maxDisplayBottom = useMemo(() => {
+    let maxB = 10;
+    for (const it of displayItems) {
+      const dy =
+        editing && dragGroupDelta && selectedGroupSet.has(it.key) ? dragGroupDelta.dy : 0;
+      const b = it.y + dy + it.h;
+      if (b > maxB) maxB = b;
+    }
+    if (editing && dragPreviewItem) {
+      const b = dragPreviewItem.y + dragPreviewItem.h;
+      if (b > maxB) maxB = b;
+    }
+    return maxB;
+  }, [displayItems, editing, dragPreviewItem, dragGroupDelta, selectedGroupSet]);
+  const rows = maxDisplayBottom + (editing ? 8 : 1);
 
   const itemsRef = useRef<MapItem[]>(items);
   itemsRef.current = items;
@@ -1064,6 +1199,10 @@ export default function ShopMapView({
   ): { conflict: boolean; items: MapItem[]; groupDelta?: { dx: number; dy: number } | null } => {
     const layoutByKey = new Map(nextLayout.map((x) => [x.i, x]));
     const activeGroup = selectedGroupSetRef.current;
+    const interactionColumns = Math.max(
+      effectiveColumns,
+      ...nextLayout.map((l) => (Number(l.x) || 0) + (Number(l.w) || 1) + EDIT_RIGHT_PAD),
+    );
 
     if (activeGroup.size > 1) {
       const movedOrig = baseItems.find((orig) => {
@@ -1078,7 +1217,7 @@ export default function ShopMapView({
           activeGroup,
           l.x - movedOrig.x,
           l.y - movedOrig.y,
-          columns,
+          interactionColumns,
         );
         return {
           conflict: groupRes.conflict,
@@ -1100,10 +1239,9 @@ export default function ShopMapView({
         const orig = baseItems[idx];
         const moved = orig && (it.x !== orig.x || it.y !== orig.y || it.w !== orig.w || it.h !== orig.h);
         if (!moved) return it;
-        return snapTileToBorder(it, candidateItems, columns, orig) ?? it;
+        return snapTileToBorder(it, candidateItems, interactionColumns, orig) ?? it;
       });
     }
-    candidateItems = syncCircleCorridorResizeWithInnerAndOuterItems(candidateItems, baseItems, columns);
 
     const resolvedLayout = candidateItems.map((it) => ({ i: it.key, x: it.x, y: it.y, w: it.w, h: it.h, angle: it.angle }));
     if (hasLayoutConflict(resolvedLayout, baseItems)) {
@@ -1164,7 +1302,11 @@ export default function ShopMapView({
   const placedDecorKinds = useMemo(
     () =>
       Array.from(
-        new Set(items.filter((i) => i.kind !== 'unit').map((i) => i.kind as Exclude<TileKind, 'unit'>)),
+        new Set(
+          items
+            .filter((i) => i.kind !== 'unit' && i.kind !== 'corridor')
+            .map((i) => i.kind as Exclude<TileKind, 'unit'>),
+        ),
       ),
     [items],
   );
@@ -1181,12 +1323,7 @@ export default function ShopMapView({
     return displayItems;
   }, [editing, mapRotation, displayItems, dragPreviewItem, dragGroupDelta, selectedGroupSet]);
 
-  const corridors = useMemo(() => liveDisplayItems.filter((i) => i.kind === 'corridor'), [liveDisplayItems]);
-  const corridorShapeMap = useMemo(
-    () => buildCorridorShapeMap(corridors, liveDisplayItems),
-    [corridors, liveDisplayItems],
-  );
-  const unitMergeMap = useMemo(() => computeUnitMergeMap(displayItems), [displayItems]);
+  const unitMergeMap = useMemo(() => computeUnitMergeMap(liveDisplayItems), [liveDisplayItems]);
   const unplaced = useMemo(
     () => floorShops.filter((s) => !placedUnitIds.has(s.unitId)),
     [floorShops, placedUnitIds],
@@ -1194,12 +1331,14 @@ export default function ShopMapView({
 
   const { width, containerRef } = useContainerWidth();
   const availWidth = Math.max(0, (width || viewport.w || 900) - 16);
-  const minDeviceCellPx = editing ? 6 : viewport.w <= 480 ? 10 : viewport.w <= 768 ? 11 : 8;
-  const rawCellPx = Math.floor(availWidth / Math.max(1, displayColumns));
+  const minDeviceCellPx = editing ? 10 : viewport.w <= 480 ? 10 : viewport.w <= 768 ? 11 : 4;
+  // In Edit mode, keep cell size constant (based on DEFAULT_COLUMNS) so tiles never shrink as horizontal columns expand;
+  // in View mode, fit the floor map to the screen width.
+  const rawCellPx = Math.floor(availWidth / Math.max(1, editing ? DEFAULT_COLUMNS : displayColumns));
   const maxCanvasHeight = Math.max(340, Math.round(viewport.h * (fullScreen ? 0.72 : 0.65)));
   const maxCellByHeight = Math.max(minDeviceCellPx, Math.floor(maxCanvasHeight / Math.max(1, rows)));
   const cellPx = editing
-    ? Math.max(6, rawCellPx)
+    ? Math.max(10, rawCellPx)
     : isQuarterTurn
       ? Math.max(minDeviceCellPx, Math.min(rawCellPx, maxCellByHeight, 26))
       : Math.max(minDeviceCellPx, rawCellPx);
@@ -1212,13 +1351,25 @@ export default function ShopMapView({
     [editing, displayItems, displayColumns],
   );
 
-  const corridorMergeMap = useMemo(() => {
-    const map = new Map<string, CorridorMergeData>();
-    for (const c of corridors) {
-      map.set(c.key, getCorridorMergeData(c, corridors, liveDisplayItems, cellPx, corridorShapeMap));
+  const ensureLeftPad = (list: MapItem[], minPad = EDIT_LEFT_PAD): MapItem[] => {
+    if (list.length === 0) return list;
+    const minX = Math.min(...list.map((i) => i.x));
+    if (minX >= minPad) return list;
+    const shiftX = minPad - minX;
+    editLeftOffsetRef.current += shiftX;
+    pendingScrollAdjustPxRef.current += shiftX * cellPx;
+    setColumns((c) => Math.max(c + shiftX, DEFAULT_COLUMNS + editLeftOffsetRef.current));
+    return list.map((i) => ({ ...i, x: i.x + shiftX }));
+  };
+
+  useEffect(() => {
+    if (pendingScrollAdjustPxRef.current !== 0 && containerRef.current) {
+      containerRef.current.scrollLeft += pendingScrollAdjustPxRef.current;
+      pendingScrollAdjustPxRef.current = 0;
+    } else {
+      pendingScrollAdjustPxRef.current = 0;
     }
-    return map;
-  }, [corridors, liveDisplayItems, cellPx, corridorShapeMap]);
+  }, [items, columns, containerRef]);
 
   const staticTileMetaMap = useMemo(() => {
     const map = new Map<
@@ -1232,7 +1383,6 @@ export default function ShopMapView({
         polyAtriumGeo: ReturnType<typeof getPolygonAtriumGeometry> | null;
         trapezoidGeo: TrapezoidUnitGeometry | null;
         hasInnerItems: boolean;
-        isInnerHoleItem: boolean;
         parentAtrium: MapItem | null;
       }
     >();
@@ -1255,27 +1405,14 @@ export default function ShopMapView({
           ? getTrapezoidUnitGeometry(unitMode, wPx, hPx, cellPx, um, alignedTile, liveDisplayItems)
           : null;
       let hasInnerItems = false;
-      let isInnerHoleItem = false;
       let parentAtrium: MapItem | null = null;
       for (const o of liveDisplayItems) {
         if (o.key === it.key) continue;
         if (it.x < o.x + o.w && it.x + it.w > o.x && it.y < o.y + o.h && it.y + it.h > o.y) {
-          if (
-            (it.kind === 'atrium' || it.kind === 'corridor') &&
-            o.kind !== it.kind &&
-            !isOutsideCircleCorridorOuter(it, o)
-          ) {
+          if (it.kind === 'atrium' && o.kind !== 'atrium') {
             hasInnerItems = true;
           }
-          if (
-            it.kind !== 'corridor' &&
-            o.kind === 'corridor' &&
-            !isOutsideCircleCorridorOuter(o, it)
-          ) {
-            isInnerHoleItem = true;
-            if (!parentAtrium) parentAtrium = o;
-          }
-          if (it.kind !== 'atrium' && it.kind !== 'corridor' && o.kind === 'atrium' && !parentAtrium) {
+          if (it.kind !== 'atrium' && o.kind === 'atrium' && !parentAtrium) {
             parentAtrium = o;
           }
         }
@@ -1289,7 +1426,6 @@ export default function ShopMapView({
         polyAtriumGeo,
         trapezoidGeo,
         hasInnerItems,
-        isInnerHoleItem,
         parentAtrium,
       });
     }
@@ -1424,28 +1560,6 @@ export default function ShopMapView({
     [displayItems, shopByUnit, sqftPerCell],
   );
 
-  // Compute walkway path along corridors
-  const walkwayRoute = useMemo(() => {
-    if (editing || !activeStartItem || !effectiveTargetItem) return null;
-    if (activeStartItem.key === effectiveTargetItem.key) return null;
-    if (activeStartItem.unitId && activeStartItem.unitId === effectiveTargetItem.unitId) return null;
-    return computeWalkwayPath(displayItems, activeStartItem, effectiveTargetItem, displayColumns, effectiveSqftPerCell);
-  }, [editing, activeStartItem, effectiveTargetItem, displayItems, displayColumns, effectiveSqftPerCell]);
-
-  const routeRenderData = useMemo(() => {
-    if (!walkwayRoute || walkwayRoute.points.length < 2) return null;
-    const pxPoints = walkwayRoute.points.map((pt) => ({
-      x: pt.x * colStepPx,
-      y: pt.y * rowStepPx,
-    }));
-    return {
-      smoothPathD: buildSmoothRouteSvgPath(pxPoints, Math.max(6, Math.round(cellPx * 0.48))),
-      routeArrows: computeRouteDirectionArrows(pxPoints, Math.max(38, Math.round(cellPx * 2.2))),
-      startPt: pxPoints[0],
-      endPt: pxPoints[pxPoints.length - 1],
-    };
-  }, [walkwayRoute, colStepPx, rowStepPx, cellPx]);
-
   const describeTile = (it: MapItem | null): string => {
     if (!it) return '—';
     if (it.kind === 'unit' && it.unitId) {
@@ -1456,6 +1570,35 @@ export default function ShopMapView({
     }
     return DECORATION_LABELS[it.kind as Exclude<TileKind, 'unit'>] || it.label || it.kind;
   };
+
+  // Compute route path and landmark/shop waypoint steps
+  const walkwayRoute = useMemo(() => {
+    if (editing || !activeStartItem || !effectiveTargetItem) return null;
+    if (activeStartItem.key === effectiveTargetItem.key) return null;
+    if (activeStartItem.unitId && activeStartItem.unitId === effectiveTargetItem.unitId) return null;
+    return computeWalkwayPath(
+      displayItems,
+      activeStartItem,
+      effectiveTargetItem,
+      displayColumns,
+      effectiveSqftPerCell,
+      describeTile,
+    );
+  }, [editing, activeStartItem, effectiveTargetItem, displayItems, displayColumns, effectiveSqftPerCell, shopByUnit]);
+
+  const routeRenderData = useMemo(() => {
+    if (!walkwayRoute || walkwayRoute.points.length < 2) return null;
+    const pxPoints = walkwayRoute.points.map((pt) => ({
+      x: pt.x * colStepPx,
+      y: pt.y * rowStepPx,
+    }));
+    return {
+      smoothPathD: buildSmoothRouteSvgPath(pxPoints, Math.max(4, Math.round(cellPx * 0.36))),
+      routeArrows: computeRouteDirectionArrows(pxPoints, Math.max(38, Math.round(cellPx * 2.2))),
+      startPt: pxPoints[0],
+      endPt: pxPoints[pxPoints.length - 1],
+    };
+  }, [walkwayRoute, colStepPx, rowStepPx, cellPx]);
 
   const openLandmarkConfig = (key: string) => {
     const target = items.find((i) => i.key === key);
@@ -1475,7 +1618,7 @@ export default function ShopMapView({
         const nextLabel = encodeLandmarkMeta(i.kind, landmarkVariantDraft, landmarkCustomDraft, landmarkShowLabelDraft);
         const nextItem: MapItem = { ...i, label: nextLabel };
         return i.kind === 'marker' || parseLandmarkMeta(i.kind, nextLabel).isCircle
-          ? autoSquareCircleLandmark(nextItem, prev, columns)
+          ? autoSquareCircleLandmark(nextItem, prev, effectiveColumns)
           : nextItem;
       }),
     );
@@ -1572,9 +1715,9 @@ export default function ShopMapView({
   };
 
   const place = (shop: any) => {
-    const { w, h } = tileSizeFromSqft(shop.unit?.areaSqft, effectiveSqftPerCell, columns);
+    const { w, h } = tileSizeFromSqft(shop.unit?.areaSqft, effectiveSqftPerCell, DEFAULT_COLUMNS);
     update((prev) => {
-      const pos = findFreeSpot(prev, w, h, columns);
+      const pos = findFreeSpot(prev, w, h, effectiveColumns, EDIT_LEFT_PAD);
       const rawItem: MapItem = {
         key: nextUnitBlockKey(prev, shop.unitId),
         kind: 'unit',
@@ -1586,18 +1729,18 @@ export default function ShopMapView({
         h,
       };
       const nextList = [...prev, rawItem];
-      const snapped = magnetEnabled ? snapTileToBorder(rawItem, nextList, columns) : null;
-      return snapped ? [...prev, snapped] : nextList;
+      const snapped = magnetEnabled ? snapTileToBorder(rawItem, nextList, effectiveColumns) : null;
+      return ensureLeftPad(snapped ? [...prev, snapped] : nextList, EDIT_LEFT_PAD);
     });
   };
 
   const addUnitWing = (anchorKey: string) => {
-    update((prev) => addConnectedUnitWing(prev, anchorKey, columns));
+    update((prev) => ensureLeftPad(addConnectedUnitWing(prev, anchorKey, effectiveColumns), EDIT_LEFT_PAD));
   };
 
   const handleSyncUnitSqft = () => {
-    const res = syncUnitTilesToSqft(items, shopByUnit, effectiveSqftPerCell, columns);
-    setItems(res.items);
+    const res = syncUnitTilesToSqft(items, shopByUnit, effectiveSqftPerCell, effectiveColumns);
+    setItems(ensureLeftPad(res.items, EDIT_LEFT_PAD));
     setSqftPerCell(res.calibratedSqftPerCell);
     if (res.updatedCount > 0) {
       setDirty(true);
@@ -1611,7 +1754,7 @@ export default function ShopMapView({
     if (kind === 'marker' && items.some((i) => i.kind === 'marker')) return;
     const { w, h } = DECORATION_DEFAULT_SIZES[kind] || { w: 6, h: 4 };
     update((prev) => {
-      const pos = findFreeSpot(prev, w, h, columns);
+      const pos = findFreeSpot(prev, w, h, effectiveColumns, EDIT_LEFT_PAD);
       return [...prev, { key: `d:${decorSeq}`, kind, unitId: null, label: DECORATION_LABELS[kind], x: pos.x, y: pos.y, w, h }];
     });
     setDecorSeq((n) => n + 1);
@@ -1619,72 +1762,77 @@ export default function ShopMapView({
 
   const createTransitInAtrium = (atriumKey: string, kind: 'escalator' | 'stairs', variant: string) => {
     const newKey = `d:${decorSeq}`;
-    update((prev) => addTransitIntoAtrium(prev, atriumKey, kind, variant, columns, newKey));
+    update((prev) => addTransitIntoAtrium(prev, atriumKey, kind, variant, effectiveColumns, newKey));
     setDecorSeq((n) => n + 1);
   };
 
-  const addWalkwayBranch = (anchorKey: string) => {
-    const newKey = `d:${decorSeq}`;
-    const res = addConnectedWalkwayBranch(items, anchorKey, columns, newKey);
-    if (res.length > items.length) {
-      setItems(res);
-      setDirty(true);
-      setDecorSeq((n) => n + 1);
-      toast.success('Added connected walkway branch (L / T junction)');
-    } else {
-      toast.error('No free space around this walkway for a connected branch');
+  const resolveConflictFreeRotatedTile = (
+    tile: MapItem,
+    nextAngle: number | undefined,
+    others: ReadonlyArray<MapItem>,
+    maxNudge = 4,
+  ): MapItem | null => {
+    const inPlace: MapItem = { ...tile, angle: nextAngle };
+    if (!others.some((o) => tilesConflict(inPlace, o))) {
+      return inPlace;
     }
-  };
-
-  const handleWrapWalkwayAroundAtrium = (atriumKey: string) => {
-    const res = wrapWalkwayAroundAtrium(items, atriumKey, columns, decorSeq);
-    if (res.addedCount > 0) {
-      setItems(res.items);
-      setDirty(true);
-      setDecorSeq(res.nextSeq);
-      toast.success(
-        res.addedCount === 1
-          ? 'Wrapped Circle Ring Walkway around Atrium'
-          : `Wrapped ${res.addedCount}-part Walkway Loop around Atrium`,
-      );
-    } else {
-      toast.error('Walkway already wraps this Atrium or surrounding space is occupied');
+    let best: { cand: MapItem; dist: number } | null = null;
+    for (let dy = -maxNudge; dy <= maxNudge; dy++) {
+      for (let dx = -maxNudge; dx <= maxNudge; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        const nx = tile.x + dx;
+        const ny = tile.y + dy;
+        if (nx < 0 || ny < 0 || nx + tile.w > effectiveColumns) continue;
+        const dist = Math.hypot(dx, dy);
+        if (best && dist >= best.dist) continue;
+        const cand: MapItem = { ...tile, x: nx, y: ny, angle: nextAngle };
+        if (!others.some((o) => tilesConflict(cand, o))) {
+          best = { cand, dist };
+        }
+      }
     }
+    return best ? best.cand : null;
   };
 
   const rotate = (key: string, stepDeg = TILE_ANGLE_STEP) => {
     groupRotBaseRef.current = null;
-    update((prev) =>
-      prev.map((i) => {
+    let blocked = false;
+    update((prev) => {
+      const rotatedList = prev.map((i) => {
         if (i.key !== key) return i;
+        const others = prev.filter((o) => o.key !== i.key);
         const nextAngle = normalizeTileAngle((i.angle ?? 0) + stepDeg);
-        if (
-          i.w !== i.h &&
-          ((stepDeg === 90 && !i.angle) ||
-            (i.kind === 'corridor' && (nextAngle === 90 || nextAngle === 270)))
-        ) {
-          const newW = Math.min(i.h, columns);
+        if (i.w !== i.h && stepDeg === 90 && !i.angle) {
+          const newW = Math.min(i.h, effectiveColumns);
           const newH = i.w;
-          const others = prev.filter((o) => o.key !== i.key);
           const anchors: Array<[number, number]> = [
             [
-              Math.max(0, Math.min(Math.round(i.x + (i.w - newW) / 2), columns - newW)),
+              Math.max(0, Math.min(Math.round(i.x + (i.w - newW) / 2), effectiveColumns - newW)),
               Math.max(0, Math.round(i.y + (i.h - newH) / 2)),
             ],
-            [Math.min(i.x, columns - newW), i.y],
-            [Math.max(0, Math.min(i.x + i.w - newW, columns - newW)), i.y],
-            [Math.min(i.x, columns - newW), Math.max(0, i.y + i.h - newH)],
+            [Math.min(i.x, effectiveColumns - newW), i.y],
+            [Math.max(0, Math.min(i.x + i.w - newW, effectiveColumns - newW)), i.y],
+            [Math.min(i.x, effectiveColumns - newW), Math.max(0, i.y + i.h - newH)],
           ];
           for (const [ax, ay] of anchors) {
             const cand: MapItem = { ...i, x: Math.max(0, ax), y: Math.max(0, ay), w: newW, h: newH, angle: undefined };
-            if (cand.x + cand.w <= columns && !others.some((o) => tilesConflict(cand, o))) {
+            if (cand.x + cand.w <= effectiveColumns && !others.some((o) => tilesConflict(cand, o))) {
               return cand;
             }
           }
         }
-        return { ...i, angle: nextAngle };
-      }),
-    );
+        const safeRotated = resolveConflictFreeRotatedTile(i, nextAngle, others, 4);
+        if (safeRotated) return safeRotated;
+        blocked = true;
+        return i;
+      });
+      return blocked ? rotatedList : ensureLeftPad(rotatedList, EDIT_LEFT_PAD);
+    });
+    if (blocked) {
+      toast.error('Cannot rotate — blocked by another tile');
+    } else {
+      setLayoutResetTick((n) => n + 1);
+    }
   };
 
   const startDragRotateTile = (e: React.PointerEvent<HTMLButtonElement>, key: string) => {
@@ -1696,6 +1844,9 @@ export default function ShopMapView({
     const rect = gridEl.getBoundingClientRect();
     const cx = rect.left + rect.width / 2;
     const cy = rect.top + rect.height / 2;
+    const startItem = itemsRef.current.find((i) => i.key === key);
+    const baseX = startItem?.x ?? 0;
+    const baseY = startItem?.y ?? 0;
     setRotatingTileKey(key);
 
     const onMove = (ev: PointerEvent) => {
@@ -1707,9 +1858,17 @@ export default function ShopMapView({
       const step = ev.shiftKey ? TILE_ANGLE_STEP * 3 : TILE_ANGLE_STEP;
       const snapped = Math.round(rawDeg / step) * step;
       const nextAngle = normalizeTileAngle(snapped);
-      setItems((prev) =>
-        prev.map((i) => (i.key === key ? { ...i, angle: nextAngle } : i)),
-      );
+      setItems((prev) => {
+        const cur = prev.find((i) => i.key === key);
+        if (!cur) return prev;
+        const others = prev.filter((o) => o.key !== key);
+        const anchorTile: MapItem = { ...cur, x: baseX, y: baseY };
+        const safe = resolveConflictFreeRotatedTile(anchorTile, nextAngle, others, 3);
+        if (!safe) return prev;
+        const next = prev.map((i) => (i.key === key ? safe : i));
+        itemsRef.current = next;
+        return next;
+      });
       setDirty(true);
     };
 
@@ -1718,6 +1877,12 @@ export default function ShopMapView({
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
       setRotatingTileKey(null);
+      setItems((prev) => {
+        const padded = ensureLeftPad(prev, EDIT_LEFT_PAD);
+        itemsRef.current = padded;
+        return padded;
+      });
+      setLayoutResetTick((n) => n + 1);
     };
 
     window.addEventListener('pointermove', onMove);
@@ -1730,38 +1895,14 @@ export default function ShopMapView({
       const prevMergeMap = computeUnitMergeMap(prev);
       return prev.map((i) => {
         if (i.key !== key) return i;
-        if (i.kind === 'corridor') {
-          const nextMode = nextCorridorShapeMode(parseCorridorShapeMode(i.label));
-          const nextLabel = encodeCorridorShapeMode(nextMode);
-          if (nextMode === 'circle' && (i.w < 4 || i.h < 4)) {
-            const targetSizes = [6, 4];
-            const others = prev.filter((o) => o.key !== i.key);
-            for (const sz of targetSizes) {
-              const w = Math.min(columns, Math.max(i.w, sz));
-              const anchors: Array<[number, number]> = [
-                [Math.min(i.x, columns - sz), i.y],
-                [Math.max(0, Math.min(i.x + i.w - sz, columns - sz)), i.y],
-                [Math.min(i.x, columns - w), i.y],
-                [Math.min(i.x, columns - sz), Math.max(0, i.y - (sz - i.h))],
-              ];
-              for (const [ax, ay] of anchors) {
-                const cand: MapItem = { ...i, label: nextLabel, x: Math.max(0, ax), y: Math.max(0, ay), w: sz, h: sz };
-                if (cand.x + cand.w <= columns && !others.some((o) => tilesConflict(cand, o))) {
-                  return cand;
-                }
-              }
-            }
-          }
-          return { ...i, label: nextLabel };
-        }
-        if (i.kind !== 'unit') {
+        if (i.kind !== 'unit' && i.kind !== 'corridor') {
           const meta = parseLandmarkMeta(i.kind, i.label);
           const nextVar = nextLandmarkVariant(i.kind, meta.variant);
           const explicitlyHidden = Boolean(i.label?.startsWith('lm:') && i.label.split('|')[0].endsWith('-L'));
           const nextLabel = encodeLandmarkMeta(i.kind, nextVar, meta.customName, explicitlyHidden ? false : undefined);
           const nextItem: MapItem = { ...i, label: nextLabel };
-          return i.kind === 'marker' || parseLandmarkMeta(i.kind, nextLabel).isCircle
-            ? autoSquareCircleLandmark(nextItem, prev, columns)
+          return parseLandmarkMeta(i.kind, nextLabel).isCircle
+            ? autoSquareCircleLandmark(nextItem, prev, effectiveColumns)
             : nextItem;
         }
         if (i.kind === 'unit') {
@@ -1773,6 +1914,12 @@ export default function ShopMapView({
       });
     });
 
+  const applyUnitShapeMode = (key: string, nextMode: UnitShapeMode) => {
+    update((prev) =>
+      prev.map((i) => (i.key === key && i.kind === 'unit' ? { ...i, label: encodeUnitShapeMode(nextMode) } : i)),
+    );
+  };
+
   const resolveDragVisuals = (
     itemOrKey: MapItem | string | undefined,
     currentItems: ReadonlyArray<MapItem> = displayItems,
@@ -1782,12 +1929,7 @@ export default function ShopMapView({
         ? currentItems.find((x) => x.key === itemOrKey)
         : itemOrKey;
     if (!t) return { shape: 'rect', clipPath: 'none' };
-    if (t.kind === 'corridor') {
-      const info = corridorShapeMap.get(t.key);
-      if (info?.shape === 'circle') return { shape: 'ring', clipPath: 'none' };
-      return { shape: 'rect', clipPath: 'none' };
-    }
-    if (t.kind !== 'unit') {
+    if (t.kind !== 'unit' && t.kind !== 'corridor') {
       const meta = parseLandmarkMeta(t.kind, t.label);
       if (meta.polygonFaces) {
         const geo = getPolygonAtriumGeometry(
@@ -1864,13 +2006,34 @@ export default function ShopMapView({
   const nudgeSelectedGroup = (dx: number, dy: number) => {
     if (selectedGroupSetRef.current.size === 0) return;
     groupRotBaseRef.current = null;
-    const res = moveTileGroupByDelta(itemsRef.current, selectedGroupSetRef.current, dx, dy, columns);
+    let baseList = itemsRef.current;
+    if (dx < 0) {
+      const groupMinX = Math.min(
+        ...baseList.filter((i) => selectedGroupSetRef.current.has(i.key)).map((i) => i.x),
+      );
+      if (groupMinX + dx < EDIT_LEFT_PAD) {
+        const shiftX = EDIT_LEFT_PAD - (groupMinX + dx);
+        editLeftOffsetRef.current += shiftX;
+        pendingScrollAdjustPxRef.current += shiftX * cellPx;
+        baseList = baseList.map((i) => ({ ...i, x: i.x + shiftX }));
+      }
+    }
+    const maxR = baseList.reduce((m, it) => Math.max(m, it.x + it.w), 0) + Math.max(0, dx) + EDIT_RIGHT_PAD;
+    const res = moveTileGroupByDelta(
+      baseList,
+      selectedGroupSetRef.current,
+      dx,
+      dy,
+      Math.max(effectiveColumns, maxR),
+    );
     if (res.conflict) {
       toast.error('Cannot move group — blocked by another tile');
       return;
     }
     if (res.moved) {
-      setItems(res.items);
+      const nextItems = ensureLeftPad(res.items, EDIT_LEFT_PAD);
+      itemsRef.current = nextItems;
+      setItems(nextItems);
       setLayoutResetTick((n) => n + 1);
       setDirty(true);
     }
@@ -1929,7 +2092,7 @@ export default function ShopMapView({
         groupRotBaseRef.current.baseItems,
         selectedGroupSetRef.current,
         snappedCum,
-        columns,
+        effectiveColumns + EDIT_RIGHT_PAD,
       );
       if (!res.conflict) {
         groupRotBaseRef.current.cumulativeDeg = snappedCum;
@@ -1945,6 +2108,11 @@ export default function ShopMapView({
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
       setIsRotatingGroup(false);
+      setItems((prev) => {
+        const padded = ensureLeftPad(prev, EDIT_LEFT_PAD);
+        itemsRef.current = padded;
+        return padded;
+      });
     };
 
     window.addEventListener('pointermove', onMove);
@@ -1979,7 +2147,7 @@ export default function ShopMapView({
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [editing, groupSelectMode, columns]);
+  }, [editing, groupSelectMode, effectiveColumns]);
 
   const groupBounds = useMemo(
     () =>
@@ -1995,7 +2163,7 @@ export default function ShopMapView({
     if (hasLayoutConflict(nextLayout, baseItems)) return;
     const layoutByKey = new Map(nextLayout.map((x) => [x.i, x]));
     let changed = false;
-    const next = items.map((it) => {
+    const next = baseItems.map((it) => {
       const l = layoutByKey.get(it.key);
       if (!l) return it;
       if (l.x === it.x && l.y === it.y && l.w === it.w && l.h === it.h) return it;
@@ -2003,6 +2171,7 @@ export default function ShopMapView({
       return { ...it, x: l.x, y: l.y, w: l.w, h: l.h };
     });
     if (changed) {
+      itemsRef.current = next;
       setItems(next);
       setDirty(true);
     }
@@ -2057,7 +2226,28 @@ export default function ShopMapView({
 
   const handleInteractionStop = (finalLayout: readonly any[]) => {
     const baseItems = dragOriginItemsRef.current ?? itemsRef.current;
-    const { conflict, items: resolvedItems } = resolveInteractionLayout(finalLayout, baseItems);
+    const { conflict, items: rawResolvedItems } = resolveInteractionLayout(finalLayout, baseItems);
+    const didMoveOrChange =
+      !conflict &&
+      rawResolvedItems.some((it, idx) => {
+        const b = baseItems[idx];
+        return (
+          b &&
+          (it.x !== b.x ||
+            it.y !== b.y ||
+            it.w !== b.w ||
+            it.h !== b.h ||
+            it.angle !== b.angle ||
+            it.label !== b.label)
+        );
+      });
+    const resolvedItems = didMoveOrChange
+      ? ensureLeftPad(rawResolvedItems, EDIT_LEFT_PAD)
+      : rawResolvedItems;
+    const maxRightAfter = resolvedItems.reduce((m, it) => Math.max(m, it.x + it.w), 0);
+    if (maxRightAfter + EDIT_RIGHT_PAD > columns) {
+      setColumns(maxRightAfter + EDIT_RIGHT_PAD);
+    }
     const resolvedByKey = new Map(resolvedItems.map((i) => [i.key, i]));
 
     // Mutate finalLayout in-place so ReactGridLayout's internal setLayout(finalLayout)
@@ -2072,23 +2262,10 @@ export default function ShopMapView({
       }
     }
 
+    itemsRef.current = resolvedItems;
     setItems(resolvedItems);
     setLayoutResetTick((n) => n + 1);
-    if (
-      !conflict &&
-      resolvedItems.some((it, idx) => {
-        const b = baseItems[idx];
-        return (
-          b &&
-          (it.x !== b.x ||
-            it.y !== b.y ||
-            it.w !== b.w ||
-            it.h !== b.h ||
-            it.angle !== b.angle ||
-            it.label !== b.label)
-        );
-      })
-    ) {
+    if (didMoveOrChange) {
       setDirty(true);
     }
     dragOriginItemsRef.current = null;
@@ -2105,14 +2282,36 @@ export default function ShopMapView({
   const startEditingLayout = () => {
     setDecorKind('marker');
     clearGroupSelection();
+    editLeftOffsetRef.current = 0;
+    const hadMarker = items.some((i) => i.kind === 'marker');
     setEditing(true);
-    addDecor('marker');
+    setItems((prev) => {
+      let next = ensureLeftPad(prev, EDIT_LEFT_PAD);
+      if (!prev.some((i) => i.kind === 'marker')) {
+        const { w, h } = DECORATION_DEFAULT_SIZES.marker || { w: 3, h: 3 };
+        const maxR = next.reduce((m, it) => Math.max(m, it.x + it.w), 0);
+        const cols = Math.max(columns, DEFAULT_COLUMNS + editLeftOffsetRef.current, maxR + EDIT_RIGHT_PAD);
+        const pos = findFreeSpot(next, w, h, cols, EDIT_LEFT_PAD);
+        next = [
+          ...next,
+          { key: `d:${decorSeq}`, kind: 'marker', unitId: null, label: DECORATION_LABELS.marker, x: pos.x, y: pos.y, w, h },
+        ];
+      }
+      itemsRef.current = next;
+      return next;
+    });
+    if (!hadMarker) {
+      setDecorSeq((n) => n + 1);
+      setDirty(true);
+    }
   };
 
   const discard = () => {
     clearGroupSelection();
+    editLeftOffsetRef.current = 0;
     setDirty(false);
     setEditing(false);
+    applyParsedLayout(parseFloorPlanData(planData, shopByUnit));
   };
 
   const handleCopyFromFloor = async () => {
@@ -2133,11 +2332,12 @@ export default function ShopMapView({
       }
       const copied = buildCopiedFloorLayout(srcData, floorShops, allShopByUnit, copyIncludeUnits);
       applyParsedLayout(copied);
+      setItems((prev) => ensureLeftPad(prev, EDIT_LEFT_PAD));
       setDirty(true);
       toast.success(
         copyIncludeUnits
           ? `Copied layout from ${copySourceFloor} (${copied.matchedUnits} units matched)`
-          : `Copied landmarks & walkways from ${copySourceFloor}`,
+          : `Copied landmarks from ${copySourceFloor}`,
       );
     } catch {
       toast.error(`Failed to copy layout from ${copySourceFloor}`);
@@ -2145,14 +2345,29 @@ export default function ShopMapView({
   };
 
   const save = async () => {
-    if (hasAnyOverlap(items)) {
+    const rawCleanItems = items.filter((i) => i.kind !== 'corridor');
+    if (hasAnyOverlap(rawCleanItems)) {
       toast.error('Some tiles overlap. Please separate them before saving.');
       return;
     }
+    const minX = rawCleanItems.length > 0 ? Math.min(...rawCleanItems.map((i) => i.x)) : 0;
+    const rawMaxX = rawCleanItems.length > 0 ? Math.max(...rawCleanItems.map((i) => i.x + i.w)) : 0;
+    const trimLeft =
+      rawCleanItems.length > 0
+        ? rawMaxX > DEFAULT_COLUMNS
+          ? Math.max(0, minX - 2)
+          : Math.max(0, Math.min(minX - 1, editLeftOffsetRef.current))
+        : 0;
+    const cleanItems =
+      trimLeft > 0
+        ? rawCleanItems.map((i) => ({ ...i, x: Math.max(0, i.x - trimLeft) }))
+        : rawCleanItems;
+    const maxRight = cleanItems.reduce((m, i) => Math.max(m, i.x + i.w), 0);
+    const savedColumns = Math.max(DEFAULT_COLUMNS, maxRight + 2);
     const payloadData = {
       sqftPerCell: effectiveSqftPerCell,
-      columns,
-      items: items.map((i) => ({ kind: i.kind, unitId: i.unitId, label: i.label, x: i.x, y: i.y, w: i.w, h: i.h, ...(i.angle ? { angle: i.angle } : {}) })),
+      columns: savedColumns,
+      items: cleanItems.map((i) => ({ kind: i.kind, unitId: i.unitId, label: i.label, x: i.x, y: i.y, w: i.w, h: i.h, ...(i.angle ? { angle: i.angle } : {}) })),
     };
     try {
       await savePlan({
@@ -2160,6 +2375,9 @@ export default function ShopMapView({
         floor,
         data: payloadData,
       } as any).unwrap();
+      editLeftOffsetRef.current = 0;
+      setColumns(savedColumns);
+      setItems(cleanItems);
       saveCachedFloorPlan(propertyId, floor, payloadData);
       toast.success('Floor plan saved');
       clearGroupSelection();
@@ -2525,9 +2743,6 @@ export default function ShopMapView({
                   <div className="shop-map-route-details-col">
                     <span className="shop-map-route-steps">
                       <strong>{describeTile(activeStartItem)}</strong> → <strong>{describeTile(effectiveTargetItem)}</strong>
-                      <span className="shop-map-route-metrics">
-                        ~{walkwayRoute.distanceMeters} m ({walkwayRoute.distanceFeet} ft) · {walkwayRoute.estimatedMinutes} min walk
-                      </span>
                     </span>
                     {walkwayRoute.steps.length > 0 && (
                       <div className="shop-map-turn-steps">
@@ -2556,7 +2771,7 @@ export default function ShopMapView({
                     className="btn btn-secondary btn-sm"
                     onClick={() => switchFloor(originFloorBeforeTransit)}
                   >
-                    ← Back to {originFloorBeforeTransit}
+                    Back to {originFloorBeforeTransit}
                   </button>
                 )}
                 {crossFloorShop && floorKeyOf(crossFloorShop) !== floor && (
@@ -2565,7 +2780,7 @@ export default function ShopMapView({
                     className="btn btn-primary btn-sm"
                     onClick={proceedToDestinationFloor}
                   >
-                    Switch to {floorKeyOf(crossFloorShop)} →
+                    Switch to {floorKeyOf(crossFloorShop)}
                   </button>
                 )}
                 {!crossFloorShop &&
@@ -2583,7 +2798,7 @@ export default function ShopMapView({
                         setFloor(f);
                       }}
                     >
-                      Go to {f} →
+                      Go to {f}
                     </button>
                   ))}
                 {effectiveTargetItem && effectiveTargetItem.key !== activeStartItem?.key && !crossFloorShop && (
@@ -2600,7 +2815,7 @@ export default function ShopMapView({
                     <MapPin size={12} /> Start From Here
                   </button>
                 )}
-                {selectedShop && (
+                {selectedShop && !publicMode && onOpenShop && (
                   <button
                     type="button"
                     className="btn btn-secondary btn-sm"
@@ -2635,7 +2850,9 @@ export default function ShopMapView({
       {editing && (
         <div className="shop-map-edit-bar">
           <select value={decorKind} onChange={(e) => setDecorKind(e.target.value as any)}>
-            {Object.entries(DECORATION_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            {Object.entries(DECORATION_LABELS)
+              .filter(([k]) => k !== 'corridor')
+              .map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
           <button
             className="btn btn-secondary"
@@ -2657,9 +2874,9 @@ export default function ShopMapView({
             type="button"
             className={`btn btn-secondary shop-map-magnet-btn ${magnetEnabled && !magnetBypassActive ? 'active' : ''}`}
             onClick={() => setMagnetEnabled((prev) => !prev)}
-            title="Toggle magnetic border snapping & Polygon Atrium face alignment (Hold Alt or Shift while dragging to temporarily bypass)"
+            title="Toggle Auto-Snap border alignment, degree matching & size fitting (Hold Alt or Shift while dragging to temporarily bypass)"
           >
-            <Magnet size={13} /> Magnet: {magnetEnabled ? (magnetBypassActive ? 'BYPASS (Alt/Shift)' : 'ON') : 'OFF'}
+            <Magnet size={13} /> Auto-Snap: {magnetEnabled ? (magnetBypassActive ? 'BYPASS (Alt/Shift)' : 'ON') : 'OFF'}
           </button>
           <div className="shop-map-group-toolbar">
             <button
@@ -2732,7 +2949,7 @@ export default function ShopMapView({
                 title="Choose what to copy from the selected floor"
               >
                 <option value="all">Landmarks + Match Units</option>
-                <option value="landmarks">Landmarks & Walkways Only</option>
+                <option value="landmarks">Landmarks Only</option>
               </select>
               <button
                 type="button"
@@ -2931,12 +3148,7 @@ export default function ShopMapView({
                     );
                     const decorType = it.kind as Exclude<TileKind, 'unit'>;
                     const decorLabel = DECORATION_LABELS[decorType] || it.label || '';
-                    const cm = it.kind === 'corridor' ? corridorMergeMap.get(it.key) ?? null : null;
                     const um = !decor ? unitMergeMap.get(it.key) ?? null : null;
-                    const isCurvedCorridor = Boolean(cm && cm.shape !== 'straight');
-                    const decorMergeClasses = cm
-                      ? `${sharpCornerClasses(cm)}${isCurvedCorridor ? ' is-curved-corridor' : ''}`
-                      : '';
                     const unitMergeClasses = um?.hasMerge ? edgeMergeClasses('is-merged-unit', um) : '';
                     const showUnitLabel = !um || um.showLabel;
                     const unitNumberLabel = unitNumberOf(shop);
@@ -2951,10 +3163,9 @@ export default function ShopMapView({
                       ),
                     );
                     const rawPhotoUrl = (shop?.unit?.floorPlanUrl || shop?.shopfrontUrl || shop?.logoUrl) as string | undefined;
-                    const hasPhotoImage = isUnitPhotoImage(rawPhotoUrl);
+                    const hasPhotoImage = isUnitPhotoImage(rawPhotoUrl) && !hasFailedUnitPhoto(rawPhotoUrl);
                     const showPhotoMode = !decor && mapView === 'photo';
                     const hasUnitPhoto = showPhotoMode && hasPhotoImage;
-                    const corridorMode = it.kind === 'corridor' ? parseCorridorShapeMode(it.label) : null;
                     const lmMeta = cachedMeta
                       ? cachedMeta.lmMeta
                       : decor && it.kind !== 'corridor'
@@ -2967,14 +3178,14 @@ export default function ShopMapView({
                         : null;
                     const shapeMode =
                       unitMode ??
-                      (lmMeta
+                      (lmMeta && it.kind !== 'marker'
                         ? lmMeta.polygonFaces
                           ? `poly${lmMeta.polygonFaces}`
                           : lmMeta.isCircle
                             ? 'circle'
                             : 'rect'
                         : null);
-                    const isCircleShape = Boolean(unitMode === 'circle' || lmMeta?.isCircle);
+                    const isCircleShape = Boolean(it.kind !== 'marker' && (unitMode === 'circle' || lmMeta?.isCircle));
                     const polyAtriumGeo = cachedMeta
                       ? cachedMeta.polyAtriumGeo
                       : lmMeta?.polygonFaces
@@ -2988,8 +3199,8 @@ export default function ShopMapView({
                     const isFullIconMarker = it.kind === 'marker';
                     const effectiveBadgePx = isFullIconMarker
                       ? showLandmarkSublabel
-                        ? Math.max(12, Math.round(minSidePx * 0.62))
-                        : Math.max(14, Math.round(minSidePx * 0.82))
+                        ? Math.max(14, Math.round(minSidePx * 0.68))
+                        : Math.max(16, Math.round(minSidePx * 0.90))
                       : showLandmarkSublabel
                         ? Math.max(10, Math.min(badgePx, Math.round(hPx * 0.48)))
                         : badgePx;
@@ -3004,19 +3215,17 @@ export default function ShopMapView({
                       : unitMode && isTrapezoidUnitMode(unitMode)
                         ? getTrapezoidUnitGeometry(unitMode, wPx, hPx, cellPx, um, alignedTile, effectiveDisplayItems)
                         : null;
-                    const tileShapeDesc = corridorMode
-                      ? `${CORRIDOR_SHAPE_LABELS[corridorMode]}${cm && corridorMode === 'auto' ? ` (${CORRIDOR_SHAPE_LABELS[cm.shape]})` : ''}`
-                      : lmMeta
-                        ? lmMeta.displayLabel
-                        : unitMode
-                          ? UNIT_SHAPE_LABELS[unitMode]
-                          : '';
+                    const tileShapeDesc = lmMeta
+                      ? lmMeta.displayLabel
+                      : unitMode
+                        ? UNIT_SHAPE_LABELS[unitMode]
+                        : '';
                     const effectiveAngle = atriumFaceAlign ? atriumFaceAlign.exactAngleDeg : (effectiveIt.angle ?? 0);
                     const title = decor
                       ? editing && tileShapeDesc
                         ? `${decorLabel} • ${tileShapeDesc}${effectiveAngle ? ` • ${effectiveAngle}°` : ''}`
                         : lmMeta?.displayLabel || decorLabel
-                      : `${tileDisplayLabel}${tileDisplayLabel !== unitNumberLabel && unitNumberLabel ? ` • ${unitNumberLabel}` : ''} • ${shop?.unit?.areaSqft ?? '—'} sqft • ${shop?.unit?.status || ''}${editing && tileShapeDesc ? ` • ${tileShapeDesc}` : ''}`;
+                      : undefined;
                     const atriumFaceNudge = !isDraggingThisTile && atriumFaceAlign
                       ? { dx: atriumFaceAlign.dx, dy: atriumFaceAlign.dy }
                       : null;
@@ -3063,7 +3272,6 @@ export default function ShopMapView({
                         longSidePx >= 48,
                     );
                     const hasInnerItems = cachedMeta ? cachedMeta.hasInnerItems : false;
-                    const isInnerHoleItem = cachedMeta ? cachedMeta.isInnerHoleItem : false;
                     const parentAtrium = cachedMeta ? cachedMeta.parentAtrium : null;
                     const isLayerFocused = editing && focusedLayerKey === it.key;
                     const isRotatingThisTile = editing && rotatingTileKey === it.key;
@@ -3084,7 +3292,7 @@ export default function ShopMapView({
                         data-tile-key={it.key}
                         title={title}
                         style={gridItemCssVars}
-                        className={`shop-map-grid-item ${it.kind === 'corridor' ? 'is-corridor-item' : ''} ${it.kind === 'atrium' ? 'is-atrium-item' : ''} ${isTransitLandmark(it.kind) ? 'is-transit-item' : ''} ${hasInnerItems ? 'has-inner-items' : ''} ${isInnerHoleItem ? 'is-inner-hole-item' : ''} ${isLayerFocused ? 'is-layer-focused' : ''} ${isGroupSelected ? 'is-group-selected' : ''} ${effectiveAngle ? 'is-rotated-item' : ''} ${isRotatingThisTile ? 'is-rotating-item' : ''} ${editing ? 'editing' : ''} ${isTarget ? 'active-target' : ''} ${isStart ? 'active-start' : ''} ${isAmenityHighlighted ? 'is-amenity-highlighted' : ''}`}
+                        className={`shop-map-grid-item ${it.kind === 'atrium' ? 'is-atrium-item' : ''} ${isTransitLandmark(it.kind) ? 'is-transit-item' : ''} ${hasInnerItems ? 'has-inner-items' : ''} ${isLayerFocused ? 'is-layer-focused' : ''} ${isGroupSelected ? 'is-group-selected' : ''} ${effectiveAngle ? 'is-rotated-item' : ''} ${isRotatingThisTile ? 'is-rotating-item' : ''} ${editing ? 'editing' : ''} ${isTarget ? 'active-target' : ''} ${isStart ? 'active-start' : ''} ${isAmenityHighlighted ? 'is-amenity-highlighted' : ''}`}
                         onMouseEnter={() => {
                           if (!editing && it.unitId) setHoveredUnitId(it.unitId);
                         }}
@@ -3109,10 +3317,9 @@ export default function ShopMapView({
                             return;
                           }
                           e.stopPropagation();
-                          if (it.kind === 'corridor') return;
                           const alreadyTargeted =
                             targetKey === it.key || (Boolean(it.unitId) && selectedUnitId === it.unitId);
-                          if (alreadyTargeted && shop) {
+                          if (alreadyTargeted && shop && !publicMode && onOpenShop) {
                             onOpenShop(shop);
                           } else {
                             setCrossFloorUnitId(null);
@@ -3121,71 +3328,53 @@ export default function ShopMapView({
                           }
                         }}
                         onDoubleClick={(e) => {
-                          if (!editing && shop) {
+                          if (!editing && shop && !publicMode && onOpenShop) {
                             e.stopPropagation();
                             onOpenShop(shop);
-                          } else if (editing && decor && it.kind !== 'corridor') {
+                          } else if (editing && decor) {
                             e.stopPropagation();
                             openLandmarkConfig(it.key);
+                          } else if (editing && it.kind === 'unit') {
+                            e.stopPropagation();
+                            setEditingUnitShapeKey(it.key);
                           }
                         }}
                       >
                         <div
                           style={tileStyle}
-                          className={`shop-map-tile ${decor ? `st-decor st-decor-${it.kind} ${lmMeta ? `st-variant-${lmMeta.variant}` : ''} ${decorMergeClasses}` : `${statusClass(shop)} ${unitMergeClasses}`} ${isCircleShape ? 'is-circle-tile' : ''} ${polyAtriumGeo ? 'is-polygon-atrium' : ''} ${trapezoidGeo ? 'is-trapezoid-tile' : ''} ${isEmergencyLandmark ? 'is-emergency-landmark' : ''} ${isUnitHovered ? 'is-unit-hovered' : ''} ${hasUnitPhoto ? 'has-unit-photo' : ''} ${isVerticalTile ? 'is-vertical-tile' : ''} ${editing ? 'editing' : ''} ${dim ? 'dim' : ''} ${isSearchMatch ? 'search-match' : ''} ${tiny ? 'tiny' : ''} ${isTarget ? 'active-target' : ''} ${isStart ? 'active-start' : ''} ${isAmenityHighlighted ? 'is-amenity-highlighted' : ''}`}
+                          className={`shop-map-tile ${decor ? `st-decor st-decor-${it.kind} ${lmMeta ? `st-variant-${lmMeta.variant}` : ''}` : `${statusClass(shop)} ${unitMergeClasses}`} ${isCircleShape ? 'is-circle-tile' : ''} ${polyAtriumGeo ? 'is-polygon-atrium' : ''} ${trapezoidGeo ? 'is-trapezoid-tile' : ''} ${isEmergencyLandmark ? 'is-emergency-landmark' : ''} ${isUnitHovered ? 'is-unit-hovered' : ''} ${hasUnitPhoto ? 'has-unit-photo' : ''} ${isVerticalTile ? 'is-vertical-tile' : ''} ${editing ? 'editing' : ''} ${dim ? 'dim' : ''} ${isSearchMatch ? 'search-match' : ''} ${tiny ? 'tiny' : ''} ${isTarget ? 'active-target' : ''} ${isStart ? 'active-start' : ''} ${isAmenityHighlighted ? 'is-amenity-highlighted' : ''}`}
                         >
                         {decor ? (
-                          it.kind === 'corridor' && cm ? (
-                            <svg
-                              className="shop-map-corridor-svg"
-                              viewBox={`0 0 ${wPx} ${hPx}`}
-                              preserveAspectRatio="none"
-                            >
-                              {cm.fillPath && (
-                                <path d={cm.fillPath} fillRule="evenodd" className="shop-map-corridor-fill" />
-                              )}
-                              {cm.bridgePaths.map((d, idx) => (
-                                <path key={`bp-${idx}`} d={d} className="shop-map-corridor-bridge" />
-                              ))}
-                              {cm.borderPaths.map((d, idx) => (
-                                <path key={`b-${idx}`} d={d} className="shop-map-corridor-border" />
-                              ))}
-                              {cm.centerlinePaths.map((d, idx) => (
-                                <path key={`cl-${idx}`} d={d} className="shop-map-corridor-centerline" />
-                              ))}
-                            </svg>
-                          ) : (
-                            <>
-                              {polyAtriumGeo && (
-                                <svg
-                                  className="shop-map-atrium-poly-svg"
-                                  viewBox={`0 0 ${wPx} ${hPx}`}
-                                  preserveAspectRatio="none"
-                                >
-                                  <polygon points={polyAtriumGeo.outerPoints} className="shop-map-atrium-poly-base" />
-                                  {polyAtriumGeo.rimPath && <path d={polyAtriumGeo.rimPath} className="lm-border-rim" fill="none" />}
-                                  {polyAtriumGeo.lipPath && <path d={polyAtriumGeo.lipPath} className="lm-border-lip-b" fill="none" />}
-                                </svg>
-                              )}
-                              <div
-                                className="shop-map-decor-content"
-                                style={effectiveAngle ? ({ rotate: `${-effectiveAngle}deg` } as CSSProperties) : undefined}
+                          <>
+                            {polyAtriumGeo && (
+                              <svg
+                                className="shop-map-atrium-poly-svg"
+                                viewBox={`0 0 ${wPx} ${hPx}`}
+                                preserveAspectRatio="none"
                               >
-                                <div className="shop-map-decor-badge" style={{ width: effectiveBadgePx, height: effectiveBadgePx }}>
-                                  <span className="shop-map-decor-icon">
-                                    <DecorIcon
-                                      kind={decorType as Exclude<TileKind, 'unit' | 'corridor'>}
-                                      variant={lmMeta?.variant}
-                                      size={effectiveIconPx}
-                                    />
-                                  </span>
-                                </div>
-                                {showLandmarkSublabel && lmMeta && (
-                                  <span className="shop-map-decor-sublabel">{lmMeta.badgeText}</span>
-                                )}
+                                <polygon points={polyAtriumGeo.outerPoints} className="shop-map-atrium-poly-base" />
+                                {polyAtriumGeo.rimPath && <path d={polyAtriumGeo.rimPath} className="lm-border-rim" fill="none" />}
+                                {polyAtriumGeo.lipPath && <path d={polyAtriumGeo.lipPath} className="lm-border-lip-b" fill="none" />}
+                              </svg>
+                            )}
+                            <div
+                              className="shop-map-decor-content"
+                              style={effectiveAngle ? ({ rotate: `${-effectiveAngle}deg` } as CSSProperties) : undefined}
+                            >
+                              <div className="shop-map-decor-badge" style={{ width: effectiveBadgePx, height: effectiveBadgePx }}>
+                                <span className="shop-map-decor-icon">
+                                  <DecorIcon
+                                    kind={decorType as Exclude<TileKind, 'unit' | 'corridor'>}
+                                    variant={lmMeta?.variant}
+                                    size={effectiveIconPx}
+                                  />
+                                </span>
                               </div>
-                            </>
-                          )
+                              {showLandmarkSublabel && lmMeta && (
+                                <span className="shop-map-decor-sublabel">{lmMeta.badgeText}</span>
+                              )}
+                            </div>
+                          </>
                         ) : (
                           <>
                             {um?.hasMerge ? (
@@ -3347,19 +3536,7 @@ export default function ShopMapView({
                                 <Plus size={tileActionIconPx} />
                               </button>
                             )}
-                            {it.kind === 'corridor' && (
-                              <button
-                                className="shop-map-tile-btn add"
-                                title="Add connected walkway branch (L-Turn / T-Junction)"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  addWalkwayBranch(it.key);
-                                }}
-                              >
-                                <Plus size={tileActionIconPx} />
-                              </button>
-                            )}
-                            {decor && it.kind !== 'corridor' && (
+                            {decor && (
                               <button
                                 className="shop-map-tile-btn add"
                                 title={`Customize ${decorLabel} (type, direction & gate/label)`}
@@ -3371,20 +3548,24 @@ export default function ShopMapView({
                                 <Pencil size={tileActionIconPx} />
                               </button>
                             )}
-                            {(corridorMode || unitMode || hasLandmarkVariants) && (
+                            {(unitMode || hasLandmarkVariants) && (
                               <button
                                 className="shop-map-tile-btn shape"
-                                title={`${decor ? decorLabel : 'Unit'}: ${tileShapeDesc} — click to switch`}
+                                title={
+                                  it.kind === 'unit'
+                                    ? `Unit Shape: ${tileShapeDesc} — Click to choose shape (Shift+Click to cycle)`
+                                    : `${decorLabel}: ${tileShapeDesc} — click to switch`
+                                }
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  cycleTileShape(it.key);
+                                  if (it.kind === 'unit' && !e.shiftKey) {
+                                    setEditingUnitShapeKey(it.key);
+                                  } else {
+                                    cycleTileShape(it.key);
+                                  }
                                 }}
                               >
-                                {corridorMode ? (
-                                  <CorridorShapeIcon mode={corridorMode} size={tileActionIconPx} />
-                                ) : (
-                                  <AtriumShapeIcon mode={shapeMode || 'rect'} size={tileActionIconPx} />
-                                )}
+                                <AtriumShapeIcon mode={shapeMode || 'rect'} size={tileActionIconPx} />
                               </button>
                             )}
                             {(hasInnerItems || parentAtrium) && (
@@ -3490,51 +3671,28 @@ export default function ShopMapView({
                   </>
                 )}
 
-                {/* ── Mappedin Smooth Wayfinding Route Overlay & Floating 3D Callout Pins ── */}
+                {/* ── Mappedin Smooth Wayfinding Route Overlay ── */}
                 {routeRenderData && walkwayRoute && (() => {
                   const { smoothPathD, routeArrows, startPt, endPt } = routeRenderData;
                   return (
-                    <>
-                      <svg className="shop-map-connector-svg" aria-hidden="true">
-                        <path d={smoothPathD} className="shop-map-nav-glow" />
-                        <path d={smoothPathD} className="shop-map-nav-casing" />
-                        <path d={smoothPathD} className="shop-map-connector-line" />
-                        {routeArrows.map((ar, idx) => (
-                          <g
-                            key={`ar-${idx}`}
-                            transform={`translate(${ar.x.toFixed(1)}, ${ar.y.toFixed(1)}) rotate(${ar.angleDeg.toFixed(1)})`}
-                            className="shop-map-nav-arrow-glyph"
-                          >
-                            <path d="M -3 -2.6 L 2.2 0 L -3 2.6" />
-                          </g>
-                        ))}
-                        <circle cx={startPt.x} cy={startPt.y} r={8} className="shop-map-nav-pulse start" />
-                        <circle cx={startPt.x} cy={startPt.y} r={4.5} className="shop-map-connector-dot start" />
-                        <circle cx={endPt.x} cy={endPt.y} r={9} className="shop-map-nav-pulse target" />
-                        <circle cx={endPt.x} cy={endPt.y} r={5} className="shop-map-connector-dot target" />
-                      </svg>
-                      <div
-                        className="shop-map-floating-pin start"
-                        style={{
-                          left: `${startPt.x.toFixed(1)}px`,
-                          top: `${startPt.y.toFixed(1)}px`,
-                        }}
-                      >
-                        <MapPin size={11} />
-                        <span>{describeTile(activeStartItem)}</span>
-                      </div>
-                      <div
-                        className="shop-map-floating-pin target"
-                        style={{
-                          left: `${endPt.x.toFixed(1)}px`,
-                          top: `${endPt.y.toFixed(1)}px`,
-                        }}
-                      >
-                        <Navigation size={11} />
-                        <span>{describeTile(effectiveTargetItem)}</span>
-                        <small>~{walkwayRoute.estimatedMinutes}m</small>
-                      </div>
-                    </>
+                    <svg className="shop-map-connector-svg" aria-hidden="true">
+                      <path d={smoothPathD} className="shop-map-nav-glow" />
+                      <path d={smoothPathD} className="shop-map-nav-casing" />
+                      <path d={smoothPathD} className="shop-map-connector-line" />
+                      {routeArrows.map((ar, idx) => (
+                        <g
+                          key={`ar-${idx}`}
+                          transform={`translate(${ar.x.toFixed(1)}, ${ar.y.toFixed(1)}) rotate(${ar.angleDeg.toFixed(1)})`}
+                          className="shop-map-nav-arrow-glyph"
+                        >
+                          <path d="M -3 -2.6 L 2.2 0 L -3 2.6" />
+                        </g>
+                      ))}
+                      <circle cx={startPt.x} cy={startPt.y} r={8} className="shop-map-nav-pulse start" />
+                      <circle cx={startPt.x} cy={startPt.y} r={4.5} className="shop-map-connector-dot start" />
+                      <circle cx={endPt.x} cy={endPt.y} r={9} className="shop-map-nav-pulse target" />
+                      <circle cx={endPt.x} cy={endPt.y} r={5} className="shop-map-connector-dot target" />
+                    </svg>
                   );
                 })()}
               </div>
@@ -3548,19 +3706,13 @@ export default function ShopMapView({
                   {placedDecorKinds.map((kind) => (
                     <div
                       key={`decor-${kind}`}
-                      className={`shop-map-landmark-item ${kind !== 'corridor' ? 'clickable' : ''}`}
-                      onClick={() => {
-                        if (kind !== 'corridor') handleQuickFacility([kind]);
-                      }}
-                      title={kind !== 'corridor' ? `Click to route to nearest ${DECORATION_LABELS[kind]}` : undefined}
+                      className="shop-map-landmark-item clickable"
+                      onClick={() => handleQuickFacility([kind])}
+                      title={`Click to route to nearest ${DECORATION_LABELS[kind]}`}
                     >
-                      {kind === 'corridor' ? (
-                        <span className="shop-map-directory-corridor-swatch" />
-                      ) : (
-                        <span className={`shop-map-directory-marker-badge lg-${kind}`}>
-                          <DecorIcon kind={kind} size={legendIconPx} />
-                        </span>
-                      )}
+                      <span className={`shop-map-directory-marker-badge lg-${kind}`}>
+                        <DecorIcon kind={kind as Exclude<TileKind, 'unit' | 'corridor'>} size={legendIconPx} />
+                      </span>
                       <span className="shop-map-directory-name">{DECORATION_LABELS[kind]}</span>
                     </div>
                   ))}
@@ -3805,24 +3957,9 @@ export default function ShopMapView({
             {lmKind === 'atrium' && (
               <div className="shop-map-lm-modal-section">
                 <label className="shop-map-lm-modal-label">
-                  Add Inside or Around Atrium (Walkway Ring / Elevator / Escalator / Stairs)
+                  Add Inside Atrium (Elevator / Escalator / Stairs)
                 </label>
                 <div className="shop-map-lm-variant-grid">
-                  <button
-                    type="button"
-                    className="shop-map-lm-variant-btn"
-                    onClick={() => {
-                      handleWrapWalkwayAroundAtrium(editingItem.key);
-                    }}
-                  >
-                    <span className="shop-map-lm-variant-icon">
-                      <CorridorShapeIcon mode="circle" size={15} />
-                    </span>
-                    <span className="shop-map-lm-variant-text">
-                      <strong>+ Wrap Walkway Around Atrium</strong>
-                      <small>Circle Ring or 4-Sided Loop • Auto-Merges</small>
-                    </span>
-                  </button>
                   {(
                     [
                       { kind: 'escalator' as const, variant: 'default', label: '+ Elevator / Lift (⇅)', sub: 'Standard Lift' },
@@ -3906,6 +4043,71 @@ export default function ShopMapView({
                 </span>
               </label>
             </div>
+          </QrModalDialog>
+        );
+      })()}
+
+      {/* ── Customize Individual Unit Shape Modal (100% Independent Per Unit Tile) ── */}
+      {editingUnitShapeKey && (() => {
+        const editingUnitItem = items.find((i) => i.key === editingUnitShapeKey && i.kind === 'unit');
+        if (!editingUnitItem) return null;
+        const unitShop = editingUnitItem.unitId ? shopByUnit.get(editingUnitItem.unitId) : null;
+        const isMerged = Boolean(unitMergeMap.get(editingUnitItem.key)?.siblingHasMerge);
+        const currentMode = parseUnitShapeMode(editingUnitItem, items, isMerged);
+        const unitTitle = unitShop
+          ? `${shopDisplayName(unitShop)} (${unitNumberOf(unitShop)})`
+          : editingUnitItem.label || 'Shop Unit';
+        const groups = Array.from(new Set(UNIT_SHAPE_OPTIONS.map((o) => o.group)));
+
+        return (
+          <QrModalDialog
+            title={`Unit Shape — ${unitTitle}`}
+            subtitle="Choose any architectural shape for this unit tile only (never affects neighboring units)"
+            onClose={() => setEditingUnitShapeKey(null)}
+            footer={
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => setEditingUnitShapeKey(null)}
+              >
+                Done
+              </button>
+            }
+          >
+            {groups.map((grp) => {
+              const grpOptions = UNIT_SHAPE_OPTIONS.filter(
+                (o) => o.group === grp && (!isMerged || o.id !== 'circle'),
+              );
+              if (grpOptions.length === 0) return null;
+              return (
+                <div key={grp} className="shop-map-lm-modal-section">
+                  <label className="shop-map-lm-modal-label">{grp}</label>
+                  <div className="shop-map-lm-variant-grid">
+                    {grpOptions.map((opt) => {
+                      const selected = currentMode === opt.id;
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          className={`shop-map-lm-variant-btn ${selected ? 'active' : ''}`}
+                          onClick={() => {
+                            applyUnitShapeMode(editingUnitItem.key, opt.id);
+                            setEditingUnitShapeKey(null);
+                          }}
+                        >
+                          <span className={`shop-map-lm-variant-icon ${opt.id === 'circle' ? 'is-circle' : ''}`}>
+                            <AtriumShapeIcon mode={opt.id} size={16} />
+                          </span>
+                          <span className="shop-map-lm-variant-text">
+                            <strong>{opt.label}</strong>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
           </QrModalDialog>
         );
       })()}

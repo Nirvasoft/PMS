@@ -1,16 +1,29 @@
 const PHOTO_CACHE_NAME = 'pms-unit-photos-v1';
 const memoryPhotoCache = new Map<string, string>();
-const inflightPhotoCache = new Map<string, Promise<string>>();
+const failedPhotoCache = new Set<string>();
+const inflightPhotoCache = new Map<string, Promise<string | null>>();
 const cacheListeners = new Set<() => void>();
 
+let notifyScheduled = false;
+
 function notifyCacheListeners() {
-  cacheListeners.forEach((listener) => {
-    try {
-      listener();
-    } catch {
-      /* ignore listener errors */
-    }
-  });
+  if (notifyScheduled) return;
+  notifyScheduled = true;
+  const flush = () => {
+    notifyScheduled = false;
+    cacheListeners.forEach((listener) => {
+      try {
+        listener();
+      } catch {
+        /* ignore listener errors */
+      }
+    });
+  };
+  if (typeof queueMicrotask === 'function') {
+    queueMicrotask(flush);
+  } else {
+    Promise.resolve().then(flush);
+  }
 }
 
 export function subscribeUnitPhotoCache(listener: () => void): () => void {
@@ -52,18 +65,33 @@ export function resolveImageAssetUrl(rawUrl?: string | null): string | null {
     trimmed.startsWith('https://') ||
     trimmed.startsWith('blob:') ||
     trimmed.startsWith('data:image/') ||
-    trimmed.startsWith('/api/v1') ||
-    trimmed.startsWith('/seed-photos') ||
-    trimmed.startsWith('/storage')
+    trimmed.startsWith('/')
   ) {
     return trimmed;
   }
-  return `/api/v1${trimmed.startsWith('/') ? '' : '/'}${trimmed}`;
+  return `/${trimmed}`;
 }
 
 export function resolveUnitPhotoSrc(rawPhotoUrl?: string | null): string | null {
   if (!rawPhotoUrl || !isUnitPhotoImage(rawPhotoUrl)) return null;
   return resolveImageAssetUrl(rawPhotoUrl);
+}
+
+export function getUnitPhotoCandidates(rawPhotoUrl?: string | null): string[] {
+  const src = resolveUnitPhotoSrc(rawPhotoUrl);
+  if (!src) return [];
+  const cached = memoryPhotoCache.get(src);
+  const list: string[] = [];
+  if (cached) list.push(cached);
+  if (!list.includes(src)) list.push(src);
+  if (src.startsWith('/uploads/')) {
+    const apiFallback = `/api/v1${src}`;
+    if (!list.includes(apiFallback)) list.push(apiFallback);
+  } else if (src.startsWith('/api/v1/uploads/')) {
+    const directFallback = src.slice('/api/v1'.length);
+    if (!list.includes(directFallback)) list.push(directFallback);
+  }
+  return list;
 }
 
 export function getCachedUnitPhotoSrc(rawPhotoUrl?: string | null): string | null {
@@ -79,10 +107,27 @@ export function hasCachedUnitPhoto(rawPhotoUrl?: string | null): boolean {
   return Boolean(src && memoryPhotoCache.has(src));
 }
 
-export function markUnitPhotoCached(rawPhotoUrl?: string | null): void {
+export function hasFailedUnitPhoto(rawPhotoUrl?: string | null): boolean {
+  if (!rawPhotoUrl || rawPhotoUrl.startsWith('blob:')) return false;
   const src = resolveUnitPhotoSrc(rawPhotoUrl);
-  if (!src || memoryPhotoCache.has(src)) return;
-  memoryPhotoCache.set(src, src);
+  return Boolean(src && failedPhotoCache.has(src));
+}
+
+export function markUnitPhotoCached(rawPhotoUrl?: string | null, workingSrc?: string | null): void {
+  const src = resolveUnitPhotoSrc(rawPhotoUrl);
+  if (!src) return;
+  const target = workingSrc || memoryPhotoCache.get(src) || src;
+  const wasFailed = failedPhotoCache.delete(src);
+  const prev = memoryPhotoCache.get(src);
+  if (prev === target && !wasFailed) return;
+  memoryPhotoCache.set(src, target);
+  notifyCacheListeners();
+}
+
+export function markUnitPhotoFailed(rawPhotoUrl?: string | null): void {
+  const src = resolveUnitPhotoSrc(rawPhotoUrl);
+  if (!src || failedPhotoCache.has(src)) return;
+  failedPhotoCache.add(src);
   notifyCacheListeners();
 }
 
@@ -90,6 +135,13 @@ export function evictUnitPhotoCache(rawPhotoUrl?: string | null): void {
   const src = resolveUnitPhotoSrc(rawPhotoUrl);
   if (!src) return;
   const basePath = src.split('?')[0];
+
+  failedPhotoCache.delete(src);
+  for (const failedKey of Array.from(failedPhotoCache)) {
+    if (failedKey === src || failedKey.split('?')[0] === basePath) {
+      failedPhotoCache.delete(failedKey);
+    }
+  }
 
   for (const [key, val] of Array.from(memoryPhotoCache.entries())) {
     if (key === src || key.split('?')[0] === basePath) {
@@ -120,6 +172,7 @@ export function evictUnitPhotoCache(rawPhotoUrl?: string | null): void {
 export function primeUnitPhotoCacheFromFile(rawPhotoUrl: string | null | undefined, file: Blob): string | null {
   const src = resolveUnitPhotoSrc(rawPhotoUrl);
   if (!src) return null;
+  failedPhotoCache.delete(src);
   const blobUrl = URL.createObjectURL(file);
   memoryPhotoCache.set(src, blobUrl);
 
@@ -143,8 +196,21 @@ export function syncUploadedUnitPhotoCache(
   }
   if (newUrl && isImageFileName(file.name)) {
     primeUnitPhotoCacheFromFile(newUrl, file);
-    markUnitPhotoCached(newUrl);
   }
+}
+
+function loadSingleImageCandidate(candidateUrl: string): Promise<boolean> {
+  if (typeof Image === 'undefined') return Promise.resolve(true);
+  return new Promise<boolean>((resolve) => {
+    const img = new Image();
+    img.decoding = 'async';
+    img.onload = () => resolve(true);
+    img.onerror = () => resolve(false);
+    img.src = candidateUrl;
+    if (img.complete && img.naturalWidth > 0) {
+      resolve(true);
+    }
+  });
 }
 
 export function preloadUnitPhoto(rawOrResolvedUrl?: string | null): Promise<string | null> {
@@ -153,54 +219,23 @@ export function preloadUnitPhoto(rawOrResolvedUrl?: string | null): Promise<stri
 
   const existing = memoryPhotoCache.get(src);
   if (existing) return Promise.resolve(existing);
+  if (failedPhotoCache.has(src)) return Promise.resolve(null);
 
   const inflight = inflightPhotoCache.get(src);
   if (inflight) return inflight;
 
   const promise = (async () => {
     try {
-      if (typeof window !== 'undefined' && 'caches' in window && !src.startsWith('blob:') && !src.startsWith('data:')) {
-        const cache = await window.caches.open(PHOTO_CACHE_NAME);
-        let res = await cache.match(src);
-        if (res && (!res.ok || !res.headers.get('content-type')?.toLowerCase().startsWith('image/'))) {
-          await cache.delete(src).catch(() => {});
-          res = undefined;
-        }
-        if (!res) {
-          const netRes = await fetch(src, { cache: 'force-cache' });
-          if (netRes.ok && netRes.headers.get('content-type')?.toLowerCase().startsWith('image/')) {
-            await cache.put(src, netRes.clone()).catch(() => {});
-            res = netRes;
-          }
-        }
-        if (res) {
-          const blob = await res.blob();
-          if (blob.size > 0 && (!blob.type || blob.type.toLowerCase().startsWith('image/'))) {
-            const blobUrl = URL.createObjectURL(blob);
-            try {
-              const img = new Image();
-              img.decoding = 'async';
-              img.src = blobUrl;
-              if (img.decode) await img.decode();
-              memoryPhotoCache.set(src, blobUrl);
-              notifyCacheListeners();
-              return blobUrl;
-            } catch {
-              URL.revokeObjectURL(blobUrl);
-              await cache.delete(src).catch(() => {});
-            }
-          }
+      const candidates = getUnitPhotoCandidates(rawOrResolvedUrl);
+      for (const candidate of candidates) {
+        const ok = await loadSingleImageCandidate(candidate);
+        if (ok) {
+          markUnitPhotoCached(src, candidate);
+          return candidate;
         }
       }
-      const img = new Image();
-      img.decoding = 'async';
-      img.src = src;
-      if (img.decode) await img.decode();
-      memoryPhotoCache.set(src, src);
-      notifyCacheListeners();
-      return src;
-    } catch {
-      return src;
+      markUnitPhotoFailed(src);
+      return null;
     } finally {
       inflightPhotoCache.delete(src);
     }
@@ -218,10 +253,19 @@ export async function preloadUnitPhotosBatch(
     new Set(
       rawUrls
         .map((u) => resolveUnitPhotoSrc(u))
-        .filter((src): src is string => Boolean(src && !memoryPhotoCache.has(src))),
+        .filter((src): src is string => Boolean(src && !memoryPhotoCache.has(src) && !failedPhotoCache.has(src))),
     ),
   );
   if (pending.length === 0) return;
-  await Promise.all(pending.map((src) => preloadUnitPhoto(src)));
+
+  const concurrency = 6;
+  let idx = 0;
+  const workers = Array.from({ length: Math.min(concurrency, pending.length) }, async () => {
+    while (idx < pending.length) {
+      const current = pending[idx++];
+      await preloadUnitPhoto(current);
+    }
+  });
+  await Promise.all(workers);
   onBatchComplete?.();
 }

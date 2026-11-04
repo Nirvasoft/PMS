@@ -1,10 +1,13 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   evictUnitPhotoCache,
   getCachedUnitPhotoSrc,
+  getUnitPhotoCandidates,
   hasCachedUnitPhoto,
+  hasFailedUnitPhoto,
   markUnitPhotoCached,
-  resolveUnitPhotoSrc,
+  markUnitPhotoFailed,
+  preloadUnitPhoto,
   subscribeUnitPhotoCache,
 } from '../../utils/unitPhotoCache';
 
@@ -34,7 +37,7 @@ export interface CachedUnitPhotoProps {
 
 /**
  * Reusable unit/shop photo component with unified cache lookup, skeleton shimmer,
- * and automatic cache marking on load.
+ * synchronous browser-cache detection, and automatic fallback on error.
  */
 export function CachedUnitPhoto({
   photoUrl,
@@ -49,18 +52,40 @@ export function CachedUnitPhoto({
 }: CachedUnitPhotoProps) {
   useUnitPhotoCache();
   const [domLoadedUrl, setDomLoadedUrl] = useState<string | null>(null);
-  const [fallbackSrc, setFallbackSrc] = useState<string | null>(null);
+  const [candidateIdx, setCandidateIdx] = useState(0);
+  const [hasError, setHasError] = useState(false);
+
+  const isCached = hasCachedUnitPhoto(photoUrl);
+  const isFailed = hasFailedUnitPhoto(photoUrl);
+  const cachedSrc = getCachedUnitPhotoSrc(photoUrl);
+
+  const candidates = useMemo(
+    () => getUnitPhotoCandidates(photoUrl),
+    [photoUrl, cachedSrc],
+  );
 
   useEffect(() => {
-    setFallbackSrc(null);
+    setCandidateIdx(0);
+    setHasError(false);
+    if (
+      photoUrl &&
+      !photoUrl.startsWith('blob:') &&
+      !hasCachedUnitPhoto(photoUrl) &&
+      !hasFailedUnitPhoto(photoUrl)
+    ) {
+      preloadUnitPhoto(photoUrl);
+    }
   }, [photoUrl]);
 
-  const cachedSrc = getCachedUnitPhotoSrc(photoUrl);
-  const src = fallbackSrc || cachedSrc;
+  if (!forceLoading && (hasError || isFailed)) {
+    return null;
+  }
+
+  const src = candidates[candidateIdx] || cachedSrc;
   const isReady = Boolean(
     photoUrl &&
       !forceLoading &&
-      (photoUrl.startsWith('blob:') || hasCachedUnitPhoto(photoUrl) || domLoadedUrl === photoUrl),
+      (photoUrl.startsWith('blob:') || isCached || domLoadedUrl === photoUrl),
   );
 
   const SkeletonTag = wrapperAs === 'span' ? 'span' : 'div';
@@ -73,6 +98,14 @@ export function CachedUnitPhoto({
       )}
       {src && (
         <img
+          ref={(el) => {
+            if (el && el.complete && el.naturalWidth > 0 && photoUrl) {
+              markUnitPhotoCached(photoUrl, src);
+              if (domLoadedUrl !== photoUrl) {
+                setDomLoadedUrl(photoUrl);
+              }
+            }
+          }}
           src={src}
           alt={alt}
           className={`${imgClassName} ${isReady ? 'is-ready' : 'is-loading'}`}
@@ -80,18 +113,20 @@ export function CachedUnitPhoto({
           decoding="async"
           onLoad={() => {
             if (photoUrl) {
-              markUnitPhotoCached(photoUrl);
+              markUnitPhotoCached(photoUrl, src);
               setDomLoadedUrl(photoUrl);
             }
           }}
           onError={() => {
             if (!photoUrl) return;
-            const directResolved = resolveUnitPhotoSrc(photoUrl);
-            if (src.startsWith('blob:') && directResolved && directResolved !== src) {
+            if (src.startsWith('blob:')) {
               evictUnitPhotoCache(photoUrl);
-              setFallbackSrc(directResolved);
-            } else if (src !== photoUrl && !photoUrl.startsWith('blob:')) {
-              setFallbackSrc(photoUrl);
+            }
+            if (candidateIdx + 1 < candidates.length) {
+              setCandidateIdx((prev) => prev + 1);
+            } else {
+              markUnitPhotoFailed(photoUrl);
+              setHasError(true);
             }
           }}
         />

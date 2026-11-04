@@ -247,16 +247,15 @@
   margin: 0 auto;
   flex-shrink: 0;
 }
+.shop-map-canvas-wrap.editing .shop-map-stage {
+  margin: 0;
+}
 
 .shop-map-stage .react-grid-item,
 .shop-map-grid-item {
   z-index: 3;
   overflow: visible !important;
   border-radius: 0 !important;
-}
-.shop-map-grid-item.is-corridor-item,
-.shop-map-grid-item.is-corridor-item.is-rotated-item {
-  z-index: 1;
 }
 .shop-map-grid-item.is-atrium-item,
 .shop-map-grid-item.is-atrium-item.is-rotated-item {
@@ -265,28 +264,16 @@
 .shop-map-grid-item.is-rotated-item {
   z-index: 4;
 }
-.shop-map-grid-item.is-transit-item,
-.shop-map-grid-item.is-transit-item.is-rotated-item {
-  z-index: 5;
-}
 .shop-map-grid-item.active-start {
   z-index: 6;
 }
 .shop-map-grid-item.active-target {
   z-index: 7;
 }
-.shop-map-grid-item:not(.has-inner-items):not(.is-corridor-item):hover,
+.shop-map-grid-item:not(.has-inner-items):hover,
 .shop-map-grid-item.editing:hover,
 .shop-map-grid-item.editing.resizing {
   z-index: 8;
-}
-.shop-map-grid-item.is-inner-hole-item,
-.shop-map-grid-item.is-inner-hole-item.is-rotated-item {
-  z-index: 9;
-}
-.shop-map-grid-item.is-inner-hole-item:hover,
-.shop-map-grid-item.editing.is-inner-hole-item:hover {
-  z-index: 11;
 }
 .shop-map-grid-item.is-transit-item,
 .shop-map-grid-item.is-transit-item.is-rotated-item {
@@ -300,20 +287,25 @@
 .shop-map-grid-item.is-layer-focused:hover {
   z-index: 14 !important;
 }
-.shop-map-grid-item.is-layer-focused > .shop-map-tile:not(.is-polygon-atrium):not(.is-trapezoid-tile):not(.is-curved-corridor) {
+.shop-map-grid-item.is-layer-focused > .shop-map-tile:not(.is-polygon-atrium):not(.is-trapezoid-tile) {
   outline: 2px dashed #a78bfa !important;
   outline-offset: 1px;
 }
-.shop-map-grid-item.is-layer-focused > .shop-map-tile:is(.is-polygon-atrium, .is-trapezoid-tile, .is-curved-corridor) {
+.shop-map-grid-item.is-layer-focused > .shop-map-tile:is(.is-polygon-atrium, .is-trapezoid-tile) {
   filter: drop-shadow(0 0 4px #a78bfa) !important;
 }
 
 .shop-map-tile {
   width: 100%; height: 100%;
-  box-sizing: border-box; overflow: hidden; border-radius: 8px; padding: 2px 4px; position: relative;
+  box-sizing: border-box; overflow: hidden; border-radius: 4px; padding: 2px 4px; position: relative;
   display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 1px;
   color: var(--text-primary); font-size: 0.76rem; line-height: 1.12; cursor: pointer;
   transition: opacity 0.15s ease;
+  z-index: 2;
+  border-top: 1px solid var(--glass-rim, rgba(255, 255, 255, 0.42));
+  border-left: 1px solid var(--glass-rim, rgba(255, 255, 255, 0.32));
+  border-right: 2px solid var(--glass-lip, rgba(2, 6, 23, 0.55));
+  border-bottom: 3px solid var(--glass-lip, rgba(2, 6, 23, 0.68));
 }
 .shop-map-tile.editing { cursor: grab; }
 .shop-map-tile-name {
@@ -332,15 +324,6 @@
   line-height: 1;
 }
 .shop-map-tile.tiny .shop-map-tile-name { display: none; }
-
-.shop-map-tile:not(.st-decor-corridor) {
-  z-index: 2;
-  border-radius: 4px;
-  border-top: 1px solid var(--glass-rim, rgba(255, 255, 255, 0.42));
-  border-left: 1px solid var(--glass-rim, rgba(255, 255, 255, 0.32));
-  border-right: 2px solid var(--glass-lip, rgba(2, 6, 23, 0.55));
-  border-bottom: 3px solid var(--glass-lip, rgba(2, 6, 23, 0.68));
-}
 .shop-map-stage .react-grid-item.react-draggable-dragging,
 .shop-map-stage .react-grid-item.resizing {
   z-index: 10;
@@ -736,66 +719,10 @@
     );
 }
 
-/* 4. Corridor / Walking Area — Walkway Lane with Auto-Merging Borders & Center Line (Teal) */
-.shop-map-tile.st-decor-corridor {
-  --corridor-fill: color-mix(in srgb, #14b8a6 13%, var(--card-bg, #0f172a));
-  z-index: 1;
-  background: var(--corridor-fill);
-  border: none;
-  padding: 0;
-  overflow: visible;
-}
-[data-theme="light"] .shop-map-tile.st-decor-corridor {
-  --corridor-fill: color-mix(in srgb, #14b8a6 11%, #f1f5f9);
-}
-.shop-map-tile.st-decor-corridor.editing:not(.is-curved-corridor) {
-  background: rgba(20, 184, 166, 0.12);
-}
-.shop-map-tile.st-decor-corridor.is-curved-corridor {
-  background: transparent !important;
-}
-.shop-map-tile.st-decor-corridor.is-curved-corridor.editing:hover {
-  outline: none;
-  filter: drop-shadow(0 0 3px rgba(20, 184, 166, 0.55));
-}
 .shop-map-tile.sharp-tl { border-top-left-radius: 0 !important; }
 .shop-map-tile.sharp-tr { border-top-right-radius: 0 !important; }
 .shop-map-tile.sharp-bl { border-bottom-left-radius: 0 !important; }
 .shop-map-tile.sharp-br { border-bottom-right-radius: 0 !important; }
-
-.shop-map-corridor-svg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-  pointer-events: none;
-  z-index: 1;
-}
-.shop-map-corridor-fill,
-.shop-map-corridor-bridge {
-  fill: var(--corridor-fill, rgba(20, 184, 166, 0.13));
-}
-.shop-map-tile.st-decor-corridor.editing .shop-map-corridor-fill,
-.shop-map-tile.st-decor-corridor.editing .shop-map-corridor-bridge {
-  fill: rgba(20, 184, 166, 0.12);
-}
-.shop-map-corridor-border {
-  fill: none;
-  stroke: #14b8a6;
-  stroke-width: 1.5;
-  stroke-dasharray: 2 2.5;
-  stroke-linecap: round;
-  vector-effect: non-scaling-stroke;
-}
-.shop-map-corridor-centerline {
-  fill: none;
-  stroke: rgba(20, 184, 166, 0.65);
-  stroke-width: 2;
-  stroke-dasharray: 5 4;
-  stroke-linecap: round;
-  vector-effect: non-scaling-stroke;
-}
 
 /* 5. Restroom — Blue Ceramic Tile Grid (Royal/Sky Blue) */
 .shop-map-tile.st-decor-toilet,
@@ -829,29 +756,57 @@
     linear-gradient(to bottom, rgba(236, 72, 153, 0.16) 1px, transparent 1px);
 }
 
-/* 6. Marker ("You are here") — Vibrant Rose/Pink Location Pin */
+/* 6. Marker ("You are here") — Pure Standalone Location Pin Icon (Theme Color) */
 .shop-map-tile.st-decor-marker,
 .shop-map-directory-marker-badge.lg-marker {
-  --decor-fg: #f472b6;
-  --decor-border: #ec4899;
-  --decor-bg: rgba(236, 72, 153, 0.18);
-  --glass-fill-top: rgba(236, 72, 153, 0.36);
-  --glass-fill-bot: rgba(219, 39, 119, 0.16);
-  --glass-rim: rgba(249, 168, 212, 0.62);
-  --glass-lip: rgba(131, 24, 67, 0.72);
+  --decor-fg: var(--accent, #10b981);
+  --decor-border: transparent;
+  --decor-bg: transparent;
+  --glass-fill-top: transparent;
+  --glass-fill-bot: transparent;
+  --glass-rim: transparent;
+  --glass-lip: transparent;
 }
-.shop-map-tile.st-decor-marker {
-  background: radial-gradient(circle at center, rgba(236, 72, 153, 0.28) 0%, rgba(236, 72, 153, 0.1) 78%);
-}
-.shop-map-tile.st-decor-marker .shop-map-decor-badge,
-.shop-map-view2 .shop-map-tile.st-decor-marker .shop-map-decor-badge,
-[data-theme="light"] .shop-map-view2 .shop-map-tile.st-decor-marker .shop-map-decor-badge {
+.shop-map-tile.st-decor-marker,
+.shop-map-view2 .shop-map-tile.st-decor-marker,
+.shop-map-view2 .shop-map-tile.st-decor-marker:hover,
+[data-theme="light"] .shop-map-view2 .shop-map-tile.st-decor-marker,
+[data-theme="light"] .shop-map-view2 .shop-map-tile.st-decor-marker:hover,
+.shop-map.is-3d-pitch .shop-map-tile.st-decor-marker,
+[data-theme="light"] .shop-map.is-3d-pitch .shop-map-tile.st-decor-marker {
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
-  border-radius: inherit;
+}
+.shop-map-tile.st-decor-marker .shop-map-decor-icon {
+  color: var(--decor-fg, var(--accent, #10b981));
+  filter: drop-shadow(0 3px 6px var(--accent-glow, rgba(16, 185, 129, 0.45)));
+}
+.shop-map-tile.st-decor-marker.active-start {
+  box-shadow: none !important;
+}
+.shop-map-tile.st-decor-marker.active-start .shop-map-decor-icon {
+  filter: drop-shadow(0 0 9px var(--accent, #10b981));
+}
+.shop-map-tile.st-decor-marker.editing:hover,
+.shop-map-grid-item.editing.resizing > .shop-map-tile.st-decor-marker {
+  outline: 1.5px dashed var(--accent, #10b981);
+  outline-offset: 0px;
+}
+.shop-map-tile.st-decor-marker .shop-map-decor-badge,
+.shop-map-view2 .shop-map-tile.st-decor-marker .shop-map-decor-badge,
+[data-theme="light"] .shop-map-view2 .shop-map-tile.st-decor-marker .shop-map-decor-badge,
+.shop-map-directory-marker-badge.lg-marker,
+.shop-map-view2 .shop-map-directory-marker-badge.lg-marker,
+[data-theme="light"] .shop-map-view2 .shop-map-directory-marker-badge.lg-marker {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  color: var(--decor-fg, var(--accent, #10b981)) !important;
 }
 
 /* 7. Entrance — Emerald Green Entry Gate */
@@ -1052,12 +1007,13 @@
 }
 [data-theme="light"] .shop-map-tile.st-decor-marker,
 [data-theme="light"] .shop-map-directory-marker-badge.lg-marker {
-  --decor-fg: #db2777;
-  --decor-bg: rgba(236, 72, 153, 0.14);
-  --glass-fill-top: rgba(252, 231, 243, 0.68);
-  --glass-fill-bot: rgba(251, 207, 232, 0.38);
-  --glass-rim: rgba(244, 114, 182, 0.68);
-  --glass-lip: rgba(236, 72, 153, 0.55);
+  --decor-fg: #16a34a;
+  --decor-border: transparent;
+  --decor-bg: transparent;
+  --glass-fill-top: transparent;
+  --glass-fill-bot: transparent;
+  --glass-rim: transparent;
+  --glass-lip: transparent;
 }
 [data-theme="light"] .shop-map-tile.st-decor-entrance,
 [data-theme="light"] .shop-map-directory-marker-badge.lg-entrance {
@@ -1122,8 +1078,8 @@
     radial-gradient(circle at 82% 76%, rgba(59, 130, 246, 0.08) 0%, transparent 54%);
 }
 
-/* Unified 3D Crystal Glass Block for all non-corridor tiles (Units & Landmarks) */
-.shop-map-view2 .shop-map-tile:not(.st-decor-corridor) {
+/* Unified 3D Crystal Glass Block for all tiles (Units & Landmarks) */
+.shop-map-view2 .shop-map-tile {
   background: linear-gradient(
     145deg,
     var(--glass-fill-top, rgba(148, 163, 184, 0.20)) 0%,
@@ -1138,7 +1094,7 @@
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
-.shop-map-view2 .shop-map-tile:not(.st-decor-corridor):hover {
+.shop-map-view2 .shop-map-tile:hover {
   transform: translateY(-1.5px);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.55),
@@ -1146,14 +1102,14 @@
     0 6px 16px rgba(2, 6, 23, 0.32);
 }
 
-[data-theme="light"] .shop-map-view2 .shop-map-tile:not(.st-decor-corridor) {
+[data-theme="light"] .shop-map-view2 .shop-map-tile {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.88),
     inset 1px 0 0 rgba(255, 255, 255, 0.55),
     0 4px 12px rgba(15, 23, 42, 0.10);
 }
 
-[data-theme="light"] .shop-map-view2 .shop-map-tile:not(.st-decor-corridor):hover {
+[data-theme="light"] .shop-map-view2 .shop-map-tile:hover {
   box-shadow:
     inset 0 1px 0 #ffffff,
     inset 1px 0 0 rgba(255, 255, 255, 0.72),
@@ -1246,25 +1202,6 @@
   color: color-mix(in srgb, var(--decor-fg) 80%, #0f172a);
 }
 
-.shop-map-view2 .shop-map-tile.st-decor-corridor:not(.editing):not(.is-curved-corridor) {
-  background: var(--corridor-fill);
-}
-.shop-map-view2 .shop-map-tile.st-decor-corridor.is-curved-corridor {
-  background: transparent !important;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-.shop-map-view2 .shop-map-tile.st-decor-corridor:not(.editing) .shop-map-corridor-fill,
-.shop-map-view2 .shop-map-tile.st-decor-corridor:not(.editing) .shop-map-corridor-bridge {
-  fill: var(--corridor-fill);
-}
-.shop-map-view2 .shop-map-corridor-border {
-  stroke: rgba(148, 163, 184, 0.42);
-}
-.shop-map-view2 .shop-map-corridor-centerline {
-  stroke: rgba(148, 163, 184, 0.34);
-}
-
 /* Drag drop-shadow (placeholder): glass look, rotates with a tilted tile and matches true tile shape */
 .shop-map-stage .react-grid-item.react-grid-placeholder {
   rotate: var(--drag-angle, 0deg);
@@ -1290,17 +1227,12 @@
 .shop-map-stage[data-drag-shape="circle"] .react-grid-item.react-grid-placeholder {
   border-radius: 50% !important;
 }
-.shop-map-stage[data-drag-shape="ring"] .react-grid-item.react-grid-placeholder {
-  border-radius: 50% !important;
-  -webkit-mask-image: radial-gradient(closest-side, transparent 48%, #000 50%);
-  mask-image: radial-gradient(closest-side, transparent 48%, #000 50%);
-}
 
-/* Landmarks touching a walkway & multi-block shaped units (L / T / U) & Trapezoid units: seamless joining edges */
-.shop-map-tile:not(.st-decor-corridor).merge-t { border-top-width: 0; --bt: 0px; }
-.shop-map-tile:not(.st-decor-corridor).merge-b { border-bottom-width: 0; --bb: 0px; }
-.shop-map-tile:not(.st-decor-corridor).merge-l { border-left-width: 0; --bl: 0px; }
-.shop-map-tile:not(.st-decor-corridor).merge-r { border-right-width: 0; --br: 0px; }
+/* Multi-block shaped units (L / T / U) & Trapezoid units: seamless joining edges */
+.shop-map-tile.merge-t { border-top-width: 0; --bt: 0px; }
+.shop-map-tile.merge-b { border-bottom-width: 0; --bb: 0px; }
+.shop-map-tile.merge-l { border-left-width: 0; --bl: 0px; }
+.shop-map-tile.merge-r { border-right-width: 0; --br: 0px; }
 
 .shop-map-tile:is(.is-merged-unit, .is-trapezoid-tile, .is-polygon-atrium),
 .shop-map-tile:is(.is-merged-unit, .is-trapezoid-tile, .is-polygon-atrium):hover,
@@ -1324,8 +1256,12 @@
   overflow: visible;
 }
 .shop-map-tile:is(.is-trapezoid-tile, .is-polygon-atrium),
+.shop-map-tile:is(.is-trapezoid-tile, .is-polygon-atrium):hover,
+.shop-map-tile:is(.is-trapezoid-tile, .is-polygon-atrium):is(.active-target, .active-start),
 .shop-map-view2 .shop-map-tile:is(.is-trapezoid-tile, .is-polygon-atrium),
-[data-theme="light"] .shop-map-view2 .shop-map-tile:is(.is-trapezoid-tile, .is-polygon-atrium) {
+.shop-map-view2 .shop-map-tile:is(.is-trapezoid-tile, .is-polygon-atrium):is(.active-target, .active-start),
+[data-theme="light"] .shop-map-view2 .shop-map-tile:is(.is-trapezoid-tile, .is-polygon-atrium),
+[data-theme="light"] .shop-map-view2 .shop-map-tile:is(.is-trapezoid-tile, .is-polygon-atrium):is(.active-target, .active-start) {
   background: transparent !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
@@ -1356,24 +1292,17 @@
   --glass-lip: #10b981;
 }
 .shop-map-tile:is(.is-merged-unit, .is-trapezoid-tile, .is-polygon-atrium).active-start {
-  border-color: #ec4899 !important;
-  --glass-rim: #ec4899;
-  --glass-lip: #ec4899;
+  border-color: #22c55e !important;
+  --glass-rim: #22c55e;
+  --glass-lip: #22c55e;
 }
 
-.shop-map-unit-box {
-  position: absolute;
-  top: calc(-1 * var(--bt, 0px));
-  right: calc(-1 * var(--br, 0px));
-  bottom: calc(-1 * var(--bb, 0px));
-  left: calc(-1 * var(--bl, 0px));
-  border-radius: inherit;
-  pointer-events: none;
-  z-index: 1;
-}
 .shop-map-unit-bridge {
   position: absolute;
   pointer-events: none;
+}
+.shop-map-tile:not(.has-unit-photo) .shop-map-unit-bridge {
+  display: none;
 }
 .shop-map-tile.st-occupied .shop-map-unit-bridge { background: rgba(16, 185, 129, 0.22); }
 .shop-map-tile.st-vacant .shop-map-unit-bridge { background: rgba(148, 163, 184, 0.22); }
@@ -1403,8 +1332,10 @@
   inset: 0;
   width: 100%;
   height: 100%;
+  border-radius: inherit;
   container-type: size;
   pointer-events: none;
+  z-index: 1;
 }
 .shop-map-tile-photo-clip {
   position: absolute;
@@ -1482,6 +1413,14 @@
 [data-theme="light"] .shop-map-tile.st-vacant .shop-map-trapezoid-svg .shop-map-trapezoid-fill { fill: rgba(226, 232, 240, 0.58); }
 [data-theme="light"] .shop-map-tile.st-reserved .shop-map-trapezoid-svg .shop-map-trapezoid-fill { fill: rgba(191, 219, 254, 0.56); }
 [data-theme="light"] .shop-map-tile.st-expiring .shop-map-trapezoid-svg .shop-map-trapezoid-fill { fill: rgba(253, 230, 138, 0.58); }
+.shop-map-tile.active-target .shop-map-trapezoid-svg .shop-map-trapezoid-fill,
+[data-theme="light"] .shop-map-tile.active-target .shop-map-trapezoid-svg .shop-map-trapezoid-fill {
+  fill: rgba(16, 185, 129, 0.35) !important;
+}
+.shop-map-tile.active-start .shop-map-trapezoid-svg .shop-map-trapezoid-fill,
+[data-theme="light"] .shop-map-tile.active-start .shop-map-trapezoid-svg .shop-map-trapezoid-fill {
+  fill: rgba(34, 197, 94, 0.28) !important;
+}
 
 .shop-map-view2 .shop-map-tile:is(.is-merged-unit, .is-trapezoid-tile, .is-polygon-atrium) :is(.shop-map-merged-border-svg, .shop-map-trapezoid-svg, .shop-map-atrium-poly-svg) {
   filter: drop-shadow(0 3px 6px rgba(2, 6, 23, 0.28));
@@ -1490,10 +1429,10 @@
   filter: drop-shadow(0 3px 6px rgba(15, 23, 42, 0.14));
 }
 .shop-map-tile:is(.is-merged-unit, .is-trapezoid-tile, .is-polygon-atrium).active-target :is(.shop-map-merged-border-svg, .shop-map-trapezoid-svg, .shop-map-atrium-poly-svg) {
-  filter: drop-shadow(0 0 6px rgba(16, 185, 129, 0.65));
+  filter: drop-shadow(0 0 6px rgba(16, 185, 129, 0.65)) !important;
 }
 .shop-map-tile:is(.is-merged-unit, .is-trapezoid-tile, .is-polygon-atrium).active-start :is(.shop-map-merged-border-svg, .shop-map-trapezoid-svg, .shop-map-atrium-poly-svg) {
-  filter: drop-shadow(0 0 6px rgba(236, 72, 153, 0.65));
+  filter: drop-shadow(0 0 6px rgba(34, 197, 94, 0.65)) !important;
 }
 .shop-map-tile:is(.is-merged-unit, .is-trapezoid-tile, .is-polygon-atrium):is(.active-target, .active-start) :is(.shop-map-merged-border-svg, .shop-map-trapezoid-svg, .shop-map-atrium-poly-svg) :is(.lm-border-rim, .lm-border-lip-r, .lm-border-lip-b) {
   stroke-width: 2.5;
@@ -1757,7 +1696,7 @@
 .shop-map-landmark-item.clickable:hover {
   background: rgba(16, 185, 129, 0.14);
 }
-.shop-map-canvas-wrap.has-routed-unit .shop-map-tile:not(.active-target):not(.active-start):not(.st-decor-corridor):not(.search-match) {
+.shop-map-canvas-wrap.has-routed-unit .shop-map-tile:not(.active-target):not(.active-start):not(.search-match) {
   opacity: 0.38;
 }
 .shop-map-canvas-wrap.has-routed-unit .shop-map-cat-row:not(.active):not(.search-match) {
@@ -1770,15 +1709,21 @@
 }
 .shop-map-tile.active-start {
   opacity: 1 !important;
-  box-shadow: 0 0 0 2px #ec4899, 0 0 14px rgba(236, 72, 153, 0.45);
   z-index: 6;
+}
+.shop-map-tile.active-start:not(.is-merged-unit):not(.is-trapezoid-tile):not(.is-polygon-atrium):not(.st-decor-marker) {
+  box-shadow: 0 0 0 2px #22c55e, 0 0 14px rgba(34, 197, 94, 0.45) !important;
 }
 .shop-map-tile.active-target {
   opacity: 1 !important;
+  z-index: 7;
+}
+.shop-map-tile.active-target:not(.is-trapezoid-tile):not(.is-polygon-atrium):not(.st-decor-marker) {
   background: rgba(16, 185, 129, 0.35) !important;
   border-color: #10b981 !important;
-  box-shadow: 0 0 0 2px var(--accent, #10b981), 0 0 16px rgba(16, 185, 129, 0.5);
-  z-index: 7;
+}
+.shop-map-tile.active-target:not(.is-merged-unit):not(.is-trapezoid-tile):not(.is-polygon-atrium):not(.st-decor-marker) {
+  box-shadow: 0 0 0 2px var(--accent, #10b981), 0 0 16px rgba(16, 185, 129, 0.5) !important;
 }
 .shop-map-connector-svg {
   position: absolute;
@@ -1809,7 +1754,7 @@
   fill: var(--accent, #10b981);
 }
 .shop-map-connector-dot.start {
-  fill: #ec4899;
+  fill: var(--accent, #10b981);
   stroke: #ffffff;
   stroke-width: 1.5;
 }
@@ -1823,10 +1768,10 @@
   animation: shopMapPulseRing 1.6s ease-out infinite;
 }
 .shop-map-nav-pulse.start {
-  stroke: #ec4899;
+  stroke: var(--accent, #10b981);
 }
 .shop-map-nav-pulse.target {
-  stroke: #10b981;
+  stroke: var(--accent, #10b981);
 }
 @keyframes shopMapPulseRing {
   0% {
@@ -1869,7 +1814,7 @@
   min-width: 0;
 }
 .nav-pin-start-icon {
-  color: #ec4899;
+  color: #22c55e;
 }
 .nav-pin-dest-icon {
   color: var(--accent, #10b981);
@@ -2058,17 +2003,6 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-}
-.shop-map-route-metrics {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 0.73rem;
-  font-weight: 700;
-  background: rgba(16, 185, 129, 0.15);
-  color: var(--accent, #10b981);
-  margin-left: 4px;
 }
 .shop-map-route-actions {
   display: inline-flex;
@@ -2383,28 +2317,6 @@
   justify-content: center;
   flex-shrink: 0;
 }
-.shop-map-directory-corridor-swatch {
-  position: relative;
-  width: 18px;
-  height: 12px;
-  border-radius: 3px;
-  border: 1.5px dotted #14b8a6;
-  background: rgba(20, 184, 166, 0.12);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  box-sizing: border-box;
-}
-.shop-map-directory-corridor-swatch::before {
-  content: '';
-  position: absolute;
-  left: 2px;
-  right: 2px;
-  top: 50%;
-  border-top: 1.5px dashed rgba(20, 184, 166, 0.75);
-  transform: translateY(-50%);
-}
 .shop-map-directory-name {
   color: var(--text-primary);
   font-weight: 500;
@@ -2498,69 +2410,11 @@
   cursor: pointer;
   padding: 2px;
 }
-.public-mall-shop-photo-wrap {
-  position: relative;
-  width: 100%;
-  height: 180px;
-  border-radius: 10px;
-  overflow: hidden;
-  border: 1px solid var(--border-color, var(--border));
-  background: var(--bg-body, var(--bg));
-}
-.public-mall-shop-photo {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-  transition: opacity 0.18s ease;
-}
-.public-mall-shop-photo.is-loading {
-  opacity: 0;
-}
-.public-mall-shop-photo.is-ready {
-  opacity: 1;
-}
-.public-mall-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.public-mall-tag-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-.public-mall-info-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  padding: 12px;
-  border-radius: 10px;
-  border: 1px solid var(--border-color, var(--border));
-  background: var(--bg-body, var(--bg));
-  font-size: 0.8rem;
-}
-.public-mall-info-label {
-  color: var(--text-secondary);
-  font-size: 0.72rem;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.public-mall-info-val {
-  font-weight: 700;
-  margin-top: 2px;
-}
-
 /* ── Tablet & Mobile Responsive Breakpoints ── */
 @media (max-width: 1024px) {
   .shop-map-directory-marker-badge {
     width: 16px;
     height: 16px;
-  }
-  .shop-map-directory-corridor-swatch {
-    width: 16px;
-    height: 11px;
   }
   .public-mall-brand-icon {
     width: 34px;
@@ -2657,10 +2511,6 @@
     width: 15px;
     height: 15px;
   }
-  .shop-map-directory-corridor-swatch {
-    width: 14px;
-    height: 10px;
-  }
   .shop-map-tile-btn {
     width: 14px;
     height: 14px;
@@ -2680,9 +2530,6 @@
   .shop-map-qr-footer .btn {
     flex: 1 1 auto;
     justify-content: center;
-  }
-  .public-mall-info-grid {
-    grid-template-columns: 1fr;
   }
 }
 
@@ -2728,32 +2575,6 @@
     0 8px 24px rgba(15, 23, 42, 0.09);
 }
 
-/* Seamless Mappedin Concourse Walkway in View Mode */
-.shop-map-tile.st-decor-corridor:not(.editing):not(.is-curved-corridor) {
-  background: var(--corridor-fill);
-}
-[data-theme="light"] .shop-map-tile.st-decor-corridor:not(.editing):not(.is-curved-corridor) {
-  background: var(--corridor-fill);
-}
-.shop-map-tile.st-decor-corridor:not(.editing) .shop-map-corridor-fill,
-.shop-map-tile.st-decor-corridor:not(.editing) .shop-map-corridor-bridge {
-  fill: var(--corridor-fill);
-}
-[data-theme="light"] .shop-map-tile.st-decor-corridor:not(.editing) .shop-map-corridor-fill,
-[data-theme="light"] .shop-map-tile.st-decor-corridor:not(.editing) .shop-map-corridor-bridge {
-  fill: var(--corridor-fill);
-}
-.shop-map-tile.st-decor-corridor:not(.editing) .shop-map-corridor-border {
-  stroke-dasharray: none;
-  stroke-width: 1.35;
-  opacity: 0.72;
-}
-.shop-map-tile.st-decor-corridor:not(.editing) .shop-map-corridor-centerline {
-  stroke-width: 1.25;
-  stroke-dasharray: 4 5;
-  opacity: 0.28;
-}
-
 /* 2.5D Isometric Perspective Mode */
 .shop-map-stage {
   transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
@@ -2779,20 +2600,20 @@
     0 10px 0 #94a3b8,
     0 24px 40px rgba(15, 23, 42, 0.18);
 }
-.shop-map.is-3d-pitch .shop-map-tile:not(.st-decor-corridor):not(.is-merged-unit):not(.is-trapezoid-tile):not(.is-polygon-atrium) {
+.shop-map.is-3d-pitch .shop-map-tile:not(.is-merged-unit):not(.is-trapezoid-tile):not(.is-polygon-atrium) {
   border-bottom-width: 4px;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.45),
     0 3px 0 rgba(2, 6, 23, 0.52),
     0 7px 14px rgba(2, 6, 23, 0.32);
 }
-[data-theme="light"] .shop-map.is-3d-pitch .shop-map-tile:not(.st-decor-corridor):not(.is-merged-unit):not(.is-trapezoid-tile):not(.is-polygon-atrium) {
+[data-theme="light"] .shop-map.is-3d-pitch .shop-map-tile:not(.is-merged-unit):not(.is-trapezoid-tile):not(.is-polygon-atrium) {
   box-shadow:
     inset 0 1px 0 #ffffff,
     0 3px 0 rgba(100, 116, 139, 0.45),
     0 7px 14px rgba(15, 23, 42, 0.14);
 }
-.shop-map.is-3d-pitch .shop-map-tile:not(.st-decor-corridor):not(.is-merged-unit):not(.is-trapezoid-tile):not(.is-polygon-atrium):hover {
+.shop-map.is-3d-pitch .shop-map-tile:not(.is-merged-unit):not(.is-trapezoid-tile):not(.is-polygon-atrium):hover {
   transform: translateY(-3px);
 }
 
@@ -2874,52 +2695,6 @@
   filter: none;
 }
 
-.shop-map-floating-pin {
-  position: absolute;
-  transform: translate(-50%, calc(-100% - 10px));
-  z-index: 12;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 9px;
-  border-radius: 999px;
-  font-size: 0.68rem;
-  font-weight: 800;
-  white-space: nowrap;
-  pointer-events: none;
-  color: #ffffff;
-  box-shadow: 0 5px 14px rgba(2, 6, 23, 0.38);
-}
-.shop-map-floating-pin::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 100%;
-  transform: translateX(-50%);
-  border: 5px solid transparent;
-}
-.shop-map-floating-pin.start {
-  background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);
-  border: 1px solid rgba(255, 255, 255, 0.55);
-}
-.shop-map-floating-pin.start::after {
-  border-top-color: #db2777;
-}
-.shop-map-floating-pin.target {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  border: 1px solid rgba(255, 255, 255, 0.6);
-}
-.shop-map-floating-pin.target::after {
-  border-top-color: #059669;
-}
-.shop-map-floating-pin small {
-  padding: 1px 5px;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.22);
-  font-size: 0.62rem;
-  font-weight: 700;
-}
-
 .shop-map-route-details-col {
   display: flex;
   flex-direction: column;
@@ -2965,10 +2740,17 @@
   color: #ffffff !important;
   border-color: #10b981 !important;
 }
-.shop-map-grid-item.is-group-selected > .shop-map-tile {
+.shop-map-grid-item.is-group-selected > .shop-map-tile:not(.is-merged-unit):not(.is-trapezoid-tile):not(.is-polygon-atrium) {
   outline: 2.5px solid #10b981 !important;
   outline-offset: 1px;
   box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.28), 0 8px 18px rgba(5, 150, 105, 0.25) !important;
+}
+.shop-map-grid-item.is-group-selected > .shop-map-tile:is(.is-merged-unit, .is-trapezoid-tile, .is-polygon-atrium) {
+  --glass-rim: #10b981;
+  --glass-lip: #10b981;
+}
+.shop-map-grid-item.is-group-selected > .shop-map-tile:is(.is-merged-unit, .is-trapezoid-tile, .is-polygon-atrium) :is(.shop-map-merged-border-svg, .shop-map-trapezoid-svg, .shop-map-atrium-poly-svg) {
+  filter: drop-shadow(0 0 6px rgba(16, 185, 129, 0.72)) !important;
 }
 .shop-map-group-bounds-box {
   position: absolute;

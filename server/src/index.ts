@@ -116,7 +116,12 @@ async function bootstrap() {
   app.use('/uploads', express.static(path.join(process.cwd(), 'uploads'), staticCacheOpts));
   app.use('/api/v1/uploads', express.static(path.join(process.cwd(), 'uploads'), staticCacheOpts));
   app.use('/seed-photos', express.static(path.join(process.cwd(), 'public/seed-photos'), staticCacheOpts));
+  app.use('/api/v1/seed-photos', express.static(path.join(process.cwd(), 'public/seed-photos'), staticCacheOpts));
   app.use('/storage', express.static(path.join(process.cwd(), 'storage'), staticCacheOpts));
+  app.use('/api/v1/storage', express.static(path.join(process.cwd(), 'storage'), staticCacheOpts));
+  app.use(['/uploads', '/api/v1/uploads', '/seed-photos', '/api/v1/seed-photos'], (_req, res) => {
+    res.status(404).end();
+  });
 
   // Public API routes (no auth required)
   app.get('/api/v1/health', (_req, res) => {
