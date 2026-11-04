@@ -90,10 +90,33 @@ export const InvoiceRecapModal: React.FC<InvoiceRecapModalProps> = ({
   const [showDepartment, setShowDepartment] = useState(false);
   const [showCostCentre, setShowCostCentre] = useState(false);
 
-  const { data: glAccounts = [] } = useGetGlAccountsQuery(
+  const { data: propertyGlAccounts = [] } = useGetGlAccountsQuery(
     propertyId ? { propertyId } : {},
     { skip: !open },
   );
+  const { data: allCompanyGlAccounts = [] } = useGetGlAccountsQuery(
+    {},
+    { skip: !open || !propertyId },
+  );
+
+  const glAccounts = useMemo<GlAccount[]>(() => {
+    const merged: GlAccount[] = [];
+    const seen = new Set<string>();
+    const collect = (list: GlAccount[]) => {
+      for (const acc of list) {
+        if (!seen.has(acc.id)) {
+          seen.add(acc.id);
+          merged.push(acc);
+        }
+        if (Array.isArray(acc.children) && acc.children.length > 0) {
+          collect(acc.children);
+        }
+      }
+    };
+    collect(propertyGlAccounts);
+    collect(allCompanyGlAccounts);
+    return merged;
+  }, [propertyGlAccounts, allCompanyGlAccounts]);
 
   const { data: currencyRatesData } = useGetCurrencyRatesQuery(
     open && propertyId ? { propertyId } : skipToken,
@@ -215,38 +238,15 @@ export const InvoiceRecapModal: React.FC<InvoiceRecapModalProps> = ({
     const arDept = formatCenterLabel(departmentCenter || arAcc?.departmentCenter);
     const arCc = formatCenterLabel(costCenter || arAcc?.costCenter);
 
-    // Build Credit description matching ERP format: e.g. "INV-000001, INV-001845, PMS: INV-001845"
+    // Build Credit description from the GL Account connected to the invoice charge
     const buildCreditDescription = (line: RecapLineInput, revAcc?: GlAccount): string => {
-      if (invoiceNumber) {
-        const parts: string[] = [];
-        const addUnique = (val?: string | null) => {
-          const trimmed = (val || '').trim();
-          if (trimmed && !parts.includes(trimmed)) {
-            parts.push(trimmed);
-          }
-        };
-        if (externalInvoiceNumber && externalInvoiceNumber !== invoiceNumber) {
-          addUnique(externalInvoiceNumber);
-        } else if (secondRef && secondRef !== invoiceNumber) {
-          addUnique(secondRef);
-        }
-        addUnique(invoiceNumber);
-        if (externalInvoiceNumber && secondRef && secondRef !== externalInvoiceNumber && secondRef !== invoiceNumber) {
-          addUnique(secondRef);
-        }
-        const remarkText = (notes || '').trim() || `PMS: ${invoiceNumber}`;
-        addUnique(remarkText);
-        return parts.join(', ');
-      }
-
-      // Draft preview on CreateInvoicePage
-      const draftParts: string[] = [];
-      if (secondRef?.trim()) draftParts.push(secondRef.trim());
-      if (notes?.trim()) draftParts.push(notes.trim());
-      if (line.description?.trim()) draftParts.push(line.description.trim());
-      else if (revAcc?.name) draftParts.push(revAcc.name);
-      else if (line.chargeTypeName) draftParts.push(line.chargeTypeName);
-      return draftParts.join(', ') || 'Account Revenue';
+      return (
+        revAcc?.name?.trim() ||
+        revAcc?.description?.trim() ||
+        line.chargeTypeName?.trim() ||
+        line.description?.trim() ||
+        'Account Revenue'
+      );
     };
 
     const hasTaxRow = Number(taxAmount) > 0;
