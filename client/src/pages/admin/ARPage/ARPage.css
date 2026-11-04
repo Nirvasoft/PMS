@@ -589,9 +589,9 @@
 
 .overpayment-notice {
   margin-top: 14px; padding: 12px 16px;
-  background: color-mix(in srgb, #f59e0b 8%, transparent);
-  border: 1px solid color-mix(in srgb, #f59e0b 20%, transparent);
-  border-radius: 10px; font-size: 13px; color: #fbbf24;
+  background: var(--warning-bg);
+  border: 1px solid var(--warning-border);
+  border-radius: 10px; font-size: 13px; color: var(--warning);
   display: flex; align-items: center; gap: 8px;
 }
 

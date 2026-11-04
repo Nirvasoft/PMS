@@ -298,7 +298,7 @@ export default function CreateReceiptModal({ onClose }: Props) {
             />
             {isTenantMissing && <span className="ar-error-text">Tenant is required</span>}
             {!isCash && tenants.length === 0 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 12, color: '#f59e0b' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 12, color: 'var(--warning)' }}>
                 <AlertTriangle size={13} />
                 No KYC-verified tenants found for this property.
               </div>
@@ -528,7 +528,7 @@ export default function CreateReceiptModal({ onClose }: Props) {
                   Allocated: <strong style={{ color: 'var(--text-primary)' }}>{formatCurrency(totalAllocated, currency)}</strong>
                 </span>
                 <span style={{ color: 'var(--text-tertiary)' }}>
-                  Unallocated: <strong style={{ color: overpayment > 0 ? '#fbbf24' : 'var(--text-primary)' }}>
+                  Unallocated: <strong style={{ color: overpayment > 0 ? 'var(--warning)' : 'var(--text-primary)' }}>
                     {formatCurrency(Math.max(0, overpayment), currency)}
                   </strong>
                 </span>

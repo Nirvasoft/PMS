@@ -1143,7 +1143,7 @@ function CreateUnitModal({
                 {allFloorNumbers.map((n) => <option key={n} value={n}>{n}</option>)}
               </select>
               {floorHasNoSetup && (
-                <span style={{ color: '#ef4444', fontSize: '0.78rem', marginTop: 4, display: 'block' }}>
+                <span style={{ color: 'var(--warning)', fontSize: '0.78rem', marginTop: 4, display: 'block' }}>
                   Floor label hasn't been configured
                 </span>
               )}

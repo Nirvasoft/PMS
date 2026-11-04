@@ -968,10 +968,10 @@
   display: block;
   margin-top: 8px;
   padding: 8px 12px;
-  background: #f59e0b12;
-  border: 1px solid #f59e0b25;
+  background: var(--warning-bg);
+  border: 1px solid var(--warning-border);
   border-radius: 8px;
-  color: #f59e0b;
+  color: var(--warning);
   font-size: 12px;
 }
 .btn-danger {

@@ -341,7 +341,7 @@ function SsoConfigModal({
             </div>
 
             {!editId && (
-              <div className="alert" style={{ marginTop: 16, padding: 12, background: 'var(--surface-elevated)', borderRadius: 8, fontSize: 13 }}>
+              <div className="alert alert-warning" style={{ marginTop: 16, padding: 12, borderRadius: 8, fontSize: 13 }}>
                 <AlertTriangle size={14} style={{ marginRight: 6 }} />
                 The provider will be created as <strong>disabled</strong>. Enable it after verifying the configuration.
               </div>

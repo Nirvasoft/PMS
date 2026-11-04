@@ -593,7 +593,7 @@ function MfaSetupSection() {
               📥 Download .txt
             </button>
           </div>
-          <div className="alert" style={{ marginTop: 16, padding: 10, background: 'color-mix(in srgb, var(--warning) 10%, transparent)', borderRadius: 8, fontSize: 13 }}>
+          <div className="alert alert-warning" style={{ marginTop: 16, padding: 10, borderRadius: 8, fontSize: 13 }}>
             <AlertTriangle size={14} style={{ color: 'var(--warning)', marginRight: 6 }} />
             Store these codes in a safe place. You won't be able to see them again.
           </div>

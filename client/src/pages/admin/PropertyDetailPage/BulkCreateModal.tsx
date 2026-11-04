@@ -340,8 +340,8 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
         <div className="modal-overlay" style={{ zIndex: 600 }} onClick={(e) => e.stopPropagation()}>
           <div className="modal-box" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <div className="modal-title">
-                <AlertTriangle size={18} style={{ color: 'var(--warning, #f59e0b)' }} />
+              <div className="modal-title" style={{ color: 'var(--warning)' }}>
+                <AlertTriangle size={18} style={{ color: 'var(--warning)' }} />
                 <span>Confirm Plain Prefix</span>
               </div>
               <button
@@ -355,12 +355,12 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
               </button>
             </div>
             <div className="modal-body">
-              <p style={{ margin: 0, lineHeight: 1.5, color: 'var(--text-primary)' }}>
-                Floor{floorsMissingPrefix.length !== 1 ? 's' : ''} <strong>{floorsMissingPrefix.join(', ')}</strong> {floorsMissingPrefix.length !== 1 ? "don't" : "doesn't"} have a prefix in Floor Setup — they'll use the plain floor number.
-              </p>
-              <p style={{ margin: 0, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
-                Do you want to proceed with plain prefix?
-              </p>
+              <div className="conflict-warning">
+                <AlertTriangle size={14} />
+                <span>
+                  Floor{floorsMissingPrefix.length !== 1 ? 's' : ''} <strong>{floorsMissingPrefix.join(', ')}</strong> {floorsMissingPrefix.length !== 1 ? "don't" : "doesn't"} have a prefix in Floor Setup — they'll use the plain floor number. Do you want to proceed with plain prefix?
+                </span>
+              </div>
             </div>
             <div className="modal-footer">
               <button

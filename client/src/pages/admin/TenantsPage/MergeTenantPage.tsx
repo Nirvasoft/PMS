@@ -209,7 +209,7 @@ function MergePreview({ primaryId, duplicateId, onBack, onConfirm, merging, conf
       </div>
 
       {hasActiveLeases && (
-        <div className="mp-warning" style={{ background: 'rgba(243,156,18,0.1)', color: '#d35400' }}>
+        <div className="mp-warning">
           <AlertTriangle size={16} />
           <div>
             <strong>Active Leases Detected</strong>

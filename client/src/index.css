@@ -33,6 +33,7 @@
   --success-bg: rgba(74, 222, 128, 0.1);
   --warning: #fbbf24;
   --warning-bg: rgba(251, 191, 36, 0.1);
+  --warning-border: rgba(251, 191, 36, 0.3);
   --error: #f87171;
   --error-bg: rgba(248, 113, 113, 0.1);
   --danger: var(--error);
@@ -113,6 +114,7 @@
   --success-bg: rgba(22, 163, 74, 0.10);
   --warning: #d97706;
   --warning-bg: rgba(217, 119, 6, 0.10);
+  --warning-border: rgba(217, 119, 6, 0.3);
   --error: #dc2626;
   --error-bg: rgba(220, 38, 38, 0.08);
   --danger: var(--error);
@@ -1566,6 +1568,12 @@ input.input-full:focus {
   background: var(--error-bg);
   color: var(--error);
   border: 1px solid var(--error-bg);
+}
+
+.alert-warning {
+  background: var(--warning-bg);
+  color: var(--warning);
+  border: 1px solid var(--warning-border);
 }
 
 /* ─── TOTP Input ────────────────────────────── */
@@ -7169,8 +7177,9 @@ select.input-full:focus {
   color: var(--text-primary);
 }
 [data-theme="light"] .penalty-box {
-  background: rgba(220,38,38,0.06);
-  border-color: rgba(220,38,38,0.2);
+  background: var(--warning-bg);
+  border-color: var(--warning-border);
+  color: var(--warning);
 }
 
 /* ── Action buttons in light mode ── */

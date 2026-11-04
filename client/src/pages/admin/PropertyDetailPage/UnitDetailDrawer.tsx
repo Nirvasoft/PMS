@@ -797,7 +797,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                         ))}
                       </select>
                       {editFloorHasNoSetup && (
-                        <span style={{ color: '#ef4444', fontSize: '0.78rem', marginTop: 4, display: 'block' }}>
+                        <span style={{ color: 'var(--warning)', fontSize: '0.78rem', marginTop: 4, display: 'block' }}>
                           Floor label hasn't been configured
                         </span>
                       )}
@@ -2097,8 +2097,8 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
 
                 {activeLease && (
                   <div className="lease-term-warning-box" style={{
-                    background: 'rgba(251, 191, 36, 0.1)',
-                    border: '1px solid rgba(251, 191, 36, 0.35)',
+                    background: 'var(--warning-bg)',
+                    border: '1px solid var(--warning-border)',
                     borderRadius: '8px',
                     padding: '12px 14px',
                     margin: '12px 0',
@@ -2106,12 +2106,12 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                     flexDirection: 'column',
                     gap: '8px',
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--warning, #fbbf24)', fontWeight: 600, fontSize: '0.85rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--warning)', fontWeight: 600, fontSize: '0.85rem' }}>
                       <AlertCircle size={17} style={{ flexShrink: 0 }} />
                       <span>Active Lease Warning</span>
                     </div>
                     <div style={{ fontSize: '0.8rem', color: 'var(--text-primary)', lineHeight: 1.5 }}>
-                      This unit currently has an active lease (<strong style={{ color: 'var(--warning, #fbbf24)' }}>{activeLease.leaseNumber}</strong>
+                      This unit currently has an active lease (<strong style={{ color: 'var(--warning)' }}>{activeLease.leaseNumber}</strong>
                       {tenantName ? ` · ${tenantName}` : ''}).
                       Changing status to <strong>Available</strong> will automatically <strong>terminate</strong> this active lease effective today.
                     </div>

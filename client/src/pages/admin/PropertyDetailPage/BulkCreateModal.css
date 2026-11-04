@@ -106,9 +106,9 @@
 }
 
 .total-summary.over-limit {
-  background: rgba(231,76,60,0.1);
-  border-color: rgba(231,76,60,0.2);
-  color: #e74c3c;
+  background: var(--warning-bg, rgba(251, 191, 36, 0.1));
+  border-color: var(--warning-border, rgba(251, 191, 36, 0.3));
+  color: var(--warning, #fbbf24);
 }
 
 /* ─── Preview Panel ──────────────────────────── */
@@ -168,7 +168,7 @@
   padding: 10px 12px;
   background: var(--warning-bg, rgba(251, 191, 36, 0.1));
   border-radius: 8px;
-  border: 1px solid rgba(251, 191, 36, 0.3);
+  border: 1px solid var(--warning-border, rgba(251, 191, 36, 0.3));
   font-size: 0.8rem;
   color: var(--warning, #fbbf24);
   line-height: 1.4;
@@ -241,9 +241,10 @@
   border-color: rgba(108,92,231,0.15);
   color: #6c5ce7;
 }
+[data-theme="light"] .total-summary.over-limit,
 [data-theme="light"] .conflict-warning {
   background: var(--warning-bg, rgba(217, 119, 6, 0.1));
-  border-color: rgba(217, 119, 6, 0.3);
+  border-color: var(--warning-border, rgba(217, 119, 6, 0.3));
   color: var(--warning, #d97706);
 }
 [data-theme="light"] .preview-cell {

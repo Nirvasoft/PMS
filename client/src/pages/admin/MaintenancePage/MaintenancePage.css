@@ -1922,7 +1922,7 @@ textarea.maint-input-error {
   line-height: 1.6; white-space: pre-wrap;
 }
 .inc-resolution-box { background: rgba(16,185,129,0.06); border: 1px solid rgba(16,185,129,0.15); }
-.inc-followup-box { background: rgba(245,158,11,0.06); border: 1px solid rgba(245,158,11,0.15); color: #f59e0b; }
+.inc-followup-box { background: var(--warning-bg); border: 1px solid var(--warning-border); color: var(--warning); }
 .inc-detail-sidebar { display: flex; flex-direction: column; gap: 12px; }
 .inc-sidebar-card {
   border: 1px solid var(--border-primary); border-radius: 10px; padding: 16px;
@@ -2303,8 +2303,8 @@ textarea.maint-input-error {
 .pm-severity-warning {
   display: flex; align-items: center; gap: 8px;
   margin-top: 8px; padding: 8px 12px; border-radius: 8px;
-  background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2);
-  color: #f87171; font-size: 12px;
+  background: var(--warning-bg); border: 1px solid var(--warning-border);
+  color: var(--warning); font-size: 12px;
 }
 
 /* ── Filter Bar ────────────────────────────── */

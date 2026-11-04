@@ -390,7 +390,7 @@ export default function GatewayTransactionsPage() {
                 </div>
               </div>
 
-              <div style={{ padding: '10px 12px', background: 'rgba(245,158,11,0.06)', borderRadius: 8, marginBottom: 16, fontSize: 12, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: 8, border: '1px solid rgba(245,158,11,0.15)' }}>
+              <div style={{ padding: '10px 12px', background: 'var(--warning-bg)', borderRadius: 8, marginBottom: 16, fontSize: 12, color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: 8, border: '1px solid var(--warning-border)' }}>
                 <AlertTriangle size={14} />
                 This will reverse the invoice payment and mark the transaction as refunded.
               </div>
