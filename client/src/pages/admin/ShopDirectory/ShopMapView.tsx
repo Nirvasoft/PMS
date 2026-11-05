@@ -9,7 +9,7 @@ import {
   Map as MapIcon, QrCode, Navigation, MapPin, Layers, Magnet,
   Printer, Copy, ExternalLink, Info, ArrowRight, WifiOff, ChevronDown,
   Compass, CornerUpLeft, CornerUpRight, MoveUp,
-  Image as ImageIcon, Eye, EyeOff, Lock, Unlock,
+  Image as ImageIcon, Eye, EyeOff, Lock, Unlock, Wand2,
 } from 'lucide-react';
 import {
   useGetFloorPlanQuery,
@@ -21,15 +21,15 @@ import {
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import {
   DECORATION_DEFAULT_SIZES, DECORATION_LABELS, DEFAULT_COLUMNS, DEFAULT_SQFT_PER_CELL,
-  SHOP_CATEGORIES, compareShopsByUnitNumber, findFreeSpot, addConnectedUnitWing, snapTileToBorder, curveUnitAroundCircleWithoutSnap, computeMagneticSnapGuide, addTransitIntoAtrium, isTransitLandmark, floorKeyOf, tilesConflict, hasAnyOverlap,
+  SHOP_CATEGORIES, compareShopsByUnitNumber, findFreeSpot, addConnectedUnitWing, snapTileToBorder, curveUnitAroundCircleWithoutSnap, alignUnitsRadiallyAroundAtrium, computeMagneticSnapGuide, addTransitIntoAtrium, isTransitLandmark, floorKeyOf, tilesConflict, hasAnyOverlap,
   tileSizeFromSqft, calibrateSqftPerCell, syncUnitTilesToSqft,
   unitKey, nextUnitBlockKey, findPrimaryUnitTile, resolveTileByKey,
   unitNumberOf, shopDisplayName, matchesShopQuery, scoreShopSearchMatch,
   computeWalkwayPath, buildSmoothRouteSvgPath, computeRouteDirectionArrows, computeFloorplateBounds, findDefaultStartItem, findNearestFacilityItem,
   rotateMapLayout, parseRotationAngle, computeUnitMergeMap,
   normalizeTileAngle,
-  UNIT_SHAPE_LABELS, UNIT_SHAPE_OPTIONS, parseUnitShapeMode, encodeUnitShapeMode, nextUnitShapeMode, isTrapezoidUnitMode, getTrapezoidUnitGeometry,
-  LANDMARK_VARIANTS, parseLandmarkMeta, encodeLandmarkMeta, nextLandmarkVariant, autoSquareCircleLandmark, getPolygonAtriumGeometry, getAtriumFaceAlignment,
+  UNIT_SHAPE_LABELS, UNIT_SHAPE_OPTIONS, parseUnitShapeMode, encodeUnitShapeMode, isAutoUnitShapeLabel, nextUnitShapeMode, isTrapezoidUnitMode, getTrapezoidUnitGeometry,
+  LANDMARK_VARIANTS, parseLandmarkMeta, encodeLandmarkMeta, nextLandmarkVariant, autoSquareCircleLandmark, getPolygonAtriumGeometry,
   parseFloorPlanData, buildCopiedFloorLayout, saveCachedFloorPlan, getCachedFloorPlan,
   expandTouchingGroupKeys, computeGroupBoundingBox, moveTileGroupByDelta, rotateTileGroup,
   type MapItem, type TileKind, type MapRotationAngle, type SharpCorners, type EdgeMergeGeometry, type UnitShapeMode, type TrapezoidUnitGeometry, type MagneticSnapGuide,
@@ -251,6 +251,139 @@ function AtriumShapeIcon({ mode, size }: { mode: UnitShapeMode | string; size: n
     return (
       <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
         <path d="M 2.2 3.2 L 13.8 3.2 L 13.8 7.2 Q 8.6 7.6 8.2 12.8 L 2.2 12.8 Z" />
+      </svg>
+    );
+  }
+  if (mode === 'crescent-l') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <path d="M 2.2 3.2 L 13.8 3.2 L 13.8 12.8 L 2.2 12.8 Q 7.4 8.0 2.2 3.2 Z" />
+      </svg>
+    );
+  }
+  if (mode === 'crescent-r') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <path d="M 2.2 3.2 L 13.8 3.2 Q 8.6 8.0 13.8 12.8 L 2.2 12.8 Z" />
+      </svg>
+    );
+  }
+  if (mode === 'crescent-t') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <path d="M 2.2 3.2 Q 8.0 8.2 13.8 3.2 L 13.8 12.8 L 2.2 12.8 Z" />
+      </svg>
+    );
+  }
+  if (mode === 'crescent-b') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <path d="M 2.2 3.2 L 13.8 3.2 L 13.8 12.8 Q 8.0 7.8 2.2 12.8 Z" />
+      </svg>
+    );
+  }
+  if (mode === 'pie-wedge') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <path d="M 1.8 5.2 Q 8.0 1.6 14.2 5.2 L 9.8 13.4 L 6.2 13.4 Z" />
+      </svg>
+    );
+  }
+  if (mode === 'wedge-tl') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <polygon points="2.2 3.2 13.8 3.2 13.8 5.4 4.4 12.8 2.2 12.8" />
+      </svg>
+    );
+  }
+  if (mode === 'wedge-tr') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <polygon points="2.2 3.2 13.8 3.2 13.8 12.8 11.6 12.8 2.2 5.4" />
+      </svg>
+    );
+  }
+  if (mode === 'wedge-bl') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <polygon points="2.2 3.2 4.4 3.2 13.8 10.6 13.8 12.8 2.2 12.8" />
+      </svg>
+    );
+  }
+  if (mode === 'wedge-br') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <polygon points="11.6 3.2 13.8 3.2 13.8 12.8 2.2 12.8 2.2 10.6" />
+      </svg>
+    );
+  }
+  if (mode === 'step-tl') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <polygon points="6.6 3.2 13.8 3.2 13.8 12.8 2.2 12.8 2.2 7.4 6.6 7.4" />
+      </svg>
+    );
+  }
+  if (mode === 'step-tr') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <polygon points="2.2 3.2 9.4 3.2 9.4 7.4 13.8 7.4 13.8 12.8 2.2 12.8" />
+      </svg>
+    );
+  }
+  if (mode === 'step-bl') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <polygon points="2.2 3.2 13.8 3.2 13.8 12.8 6.6 12.8 6.6 8.6 2.2 8.6" />
+      </svg>
+    );
+  }
+  if (mode === 'step-br') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <polygon points="2.2 3.2 13.8 3.2 13.8 8.6 9.4 8.6 9.4 12.8 2.2 12.8" />
+      </svg>
+    );
+  }
+  if (mode === 'step-t-mid') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <polygon points="2.2 3.2 5.6 3.2 5.6 6.8 10.4 6.8 10.4 3.2 13.8 3.2 13.8 12.8 2.2 12.8" />
+      </svg>
+    );
+  }
+  if (mode === 'step-b-mid') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <polygon points="2.2 3.2 13.8 3.2 13.8 12.8 10.4 12.8 10.4 9.2 5.6 9.2 5.6 12.8 2.2 12.8" />
+      </svg>
+    );
+  }
+  if (mode === 'wing-bend-l') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <polygon points="5.4 3.2 13.8 3.2 13.8 8.4 8.6 8.4 6.6 12.8 2.2 12.8 2.2 6.6" />
+      </svg>
+    );
+  }
+  if (mode === 'wing-bend-r') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <polygon points="2.2 3.2 10.6 3.2 13.8 6.6 13.8 12.8 9.4 12.8 7.4 8.4 2.2 8.4" />
+      </svg>
+    );
+  }
+  if (mode === 'u-court-t') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <polygon points="2.2 3.2 5.4 3.2 5.4 8.4 10.6 8.4 10.6 3.2 13.8 3.2 13.8 12.8 2.2 12.8" />
+      </svg>
+    );
+  }
+  if (mode === 'u-court-b') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <polygon points="2.2 3.2 13.8 3.2 13.8 12.8 10.6 12.8 10.6 7.6 5.4 7.6 5.4 12.8 2.2 12.8" />
       </svg>
     );
   }
@@ -1045,13 +1178,14 @@ export default function ShopMapView({
     return Boolean(publicMode);
   });
   const [highlightedAmenityKinds, setHighlightedAmenityKinds] = useState<TileKind[]>([]);
-  const [magnetEnabled, setMagnetEnabled] = useState(true);
-  const [snapAutoResize, setSnapAutoResize] = useState(true);
+  const [editSnapMode, setEditSnapMode] = useState<'free' | 'edge' | 'smart'>('edge');
+  const magnetEnabled = editSnapMode !== 'free';
+  const snapAutoResize = editSnapMode === 'smart';
+  const autoShapeEnabled = editSnapMode === 'smart';
   const [magnetBypassActive, setMagnetBypassActive] = useState(false);
   const bypassMagnetKeyRef = useRef(false);
   const [dragSnapGuide, setDragSnapGuide] = useState<MagneticSnapGuide | null>(null);
   const [dragAngle, setDragAngle] = useState(0);
-  const [dragScale, setDragScale] = useState<string>('1 1');
   const [dragShape, setDragShape] = useState<string>('rect');
   const [dragClipPath, setDragClipPath] = useState<string>('none');
   const [dragPreviewItem, setDragPreviewItem] = useState<MapItem | null>(null);
@@ -1230,7 +1364,17 @@ export default function ShopMapView({
     const candidates = nextLayout
       .map((l) => {
         const orig = byKey.get(l.i);
-        return orig ? { ...orig, x: l.x, y: l.y, w: l.w, h: l.h, ...(l.angle !== undefined ? { angle: l.angle } : {}) } : null;
+        return orig
+          ? {
+              ...orig,
+              x: l.x,
+              y: l.y,
+              w: l.w,
+              h: l.h,
+              ...(l.angle !== undefined ? { angle: l.angle } : {}),
+              ...(l.label !== undefined ? { label: l.label } : {}),
+            }
+          : null;
       })
       .filter(Boolean) as MapItem[];
 
@@ -1239,11 +1383,7 @@ export default function ShopMapView({
         const p = candidates[a];
         const q = candidates[b];
         if (tilesConflict(p, q)) {
-          const origP = byKey.get(p.key);
-          const origQ = byKey.get(q.key);
-          const pChanged = !origP || origP.x !== p.x || origP.y !== p.y || origP.w !== p.w || origP.h !== p.h || origP.angle !== p.angle;
-          const qChanged = !origQ || origQ.x !== q.x || origQ.y !== q.y || origQ.w !== q.w || origQ.h !== q.h || origQ.angle !== q.angle;
-          if (pChanged || qChanged) return true;
+          return true;
         }
       }
     }
@@ -1296,18 +1436,70 @@ export default function ShopMapView({
         const orig = baseItems[idx];
         const moved = orig && (it.x !== orig.x || it.y !== orig.y || it.w !== orig.w || it.h !== orig.h);
         if (!moved) return it;
-        return snapTileToBorder(it, candidateItems, interactionColumns, orig, snapAutoResize) ?? it;
+        return snapTileToBorder(it, candidateItems, interactionColumns, orig, snapAutoResize, autoShapeEnabled) ?? it;
       });
     } else {
       candidateItems = candidateItems.map((it, idx) => {
         const orig = baseItems[idx];
         const moved = orig && (it.x !== orig.x || it.y !== orig.y || it.w !== orig.w || it.h !== orig.h);
         if (!moved) return it;
-        return curveUnitAroundCircleWithoutSnap(it, candidateItems, orig);
+        return curveUnitAroundCircleWithoutSnap(it, candidateItems, autoShapeEnabled);
       });
     }
 
-    const resolvedLayout = candidateItems.map((it) => ({ i: it.key, x: it.x, y: it.y, w: it.w, h: it.h, angle: it.angle }));
+    // When an Atrium is dragged, move any enclosed Transit Landmarks (Lift / Escalator / Stairs) together with it,
+    // and when an Atrium moves or resizes, re-sync nearby auto-shaped units.
+    let anyAtriumChanged = false;
+    for (let idx = 0; idx < baseItems.length; idx++) {
+      const orig = baseItems[idx];
+      const curr = candidateItems[idx];
+      if (!orig || !curr || orig.kind !== 'atrium') continue;
+      const dx = curr.x - orig.x;
+      const dy = curr.y - orig.y;
+      const dw = curr.w - orig.w;
+      const dh = curr.h - orig.h;
+      if (dx === 0 && dy === 0 && dw === 0 && dh === 0) continue;
+      anyAtriumChanged = true;
+      if ((dx !== 0 || dy !== 0) && dw === 0 && dh === 0) {
+        candidateItems = candidateItems.map((t, tIdx) => {
+          const origT = baseItems[tIdx];
+          if (
+            origT &&
+            isTransitLandmark(origT.kind) &&
+            origT.x >= orig.x &&
+            origT.y >= orig.y &&
+            origT.x + origT.w <= orig.x + orig.w &&
+            origT.y + origT.h <= orig.y + orig.h &&
+            t.x === origT.x &&
+            t.y === origT.y
+          ) {
+            return {
+              ...t,
+              x: Math.max(0, Math.min(interactionColumns - t.w, origT.x + dx)),
+              y: Math.max(0, origT.y + dy),
+            };
+          }
+          return t;
+        });
+      }
+    }
+    if (anyAtriumChanged && autoShapeEnabled) {
+      candidateItems = candidateItems.map((t) =>
+        t.kind === 'unit' && isAutoUnitShapeLabel(t.label)
+          ? curveUnitAroundCircleWithoutSnap(t, candidateItems, true)
+          : t,
+      );
+    }
+
+    const resolvedLayout = candidateItems.map((it) => ({
+      i: it.key,
+      x: it.x,
+      y: it.y,
+      w: it.w,
+      h: it.h,
+      angle: it.angle,
+      label: it.label,
+    }));
     if (hasLayoutConflict(resolvedLayout, baseItems)) {
       return { conflict: true, items: baseItems.map((i) => ({ ...i })), groupDelta: null };
     }
@@ -1509,7 +1701,7 @@ export default function ShopMapView({
         rotation: blueprint?.rotation ?? 0,
       };
       saveBlueprintConfig(next);
-      toast.success('Blueprint image loaded onto floor canvas');
+      toast.success('Blueprint overlay loaded');
     } catch {
       toast.error('Could not load blueprint image');
     }
@@ -1594,7 +1786,6 @@ export default function ShopMapView({
     const map = new Map<
       string,
       {
-        atriumFaceAlign: ReturnType<typeof getAtriumFaceAlignment>;
         wPx: number;
         hPx: number;
         lmMeta: ReturnType<typeof parseLandmarkMeta> | null;
@@ -1606,22 +1797,21 @@ export default function ShopMapView({
       }
     >();
     for (const it of displayItems) {
-      const atriumFaceAlign = getAtriumFaceAlignment(it, liveDisplayItems);
-      const baseWPx = Math.max(1, it.w * cellPx);
-      const baseHPx = Math.max(1, it.h * cellPx);
-      const wPx = atriumFaceAlign ? Math.max(1, Math.round(baseWPx * atriumFaceAlign.scaleX)) : baseWPx;
-      const hPx = atriumFaceAlign ? Math.max(1, Math.round(baseHPx * atriumFaceAlign.scaleY)) : baseHPx;
+      const wPx = Math.max(1, it.w * cellPx);
+      const hPx = Math.max(1, it.h * cellPx);
       const decor = it.kind !== 'unit';
       const um = !decor ? unitMergeMap.get(it.key) ?? null : null;
       const lmMeta = decor && it.kind !== 'corridor' ? parseLandmarkMeta(it.kind, it.label) : null;
-      const unitMode = it.kind === 'unit' ? parseUnitShapeMode(it, liveDisplayItems, Boolean(um?.siblingHasMerge)) : null;
+      const unitMode =
+        it.kind === 'unit'
+          ? parseUnitShapeMode(it, Boolean(um?.siblingHasMerge))
+          : null;
       const polyAtriumGeo = lmMeta?.polygonFaces
         ? getPolygonAtriumGeometry(lmMeta.polygonFaces, wPx, hPx)
         : null;
-      const alignedTile = atriumFaceAlign ? { ...it, angle: atriumFaceAlign.exactAngleDeg } : it;
       const trapezoidGeo =
         unitMode && isTrapezoidUnitMode(unitMode)
-          ? getTrapezoidUnitGeometry(unitMode, wPx, hPx, cellPx, um, alignedTile, liveDisplayItems)
+          ? getTrapezoidUnitGeometry(unitMode, wPx, hPx, cellPx, um, it, liveDisplayItems)
           : null;
       let hasInnerItems = false;
       let parentAtrium: MapItem | null = null;
@@ -1637,7 +1827,6 @@ export default function ShopMapView({
         }
       }
       map.set(it.key, {
-        atriumFaceAlign,
         wPx,
         hPx,
         lmMeta,
@@ -1811,13 +2000,21 @@ export default function ShopMapView({
       x: pt.x * colStepPx,
       y: pt.y * rowStepPx,
     }));
+    let totalPxLen = 0;
+    for (let i = 1; i < pxPoints.length; i++) {
+      totalPxLen += Math.hypot(pxPoints[i].x - pxPoints[i - 1].x, pxPoints[i].y - pxPoints[i - 1].y);
+    }
+    const drawDurationSec = Math.round(Math.max(2.5, Math.min(3.5, 2.25 + totalPxLen / 550)) * 100) / 100;
+    const routeAnimKey = `${floor}:${activeStartItem?.key ?? ''}->${effectiveTargetItem?.key ?? ''}`;
     return {
       smoothPathD: buildSmoothRouteSvgPath(pxPoints, Math.max(4, Math.round(cellPx * 0.36))),
       routeArrows: computeRouteDirectionArrows(pxPoints, Math.max(38, Math.round(cellPx * 2.2))),
       startPt: pxPoints[0],
       endPt: pxPoints[pxPoints.length - 1],
+      drawDurationSec,
+      routeAnimKey,
     };
-  }, [walkwayRoute, colStepPx, rowStepPx, cellPx]);
+  }, [walkwayRoute, colStepPx, rowStepPx, cellPx, floor, activeStartItem?.key, effectiveTargetItem?.key]);
 
   const openLandmarkConfig = (key: string) => {
     const target = items.find((i) => i.key === key);
@@ -1829,6 +2026,33 @@ export default function ShopMapView({
     setLandmarkShowLabelDraft(meta.showLabel);
   };
 
+  const resolveConflictFreeTileShapeChange = (
+    candidate: MapItem,
+    allItems: ReadonlyArray<MapItem>,
+    maxNudge = 4,
+  ): MapItem => {
+    const others = allItems.filter((o) => o.key !== candidate.key);
+    if (!others.some((o) => tilesConflict(candidate, o))) {
+      return candidate;
+    }
+    let best: { cand: MapItem; dist: number } | null = null;
+    for (let dy = -maxNudge; dy <= maxNudge; dy++) {
+      for (let dx = -maxNudge; dx <= maxNudge; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        const nx = candidate.x + dx;
+        const ny = candidate.y + dy;
+        if (nx < 0 || ny < 0 || nx + candidate.w > effectiveColumns) continue;
+        const dist = Math.hypot(dx, dy);
+        if (best && dist >= best.dist) continue;
+        const testCand: MapItem = { ...candidate, x: nx, y: ny };
+        if (!others.some((o) => tilesConflict(testCand, o))) {
+          best = { cand: testCand, dist };
+        }
+      }
+    }
+    return best ? best.cand : candidate;
+  };
+
   const saveLandmarkConfig = () => {
     if (!editingLandmarkKey) return;
     update((prev) =>
@@ -1836,9 +2060,11 @@ export default function ShopMapView({
         if (i.key !== editingLandmarkKey || i.kind === 'unit' || i.kind === 'corridor') return i;
         const nextLabel = encodeLandmarkMeta(i.kind, landmarkVariantDraft, landmarkCustomDraft, landmarkShowLabelDraft);
         const nextItem: MapItem = { ...i, label: nextLabel };
-        return i.kind === 'marker' || parseLandmarkMeta(i.kind, nextLabel).isCircle
-          ? autoSquareCircleLandmark(nextItem, prev, effectiveColumns)
-          : nextItem;
+        const squared =
+          i.kind === 'marker' || parseLandmarkMeta(i.kind, nextLabel).isCircle
+            ? autoSquareCircleLandmark(nextItem, prev, effectiveColumns)
+            : nextItem;
+        return resolveConflictFreeTileShapeChange(squared, prev, 4);
       }),
     );
     setEditingLandmarkKey(null);
@@ -1933,12 +2159,83 @@ export default function ShopMapView({
     setDirty(true);
   };
 
+  const [newlyPlacedKey, setNewlyPlacedKey] = useState<string | null>(null);
+  const newlyPlacedTimerRef = useRef<number | null>(null);
+
+  const getVisibleViewportGridBounds = (): { minX: number; maxX: number; minY: number; maxY: number } => {
+    const wrapEl = containerRef.current as HTMLElement | null;
+    const stageEl = wrapEl?.querySelector('.shop-map-stage') as HTMLElement | null;
+    const stepX = Math.max(8, colStepPx);
+    const stepY = Math.max(8, rowStepPx);
+    if (!wrapEl || !stageEl || typeof window === 'undefined') {
+      return {
+        minX: EDIT_LEFT_PAD,
+        maxX: Math.min(effectiveColumns, EDIT_LEFT_PAD + DEFAULT_COLUMNS - 4),
+        minY: 0,
+        maxY: 16,
+      };
+    }
+    const wrapRect = wrapEl.getBoundingClientRect();
+    const stageRect = stageEl.getBoundingClientRect();
+    const visLeftPx = Math.max(0, Math.max(wrapRect.left + 8, 8) - stageRect.left);
+    const visRightPx = Math.max(
+      visLeftPx + stepX * 12,
+      Math.min(wrapRect.right - 8, window.innerWidth - 16) - stageRect.left,
+    );
+    const visTopPx = Math.max(0, Math.max(wrapRect.top + 8, 72) - stageRect.top);
+    const visBottomPx = Math.max(
+      visTopPx + stepY * 8,
+      Math.min(wrapRect.bottom - 8, window.innerHeight - 24) - stageRect.top,
+    );
+    const minX = Math.max(EDIT_LEFT_PAD, Math.ceil(visLeftPx / stepX));
+    const maxX = Math.max(minX + 8, Math.min(effectiveColumns, Math.floor(visRightPx / stepX)));
+    const minY = Math.max(0, Math.ceil(visTopPx / stepY));
+    const maxY = Math.max(minY + 6, Math.floor(visBottomPx / stepY));
+    return { minX, maxX, minY, maxY };
+  };
+
+  const focusNewlyPlacedTile = (tileKey: string) => {
+    if (newlyPlacedTimerRef.current) {
+      window.clearTimeout(newlyPlacedTimerRef.current);
+    }
+    setNewlyPlacedKey(tileKey);
+    newlyPlacedTimerRef.current = window.setTimeout(() => {
+      setNewlyPlacedKey((cur) => (cur === tileKey ? null : cur));
+      newlyPlacedTimerRef.current = null;
+    }, 2400);
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const wrapEl = containerRef.current as HTMLElement | null;
+        const tileEl = wrapEl?.querySelector(`[data-tile-key="${tileKey}"]`) as HTMLElement | null;
+        if (!tileEl || !wrapEl) return;
+        const tileRect = tileEl.getBoundingClientRect();
+        const wrapRect = wrapEl.getBoundingClientRect();
+        const visibleLeft = Math.max(wrapRect.left, 0);
+        const visibleRight = Math.min(wrapRect.right, window.innerWidth);
+        const visibleTop = Math.max(wrapRect.top, 64);
+        const visibleBottom = Math.min(wrapRect.bottom, window.innerHeight - 16);
+        const isFullyVisible =
+          tileRect.left >= visibleLeft &&
+          tileRect.right <= visibleRight &&
+          tileRect.top >= visibleTop &&
+          tileRect.bottom <= visibleBottom;
+        if (!isFullyVisible) {
+          tileEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+        }
+      });
+    });
+  };
+
   const place = (shop: any) => {
     const { w, h } = tileSizeFromSqft(shop.unit?.areaSqft, effectiveSqftPerCell, DEFAULT_COLUMNS);
+    const vpBounds = getVisibleViewportGridBounds();
+    const newKey = nextUnitBlockKey(items, shop.unitId);
     update((prev) => {
-      const pos = findFreeSpot(prev, w, h, effectiveColumns, EDIT_LEFT_PAD);
+      const actualKey = nextUnitBlockKey(prev, shop.unitId);
+      const pos = findFreeSpot(prev, w, h, effectiveColumns, EDIT_LEFT_PAD, vpBounds);
       const rawItem: MapItem = {
-        key: nextUnitBlockKey(prev, shop.unitId),
+        key: actualKey,
         kind: 'unit',
         unitId: shop.unitId,
         label: null,
@@ -1949,14 +2246,24 @@ export default function ShopMapView({
       };
       const nextList = [...prev, rawItem];
       const snapped = magnetEnabled
-        ? snapTileToBorder(rawItem, nextList, effectiveColumns)
-        : curveUnitAroundCircleWithoutSnap(rawItem, nextList);
-      return ensureLeftPad(snapped ? [...prev, snapped] : nextList, EDIT_LEFT_PAD);
+        ? snapTileToBorder(rawItem, nextList, effectiveColumns, undefined, snapAutoResize, autoShapeEnabled)
+        : curveUnitAroundCircleWithoutSnap(rawItem, nextList, autoShapeEnabled);
+      const keepSnapped =
+        snapped &&
+        Math.hypot(snapped.x - rawItem.x, snapped.y - rawItem.y) <= 2.5 &&
+        snapped.x >= vpBounds.minX - 1 &&
+        snapped.x + snapped.w <= vpBounds.maxX + 1 &&
+        !prev.some((o) => tilesConflict(snapped, o));
+      return ensureLeftPad(keepSnapped && snapped ? [...prev, snapped] : nextList, EDIT_LEFT_PAD);
     });
+    focusNewlyPlacedTile(newKey);
   };
 
   const addUnitWing = (anchorKey: string) => {
+    const anchor = items.find((i) => i.key === anchorKey);
+    const newKey = anchor?.unitId ? nextUnitBlockKey(items, anchor.unitId) : null;
     update((prev) => ensureLeftPad(addConnectedUnitWing(prev, anchorKey, effectiveColumns), EDIT_LEFT_PAD));
+    if (newKey) focusNewlyPlacedTile(newKey);
   };
 
   const handleSyncUnitSqft = () => {
@@ -1971,20 +2278,43 @@ export default function ShopMapView({
     }
   };
 
+  const handleRadialAlignAtrium = (targetAtriumKey?: string) => {
+    const res = alignUnitsRadiallyAroundAtrium(
+      items,
+      targetAtriumKey,
+      effectiveColumns,
+      selectedGroupSet.size > 0 ? selectedGroupSet : undefined,
+    );
+    const padded = ensureLeftPad(res.items, EDIT_LEFT_PAD);
+    itemsRef.current = padded;
+    setItems(padded);
+    setLayoutResetTick((n) => n + 1);
+    if (res.alignedCount > 0) {
+      setDirty(true);
+      toast.success(`Aligned ${res.alignedCount} unit${res.alignedCount === 1 ? '' : 's'} around Atrium perimeter`);
+    } else {
+      toast.success('Units around Atrium are already aligned');
+    }
+  };
+
   const addDecor = (kind: Exclude<TileKind, 'unit'> = decorKind) => {
     if (kind === 'marker' && items.some((i) => i.kind === 'marker')) return;
     const { w, h } = DECORATION_DEFAULT_SIZES[kind] || { w: 6, h: 4 };
+    const vpBounds = getVisibleViewportGridBounds();
+    const newKey = `d:${decorSeq}`;
     update((prev) => {
-      const pos = findFreeSpot(prev, w, h, effectiveColumns, EDIT_LEFT_PAD);
-      return [...prev, { key: `d:${decorSeq}`, kind, unitId: null, label: DECORATION_LABELS[kind], x: pos.x, y: pos.y, w, h }];
+      const pos = findFreeSpot(prev, w, h, effectiveColumns, EDIT_LEFT_PAD, vpBounds);
+      return [...prev, { key: newKey, kind, unitId: null, label: DECORATION_LABELS[kind], x: pos.x, y: pos.y, w, h }];
     });
     setDecorSeq((n) => n + 1);
+    focusNewlyPlacedTile(newKey);
   };
 
   const createTransitInAtrium = (atriumKey: string, kind: 'escalator' | 'stairs', variant: string) => {
     const newKey = `d:${decorSeq}`;
     update((prev) => addTransitIntoAtrium(prev, atriumKey, kind, variant, effectiveColumns, newKey));
     setDecorSeq((n) => n + 1);
+    focusNewlyPlacedTile(newKey);
   };
 
   const resolveConflictFreeRotatedTile = (
@@ -2102,14 +2432,16 @@ export default function ShopMapView({
           const explicitlyHidden = Boolean(i.label?.startsWith('lm:') && i.label.split('|')[0].endsWith('-L'));
           const nextLabel = encodeLandmarkMeta(i.kind, nextVar, meta.customName, explicitlyHidden ? false : undefined);
           const nextItem: MapItem = { ...i, label: nextLabel };
-          return parseLandmarkMeta(i.kind, nextLabel).isCircle
+          const squared = parseLandmarkMeta(i.kind, nextLabel).isCircle
             ? autoSquareCircleLandmark(nextItem, prev, effectiveColumns)
             : nextItem;
+          return resolveConflictFreeTileShapeChange(squared, prev, 4);
         }
         if (i.kind === 'unit') {
           const isMerged = Boolean(prevMergeMap.get(i.key)?.siblingHasMerge);
-          const curr = parseUnitShapeMode(i, prev, isMerged);
-          return { ...i, label: encodeUnitShapeMode(nextUnitShapeMode(curr, isMerged)) };
+          const curr = parseUnitShapeMode(i, isMerged);
+          const nextUnit: MapItem = { ...i, label: encodeUnitShapeMode(nextUnitShapeMode(curr, isMerged)) };
+          return resolveConflictFreeTileShapeChange(nextUnit, prev, 4);
         }
         return i;
       });
@@ -2117,7 +2449,22 @@ export default function ShopMapView({
 
   const applyUnitShapeMode = (key: string, nextMode: UnitShapeMode) => {
     update((prev) =>
-      prev.map((i) => (i.key === key && i.kind === 'unit' ? { ...i, label: encodeUnitShapeMode(nextMode) } : i)),
+      prev.map((i) => {
+        if (i.key !== key || i.kind !== 'unit') return i;
+        const nextUnit: MapItem = { ...i, label: encodeUnitShapeMode(nextMode) };
+        return resolveConflictFreeTileShapeChange(nextUnit, prev, 4);
+      }),
+    );
+  };
+
+  const resetUnitShapeToAuto = (key: string) => {
+    update((prev) =>
+      prev.map((i) => {
+        if (i.key !== key || i.kind !== 'unit') return i;
+        const resetItem: MapItem = { ...i, label: null };
+        const curved = curveUnitAroundCircleWithoutSnap(resetItem, prev, true);
+        return resolveConflictFreeTileShapeChange(curved, prev, 4);
+      }),
     );
   };
 
@@ -2143,19 +2490,17 @@ export default function ShopMapView({
       return { shape: meta.isCircle ? 'circle' : 'rect', clipPath: 'none' };
     }
     const um = unitMergeMap.get(t.key) ?? null;
-    const mode = parseUnitShapeMode(t, currentItems, Boolean(um?.siblingHasMerge));
+    const mode = parseUnitShapeMode(t, Boolean(um?.siblingHasMerge));
     if (isTrapezoidUnitMode(mode)) {
-      const align = getAtriumFaceAlignment(t, currentItems);
-      const wPx = Math.max(1, Math.round(t.w * cellPx * (align ? align.scaleX : 1)));
-      const hPx = Math.max(1, Math.round(t.h * cellPx * (align ? align.scaleY : 1)));
-      const alignedTile = align ? { ...t, angle: align.exactAngleDeg } : t;
+      const wPx = Math.max(1, Math.round(t.w * cellPx));
+      const hPx = Math.max(1, Math.round(t.h * cellPx));
       const geo = getTrapezoidUnitGeometry(
         mode,
         wPx,
         hPx,
         cellPx,
         um,
-        alignedTile,
+        t,
         currentItems,
       );
       return { shape: mode, clipPath: geo.clipPath };
@@ -2383,9 +2728,7 @@ export default function ShopMapView({
     setDragPreviewItem(orig ? { ...orig } : null);
     setDragGroupDelta(null);
     setDragSnapGuide(null);
-    const align = orig ? getAtriumFaceAlignment(orig, itemsRef.current) : null;
-    setDragAngle(align ? align.exactAngleDeg : (orig?.angle ?? 0));
-    setDragScale(align ? `${align.scaleX} ${align.scaleY}` : '1 1');
+    setDragAngle(orig?.angle ?? 0);
     const vis = resolveDragVisuals(orig, itemsRef.current);
     setDragShape(vis.shape);
     setDragClipPath(vis.clipPath);
@@ -2411,9 +2754,7 @@ export default function ShopMapView({
     placeholder.h = resolved.h;
     setDragPreviewItem(resolved);
     setDragGroupDelta(groupDelta ?? null);
-    const align = getAtriumFaceAlignment(resolved, resolvedItems);
-    setDragAngle(align ? align.exactAngleDeg : (resolved.angle ?? 0));
-    setDragScale(align ? `${align.scaleX} ${align.scaleY}` : '1 1');
+    setDragAngle(resolved.angle ?? 0);
     const vis = resolveDragVisuals(resolved, resolvedItems);
     setDragShape(vis.shape);
     setDragClipPath(vis.clipPath);
@@ -3070,22 +3411,40 @@ export default function ShopMapView({
           >
             <Maximize2 size={13} /> Auto-Size by Sqft ({Math.round(effectiveSqftPerCell)} sqft/cell)
           </button>
-          <button
-            type="button"
-            className={`btn btn-secondary shop-map-magnet-btn ${magnetEnabled && !magnetBypassActive ? 'active' : ''}`}
-            onClick={() => setMagnetEnabled((prev) => !prev)}
-            title="Toggle Auto-Snap border alignment, degree matching & size fitting (Hold Alt or Shift while dragging to temporarily bypass)"
-          >
-            <Magnet size={13} /> Auto-Snap: {magnetEnabled ? (magnetBypassActive ? 'BYPASS (Alt/Shift)' : 'ON') : 'OFF'}
-          </button>
-          {magnetEnabled && (
+          <div className="shop-map-group-toolbar shop-map-snap-mode-toolbar" role="group" aria-label="Edit Snap Mode">
             <button
               type="button"
-              className={`btn btn-secondary shop-map-magnet-btn ${snapAutoResize ? 'active' : ''}`}
-              onClick={() => setSnapAutoResize((prev) => !prev)}
-              title="Toggle whether Auto-Snap also resizes dragged units to match neighbor dimensions, or snaps border position & degree only"
+              className={`btn btn-secondary btn-sm shop-map-group-btn ${editSnapMode === 'free' ? 'active' : ''}`}
+              onClick={() => setEditSnapMode('free')}
+              title="Free Move: Move and place units freely anywhere (Auto-Snap OFF, Snap Size OFF, Auto-Shape OFF)"
             >
-              <Maximize2 size={13} /> Snap Size: {snapAutoResize ? 'ON' : 'OFF'}
+              <Compass size={12} /> Free Move
+            </button>
+            <button
+              type="button"
+              className={`btn btn-secondary btn-sm shop-map-group-btn ${editSnapMode === 'edge' && !magnetBypassActive ? 'active' : ''}`}
+              onClick={() => setEditSnapMode('edge')}
+              title="Edge Align (Default): Gently align borders (≤ 1 cell) without changing unit size or shape (Hold Alt/Shift to bypass)"
+            >
+              <Magnet size={12} /> Edge Align{editSnapMode === 'edge' && magnetBypassActive ? ' (Bypass)' : ''}
+            </button>
+            <button
+              type="button"
+              className={`btn btn-secondary btn-sm shop-map-group-btn ${editSnapMode === 'smart' && !magnetBypassActive ? 'active' : ''}`}
+              onClick={() => setEditSnapMode('smart')}
+              title="Smart Fit: Align borders, match neighbor dimensions, and auto-curve units adjacent to a Circle Atrium"
+            >
+              <Wand2 size={12} /> Smart Fit{editSnapMode === 'smart' && magnetBypassActive ? ' (Bypass)' : ''}
+            </button>
+          </div>
+          {items.some((i) => i.kind === 'atrium') && items.some((i) => i.kind === 'unit') && (
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => handleRadialAlignAtrium()}
+              title="Smart Radial Ring Aligner: Automatically align and evenly space surrounding units around the Atrium perimeter"
+            >
+              <Wand2 size={12} /> Ring Align Atrium
             </button>
           )}
           <div className="shop-map-group-toolbar">
@@ -3325,7 +3684,6 @@ export default function ShopMapView({
                 style={{
                   width: gridWidth,
                   ['--drag-angle' as string]: `${dragAngle}deg`,
-                  ['--drag-scale' as string]: dragScale,
                   ['--drag-clip-path' as string]: dragClipPath,
                 } as CSSProperties}
               >
@@ -3439,9 +3797,6 @@ export default function ShopMapView({
                       isDraggingThisTile && dragPreviewItem
                         ? displayItems.map((d) => (d.key === dragPreviewItem.key ? dragPreviewItem : d))
                         : displayItems;
-                    const atriumFaceAlign = cachedMeta
-                      ? cachedMeta.atriumFaceAlign
-                      : getAtriumFaceAlignment(effectiveIt, effectiveDisplayItems);
                     const shop = it.unitId ? shopByUnit.get(it.unitId) : null;
                     const decor = it.kind !== 'unit';
                     const isSearchMatch = Boolean(hasActiveSearch && !decor && shop && matchesShopQuery(shop, normalizedSearch));
@@ -3466,20 +3821,8 @@ export default function ShopMapView({
                         hasActiveSearch &&
                         (decor ? it.kind !== 'corridor' : !isSearchMatch),
                     );
-                    const gridItemWPx = Math.max(1, it.w * colStepPx);
-                    const gridItemHPx = Math.max(1, it.h * rowStepPx);
-                    const baseWPx = Math.max(1, effectiveIt.w * cellPx);
-                    const baseHPx = Math.max(1, effectiveIt.h * cellPx);
-                    const wPx = cachedMeta
-                      ? cachedMeta.wPx
-                      : atriumFaceAlign
-                        ? Math.max(1, Math.round(baseWPx * atriumFaceAlign.scaleX))
-                        : baseWPx;
-                    const hPx = cachedMeta
-                      ? cachedMeta.hPx
-                      : atriumFaceAlign
-                        ? Math.max(1, Math.round(baseHPx * atriumFaceAlign.scaleY))
-                        : baseHPx;
+                    const wPx = cachedMeta ? cachedMeta.wPx : Math.max(1, effectiveIt.w * cellPx);
+                    const hPx = cachedMeta ? cachedMeta.hPx : Math.max(1, effectiveIt.h * cellPx);
                     const isVerticalTile = !decor && hPx > wPx * 1.15;
                     const longSidePx = Math.max(wPx, hPx);
                     const shortSidePx = Math.min(wPx, hPx);
@@ -3521,7 +3864,10 @@ export default function ShopMapView({
                     const unitMode = cachedMeta
                       ? cachedMeta.unitMode
                       : it.kind === 'unit'
-                        ? parseUnitShapeMode(effectiveIt, effectiveDisplayItems, Boolean(um?.siblingHasMerge))
+                        ? parseUnitShapeMode(
+                            effectiveIt,
+                            autoShapeEnabled ? effectiveDisplayItems : undefined,
+                          )
                         : null;
                     const shapeMode =
                       unitMode ??
@@ -3554,46 +3900,31 @@ export default function ShopMapView({
                     const effectiveIconPx = isFullIconMarker
                       ? effectiveBadgePx
                       : Math.max(isMobile ? 8 : 9, Math.round(effectiveBadgePx * 0.60));
-                    const alignedTile = atriumFaceAlign
-                      ? { ...effectiveIt, angle: atriumFaceAlign.exactAngleDeg }
-                      : effectiveIt;
                     const trapezoidGeo = cachedMeta
                       ? cachedMeta.trapezoidGeo
                       : unitMode && isTrapezoidUnitMode(unitMode)
-                        ? getTrapezoidUnitGeometry(unitMode, wPx, hPx, cellPx, um, alignedTile, effectiveDisplayItems)
+                        ? getTrapezoidUnitGeometry(unitMode, wPx, hPx, cellPx, um, effectiveIt, effectiveDisplayItems)
                         : null;
                     const tileShapeDesc = lmMeta
                       ? lmMeta.displayLabel
                       : unitMode
                         ? UNIT_SHAPE_LABELS[unitMode]
                         : '';
-                    const effectiveAngle = atriumFaceAlign ? atriumFaceAlign.exactAngleDeg : (effectiveIt.angle ?? 0);
+                    const effectiveAngle = effectiveIt.angle ?? 0;
                     const title = decor
                       ? editing && tileShapeDesc
                         ? `${decorLabel} • ${tileShapeDesc}${effectiveAngle ? ` • ${effectiveAngle}°` : ''}`
                         : lmMeta?.displayLabel || decorLabel
                       : undefined;
-                    const atriumFaceNudge = !isDraggingThisTile && atriumFaceAlign
-                      ? { dx: atriumFaceAlign.dx, dy: atriumFaceAlign.dy }
-                      : null;
                     const groupMoveNudge = isGroupPeerMoving && dragGroupDelta
                       ? { dx: dragGroupDelta.dx, dy: dragGroupDelta.dy }
                       : null;
-                    const totalNudgeDx = (atriumFaceNudge?.dx ?? 0) + (groupMoveNudge?.dx ?? 0);
-                    const totalNudgeDy = (atriumFaceNudge?.dy ?? 0) + (groupMoveNudge?.dy ?? 0);
+                    const totalNudgeDx = groupMoveNudge?.dx ?? 0;
+                    const totalNudgeDy = groupMoveNudge?.dy ?? 0;
                     const hasTotalNudge = totalNudgeDx !== 0 || totalNudgeDy !== 0;
-                    const hasSizeOverride = wPx !== gridItemWPx || hPx !== gridItemHPx;
                     const tileStyle: CSSProperties | undefined =
-                      effectiveAngle || hasTotalNudge || hasSizeOverride
+                      effectiveAngle || hasTotalNudge
                         ? ({
-                            ...(hasSizeOverride
-                              ? {
-                                  width: `${wPx}px`,
-                                  height: `${hPx}px`,
-                                  left: `${((gridItemWPx - wPx) / 2).toFixed(1)}px`,
-                                  top: `${((gridItemHPx - hPx) / 2).toFixed(1)}px`,
-                                }
-                              : {}),
                             ...(effectiveAngle ? { rotate: `${effectiveAngle}deg` } : {}),
                             ...(hasTotalNudge
                               ? {
@@ -3612,7 +3943,7 @@ export default function ShopMapView({
                     const worldLabelAngle = ((((effectiveAngle) + (isVerticalTile ? -90 : 0)) % 360) + 360) % 360;
                     const isLabelUpsideDown = !isSmartUprightLabel && worldLabelAngle > 90 && worldLabelAngle < 270;
                     const showUnitSubNumber = Boolean(
-                      !hasUnitPhoto &&
+                      !showPhotoMode &&
                         tileDisplayLabel !== unitNumberLabel &&
                         unitNumberLabel &&
                         shortSidePx >= 34 &&
@@ -3639,7 +3970,7 @@ export default function ShopMapView({
                         data-tile-key={it.key}
                         title={title}
                         style={gridItemCssVars}
-                        className={`shop-map-grid-item ${it.kind === 'atrium' ? 'is-atrium-item' : ''} ${isTransitLandmark(it.kind) ? 'is-transit-item' : ''} ${hasInnerItems ? 'has-inner-items' : ''} ${isLayerFocused ? 'is-layer-focused' : ''} ${isGroupSelected ? 'is-group-selected' : ''} ${effectiveAngle ? 'is-rotated-item' : ''} ${isRotatingThisTile ? 'is-rotating-item' : ''} ${editing ? 'editing' : ''} ${isTarget ? 'active-target' : ''} ${isStart ? 'active-start' : ''} ${isAmenityHighlighted ? 'is-amenity-highlighted' : ''}`}
+                        className={`shop-map-grid-item ${it.kind === 'atrium' ? 'is-atrium-item' : ''} ${isTransitLandmark(it.kind) ? 'is-transit-item' : ''} ${hasInnerItems ? 'has-inner-items' : ''} ${isLayerFocused ? 'is-layer-focused' : ''} ${isGroupSelected ? 'is-group-selected' : ''} ${newlyPlacedKey === it.key ? 'is-newly-placed' : ''} ${effectiveAngle ? 'is-rotated-item' : ''} ${isRotatingThisTile ? 'is-rotating-item' : ''} ${editing ? 'editing' : ''} ${isTarget ? 'active-target' : ''} ${isStart ? 'active-start' : ''} ${isAmenityHighlighted ? 'is-amenity-highlighted' : ''}`}
                         onMouseEnter={() => {
                           if (!editing && it.unitId) setHoveredUnitId(it.unitId);
                         }}
@@ -4020,25 +4351,44 @@ export default function ShopMapView({
 
                 {/* ── Mappedin Smooth Wayfinding Route Overlay ── */}
                 {routeRenderData && walkwayRoute && (() => {
-                  const { smoothPathD, routeArrows, startPt, endPt } = routeRenderData;
+                  const { smoothPathD, routeArrows, startPt, endPt, drawDurationSec, routeAnimKey } = routeRenderData;
+                  const maskId = 'shop-map-route-reveal-mask';
                   return (
-                    <svg className="shop-map-connector-svg" aria-hidden="true">
-                      <path d={smoothPathD} className="shop-map-nav-glow" />
-                      <path d={smoothPathD} className="shop-map-nav-casing" />
-                      <path d={smoothPathD} className="shop-map-connector-line" />
+                    <svg
+                      key={routeAnimKey}
+                      className="shop-map-connector-svg"
+                      aria-hidden="true"
+                      style={{ '--route-draw-dur': `${drawDurationSec}s` } as CSSProperties}
+                    >
+                      <defs>
+                        <mask id={maskId} maskUnits="userSpaceOnUse" x="-2000" y="-2000" width="12000" height="12000">
+                          <path d={smoothPathD} pathLength={1} className="shop-map-nav-reveal-mask-path" />
+                        </mask>
+                      </defs>
+                      <g mask={`url(#${maskId})`}>
+                        <path d={smoothPathD} className="shop-map-nav-glow" />
+                        <path d={smoothPathD} className="shop-map-nav-casing" />
+                        <path d={smoothPathD} className="shop-map-connector-line" />
+                      </g>
                       {routeArrows.map((ar, idx) => (
                         <g
                           key={`ar-${idx}`}
                           transform={`translate(${ar.x.toFixed(1)}, ${ar.y.toFixed(1)}) rotate(${ar.angleDeg.toFixed(1)})`}
                           className="shop-map-nav-arrow-glyph"
+                          style={{ '--arrow-delay': `${(ar.progress * drawDurationSec).toFixed(2)}s` } as CSSProperties}
                         >
                           <path d="M -3 -2.6 L 2.2 0 L -3 2.6" />
                         </g>
                       ))}
                       <circle cx={startPt.x} cy={startPt.y} r={8} className="shop-map-nav-pulse start" />
                       <circle cx={startPt.x} cy={startPt.y} r={4.5} className="shop-map-connector-dot start" />
-                      <circle cx={endPt.x} cy={endPt.y} r={9} className="shop-map-nav-pulse target" />
-                      <circle cx={endPt.x} cy={endPt.y} r={5} className="shop-map-connector-dot target" />
+                      <g
+                        className="shop-map-nav-end-group"
+                        style={{ '--end-delay': `${(drawDurationSec * 0.95).toFixed(2)}s` } as CSSProperties}
+                      >
+                        <circle cx={endPt.x} cy={endPt.y} r={9} className="shop-map-nav-pulse target" />
+                        <circle cx={endPt.x} cy={endPt.y} r={5} className="shop-map-connector-dot target" />
+                      </g>
                     </svg>
                   );
                 })()}
@@ -4304,7 +4654,7 @@ export default function ShopMapView({
             {lmKind === 'atrium' && (
               <div className="shop-map-lm-modal-section">
                 <label className="shop-map-lm-modal-label">
-                  Add Inside Atrium (Elevator / Escalator / Stairs)
+                  Add Inside Atrium (Elevator / Escalator / Stairs) &amp; Ring Layout
                 </label>
                 <div className="shop-map-lm-variant-grid">
                   {(
@@ -4336,6 +4686,21 @@ export default function ShopMapView({
                       </span>
                     </button>
                   ))}
+                  <button
+                    type="button"
+                    className="shop-map-lm-variant-btn"
+                    onClick={() => {
+                      handleRadialAlignAtrium(editingItem.key);
+                    }}
+                  >
+                    <span className="shop-map-lm-variant-icon">
+                      <Wand2 size={15} />
+                    </span>
+                    <span className="shop-map-lm-variant-text">
+                      <strong>Ring Align Surrounding Units</strong>
+                      <small>Smart Radial Ring Aligner around this Atrium</small>
+                    </span>
+                  </button>
                 </div>
               </div>
             )}
@@ -4400,16 +4765,17 @@ export default function ShopMapView({
         if (!editingUnitItem) return null;
         const unitShop = editingUnitItem.unitId ? shopByUnit.get(editingUnitItem.unitId) : null;
         const isMerged = Boolean(unitMergeMap.get(editingUnitItem.key)?.siblingHasMerge);
-        const currentMode = parseUnitShapeMode(editingUnitItem, items, isMerged);
+        const isAutoShape = isAutoUnitShapeLabel(editingUnitItem.label);
+        const currentMode = parseUnitShapeMode(editingUnitItem, isMerged);
         const unitTitle = unitShop
           ? `${shopDisplayName(unitShop)} (${unitNumberOf(unitShop)})`
-          : editingUnitItem.label || 'Shop Unit';
+          : 'Shop Unit';
         const groups = Array.from(new Set(UNIT_SHAPE_OPTIONS.map((o) => o.group)));
 
         return (
           <QrModalDialog
             title={`Unit Shape — ${unitTitle}`}
-            subtitle="Choose any architectural shape for this unit tile only (never affects neighboring units)"
+            subtitle="Choose any shape to lock it manually (moving the unit will never overwrite a locked shape)"
             onClose={() => setEditingUnitShapeKey(null)}
             footer={
               <button
@@ -4421,6 +4787,26 @@ export default function ShopMapView({
               </button>
             }
           >
+            <div className="shop-map-lm-modal-section">
+              <label className="shop-map-lm-modal-label">Shape Mode</label>
+              <div className="shop-map-lm-variant-grid">
+                <button
+                  type="button"
+                  className={`shop-map-lm-variant-btn ${isAutoShape ? 'active' : ''}`}
+                  onClick={() => {
+                    resetUnitShapeToAuto(editingUnitItem.key);
+                    setEditingUnitShapeKey(null);
+                  }}
+                >
+                  <span className="shop-map-lm-variant-icon">
+                    <Wand2 size={16} />
+                  </span>
+                  <span className="shop-map-lm-variant-text">
+                    <strong>Auto (Follow Atrium)</strong>
+                  </span>
+                </button>
+              </div>
+            </div>
             {groups.map((grp) => {
               const grpOptions = UNIT_SHAPE_OPTIONS.filter(
                 (o) => o.group === grp && (!isMerged || o.id !== 'circle'),
@@ -4431,7 +4817,7 @@ export default function ShopMapView({
                   <label className="shop-map-lm-modal-label">{grp}</label>
                   <div className="shop-map-lm-variant-grid">
                     {grpOptions.map((opt) => {
-                      const selected = currentMode === opt.id;
+                      const selected = !isAutoShape && currentMode === opt.id;
                       return (
                         <button
                           key={opt.id}

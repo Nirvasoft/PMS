@@ -44,6 +44,25 @@ export type UnitShapeMode =
   | 'circle'
   | 'ring-curve'
   | 'trapezoid-ring'
+  | 'crescent-l'
+  | 'crescent-r'
+  | 'crescent-t'
+  | 'crescent-b'
+  | 'pie-wedge'
+  | 'wedge-tl'
+  | 'wedge-tr'
+  | 'wedge-bl'
+  | 'wedge-br'
+  | 'step-tl'
+  | 'step-tr'
+  | 'step-bl'
+  | 'step-br'
+  | 'step-t-mid'
+  | 'step-b-mid'
+  | 'wing-bend-l'
+  | 'wing-bend-r'
+  | 'u-court-t'
+  | 'u-court-b'
   | 'slope-b-l'
   | 'slope-b-r'
   | 'slope-t-l'
@@ -69,6 +88,25 @@ export const UNIT_SHAPE_LABELS: Record<UnitShapeMode, string> = {
   circle: 'Circle / Oval',
   'ring-curve': 'Fan / Ring Sector',
   'trapezoid-ring': 'Curved Arch',
+  'crescent-l': 'Inner Crescent (Left Arc)',
+  'crescent-r': 'Inner Crescent (Right Arc)',
+  'crescent-t': 'Inner Crescent (Top Arc)',
+  'crescent-b': 'Inner Crescent (Bottom Arc)',
+  'pie-wedge': 'Pie-Slice Wedge (Curved)',
+  'wedge-tl': 'Triangle Wedge (Top-Left)',
+  'wedge-tr': 'Triangle Wedge (Top-Right)',
+  'wedge-bl': 'Triangle Wedge (Bottom-Left)',
+  'wedge-br': 'Triangle Wedge (Bottom-Right)',
+  'step-tl': 'Stepped Cutout (Top-Left)',
+  'step-tr': 'Stepped Cutout (Top-Right)',
+  'step-bl': 'Stepped Cutout (Bottom-Left)',
+  'step-br': 'Stepped Cutout (Bottom-Right)',
+  'step-t-mid': 'Center Alcove Notch (Top)',
+  'step-b-mid': 'Center Alcove Notch (Bottom)',
+  'wing-bend-l': 'Corner-Bend Wing (Left)',
+  'wing-bend-r': 'Corner-Bend Wing (Right)',
+  'u-court-t': 'U-Wing Courtyard (Top)',
+  'u-court-b': 'U-Wing Courtyard (Bottom)',
   'slope-b-l': 'Slant Bottom (Up-Left)',
   'slope-b-r': 'Slant Bottom (Up-Right)',
   'slope-t-l': 'Slant Top (Down-Left)',
@@ -103,31 +141,58 @@ export const UNIT_SHAPE_OPTIONS: ReadonlyArray<UnitShapeOptionDef> = [
   { id: 'ring-curve', label: 'Fan / Ring Sector', group: 'Basic & Ring / Fan Shapes' },
   { id: 'trapezoid-ring', label: 'Curved Arch', group: 'Basic & Ring / Fan Shapes' },
 
-  // 2. Slanted Top / Bottom Edge (Vertical Left & Right Side Walls — Side-by-Side Flush)
+  // 2. Inner Crescent / Concave Arc (Atrium-Hugging)
+  { id: 'crescent-l', label: 'Inner Crescent (Left Arc)', group: 'Inner Crescent / Concave Arc' },
+  { id: 'crescent-r', label: 'Inner Crescent (Right Arc)', group: 'Inner Crescent / Concave Arc' },
+  { id: 'crescent-t', label: 'Inner Crescent (Top Arc)', group: 'Inner Crescent / Concave Arc' },
+  { id: 'crescent-b', label: 'Inner Crescent (Bottom Arc)', group: 'Inner Crescent / Concave Arc' },
+
+  // 3. Pie-Wedge & Triangle Kiosk
+  { id: 'pie-wedge', label: 'Pie-Slice Wedge (Curved)', group: 'Pie-Wedge & Triangle Kiosk' },
+  { id: 'wedge-tl', label: 'Triangle Wedge (Top-Left)', group: 'Pie-Wedge & Triangle Kiosk' },
+  { id: 'wedge-tr', label: 'Triangle Wedge (Top-Right)', group: 'Pie-Wedge & Triangle Kiosk' },
+  { id: 'wedge-bl', label: 'Triangle Wedge (Bottom-Left)', group: 'Pie-Wedge & Triangle Kiosk' },
+  { id: 'wedge-br', label: 'Triangle Wedge (Bottom-Right)', group: 'Pie-Wedge & Triangle Kiosk' },
+
+  // 4. Stepped & Multi-Notch (Alcove)
+  { id: 'step-tl', label: 'Stepped Cutout (Top-Left)', group: 'Stepped & Multi-Notch (Alcove)' },
+  { id: 'step-tr', label: 'Stepped Cutout (Top-Right)', group: 'Stepped & Multi-Notch (Alcove)' },
+  { id: 'step-bl', label: 'Stepped Cutout (Bottom-Left)', group: 'Stepped & Multi-Notch (Alcove)' },
+  { id: 'step-br', label: 'Stepped Cutout (Bottom-Right)', group: 'Stepped & Multi-Notch (Alcove)' },
+  { id: 'step-t-mid', label: 'Center Alcove Notch (Top)', group: 'Stepped & Multi-Notch (Alcove)' },
+  { id: 'step-b-mid', label: 'Center Alcove Notch (Bottom)', group: 'Stepped & Multi-Notch (Alcove)' },
+
+  // 5. Double-Wing & Corner-Bend
+  { id: 'wing-bend-l', label: 'Corner-Bend Wing (Left)', group: 'Double-Wing & Corner-Bend' },
+  { id: 'wing-bend-r', label: 'Corner-Bend Wing (Right)', group: 'Double-Wing & Corner-Bend' },
+  { id: 'u-court-t', label: 'U-Wing Courtyard (Top)', group: 'Double-Wing & Corner-Bend' },
+  { id: 'u-court-b', label: 'U-Wing Courtyard (Bottom)', group: 'Double-Wing & Corner-Bend' },
+
+  // 6. Slanted Top / Bottom Edge (Vertical Left & Right Side Walls — Side-by-Side Flush)
   { id: 'slope-b-l', label: 'Slant Bottom (Up-Left)', group: 'Slanted Edge (Vertical Side Walls)' },
   { id: 'slope-b-r', label: 'Slant Bottom (Up-Right)', group: 'Slanted Edge (Vertical Side Walls)' },
   { id: 'slope-t-l', label: 'Slant Top (Down-Left)', group: 'Slanted Edge (Vertical Side Walls)' },
   { id: 'slope-t-r', label: 'Slant Top (Down-Right)', group: 'Slanted Edge (Vertical Side Walls)' },
 
-  // 3. 45° Cut Corner (Chamfer)
+  // 7. 45° Cut Corner (Chamfer)
   { id: 'chamfer-tr', label: 'Cut Corner (Top-Right)', group: '45° Cut Corner (Chamfer)' },
   { id: 'chamfer-tl', label: 'Cut Corner (Top-Left)', group: '45° Cut Corner (Chamfer)' },
   { id: 'chamfer-br', label: 'Cut Corner (Bottom-Right)', group: '45° Cut Corner (Chamfer)' },
   { id: 'chamfer-bl', label: 'Cut Corner (Bottom-Left)', group: '45° Cut Corner (Chamfer)' },
 
-  // 4. Curved Outer Corner
+  // 8. Curved Outer Corner
   { id: 'curve-bl', label: 'Curved Corner (Bottom-Left)', group: 'Curved Outer Corner' },
   { id: 'curve-br', label: 'Curved Corner (Bottom-Right)', group: 'Curved Outer Corner' },
   { id: 'curve-tl', label: 'Curved Corner (Top-Left)', group: 'Curved Outer Corner' },
   { id: 'curve-tr', label: 'Curved Corner (Top-Right)', group: 'Curved Outer Corner' },
 
-  // 5. Concave Circular Cutout (Notch)
+  // 9. Concave Circular Cutout (Notch)
   { id: 'notch-tl', label: 'Concave Cutout (Top-Left)', group: 'Concave Circular Cutout (Notch)' },
   { id: 'notch-tr', label: 'Concave Cutout (Top-Right)', group: 'Concave Circular Cutout (Notch)' },
   { id: 'notch-bl', label: 'Concave Cutout (Bottom-Left)', group: 'Concave Circular Cutout (Notch)' },
   { id: 'notch-br', label: 'Concave Cutout (Bottom-Right)', group: 'Concave Circular Cutout (Notch)' },
 
-  // 6. Tapered-Side Trapezoids
+  // 10. Tapered-Side Trapezoids
   { id: 'trapezoid', label: 'Trapezoid (Symmetric)', group: 'Tapered-Side Trapezoids' },
   { id: 'trapezoid-l', label: 'Trapezoid (Left Slant)', group: 'Tapered-Side Trapezoids' },
   { id: 'trapezoid-r', label: 'Trapezoid (Right Slant)', group: 'Tapered-Side Trapezoids' },
@@ -160,44 +225,12 @@ function isCircleRingCorridor(
   return aspect <= 1.65;
 }
 
-function computeCircleRingRadii(
-  r: { key?: string; kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number },
-  allItems: ReadonlyArray<{ key?: string; kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number }>,
-  minOuter = 1.5,
-  minInner = 0.8,
-) {
-  const rxOut = Math.max(minOuter, r.w * 0.5);
-  const ryOut = Math.max(minOuter, r.h * 0.5);
-  const minDim = Math.min(r.w, r.h);
-  const laneX = minDim <= 2 ? r.w * 0.5 : r.w >= 8 ? Math.max(2, r.w * 0.25) : Math.min(r.w * 0.36, 1.65);
-  const laneY = minDim <= 2 ? r.h * 0.5 : r.h >= 8 ? Math.max(2, r.h * 0.25) : Math.min(r.h * 0.36, 1.65);
-  let rxIn = Math.max(minInner, rxOut - laneX);
-  let ryIn = Math.max(minInner, ryOut - laneY);
-  const innerHoleItems = allItems.filter(
-    (o) => (r.key && o.key ? o.key !== r.key : o !== r) && isInsideCircleCorridorHole(r, o),
-  );
-  if (innerHoleItems.length > 0) {
-    let reqRx = 0;
-    let reqRy = 0;
-    for (const inner of innerHoleItems) {
-      reqRx = Math.max(reqRx, inner.w * 0.5);
-      reqRy = Math.max(reqRy, inner.h * 0.5);
-    }
-    rxIn = Math.min(Math.max(0.5, rxOut - 1), reqRx);
-    ryIn = Math.min(Math.max(0.5, ryOut - 1), reqRy);
-  }
-  return { rxOut, ryOut, rxIn, ryIn, innerHoleItems };
-}
-
 interface CircleCorridorUnitMatch {
   ring: { key?: string; kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number };
   cx: number;
   cy: number;
   rxOut: number;
   ryOut: number;
-  rxIn: number;
-  ryIn: number;
-  insideHole: boolean;
   boxGap: number;
   normClosest: number;
   isNear: boolean;
@@ -246,9 +279,8 @@ function findNearestCircleCorridorForUnit(
   for (const r of rings) {
     const rcx = r.x + r.w * 0.5;
     const rcy = r.y + r.h * 0.5;
-    const { rxOut, ryOut, rxIn, ryIn, innerHoleItems } = computeCircleRingRadii(r, allItems, 1.5, 0.8);
-    const hasInnerAtrium = innerHoleItems.some((o) => o.kind === 'atrium');
-    const insideHole = !hasInnerAtrium && isInsideCircleCorridorHole(r, { ...it, kind: 'unit' });
+    const rxOut = Math.max(1.5, r.w * 0.5);
+    const ryOut = Math.max(1.5, r.h * 0.5);
     const gapX = Math.max(0, it.x - (r.x + r.w), r.x - (it.x + it.w));
     const gapY = Math.max(0, it.y - (r.y + r.h), r.y - (it.y + it.h));
     const boxGap = Math.hypot(gapX, gapY);
@@ -257,10 +289,9 @@ function findNearestCircleCorridorForUnit(
     const avgR = (rxOut + ryOut) * 0.5;
     const radialDist = Math.abs(normClosest - 1) * avgR;
     const normCenter = Math.hypot((ux - rcx) / rxOut, (uy - rcy) / ryOut);
-    const score = insideHole ? Math.abs(normCenter) * 0.1 : boxGap + radialDist * 0.6;
+    const score = boxGap + radialDist * 0.6;
     const isNear =
-      insideHole ||
-      (boxGap <= 6.0 && normCenter >= 0.40 && normClosest >= 0.18 && (normClosest - 1) * avgR <= 5.5);
+      boxGap <= 6.0 && normCenter >= 0.40 && normClosest >= 0.18 && (normClosest - 1) * avgR <= 5.5;
     if (score < bestScore) {
       bestScore = score;
       best = {
@@ -269,9 +300,6 @@ function findNearestCircleCorridorForUnit(
         cy: rcy,
         rxOut,
         ryOut,
-        rxIn,
-        ryIn,
-        insideHole,
         boxGap,
         normClosest,
         isNear,
@@ -334,245 +362,61 @@ function resolveUnitCircleRadialOffset(
   return naturalOffset;
 }
 
-interface CircleRingUnitSector {
-  ring: { key?: string; kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number };
-  cx: number;
-  cy: number;
-  rxOut: number;
-  ryOut: number;
-  thetaStart: number;
-  thetaEnd: number;
-  thetaStartOut: number;
-  thetaEndOut: number;
-  thetaMid: number;
-  radialDepth: number;
-  facingEdge: 'top' | 'right' | 'bottom' | 'left';
-  exactAngleDeg: number;
-  uMin: number;
-  uMax: number;
-  vMin: number;
-  vMax: number;
-  midU: number;
-  midV: number;
-  worldCx: number;
-  worldCy: number;
-  wCells: number;
-  hCells: number;
+export function isAutoUnitShapeLabel(label?: string | null): boolean {
+  if (!label) return true;
+  return label.startsWith('unit:') && (label.endsWith(':auto') || label === 'unit:ring-curve:free');
 }
 
-function isUnitEligibleForCircleRingSector(
-  u: { key?: string; label?: string | null; unitId?: string | null; x: number; y: number; w: number; h: number },
-  allItems: ReadonlyArray<{ key?: string; kind: TileKind | string; unitId?: string | null; x: number; y: number; w: number; h: number }>,
-): boolean {
-  if (u.label && u.label.startsWith('unit:') && !isRingCurveUnitLabel(u.label)) {
-    return false;
-  }
-  const hasAdjacentSameUnit =
-    Boolean(u.unitId) &&
-    allItems.some(
-      (o) =>
-        o !== u &&
-        (o.key ? o.key !== u.key : true) &&
-        o.kind === 'unit' &&
-        o.unitId === u.unitId &&
-        Math.max(0, u.x - (o.x + o.w), o.x - (u.x + u.w)) <= 0.05 &&
-        Math.max(0, u.y - (o.y + o.h), o.y - (u.y + u.h)) <= 0.05,
-    );
-  return !hasAdjacentSameUnit;
+function isAutoAtriumSideCurveLabel(label?: string | null): boolean {
+  if (!label) return false;
+  return label.startsWith('unit:') && (label.endsWith(':auto') || label === 'unit:ring-curve:free');
 }
 
-function computeCircleRingUnitSector(
-  it: { key?: string; kind?: TileKind | string; label?: string | null; unitId?: string | null; x: number; y: number; w: number; h: number; angle?: number },
-  allItems: ReadonlyArray<{ key?: string; kind: TileKind | string; label?: string | null; unitId?: string | null; x: number; y: number; w: number; h: number; angle?: number }>,
-): CircleRingUnitSector | null {
-  const baseIt = (it.key ? allItems.find((o) => o.key === it.key) : null) ?? it;
-  if (!isUnitEligibleForCircleRingSector(baseIt, allItems)) return null;
+function isUnitCloseToCircleAtriumRim(match: CircleCorridorUnitMatch): boolean {
+  const avgR = (match.rxOut + match.ryOut) * 0.5;
+  const radialGap = (match.normClosest - 1) * avgR;
+  return match.boxGap <= 1.5 && match.normClosest >= 0.72 && radialGap <= 1.25;
+}
 
-  const match = findNearestCircleCorridorForUnit(baseIt, allItems);
-  if (!match || !match.isNear || match.insideHole) return null;
+function resolveAtriumFacingSideCurveMode(
+  u: { x: number; y: number; w: number; h: number },
+  match: {
+    ring: { x: number; y: number; w: number; h: number };
+    cx: number;
+    cy: number;
+    rxOut: number;
+    ryOut: number;
+  },
+): UnitShapeMode {
+  const ucx = u.x + u.w * 0.5;
+  const ucy = u.y + u.h * 0.5;
+  const nx = (ucx - match.cx) / Math.max(1, match.rxOut);
+  const ny = (ucy - match.cy) / Math.max(1, match.ryOut);
+  const ovX = Math.min(u.x + u.w, match.ring.x + match.ring.w) - Math.max(u.x, match.ring.x);
+  const ovY = Math.min(u.y + u.h, match.ring.y + match.ring.h) - Math.max(u.y, match.ring.y);
 
-  const ucx = baseIt.x + baseIt.w * 0.5;
-  const ucy = baseIt.y + baseIt.h * 0.5;
-  const raw = Math.atan2((ucy - match.cy) / match.ryOut, (ucx - match.cx) / match.rxOut);
-  const thetaRaw = ((raw % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
-  const parSpan = Math.max(baseIt.w, baseIt.h);
-  const perpDepth = Math.max(2, Math.min(2.6, Math.min(baseIt.w, baseIt.h)));
-  const radialOffset = resolveUnitCircleRadialOffset(baseIt, match);
-  const rxInSector = match.rxOut + radialOffset;
-  const ryInSector = match.ryOut + radialOffset;
-  const rInAtTheta = Math.hypot(rxInSector * Math.cos(thetaRaw), ryInSector * Math.sin(thetaRaw)) || rxInSector;
-  const rMid = rInAtTheta + perpDepth * 0.5;
-  const deltaThetaNat = Math.max(
-    (18 * Math.PI) / 180,
-    Math.min((95 * Math.PI) / 180, parSpan / Math.max(2, rMid)),
-  );
-
-  let thetaStart = thetaRaw - deltaThetaNat * 0.5;
-  let thetaEnd = thetaRaw + deltaThetaNat * 0.5;
-
-  const meta = parseRingCurveLabelMeta(baseIt.label);
-  const isFreeUnsnapped = meta?.mode === 'free' || !baseIt.label;
-
-  // Snap shared radial boundary with immediately adjacent ring-curve units in the same concentric band (<= 18° gap) for 0px seam
-  let bestStartGap: number | null = null;
-  let bestStartDist = Infinity;
-  let bestEndGap: number | null = null;
-  let bestEndDist = Infinity;
-
-  if (!isFreeUnsnapped) {
-    for (const o of allItems) {
-      if (o.kind !== 'unit' || o.key === baseIt.key) continue;
-      if (baseIt.unitId && o.unitId === baseIt.unitId) continue;
-      const oShape = parseUnitShapeMode(o);
-      if (oShape && oShape !== 'ring-curve' && oShape !== 'trapezoid-ring') continue;
-      const om = findNearestCircleCorridorForUnit(o, [match.ring]);
-      if (!om || !om.isNear || om.insideHole) continue;
-
-      const oRadialOffset = resolveUnitCircleRadialOffset(o, om);
-      if (Math.abs(oRadialOffset - radialOffset) > 1.15) continue;
-
-      const ocx = o.x + o.w * 0.5;
-      const ocy = o.y + o.h * 0.5;
-      const oRaw = Math.atan2((ocy - match.cy) / match.ryOut, (ocx - match.cx) / match.rxOut);
-      const oTheta = ((oRaw % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
-      const oPar = Math.max(o.w, o.h);
-      const oPerp = Math.max(2, Math.min(2.6, Math.min(o.w, o.h)));
-      const oRxIn = match.rxOut + oRadialOffset;
-      const oRyIn = match.ryOut + oRadialOffset;
-      const oRIn = Math.hypot(oRxIn * Math.cos(oTheta), oRyIn * Math.sin(oTheta)) || oRxIn;
-      const oDelta = Math.max(
-        (18 * Math.PI) / 180,
-        Math.min((95 * Math.PI) / 180, oPar / Math.max(2, oRIn + oPerp * 0.5)),
-      );
-      const oStart = oTheta - oDelta * 0.5;
-      const oEnd = oTheta + oDelta * 0.5;
-
-      const ccwDist = (((thetaRaw - oTheta) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
-      if (ccwDist > 0.02 && ccwDist < Math.PI && ccwDist < bestStartDist) {
-        const gap = Math.atan2(Math.sin(thetaStart - oEnd), Math.cos(thetaStart - oEnd));
-        if (Math.abs(gap) <= (18 * Math.PI) / 180) {
-          bestStartDist = ccwDist;
-          bestStartGap = gap;
-        }
-      }
-
-      const cwDist = (((oTheta - thetaRaw) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
-      if (cwDist > 0.02 && cwDist < Math.PI && cwDist < bestEndDist) {
-        const gap = Math.atan2(Math.sin(oStart - thetaEnd), Math.cos(oStart - thetaEnd));
-        if (Math.abs(gap) <= (18 * Math.PI) / 180) {
-          bestEndDist = cwDist;
-          bestEndGap = gap;
-        }
-      }
-    }
+  // Diagonal corner of the Atrium: curve only the corner facing the Atrium
+  if (
+    ovX <= u.w * 0.75 &&
+    ovY <= u.h * 0.75 &&
+    Math.abs(nx) >= 0.42 &&
+    Math.abs(ny) >= 0.42
+  ) {
+    if (nx >= 0 && ny >= 0) return 'notch-tl';
+    if (nx < 0 && ny >= 0) return 'notch-tr';
+    if (nx >= 0 && ny < 0) return 'notch-bl';
+    return 'notch-br';
   }
 
-  if (bestStartGap !== null) {
-    thetaStart -= 0.5 * bestStartGap;
+  if (Math.abs(nx) >= Math.abs(ny)) {
+    return nx >= 0 ? 'crescent-l' : 'crescent-r';
   }
-  if (bestEndGap !== null) {
-    thetaEnd += 0.5 * bestEndGap;
-  }
-
-  const thetaMid = 0.5 * (thetaStart + thetaEnd);
-  const radialDepth = perpDepth;
-  const thetaStartOut = thetaStart;
-  const thetaEndOut = thetaEnd;
-
-  const gnx = Math.cos(thetaMid) / rxInSector;
-  const gny = Math.sin(thetaMid) / ryInSector;
-  const gLen = Math.hypot(gnx, gny) || 1;
-  const nx = gnx / gLen;
-  const ny = gny / gLen;
-
-  const degBottom = (((Math.atan2(nx, -ny) * 180) / Math.PI) % 360 + 360) % 360;
-  const degTop = (((Math.atan2(-nx, ny) * 180) / Math.PI) % 360 + 360) % 360;
-  const bottomUpright = degBottom <= 96 || degBottom >= 264;
-  const topUpright = degTop <= 96 || degTop >= 264;
-  const facingEdge: 'bottom' | 'top' =
-    bottomUpright && !topUpright
-      ? 'bottom'
-      : topUpright && !bottomUpright
-        ? 'top'
-        : angularDiffDeg(degBottom, baseIt.angle ?? 0) <= angularDiffDeg(degTop, baseIt.angle ?? 0)
-          ? 'bottom'
-          : 'top';
-  const exactAngleDeg = Math.round((facingEdge === 'bottom' ? degBottom : degTop) * 100) / 100;
-
-  const rad = (exactAngleDeg * Math.PI) / 180;
-  const ux = Math.cos(rad);
-  const uy = Math.sin(rad);
-  const vx = -Math.sin(rad);
-  const vy = Math.cos(rad);
-
-  const rxOutSector = rxInSector + radialDepth;
-  const ryOutSector = ryInSector + radialDepth;
-  const N = 24;
-  let uMin = Infinity;
-  let uMax = -Infinity;
-  let vMin = Infinity;
-  let vMax = -Infinity;
-
-  for (let k = 0; k <= N; k++) {
-    const thIn = thetaStart + (k / N) * (thetaEnd - thetaStart);
-    const thOut = thetaStartOut + (k / N) * (thetaEndOut - thetaStartOut);
-    const ix = rxInSector * Math.cos(thIn);
-    const iy = ryInSector * Math.sin(thIn);
-    const ox = rxOutSector * Math.cos(thOut);
-    const oy = ryOutSector * Math.sin(thOut);
-    const uIn = ix * ux + iy * uy;
-    const vIn = ix * vx + iy * vy;
-    const uOut = ox * ux + oy * uy;
-    const vOut = ox * vx + oy * vy;
-    if (uIn < uMin) uMin = uIn;
-    if (uIn > uMax) uMax = uIn;
-    if (vIn < vMin) vMin = vIn;
-    if (vIn > vMax) vMax = vIn;
-    if (uOut < uMin) uMin = uOut;
-    if (uOut > uMax) uMax = uOut;
-    if (vOut < vMin) vMin = vOut;
-    if (vOut > vMax) vMax = vOut;
-  }
-
-  const padCells = 0.08;
-  const wCells = Math.max(0.5, uMax - uMin + padCells);
-  const hCells = Math.max(0.5, vMax - vMin + padCells);
-  const midU = 0.5 * (uMin + uMax);
-  const midV = 0.5 * (vMin + vMax);
-  const worldCx = isFreeUnsnapped ? ucx : match.cx + midU * ux + midV * vx;
-  const worldCy = isFreeUnsnapped ? ucy : match.cy + midU * uy + midV * vy;
-
-  return {
-    ring: match.ring,
-    cx: match.cx,
-    cy: match.cy,
-    rxOut: rxInSector,
-    ryOut: ryInSector,
-    thetaStart,
-    thetaEnd,
-    thetaStartOut,
-    thetaEndOut,
-    thetaMid,
-    radialDepth,
-    facingEdge,
-    exactAngleDeg,
-    uMin,
-    uMax,
-    vMin,
-    vMax,
-    midU,
-    midV,
-    worldCx,
-    worldCy,
-    wCells,
-    hCells,
-  };
+  return ny >= 0 ? 'crescent-t' : 'crescent-b';
 }
 
 export function parseUnitShapeMode(
   it: { key?: string; kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
   allItems?: ReadonlyArray<{ key?: string; kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number }>,
-  isMergedUnit?: boolean,
 ): UnitShapeMode {
   if (typeof it.label === 'string' && it.label.startsWith('unit:')) {
     const rawMode = it.label.slice(5).split(':')[0] as UnitShapeMode;
@@ -582,14 +426,8 @@ export function parseUnitShapeMode(
   }
   if (allItems) {
     const match = findNearestCircleCorridorForUnit(it, allItems);
-    if (match && match.isNear) {
-      if (match.insideHole && !isMergedUnit) {
-        const centered =
-          Math.abs(it.x + it.w * 0.5 - match.cx) <= 0.85 &&
-          Math.abs(it.y + it.h * 0.5 - match.cy) <= 0.85;
-        if (centered) return 'circle';
-      }
-      return 'ring-curve';
+    if (match && match.isNear && isUnitCloseToCircleAtriumRim(match)) {
+      return resolveAtriumFacingSideCurveMode(it, match);
     }
   }
   return 'rect';
@@ -1134,78 +972,443 @@ export function getTrapezoidUnitGeometry(
     );
   }
 
+  // ── 5. Inner Crescent / Concave Arc (Atrium-Hugging Side Curve) ──
+  if (mode === 'crescent-l' || mode === 'crescent-r' || mode === 'crescent-t' || mode === 'crescent-b') {
+    const K = 18;
+    const isVertChain = mode === 'crescent-l' || mode === 'crescent-r';
+    let t0 = 0;
+    let t1 = 1;
+    let depth = 0.34;
+
+    if (tile && allItems && !tile.angle) {
+      const sameModeUnits = allItems.filter(
+        (u) => u.kind === 'unit' && !u.angle && parseUnitShapeMode(u) === mode,
+      );
+      const chain: Array<{ key?: string; x: number; y: number; w: number; h: number }> = [tile];
+      const visited = new Set<string>([tile.key ?? `${tile.x},${tile.y}`]);
+      let grew = true;
+      while (grew) {
+        grew = false;
+        for (const cand of sameModeUnits) {
+          const cKey = cand.key ?? `${cand.x},${cand.y}`;
+          if (visited.has(cKey)) continue;
+          const touchesChain = chain.some((member) => {
+            if (isVertChain) {
+              const touchVert =
+                Math.abs(member.y + member.h - cand.y) <= 0.05 ||
+                Math.abs(cand.y + cand.h - member.y) <= 0.05;
+              if (!touchVert) return false;
+              const hOv = Math.min(member.x + member.w, cand.x + cand.w) - Math.max(member.x, cand.x);
+              return hOv >= 1;
+            }
+            const touchHoriz =
+              Math.abs(member.x + member.w - cand.x) <= 0.05 ||
+              Math.abs(cand.x + cand.w - member.x) <= 0.05;
+            if (!touchHoriz) return false;
+            const vOv = Math.min(member.y + member.h, cand.y + cand.h) - Math.max(member.y, cand.y);
+            return vOv >= 1;
+          });
+          if (touchesChain) {
+            visited.add(cKey);
+            chain.push(cand);
+            grew = true;
+          }
+        }
+      }
+      if (chain.length > 1) {
+        depth = 0.38;
+        if (isVertChain) {
+          const minY = Math.min(...chain.map((u) => u.y));
+          const maxY = Math.max(...chain.map((u) => u.y + u.h));
+          const spanH = Math.max(1, maxY - minY);
+          t0 = Math.max(0, Math.min(1, (tile.y - minY) / spanH));
+          t1 = Math.max(0, Math.min(1, (tile.y + tile.h - minY) / spanH));
+        } else {
+          const minX = Math.min(...chain.map((u) => u.x));
+          const maxX = Math.max(...chain.map((u) => u.x + u.w));
+          const spanW = Math.max(1, maxX - minX);
+          t0 = Math.max(0, Math.min(1, (tile.x - minX) / spanW));
+          t1 = Math.max(0, Math.min(1, (tile.x + tile.w - minX) / spanW));
+        }
+      }
+    }
+
+    const pts: Array<{ x: number; y: number }> = [];
+    if (mode === 'crescent-l') {
+      pts.push({ x: 1, y: 0 }, { x: 1, y: 1 });
+      for (let k = 0; k <= K; k++) {
+        const localT = 1 - k / K;
+        const gT = t0 + localT * (t1 - t0);
+        const u = 2 * gT - 1;
+        pts.push({ x: depth * (1 - u * u), y: localT });
+      }
+      return buildPolygonUnitGeometryFromNormPoints(
+        pts,
+        wPx,
+        hPx,
+        cellPx,
+        merge,
+        Math.round(wPx * 0.12),
+        0,
+        'left',
+      );
+    }
+    if (mode === 'crescent-r') {
+      pts.push({ x: 0, y: 0 });
+      for (let k = 0; k <= K; k++) {
+        const localT = k / K;
+        const gT = t0 + localT * (t1 - t0);
+        const u = 2 * gT - 1;
+        pts.push({ x: 1 - depth * (1 - u * u), y: localT });
+      }
+      pts.push({ x: 0, y: 1 });
+      return buildPolygonUnitGeometryFromNormPoints(
+        pts,
+        wPx,
+        hPx,
+        cellPx,
+        merge,
+        -Math.round(wPx * 0.12),
+        0,
+        'right',
+      );
+    }
+    if (mode === 'crescent-t') {
+      for (let k = 0; k <= K; k++) {
+        const localT = k / K;
+        const gT = t0 + localT * (t1 - t0);
+        const u = 2 * gT - 1;
+        pts.push({ x: localT, y: depth * (1 - u * u) });
+      }
+      pts.push({ x: 1, y: 1 }, { x: 0, y: 1 });
+      return buildPolygonUnitGeometryFromNormPoints(
+        pts,
+        wPx,
+        hPx,
+        cellPx,
+        merge,
+        0,
+        Math.round(hPx * 0.12),
+        'top',
+      );
+    }
+    // crescent-b
+    pts.push({ x: 0, y: 0 }, { x: 1, y: 0 });
+    for (let k = 0; k <= K; k++) {
+      const localT = 1 - k / K;
+      const gT = t0 + localT * (t1 - t0);
+      const u = 2 * gT - 1;
+      pts.push({ x: localT, y: 1 - depth * (1 - u * u) });
+    }
+    return buildPolygonUnitGeometryFromNormPoints(
+      pts,
+      wPx,
+      hPx,
+      cellPx,
+      merge,
+      0,
+      -Math.round(hPx * 0.12),
+      'bottom',
+    );
+  }
+
+  // ── 6. Pie-Wedge & Triangle Kiosk ──
+  if (mode === 'pie-wedge' || mode === 'wedge-tl' || mode === 'wedge-tr' || mode === 'wedge-bl' || mode === 'wedge-br') {
+    if (mode === 'pie-wedge') {
+      const K = 18;
+      const pts: Array<{ x: number; y: number }> = [];
+      for (let k = 0; k <= K; k++) {
+        const t = k / K;
+        const u = 2 * t - 1;
+        pts.push({ x: t, y: 0.24 * u * u });
+      }
+      pts.push({ x: 0.62, y: 1 }, { x: 0.38, y: 1 });
+      return buildPolygonUnitGeometryFromNormPoints(
+        pts,
+        wPx,
+        hPx,
+        cellPx,
+        merge,
+        0,
+        -Math.round(hPx * 0.10),
+        'bottom',
+      );
+    }
+    if (mode === 'wedge-tl') {
+      return buildPolygonUnitGeometryFromNormPoints(
+        [
+          { x: 0, y: 0 },
+          { x: 1, y: 0 },
+          { x: 1, y: 0.18 },
+          { x: 0.18, y: 1 },
+          { x: 0, y: 1 },
+        ],
+        wPx,
+        hPx,
+        cellPx,
+        merge,
+        -Math.round(wPx * 0.12),
+        -Math.round(hPx * 0.12),
+      );
+    }
+    if (mode === 'wedge-tr') {
+      return buildPolygonUnitGeometryFromNormPoints(
+        [
+          { x: 0, y: 0 },
+          { x: 1, y: 0 },
+          { x: 1, y: 1 },
+          { x: 0.82, y: 1 },
+          { x: 0, y: 0.18 },
+        ],
+        wPx,
+        hPx,
+        cellPx,
+        merge,
+        Math.round(wPx * 0.12),
+        -Math.round(hPx * 0.12),
+      );
+    }
+    if (mode === 'wedge-bl') {
+      return buildPolygonUnitGeometryFromNormPoints(
+        [
+          { x: 0, y: 0 },
+          { x: 0.18, y: 0 },
+          { x: 1, y: 0.82 },
+          { x: 1, y: 1 },
+          { x: 0, y: 1 },
+        ],
+        wPx,
+        hPx,
+        cellPx,
+        merge,
+        -Math.round(wPx * 0.12),
+        Math.round(hPx * 0.12),
+      );
+    }
+    // wedge-br
+    return buildPolygonUnitGeometryFromNormPoints(
+      [
+        { x: 0.82, y: 0 },
+        { x: 1, y: 0 },
+        { x: 1, y: 1 },
+        { x: 0, y: 1 },
+        { x: 0, y: 0.82 },
+      ],
+      wPx,
+      hPx,
+      cellPx,
+      merge,
+      Math.round(wPx * 0.12),
+      Math.round(hPx * 0.12),
+    );
+  }
+
+  // ── 7. Stepped & Multi-Notch (Alcove) ──
+  if (
+    mode === 'step-tl' ||
+    mode === 'step-tr' ||
+    mode === 'step-bl' ||
+    mode === 'step-br' ||
+    mode === 'step-t-mid' ||
+    mode === 'step-b-mid'
+  ) {
+    if (mode === 'step-tl') {
+      return buildPolygonUnitGeometryFromNormPoints(
+        [
+          { x: 0.38, y: 0 },
+          { x: 1, y: 0 },
+          { x: 1, y: 1 },
+          { x: 0, y: 1 },
+          { x: 0, y: 0.42 },
+          { x: 0.38, y: 0.42 },
+        ],
+        wPx,
+        hPx,
+        cellPx,
+        merge,
+        Math.round(wPx * 0.08),
+        Math.round(hPx * 0.08),
+      );
+    }
+    if (mode === 'step-tr') {
+      return buildPolygonUnitGeometryFromNormPoints(
+        [
+          { x: 0, y: 0 },
+          { x: 0.62, y: 0 },
+          { x: 0.62, y: 0.42 },
+          { x: 1, y: 0.42 },
+          { x: 1, y: 1 },
+          { x: 0, y: 1 },
+        ],
+        wPx,
+        hPx,
+        cellPx,
+        merge,
+        -Math.round(wPx * 0.08),
+        Math.round(hPx * 0.08),
+      );
+    }
+    if (mode === 'step-bl') {
+      return buildPolygonUnitGeometryFromNormPoints(
+        [
+          { x: 0, y: 0 },
+          { x: 1, y: 0 },
+          { x: 1, y: 1 },
+          { x: 0.38, y: 1 },
+          { x: 0.38, y: 0.58 },
+          { x: 0, y: 0.58 },
+        ],
+        wPx,
+        hPx,
+        cellPx,
+        merge,
+        Math.round(wPx * 0.08),
+        -Math.round(hPx * 0.08),
+      );
+    }
+    if (mode === 'step-br') {
+      return buildPolygonUnitGeometryFromNormPoints(
+        [
+          { x: 0, y: 0 },
+          { x: 1, y: 0 },
+          { x: 1, y: 0.58 },
+          { x: 0.62, y: 0.58 },
+          { x: 0.62, y: 1 },
+          { x: 0, y: 1 },
+        ],
+        wPx,
+        hPx,
+        cellPx,
+        merge,
+        -Math.round(wPx * 0.08),
+        -Math.round(hPx * 0.08),
+      );
+    }
+    if (mode === 'step-t-mid') {
+      return buildPolygonUnitGeometryFromNormPoints(
+        [
+          { x: 0, y: 0 },
+          { x: 0.30, y: 0 },
+          { x: 0.30, y: 0.34 },
+          { x: 0.70, y: 0.34 },
+          { x: 0.70, y: 0 },
+          { x: 1, y: 0 },
+          { x: 1, y: 1 },
+          { x: 0, y: 1 },
+        ],
+        wPx,
+        hPx,
+        cellPx,
+        merge,
+        0,
+        Math.round(hPx * 0.12),
+      );
+    }
+    // step-b-mid
+    return buildPolygonUnitGeometryFromNormPoints(
+      [
+        { x: 0, y: 0 },
+        { x: 1, y: 0 },
+        { x: 1, y: 1 },
+        { x: 0.70, y: 1 },
+        { x: 0.70, y: 0.66 },
+        { x: 0.30, y: 0.66 },
+        { x: 0.30, y: 1 },
+        { x: 0, y: 1 },
+      ],
+      wPx,
+      hPx,
+      cellPx,
+      merge,
+      0,
+      -Math.round(hPx * 0.12),
+    );
+  }
+
+  // ── 8. Double-Wing & Corner-Bend ──
+  if (mode === 'wing-bend-l' || mode === 'wing-bend-r' || mode === 'u-court-t' || mode === 'u-court-b') {
+    if (mode === 'wing-bend-l') {
+      return buildPolygonUnitGeometryFromNormPoints(
+        [
+          { x: 0.28, y: 0 },
+          { x: 1, y: 0 },
+          { x: 1, y: 0.54 },
+          { x: 0.56, y: 0.54 },
+          { x: 0.38, y: 1 },
+          { x: 0, y: 1 },
+          { x: 0, y: 0.36 },
+        ],
+        wPx,
+        hPx,
+        cellPx,
+        merge,
+        -Math.round(wPx * 0.04),
+        -Math.round(hPx * 0.06),
+      );
+    }
+    if (mode === 'wing-bend-r') {
+      return buildPolygonUnitGeometryFromNormPoints(
+        [
+          { x: 0, y: 0 },
+          { x: 0.72, y: 0 },
+          { x: 1, y: 0.36 },
+          { x: 1, y: 1 },
+          { x: 0.62, y: 1 },
+          { x: 0.44, y: 0.54 },
+          { x: 0, y: 0.54 },
+        ],
+        wPx,
+        hPx,
+        cellPx,
+        merge,
+        Math.round(wPx * 0.04),
+        -Math.round(hPx * 0.06),
+      );
+    }
+    if (mode === 'u-court-t') {
+      return buildPolygonUnitGeometryFromNormPoints(
+        [
+          { x: 0, y: 0 },
+          { x: 0.28, y: 0 },
+          { x: 0.28, y: 0.50 },
+          { x: 0.72, y: 0.50 },
+          { x: 0.72, y: 0 },
+          { x: 1, y: 0 },
+          { x: 1, y: 1 },
+          { x: 0, y: 1 },
+        ],
+        wPx,
+        hPx,
+        cellPx,
+        merge,
+        0,
+        Math.round(hPx * 0.18),
+      );
+    }
+    // u-court-b
+    return buildPolygonUnitGeometryFromNormPoints(
+      [
+        { x: 0, y: 0 },
+        { x: 1, y: 0 },
+        { x: 1, y: 1 },
+        { x: 0.72, y: 1 },
+        { x: 0.72, y: 0.50 },
+        { x: 0.28, y: 0.50 },
+        { x: 0.28, y: 1 },
+        { x: 0, y: 1 },
+      ],
+      wPx,
+      hPx,
+      cellPx,
+      merge,
+      0,
+      -Math.round(hPx * 0.18),
+    );
+  }
+
   if (mode === 'ring-curve' || mode === 'trapezoid-ring') {
     const it = tile ?? { x: 0, y: 0, w: Math.max(1, Math.round(wPx / Math.max(1, cellPx))), h: Math.max(1, Math.round(hPx / Math.max(1, cellPx))) };
     const isSiblingMerged = Boolean(sTop || sRight || sBottom || sLeft);
-    const sector = mode === 'ring-curve' && !isSiblingMerged && allItems ? computeCircleRingUnitSector(it, allItems) : null;
-
-    if (sector) {
-      const rad = (sector.exactAngleDeg * Math.PI) / 180;
-      const ux = Math.cos(rad);
-      const uy = Math.sin(rad);
-      const vx = -Math.sin(rad);
-      const vy = Math.cos(rad);
-      const rxInSector = sector.rxOut;
-      const ryInSector = sector.ryOut;
-      const rxOutSector = sector.rxOut + sector.radialDepth;
-      const ryOutSector = sector.ryOut + sector.radialDepth;
-      const N = 24;
-
-      const worldRelToNorm = (rx: number, ry: number) => {
-        const u = rx * ux + ry * uy;
-        const v = rx * vx + ry * vy;
-        const xNorm = Math.max(0, Math.min(1, 0.5 + ((u - sector.midU) * cellPx) / Math.max(1, wPx)));
-        const yNorm = Math.max(0, Math.min(1, 0.5 + ((v - sector.midV) * cellPx) / Math.max(1, hPx)));
-        return { x: xNorm, y: yNorm };
-      };
-
-      const outerCurvePts: Array<{ x: number; y: number }> = [];
-      for (let k = 0; k <= N; k++) {
-        const th = sector.thetaStartOut + (k / N) * (sector.thetaEndOut - sector.thetaStartOut);
-        outerCurvePts.push(worldRelToNorm(rxOutSector * Math.cos(th), ryOutSector * Math.sin(th)));
-      }
-      const innerCurvePts: Array<{ x: number; y: number }> = [];
-      for (let k = N; k >= 0; k--) {
-        const th = sector.thetaStart + (k / N) * (sector.thetaEnd - sector.thetaStart);
-        innerCurvePts.push(worldRelToNorm(rxInSector * Math.cos(th), ryInSector * Math.sin(th)));
-      }
-
-      const normPts = [...outerCurvePts, ...innerCurvePts];
-      const polyPath = (pts: Array<{ x: number; y: number }>) =>
-        pts
-          .map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${(p.x * wPx).toFixed(1)} ${(p.y * hPx).toFixed(1)}`)
-          .join(' ');
-
-      const startWall = [innerCurvePts[innerCurvePts.length - 1], outerCurvePts[0]];
-      const endWall = [outerCurvePts[outerCurvePts.length - 1], innerCurvePts[0]];
-      const rimParts = [polyPath(outerCurvePts), polyPath(startWall)];
-      const lipRightParts = [polyPath(endWall)];
-      const lipBottomParts = [polyPath(innerCurvePts)];
-
-      const midR = 0.5 * (rxInSector + rxOutSector);
-      const midRY = 0.5 * (ryInSector + ryOutSector);
-      const labelRelX = midR * Math.cos(sector.thetaMid);
-      const labelRelY = midRY * Math.sin(sector.thetaMid);
-      const labelU = labelRelX * ux + labelRelY * uy;
-      const labelV = labelRelX * vx + labelRelY * vy;
-      const labelOffsetXPx = Math.round((labelU - sector.midU) * cellPx * 10) / 10;
-      const labelOffsetYPx = Math.round((labelV - sector.midV) * cellPx * 10) / 10;
-
-      const clipPath = `polygon(${normPts.map((p) => `${(p.x * 100).toFixed(2)}% ${(p.y * 100).toFixed(2)}%`).join(', ')})`;
-      const fillPoints = normPts.map((p) => `${(p.x * wPx).toFixed(1)},${(p.y * hPx).toFixed(1)}`).join(' ');
-
-      return {
-        clipPath,
-        fillPoints,
-        rimPath: rimParts.join(' '),
-        lipRightPath: lipRightParts.join(' '),
-        lipBottomPath: lipBottomParts.join(' '),
-        facingEdge: sector.facingEdge,
-        labelOffsetXPx,
-        labelOffsetYPx,
-      };
-    }
-
     const angleDeg = (it as { angle?: number }).angle ?? 0;
     const match = allItems ? findNearestCircleCorridorForUnit(it, allItems) : null;
 
@@ -1249,9 +1452,6 @@ export function getTrapezoidUnitGeometry(
     const cy = match && match.isNear ? match.cy : it.y + it.h + Math.max(3, it.w * 0.75);
     const rxOut = match && match.isNear ? match.rxOut : Math.max(4, it.w * 0.85);
     const ryOut = match && match.isNear ? match.ryOut : rxOut;
-    const rxIn = match && match.isNear ? match.rxIn : Math.max(2, rxOut - 1.65);
-    const ryIn = match && match.isNear ? match.ryIn : Math.max(2, ryOut - 1.65);
-    const insideHole = match && match.isNear ? match.insideHole : false;
 
     const rad = (angleDeg * Math.PI) / 180;
     const cosA = Math.cos(rad);
@@ -1276,8 +1476,8 @@ export function getTrapezoidUnitGeometry(
 
     const taper = mode === 'trapezoid-ring' ? 0.18 : 0;
     const N = 18;
-    const targetRx = insideHole ? rxIn : rxOut;
-    const targetRy = insideHole ? ryIn : ryOut;
+    const targetRx = rxOut;
+    const targetRy = ryOut;
     const effWCells = cellPx > 0 ? wPx / cellPx : it.w;
     const effHCells = cellPx > 0 ? hPx / cellPx : it.h;
 
@@ -1321,10 +1521,7 @@ export function getTrapezoidUnitGeometry(
       return Math.max(0, Math.min(1, (arcH(sVal) - baseH) / spanCells));
     };
 
-    const indentAt = (t: number): number => {
-      const a = computeArchNorm(t);
-      return (insideHole ? 1 - a : a) * maxDepthFrac;
-    };
+    const indentAt = (t: number): number => computeArchNorm(t) * maxDepthFrac;
 
     const normPts: Array<{ x: number; y: number }> = [];
     const rimParts: string[] = [];
@@ -1834,7 +2031,6 @@ export function nextLandmarkVariant(
 
 function isCircleTile(
   it: { kind: TileKind | string; label?: string | null; x?: number; y?: number; w?: number; h?: number },
-  allItems?: ReadonlyArray<{ kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number }>,
   isMergedUnit?: boolean,
 ): boolean {
   if (it.kind !== 'unit' && it.kind !== 'corridor') {
@@ -1842,81 +2038,9 @@ function isCircleTile(
   }
   if (it.kind === 'unit') {
     if (isMergedUnit) return false;
-    if (it.label === 'unit:circle') return true;
-    if (it.label?.startsWith('unit:')) return false;
-    if (
-      allItems &&
-      typeof it.x === 'number' &&
-      typeof it.y === 'number' &&
-      typeof it.w === 'number' &&
-      typeof it.h === 'number'
-    ) {
-      return parseUnitShapeMode(it as any, allItems, isMergedUnit) === 'circle';
-    }
+    return parseUnitShapeMode(it, isMergedUnit) === 'circle';
   }
   return false;
-}
-
-/**
- * Returns true when `inner` sits strictly inside the hollow center hole of a circular ring walkway `outer`
- * (`w >= 4, h >= 4` and not forced to `straight`). Matches server `saveFloorPlan` overlap validation.
- */
-function isInsideCircleCorridorHole(
-  outer: { kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number },
-  inner: { kind?: TileKind | string; x: number; y: number; w: number; h: number },
-): boolean {
-  if (outer.kind !== 'corridor') return false;
-  if (outer.label === 'walkway:straight') return false;
-  if (outer.w < 4 || outer.h < 4) return false;
-  if (
-    inner.x < outer.x + 1 ||
-    inner.x + inner.w > outer.x + outer.w - 1 ||
-    inner.y < outer.y + 1 ||
-    inner.y + inner.h > outer.y + outer.h - 1
-  ) {
-    return false;
-  }
-  if (inner.kind === 'unit') {
-    const rcx = outer.x + outer.w * 0.5;
-    const rcy = outer.y + outer.h * 0.5;
-    const rxOut = Math.max(2, outer.w * 0.5);
-    const ryOut = Math.max(2, outer.h * 0.5);
-    const icx = inner.x + inner.w * 0.5;
-    const icy = inner.y + inner.h * 0.5;
-    const normCenter = Math.hypot((icx - rcx) / rxOut, (icy - rcy) / ryOut);
-    if (normCenter > 0.42) return false;
-  }
-  return true;
-}
-
-/**
- * Returns true when a non-corridor tile `other` overlaps the rectangular bounding box of a circular ring walkway `ring`
- * only in the empty outer corner/shoulder region outside the inscribed circular/elliptical walkway lane, or is a unit
- * tile visually auto-snapped to the outer rim (`rxOut`).
- */
-function isOutsideCircleCorridorOuter(
-  a: { kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
-  b: { kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
-): boolean {
-  const check = (
-    ring: { kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
-    other: { kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
-  ): boolean => {
-    if (!isCircleRingCorridor(ring) || other.kind === 'corridor') return false;
-    if (isInsideCircleCorridorHole(ring, other)) return false;
-    const rcx = ring.x + ring.w * 0.5;
-    const rcy = ring.y + ring.h * 0.5;
-    const rxOut = Math.max(2, ring.w * 0.5);
-    const ryOut = Math.max(2, ring.h * 0.5);
-    const ocx = other.x + other.w * 0.5;
-    const ocy = other.y + other.h * 0.5;
-    const centerNorm = Math.hypot((ocx - rcx) / rxOut, (ocy - rcy) / ryOut);
-    if (centerNorm < (other.kind === 'unit' ? 0.40 : 0.92)) return false;
-    const closestPt = getClosestPointOnTileToPoint(other, rcx, rcy);
-    const closestNorm = Math.hypot((closestPt.x - rcx) / rxOut, (closestPt.y - rcy) / ryOut);
-    return closestNorm >= (other.angle || other.kind === 'unit' ? 0.18 : 0.82);
-  };
-  return check(a, b) || check(b, a);
 }
 
 export const SHOP_CATEGORIES = [
@@ -2081,103 +2205,153 @@ export function isTransitLandmark(kind: TileKind | string): boolean {
 }
 
 function isAtriumTransitOverlap(
-  a: { kind: TileKind | string },
-  b: { kind: TileKind | string },
+  a: { kind: TileKind | string; x: number; y: number; w: number; h: number },
+  b: { kind: TileKind | string; x: number; y: number; w: number; h: number },
 ): boolean {
-  return (
-    (a.kind === 'atrium' && isTransitLandmark(b.kind)) ||
-    (b.kind === 'atrium' && isTransitLandmark(a.kind))
-  );
-}
-
-function isOutsidePolygonAtrium(
-  a: { kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
-  b: { kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
-): boolean {
-  const check = (
-    atr: { kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
-    other: { kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
-  ): boolean => {
-    if (atr.kind !== 'atrium' || !other.angle) return false;
-    const polyFaces = getPolygonAtriumWorldFaces(atr);
-    if (!polyFaces) return false;
-    const f = getLocalTileFrame(other);
-    const corners = getTileWorldCorners(other, f);
-    for (const face of polyFaces) {
-      let minProj = Infinity;
-      for (const c of corners) {
-        const p = (c.x - face.x0) * face.nx + (c.y - face.y0) * face.ny;
-        if (p < minProj) minProj = p;
-      }
-      const centerDist = (other.x + other.w * 0.5 - face.x0) * face.nx + (other.y + other.h * 0.5 - face.y0) * face.ny;
-      const alignedDiagonal =
-        Boolean(other.angle) &&
-        centerDist >= 0.15 &&
-        (Math.abs(f.ux * face.nx + f.uy * face.ny) <= 0.26 ||
-          Math.abs(f.vx * face.nx + f.vy * face.ny) <= 0.26);
-      const tol = alignedDiagonal ? 0.72 : EDGE_EPS;
-      if (minProj >= -tol) return true;
-    }
-    return false;
-  };
-  return check(a, b) || check(b, a);
+  if (a.kind === 'atrium' && isTransitLandmark(b.kind)) {
+    return b.x >= a.x && b.y >= a.y && b.x + b.w <= a.x + a.w && b.y + b.h <= a.y + a.h;
+  }
+  if (b.kind === 'atrium' && isTransitLandmark(a.kind)) {
+    return a.x >= b.x && a.y >= b.y && a.x + a.w <= b.x + b.w && a.y + a.h <= b.y + b.h;
+  }
+  return false;
 }
 
 function getCustomUnitPolygonVerticesAndAxes(
   t: { kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
   f: { ux: number; uy: number; vx: number; vy: number },
 ): { corners: Array<{ x: number; y: number }>; extraAxes: Array<{ x: number; y: number }> } | null {
-  if (t.kind !== 'unit') return null;
-  const mode = parseUnitShapeMode(t);
-  if (!mode || mode === 'rect' || mode === 'ring-curve' || mode === 'trapezoid-ring' || mode === 'circle') {
-    return null;
-  }
   let uv: Array<[number, number]> | null = null;
-  switch (mode) {
-    case 'slope-b-l':
-      uv = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.22]];
-      break;
-    case 'slope-b-r':
-      uv = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.22], [-0.5, 0.5]];
-      break;
-    case 'slope-t-l':
-      uv = [[-0.5, -0.22], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]];
-      break;
-    case 'slope-t-r':
-      uv = [[-0.5, -0.5], [0.5, -0.22], [0.5, 0.5], [-0.5, 0.5]];
-      break;
-    case 'chamfer-tr':
-    case 'curve-tr':
-    case 'notch-tr':
-      uv = [[-0.5, -0.5], [0.18, -0.5], [0.5, -0.18], [0.5, 0.5], [-0.5, 0.5]];
-      break;
-    case 'chamfer-tl':
-    case 'curve-tl':
-    case 'notch-tl':
-      uv = [[-0.18, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5], [-0.5, -0.18]];
-      break;
-    case 'chamfer-br':
-    case 'curve-br':
-    case 'notch-br':
-      uv = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.18], [0.18, 0.5], [-0.5, 0.5]];
-      break;
-    case 'chamfer-bl':
-    case 'curve-bl':
-    case 'notch-bl':
-      uv = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.18, 0.5], [-0.5, 0.18]];
-      break;
-    case 'trapezoid':
-      uv = [[-0.36, -0.5], [0.36, -0.5], [0.5, 0.5], [-0.5, 0.5]];
-      break;
-    case 'trapezoid-l':
-      uv = [[-0.28, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]];
-      break;
-    case 'trapezoid-r':
-      uv = [[-0.5, -0.5], [0.28, -0.5], [0.5, 0.5], [-0.5, 0.5]];
-      break;
-    default:
+
+  if (t.kind !== 'unit' && t.kind !== 'corridor') {
+    const meta = parseLandmarkMeta(t.kind, t.label);
+    if (meta.polygonFaces && meta.polygonFaces >= 6) {
+      const faces = meta.polygonFaces;
+      const cosStep = Math.cos(Math.PI / faces);
+      uv = [];
+      for (let i = 0; i < faces; i++) {
+        const theta = -Math.PI / 2 + ((i + 0.5) * 2 * Math.PI) / faces;
+        const u = 0.5 * Math.max(-1, Math.min(1, Math.cos(theta) / cosStep));
+        const v = 0.5 * Math.max(-1, Math.min(1, Math.sin(theta) / cosStep));
+        uv.push([u, v]);
+      }
+    } else if (meta.isCircle) {
+      const K = 24;
+      uv = [];
+      for (let i = 0; i < K; i++) {
+        const theta = (i * 2 * Math.PI) / K;
+        uv.push([0.5 * Math.cos(theta), 0.5 * Math.sin(theta)]);
+      }
+    }
+  } else if (t.kind === 'unit') {
+    const mode = parseUnitShapeMode(t);
+    if (!mode || mode === 'rect') {
       return null;
+    }
+    switch (mode) {
+      case 'circle': {
+        const K = 24;
+        uv = [];
+        for (let i = 0; i < K; i++) {
+          const theta = (i * 2 * Math.PI) / K;
+          uv.push([0.5 * Math.cos(theta), 0.5 * Math.sin(theta)]);
+        }
+        break;
+      }
+      case 'ring-curve':
+        uv = [[-0.5, -0.32], [0, -0.5], [0.5, -0.32], [0.32, 0.5], [-0.32, 0.5]];
+        break;
+      case 'trapezoid-ring':
+        uv = [[-0.5, -0.5], [0.5, -0.5], [0.32, 0.5], [-0.32, 0.5]];
+        break;
+      case 'slope-b-l':
+        uv = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.16]];
+        break;
+      case 'slope-b-r':
+        uv = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.16], [-0.5, 0.5]];
+        break;
+      case 'slope-t-l':
+        uv = [[-0.5, -0.16], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]];
+        break;
+      case 'slope-t-r':
+        uv = [[-0.5, -0.5], [0.5, -0.16], [0.5, 0.5], [-0.5, 0.5]];
+        break;
+      case 'chamfer-tr':
+      case 'curve-tr':
+      case 'notch-tr':
+      case 'step-tr':
+        uv = [[-0.5, -0.5], [0.06, -0.5], [0.5, -0.06], [0.5, 0.5], [-0.5, 0.5]];
+        break;
+      case 'chamfer-tl':
+      case 'curve-tl':
+      case 'notch-tl':
+      case 'step-tl':
+        uv = [[-0.06, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5], [-0.5, -0.06]];
+        break;
+      case 'chamfer-br':
+      case 'curve-br':
+      case 'notch-br':
+      case 'step-br':
+        uv = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.06], [0.06, 0.5], [-0.5, 0.5]];
+        break;
+      case 'chamfer-bl':
+      case 'curve-bl':
+      case 'notch-bl':
+      case 'step-bl':
+        uv = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.06, 0.5], [-0.5, 0.06]];
+        break;
+      case 'crescent-l':
+        uv = [[-0.18, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.18, 0.5]];
+        break;
+      case 'crescent-r':
+        uv = [[-0.5, -0.5], [0.18, -0.5], [0.18, 0.5], [-0.5, 0.5]];
+        break;
+      case 'crescent-t':
+      case 'step-t-mid':
+      case 'u-court-t':
+        uv = [[-0.5, -0.18], [0.5, -0.18], [0.5, 0.5], [-0.5, 0.5]];
+        break;
+      case 'crescent-b':
+      case 'step-b-mid':
+      case 'u-court-b':
+        uv = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.18], [-0.5, 0.18]];
+        break;
+      case 'pie-wedge':
+        uv = [[-0.5, -0.5], [0.5, -0.5], [0.14, 0.5], [-0.14, 0.5]];
+        break;
+      case 'wedge-tl':
+        uv = [[-0.5, -0.5], [0.5, -0.5], [0.5, -0.32], [-0.32, 0.5], [-0.5, 0.5]];
+        break;
+      case 'wedge-tr':
+        uv = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [0.32, 0.5], [-0.5, -0.32]];
+        break;
+      case 'wedge-bl':
+        uv = [[-0.5, -0.5], [-0.32, -0.5], [0.5, 0.32], [0.5, 0.5], [-0.5, 0.5]];
+        break;
+      case 'wedge-br':
+        uv = [[0.32, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5], [-0.5, 0.32]];
+        break;
+      case 'wing-bend-l':
+        uv = [[-0.22, -0.5], [0.5, -0.5], [0.5, 0.04], [-0.12, 0.5], [-0.5, 0.5], [-0.5, -0.14]];
+        break;
+      case 'wing-bend-r':
+        uv = [[-0.5, -0.5], [0.22, -0.5], [0.5, -0.14], [0.5, 0.5], [0.12, 0.5], [-0.5, 0.04]];
+        break;
+      case 'trapezoid':
+        uv = [[-0.36, -0.5], [0.36, -0.5], [0.5, 0.5], [-0.5, 0.5]];
+        break;
+      case 'trapezoid-l':
+        uv = [[-0.28, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]];
+        break;
+      case 'trapezoid-r':
+        uv = [[-0.5, -0.5], [0.28, -0.5], [0.5, 0.5], [-0.5, 0.5]];
+        break;
+      default:
+        return null;
+    }
   }
+
+  if (!uv) return null;
   const cx = t.x + t.w * 0.5;
   const cy = t.y + t.h * 0.5;
   const corners = uv.map(([u, v]) => ({
@@ -2239,24 +2413,13 @@ function areRotatedRectsSeparated(
 ): boolean {
   const angleA = a.angle ?? 0;
   const angleB = b.angle ?? 0;
-  const isRingCurvePair =
-    a.kind === 'unit' &&
-    b.kind === 'unit' &&
-    (isRingCurveUnitLabel(a.label) ||
-      isRingCurveUnitLabel(b.label) ||
-      a.label === 'unit:trapezoid-ring' ||
-      b.label === 'unit:trapezoid-ring');
   const fa = getLocalTileFrame(a);
   const fb = getLocalTileFrame(b);
   const polyA = getCustomUnitPolygonVerticesAndAxes(a, fa);
   const polyB = getCustomUnitPolygonVerticesAndAxes(b, fb);
-  if (angleA === 0 && angleB === 0 && !isRingCurvePair && !polyA && !polyB) return false;
-  if (
-    (a.kind === 'corridor' && parseCorridorShapeMode(a.label) === 'circle') ||
-    (b.kind === 'corridor' && parseCorridorShapeMode(b.label) === 'circle')
-  ) {
-    return false;
-  }
+  if (angleA === 0 && angleB === 0 && !polyA && !polyB) return false;
+  if (!polyA && !polyB && rectsOverlap(a, b)) return false;
+
   const cornersA = polyA ? polyA.corners : getTileWorldCorners(a, fa);
   const cornersB = polyB ? polyB.corners : getTileWorldCorners(b, fb);
   const axes = [
@@ -2267,25 +2430,7 @@ function areRotatedRectsSeparated(
     ...(polyA ? polyA.extraAxes : []),
     ...(polyB ? polyB.extraAxes : []),
   ];
-  const centerDist = Math.hypot(
-    a.x + a.w * 0.5 - (b.x + b.w * 0.5),
-    a.y + a.h * 0.5 - (b.y + b.h * 0.5),
-  );
-  const minSpan = Math.min(a.w, a.h, b.w, b.h);
-  const isShapedUnitCorridorPair =
-    (Boolean(polyA) && b.kind === 'corridor' && angleB !== 0) ||
-    (Boolean(polyB) && a.kind === 'corridor' && angleA !== 0);
-  const angDiff90 = Math.abs((((angleA - angleB) % 90) + 90) % 90);
-  const isAlignedRotatedPair =
-    angleA !== 0 &&
-    angleB !== 0 &&
-    (angDiff90 <= 15 || angDiff90 >= 75) &&
-    centerDist >= Math.max(1.2, minSpan * 0.72);
-  const sepTol = isShapedUnitCorridorPair
-    ? 0.95
-    : isRingCurvePair && centerDist >= Math.max(1.2, minSpan * 0.62)
-      ? 1.65
-      : 0.12;
+  const eps = 1e-4;
   for (const ax of axes) {
     let minA = Infinity;
     let maxA = -Infinity;
@@ -2301,25 +2446,14 @@ function areRotatedRectsSeparated(
       if (p < minB) minB = p;
       if (p > maxB) maxB = p;
     }
-    const effTol = isAlignedRotatedPair
-      ? Math.max(sepTol, Math.min(0.76, 0.54 * (Math.abs(ax.x) + Math.abs(ax.y))))
-      : sepTol;
-    if (maxA <= minB + effTol || maxB <= minA + effTol) return true;
+    if (maxA <= minB + eps || maxB <= minA + eps) return true;
   }
   return false;
 }
 
 export function tilesConflict(a: MapItem, b: MapItem): boolean {
-  return (
-    rotatedWorldBoundsOverlap(a, b) &&
-    !(a.kind === 'corridor' && b.kind === 'corridor') &&
-    !isInsideCircleCorridorHole(a, b) &&
-    !isInsideCircleCorridorHole(b, a) &&
-    !isOutsideCircleCorridorOuter(a, b) &&
-    !isAtriumTransitOverlap(a, b) &&
-    !isOutsidePolygonAtrium(a, b) &&
-    !areRotatedRectsSeparated(a, b)
-  );
+  if (isAtriumTransitOverlap(a, b)) return false;
+  return rotatedWorldBoundsOverlap(a, b) && !areRotatedRectsSeparated(a, b);
 }
 
 /**
@@ -2367,29 +2501,65 @@ export function hasAnyOverlap(items: MapItem[]): boolean {
   return false;
 }
 
-/** First free spot (scanning left→right, top→bottom) where a w×h tile fits. */
+export interface ViewportGridBounds {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+}
+
+/**
+ * First free spot (scanning left→right, top→bottom) where a w×h tile fits.
+ * When `viewportBounds` is provided, prioritizes placing inside the user's currently visible
+ * horizontal & vertical viewport before falling back to the wider grid.
+ */
 export function findFreeSpot(
   items: MapItem[],
   w: number,
   h: number,
   columns: number,
   minStartX = 0,
+  viewportBounds?: ViewportGridBounds,
 ): { x: number; y: number } {
   const width = Math.min(w, columns);
   const startX = Math.max(0, Math.min(minStartX, columns - width));
+  const isSpotFree = (x: number, y: number): boolean => {
+    const candidate: MapItem = {
+      key: '__spot__',
+      kind: 'unit',
+      unitId: '__spot__',
+      label: null,
+      x,
+      y,
+      w: width,
+      h,
+    };
+    return !items.some((it) => tilesConflict(candidate, it));
+  };
+
+  if (viewportBounds) {
+    const vMinX = Math.max(startX, Math.min(viewportBounds.minX, columns - width));
+    const vMaxX = Math.max(vMinX + width, Math.min(viewportBounds.maxX, columns));
+    const vMinY = Math.max(0, viewportBounds.minY);
+    const vMaxY = Math.max(vMinY + h, viewportBounds.maxY);
+
+    // 1. Prioritize placing directly inside the currently visible screen area
+    for (let y = vMinY; y + h <= vMaxY; y++) {
+      for (let x = vMinX; x + width <= vMaxX; x++) {
+        if (isSpotFree(x, y)) return { x, y };
+      }
+    }
+    // 2. Keep within the currently visible horizontal columns (no horizontal scrolling needed)
+    for (let y = vMinY; y < 5000; y++) {
+      for (let x = vMinX; x + width <= vMaxX; x++) {
+        if (isSpotFree(x, y)) return { x, y };
+      }
+    }
+  }
+
   for (let y = 0; y < 5000; y++) {
     for (let x = startX; x + width <= columns; x++) {
-      const candidate: MapItem = {
-        key: '__spot__',
-        kind: 'unit',
-        unitId: '__spot__',
-        label: null,
-        x,
-        y,
-        w: width,
-        h,
-      };
-      if (!items.some((it) => tilesConflict(candidate, it))) return { x, y };
+      if (isSpotFree(x, y)) return { x, y };
     }
   }
   return { x: startX, y: 0 };
@@ -2504,27 +2674,6 @@ export function addConnectedUnitWing(items: MapItem[], anchorKey: string, column
     }
   }
 
-  // If the anchor is inside a Walkway Circle Ring and the inner hole is full, carve an L-wing inside its footprint
-  const enclosingRing = normalizedItems.find((c) => isInsideCircleCorridorHole(c, anchor));
-  if (enclosingRing && anchor.w >= 3 && anchor.h >= 2) {
-    const splitW = Math.max(1, Math.floor(anchor.w * 0.4));
-    const mainW = anchor.w - splitW;
-    const subH = Math.max(1, anchor.h - 1);
-    return [
-      ...normalizedItems.map((i) => (i.key === anchor.key ? { ...i, w: mainW } : i)),
-      {
-        key: nextKey,
-        kind: 'unit',
-        unitId: anchor.unitId,
-        label: null,
-        x: anchor.x + mainW,
-        y: anchor.y,
-        w: splitW,
-        h: subH,
-      },
-    ];
-  }
-
   // Otherwise, attach the wing directly to the bottom border of `anchor` and push any obstructing tiles below it down
   const w = Math.min(wingW, columns);
   const h = wingH;
@@ -2561,8 +2710,8 @@ function resolveOverlapsWithLockedItems(
   return new Map(placed.map((p) => [p.key, p]));
 }
 
-const MAGNET_SNAP_GAP = 3;
-const LINE_ALIGN_TOL = 2;
+const MAGNET_SNAP_GAP = 1;
+const LINE_ALIGN_TOL = 1;
 
 function alignCoordToLines(val: number, targets: ReadonlyArray<number>, minVal: number, maxVal: number, tol = LINE_ALIGN_TOL): number {
   let best = val;
@@ -2620,7 +2769,8 @@ function computeFullBorderAlignedPositions(
  * - Fills exact gaps between two facing neighbors (`leftSib`..`rightSib` or `topSib`..`bottomSib`).
  * - Equalizes perpendicular depth when `moved` and `sib` are the same kind and close in size.
  */
-let activeSnapAutoResize = true;
+let activeSnapAutoResize = false;
+let activeAutoShape = true;
 
 function getMatchedNeighborDimensions(
   moved: MapItem,
@@ -2806,7 +2956,6 @@ function findPolygonAtriumMagneticCandidate(
   others: ReadonlyArray<MapItem>,
   columns: number,
 ): { x: number; y: number; w: number; h: number; angle: number | undefined; label?: string | null; hasLabel?: boolean; dist: number } | null {
-  if (moved.kind === 'corridor' && isInsideCircleCorridorHole(moved, atr)) return null;
   const polyFaces = getPolygonAtriumWorldFaces(atr);
   if (!polyFaces || polyFaces.length === 0) return null;
 
@@ -2828,7 +2977,6 @@ function findPolygonAtriumMagneticCandidate(
   const overlapsAttached = others.some(
     (o) =>
       o.kind !== 'atrium' &&
-      !isInsideCircleCorridorHole(o, atr) &&
       rectsOverlap(moved, o) &&
       matchSinglePolygonAtriumFaceForItem(o, atr) !== null,
   );
@@ -2843,7 +2991,7 @@ function findPolygonAtriumMagneticCandidate(
 
   const occupiedFaces = new Set<number>();
   for (const o of others) {
-    if (o.kind === 'atrium' || o.kind === 'marker' || isInsideCircleCorridorHole(o, atr)) continue;
+    if (o.kind === 'atrium' || o.kind === 'marker') continue;
     const m = matchSinglePolygonAtriumFaceForItem(o, atr);
     if (m) occupiedFaces.add(m.faceIndex);
   }
@@ -2865,7 +3013,7 @@ function findPolygonAtriumMagneticCandidate(
   const resetUnitShapeToRect =
     moved.kind === 'unit' &&
     !isTrap &&
-    Boolean(moved.label && moved.label !== 'unit:rect' && moved.label !== 'unit:circle');
+    isAutoAtriumSideCurveLabel(moved.label);
   const nextUnitLabel = resetUnitShapeToRect ? 'unit:rect' : moved.label;
   const isLongCorridor = moved.kind === 'corridor' && Math.max(w, h) >= atr.w;
 
@@ -2880,7 +3028,7 @@ function findPolygonAtriumMagneticCandidate(
         const touchEdge: 'top' | 'bottom' = bestFace.ny < 0 ? 'bottom' : 'top';
         const taperFrac = getEdgeTaperFraction({ ...moved, label: nextUnitLabel }, touchEdge);
         const candW =
-          !isLongCorridor && bestFace.len >= 1.5
+          activeSnapAutoResize && !isLongCorridor && bestFace.len >= 1.5
             ? Math.max(2, Math.min(columns, Math.round(bestFace.len / taperFrac)))
             : w;
         const candH = h;
@@ -2920,7 +3068,10 @@ function findPolygonAtriumMagneticCandidate(
         continue;
       } else {
         const candW = w;
-        const candH = !isLongCorridor && bestFace.len >= 1.5 ? Math.max(2, Math.round(bestFace.len)) : h;
+        const candH =
+          activeSnapAutoResize && !isLongCorridor && bestFace.len >= 1.5
+            ? Math.max(2, Math.round(bestFace.len))
+            : h;
         const cx = bestFace.nx < 0 ? atr.x - candW : atr.x + atr.w;
         if (cx >= 0 && cx + candW <= columns) {
           const idealCy = Math.max(0, Math.round(fmy - candH / 2));
@@ -3080,37 +3231,6 @@ function findCircleCorridorMagneticCandidate(
     return null;
   }
 
-  // Center hole snap: if dragged inside a Circle Ring corridor's hollow center, auto-center and switch to 'unit:circle'
-  if (moved.kind === 'unit' && ring.kind === 'corridor' && (normCenterDist < 0.66 || isInsideCircleCorridorHole(ring, moved))) {
-    const maxHoleSide = Math.max(2, Math.floor(Math.min(ring.w, ring.h) * 0.5));
-    const side = !activeSnapAutoResize || isMultiBlockUnit ? w : Math.max(2, Math.min(maxHoleSide, Math.max(w, h)));
-    const holeW = Math.min(columns, side);
-    const holeH = !activeSnapAutoResize || isMultiBlockUnit ? h : side;
-    const cx = Math.max(0, Math.min(columns - holeW, Math.round(rcx - holeW * 0.5)));
-    const cy = Math.max(0, Math.round(rcy - holeH * 0.5));
-    const holeCand: MapItem = {
-      ...moved,
-      x: cx,
-      y: cy,
-      w: holeW,
-      h: holeH,
-      angle: undefined,
-      label: 'unit:circle',
-    };
-    if (isInsideCircleCorridorHole(ring, holeCand) && !others.some((o) => tilesConflict(holeCand, o))) {
-      return {
-        x: cx,
-        y: cy,
-        w: holeW,
-        h: holeH,
-        angle: undefined,
-        label: 'unit:circle',
-        dist: Math.hypot(cx + holeW * 0.5 - mcx, cy + holeH * 0.5 - mcy),
-      };
-    }
-    return null;
-  }
-
   if (Math.hypot(vx, vy) < 0.25) return null;
 
   const closestPt = getClosestPointOnTileToPoint(moved, rcx, rcy);
@@ -3118,6 +3238,95 @@ function findCircleCorridorMagneticCandidate(
   const avgR = (rxOut + ryOut) * 0.5;
   const radialGap = (normClosest - 1) * avgR;
   if (radialGap > 5.5) return null;
+
+  // Upright units (not explicitly set to fan-sector ring-curve / trapezoid-ring) keep straight outer walls (0°)
+  // and hug the Circle Atrium perimeter using Side-Curve (crescent-* / notch-*) when Auto-Shape is ON.
+  if (moved.kind === 'unit' && !isRingCurveUnitLabel(moved.label) && moved.label !== 'unit:trapezoid-ring') {
+    const conflictsWithRing = tilesConflict(moved, ring);
+    if (!conflictsWithRing && radialGap > 0.85) {
+      return null;
+    }
+    const rawThetaUpright = Math.atan2(vy / ryOut, vx / rxOut);
+    const rimX = rcx + rxOut * Math.cos(rawThetaUpright);
+    const rimY = rcy + ryOut * Math.sin(rawThetaUpright);
+    const shiftX = conflictsWithRing ? rimX - closestPt.x : 0;
+    const shiftY = conflictsWithRing ? rimY - closestPt.y : 0;
+    const baseX = Math.max(0, Math.min(columns - w, Math.round(moved.x + shiftX)));
+    const baseY = Math.max(0, Math.round(moved.y + shiftY));
+
+    let bestUpright: { x: number; y: number; label: string | null; dist: number; score: number } | null = null;
+    const searchRange = conflictsWithRing ? 3 : 1;
+    for (let dy = -searchRange; dy <= searchRange; dy++) {
+      for (let dx = -searchRange; dx <= searchRange; dx++) {
+        const cx = baseX + dx;
+        const cy = baseY + dy;
+        if (cx < 0 || cy < 0 || cx + w > columns) continue;
+        const testRect = { ...moved, x: cx, y: cy, w, h, angle: undefined };
+        const cp = getClosestPointOnTileToPoint(testRect, rcx, rcy);
+        const normCp = Math.hypot((cp.x - rcx) / rxOut, (cp.y - rcy) / ryOut);
+        if (normCp > 1.22) continue;
+
+        let nextLabel: string | null = moved.label ?? null;
+        if (!activeAutoShape) {
+          nextLabel = moved.label || 'unit:rect';
+        } else if (!moved.label || moved.label === 'unit:rect' || isAutoAtriumSideCurveLabel(moved.label)) {
+          const mode = resolveAtriumFacingSideCurveMode(testRect, {
+            ring,
+            cx: rcx,
+            cy: rcy,
+            rxOut,
+            ryOut,
+          });
+          nextLabel = `unit:${mode}:auto`;
+        }
+        const cand: MapItem = {
+          ...testRect,
+          label: nextLabel,
+        };
+        if (tilesConflict(cand, ring) || others.some((o) => tilesConflict(cand, o))) continue;
+
+        const moveDist = Math.hypot(cx - moved.x, cy - moved.y);
+        const rimErr = Math.max(0, normCp - 1.0) * avgR;
+        const alignsNeighbor = others.some(
+          (o) =>
+            o.kind === 'unit' &&
+            !o.angle &&
+            ((Math.abs(o.x - cx) === 0 && (o.y + o.h === cy || cy + h === o.y)) ||
+              (Math.abs(o.y - cy) === 0 && (o.x + o.w === cx || cx + w === o.x))),
+        );
+        const score = rimErr * 2.4 + moveDist * 0.65 - (alignsNeighbor ? 1.2 : 0);
+        if (!bestUpright || score < bestUpright.score) {
+          bestUpright = {
+            x: cx,
+            y: cy,
+            label: nextLabel,
+            dist: moveDist,
+            score,
+          };
+        }
+      }
+    }
+
+    if (!bestUpright) return null;
+    if (
+      !conflictsWithRing &&
+      bestUpright.x === moved.x &&
+      bestUpright.y === moved.y &&
+      bestUpright.label === moved.label &&
+      !moved.angle
+    ) {
+      return null;
+    }
+    return {
+      x: bestUpright.x,
+      y: bestUpright.y,
+      w,
+      h,
+      angle: undefined,
+      label: bestUpright.label,
+      dist: bestUpright.dist,
+    };
+  }
 
   const rawTheta = Math.atan2(vy / ryOut, vx / rxOut);
   const parSpan = Math.max(w, h);
@@ -3140,7 +3349,7 @@ function findCircleCorridorMagneticCandidate(
   for (const o of others) {
     if (o.key === moved.key || o.kind === 'atrium' || o.kind === 'marker') continue;
     const m = findNearestCircleCorridorForUnit(o, [ring]);
-    if (!m || !m.isNear || m.insideHole) continue;
+    if (!m || !m.isNear) continue;
 
     const oRadialOffset = resolveUnitCircleRadialOffset(o, m);
     if (directRadialOffset > 0 && oRadialOffset > 0.15 && Math.abs(oRadialOffset - movedRawOffset) <= 1.25) {
@@ -3255,7 +3464,7 @@ function findCircleCorridorMagneticCandidate(
         if (others.some((o) => tilesConflict(cand, o))) continue;
         if (moved.kind === 'unit') {
           const m = findNearestCircleCorridorForUnit(cand, [ring]);
-          if (!m || !m.isNear || m.insideHole) continue;
+          if (!m || !m.isNear) continue;
         }
         const centerDist = Math.hypot(cx + candW * 0.5 - idealCenterX, cy + candH * 0.5 - idealCenterY);
         const moveDist = Math.hypot(cx + candW * 0.5 - mcx, cy + candH * 0.5 - mcy);
@@ -3321,15 +3530,26 @@ function findRotatedNeighborMagneticCandidate(
 
   const gapU = Math.max(0, Math.abs(relU) - (sib.w * 0.5 + w * 0.5));
   const gapV = Math.max(0, Math.abs(relV) - (sib.h * 0.5 + h * 0.5));
-  if (gapU > MAGNET_SNAP_GAP + 2.5 || gapV > MAGNET_SNAP_GAP + 2.5) return null;
+  if (gapU > MAGNET_SNAP_GAP + 0.5 || gapV > MAGNET_SNAP_GAP + 0.5) return null;
+  if (!activeSnapAutoResize && !moved.angle && !rotatedWorldBoundsOverlap(moved, sib)) return null;
 
   const alignedAngle = moved.kind === 'marker' ? undefined : sib.angle;
-  const shouldInheritUnitShape = moved.kind === 'unit' && sib.kind === 'unit';
+  const canAutoAdjustShape =
+    moved.kind === 'unit' && (!moved.label || moved.label === 'unit:rect' || isAutoAtriumSideCurveLabel(moved.label));
+  const shouldInheritUnitShape = activeAutoShape && canAutoAdjustShape && sib.kind === 'unit';
+  const inheritedSibLabel =
+    sib.label && sib.label.startsWith('unit:')
+      ? sib.label.endsWith(':auto')
+        ? sib.label
+        : `${sib.label}:auto`
+      : 'unit:rect';
   const nextLabel = shouldInheritUnitShape
-    ? sib.label ?? 'unit:rect'
-    : moved.kind === 'unit' && moved.label && moved.label !== 'unit:rect' && moved.label !== 'unit:circle'
-      ? 'unit:rect'
-      : moved.label;
+    ? inheritedSibLabel
+    : !activeAutoShape && moved.kind === 'unit'
+      ? moved.label || 'unit:rect'
+      : canAutoAdjustShape && isAutoAtriumSideCurveLabel(moved.label)
+        ? 'unit:rect'
+        : moved.label;
   const hasLabelChange = nextLabel !== moved.label;
 
   const sides: Array<{ side: 'right' | 'left' | 'bottom' | 'top'; approachScore: number }> = [
@@ -3449,13 +3669,14 @@ function findRotatedNeighborMagneticCandidate(
 function getSlantedUnitNeighborSnapMeta(
   moved: MapItem,
   sib: MapItem,
-  _side: 'left' | 'right',
   candH: number,
   baseYPositions: number[],
 ): { yPositions: number[]; inheritedLabel: string | null } {
-  if (moved.kind !== 'unit' || sib.kind !== 'unit') {
+  if (!activeAutoShape || moved.kind !== 'unit' || sib.kind !== 'unit') {
     return { yPositions: baseYPositions, inheritedLabel: null };
   }
+  const canAutoAdjustShape =
+    !moved.label || moved.label === 'unit:rect' || isAutoAtriumSideCurveLabel(moved.label);
   const sibMode = parseUnitShapeMode(sib);
   const movedMode = parseUnitShapeMode(moved);
   const isSibSlope =
@@ -3488,7 +3709,7 @@ function getSlantedUnitNeighborSnapMeta(
 
   return {
     yPositions: mergedY,
-    inheritedLabel: `unit:${activeSlopeMode}`,
+    inheritedLabel: canAutoAdjustShape ? `unit:${activeSlopeMode}:auto` : null,
   };
 }
 
@@ -3497,18 +3718,21 @@ function getVerticalComplementaryUnitLabel(
   sib: MapItem,
   side: 'top' | 'bottom',
 ): string | null {
-  if (moved.kind !== 'unit') return null;
+  if (!activeAutoShape || moved.kind !== 'unit') return null;
+  const canAutoAdjustShape =
+    !moved.label || moved.label === 'unit:rect' || isAutoAtriumSideCurveLabel(moved.label);
+  if (!canAutoAdjustShape) return null;
   if (sib.kind === 'unit') {
     const sibMode = parseUnitShapeMode(sib);
     if (side === 'bottom') {
-      if (sibMode === 'slope-b-l') return 'unit:slope-t-r';
-      if (sibMode === 'slope-b-r') return 'unit:slope-t-l';
+      if (sibMode === 'slope-b-l') return 'unit:slope-t-r:auto';
+      if (sibMode === 'slope-b-r') return 'unit:slope-t-l:auto';
     } else {
-      if (sibMode === 'slope-t-l') return 'unit:slope-b-r';
-      if (sibMode === 'slope-t-r') return 'unit:slope-b-l';
+      if (sibMode === 'slope-t-l') return 'unit:slope-b-r:auto';
+      if (sibMode === 'slope-t-r') return 'unit:slope-b-l:auto';
     }
   }
-  if (isRingCurveUnitLabel(moved.label) || moved.label?.startsWith('unit:slope-')) {
+  if (isAutoAtriumSideCurveLabel(moved.label)) {
     return 'unit:rect';
   }
   return null;
@@ -3521,7 +3745,7 @@ function snapBlockToSiblingsBorder(
   columns: number,
 ): MapItem | null {
   if (siblings.length === 0) return null;
-  const overlappingSiblings = siblings.filter((s) => rotatedWorldBoundsOverlap(moved, s) || rectsOverlap(moved, s));
+  const overlappingSiblings = siblings.filter((s) => tilesConflict(moved, s));
   if (overlappingSiblings.length === 0) return null;
 
   const others = items.filter((i) => i.key !== moved.key);
@@ -3578,9 +3802,9 @@ function snapBlockToSiblingsBorder(
       }
     }
 
-    if (sib.kind === 'unit' && parseUnitShapeMode(sib, items) === 'ring-curve') {
+    if (sib.kind === 'unit' && parseUnitShapeMode(sib) === 'ring-curve') {
       const sibRing = findNearestCircleCorridorForUnit(sib, items);
-      if (sibRing && sibRing.isNear && !sibRing.insideHole) {
+      if (sibRing && sibRing.isNear) {
         const ringCand = findCircleCorridorMagneticCandidate(moved, sibRing.ring as MapItem, others, columns);
         if (ringCand) {
           candidates.push({
@@ -3619,7 +3843,12 @@ function snapBlockToSiblingsBorder(
     }
 
     const isStraightCorridorSnapForUnit =
-      moved.kind === 'unit' && sib.kind === 'corridor' && !sib.angle && !isCircleRingCorridor(sib);
+      activeAutoShape &&
+      moved.kind === 'unit' &&
+      isAutoAtriumSideCurveLabel(moved.label) &&
+      sib.kind === 'corridor' &&
+      !sib.angle &&
+      !isCircleRingCorridor(sib);
 
     for (const side of ['right', 'left'] as const) {
       const matched = getMatchedNeighborDimensions(moved, sib, side, others, columns);
@@ -3634,15 +3863,14 @@ function snapBlockToSiblingsBorder(
         const { yPositions, inheritedLabel } = getSlantedUnitNeighborSnapMeta(
           moved,
           sib,
-          side,
           candH,
           baseYPositions,
         );
         const resetRingShape =
-          !inheritedLabel && moved.kind === 'unit' && isRingCurveUnitLabel(moved.label);
+          activeAutoShape && !inheritedLabel && moved.kind === 'unit' && isAutoAtriumSideCurveLabel(moved.label);
         const nextLabel = isStraightCorridorSnapForUnit || resetRingShape ? 'unit:rect' : inheritedLabel;
         const hasShapeOverride = isStraightCorridorSnapForUnit || resetRingShape || Boolean(inheritedLabel);
-        const hasAngleReset = !sib.angle && Boolean(moved.angle);
+        const hasAngleReset = activeSnapAutoResize && !sib.angle && Boolean(moved.angle);
 
         for (let idx = 0; idx < yPositions.length; idx++) {
           const cy = yPositions[idx];
@@ -3692,7 +3920,7 @@ function snapBlockToSiblingsBorder(
         const vCompLabel = getVerticalComplementaryUnitLabel(moved, sib, side);
         const nextLabel = isStraightCorridorSnapForUnit ? 'unit:rect' : vCompLabel;
         const hasShapeOverride = isStraightCorridorSnapForUnit || Boolean(vCompLabel);
-        const hasAngleReset = !sib.angle && Boolean(moved.angle);
+        const hasAngleReset = activeSnapAutoResize && !sib.angle && Boolean(moved.angle);
 
         for (let idx = 0; idx < xPositions.length; idx++) {
           const cx = xPositions[idx];
@@ -3818,14 +4046,13 @@ function snapTileByMagneticProximity(
       }
     }
 
-    if (sib.kind === 'unit' && parseUnitShapeMode(sib, items) === 'ring-curve') {
+    if (sib.kind === 'unit' && parseUnitShapeMode(sib) === 'ring-curve') {
       const sibRing = findNearestCircleCorridorForUnit(sib, items);
-      if (sibRing && sibRing.isNear && !sibRing.insideHole) {
+      if (sibRing && sibRing.isNear) {
         continue;
       }
     }
 
-    if (isInsideCircleCorridorHole(sib, moved) || isInsideCircleCorridorHole(moved, sib)) continue;
     if (
       isAtriumTransitOverlap(sib, moved) &&
       moved.x >= sib.x &&
@@ -3858,7 +4085,7 @@ function snapTileByMagneticProximity(
     // 1c. Any tile near ANY Rotated Neighbor (`sib.angle !== 0`): auto-match degree, size/length, and touch rotated border flush
     if (sib.angle) {
       const rotCand = findRotatedNeighborMagneticCandidate(moved, sib, others, columns);
-      if (rotCand && rotCand.dist <= MAGNET_SNAP_GAP + 3) {
+      if (rotCand && rotCand.dist <= MAGNET_SNAP_GAP + 1) {
         candidates.push({
           x: rotCand.x,
           y: rotCand.y,
@@ -3877,8 +4104,13 @@ function snapTileByMagneticProximity(
     if (hasConflict || rectsOverlap(moved, sib)) continue;
 
     const isStraightCorridorTouchForUnit =
-      moved.kind === 'unit' && sib.kind === 'corridor' && !sib.angle && !isCircleRingCorridor(sib);
-    const resetAngle = !sib.angle && Boolean(moved.angle);
+      activeAutoShape &&
+      moved.kind === 'unit' &&
+      isAutoAtriumSideCurveLabel(moved.label) &&
+      sib.kind === 'corridor' &&
+      !sib.angle &&
+      !isCircleRingCorridor(sib);
+    const resetAngle = activeSnapAutoResize && !sib.angle && Boolean(moved.angle);
 
     // 1e. Contiguous Unit-Row / Unit-Column Auto-Span when dragging a larger tile (Atrium, Unit, or Corridor) alongside 2+ contiguous Units
     if (activeSnapAutoResize && !moved.angle && sib.kind === 'unit' && !sib.angle) {
@@ -3965,7 +4197,7 @@ function snapTileByMagneticProximity(
         parseUnitShapeMode(sib)?.startsWith('slope-') ||
           parseUnitShapeMode(moved)?.startsWith('slope-'),
       );
-    const horizSnapGap = isSlantedPair ? MAGNET_SNAP_GAP + 2 : MAGNET_SNAP_GAP;
+    const horizSnapGap = isSlantedPair ? MAGNET_SNAP_GAP + 1 : MAGNET_SNAP_GAP;
 
     // 2. Horizontal border magnetic pull (Left or Right of `sib`)
     const gapLeft = sib.x - (moved.x + w);
@@ -3978,11 +4210,10 @@ function snapTileByMagneticProximity(
         const { yPositions, inheritedLabel } = getSlantedUnitNeighborSnapMeta(
           moved,
           sib,
-          'left',
           candH,
           baseYPositions,
         );
-        const resetRing = !inheritedLabel && moved.kind === 'unit' && isRingCurveUnitLabel(moved.label);
+        const resetRing = activeAutoShape && !inheritedLabel && moved.kind === 'unit' && isAutoAtriumSideCurveLabel(moved.label);
         const effLabel = resetRing ? 'unit:rect' : inheritedLabel;
         const bestY = yPositions[0];
         const needsShapeReset =
@@ -4017,11 +4248,10 @@ function snapTileByMagneticProximity(
         const { yPositions, inheritedLabel } = getSlantedUnitNeighborSnapMeta(
           moved,
           sib,
-          'right',
           candH,
           baseYPositions,
         );
-        const resetRing = !inheritedLabel && moved.kind === 'unit' && isRingCurveUnitLabel(moved.label);
+        const resetRing = activeAutoShape && !inheritedLabel && moved.kind === 'unit' && isAutoAtriumSideCurveLabel(moved.label);
         const effLabel = resetRing ? 'unit:rect' : inheritedLabel;
         const bestY = yPositions[0];
         const needsShapeReset =
@@ -4259,7 +4489,6 @@ function snapTileResizeMagnetically(
   const bottomTargets: number[] = [];
 
   for (const sib of others) {
-    if (isInsideCircleCorridorHole(sib, moved) || isInsideCircleCorridorHole(moved, sib)) continue;
     const sibB = getRotatedWorldAABB(sib);
     const sibMinX = Math.round(sibB.minX);
     const sibMaxX = Math.round(sibB.maxX);
@@ -4305,11 +4534,44 @@ function snapTileResizeMagnetically(
     nextH = Math.max(1, origBottom - snappedTop);
   }
 
-  const cand: MapItem = { ...moved, x: nextX, y: nextY, w: nextW, h: nextH };
+  const rawCand: MapItem = { ...moved, x: nextX, y: nextY, w: nextW, h: nextH };
+  const cand = activeAutoShape ? applyAtriumAutoShapeToUnit(rawCand, items, true) : rawCand;
   if (!others.some((o) => tilesConflict(cand, o))) {
     return cand;
   }
   return null;
+}
+
+function applyAtriumAutoShapeToUnit(
+  u: MapItem,
+  items: ReadonlyArray<MapItem>,
+  autoShape: boolean,
+): MapItem {
+  if (u.kind !== 'unit' || !u.unitId) return u;
+  if (!autoShape) {
+    return !u.label ? { ...u, label: 'unit:rect' } : u;
+  }
+
+  const isMultiBlockUnit = items.some((o) => o.key !== u.key && o.kind === 'unit' && o.unitId === u.unitId);
+  if (isMultiBlockUnit) return u;
+
+  const match = findNearestCircleCorridorForUnit(u, items);
+  if (match && isUnitCloseToCircleAtriumRim(match)) {
+    if (!u.label || u.label === 'unit:rect' || isAutoAtriumSideCurveLabel(u.label)) {
+      const sideCurveMode = resolveAtriumFacingSideCurveMode(u, match);
+      return {
+        ...u,
+        label: `unit:${sideCurveMode}:auto`,
+        angle: undefined,
+      };
+    }
+    return u;
+  }
+
+  if (isAutoAtriumSideCurveLabel(u.label)) {
+    return { ...u, label: 'unit:rect', angle: undefined };
+  }
+  return u;
 }
 
 /**
@@ -4324,7 +4586,8 @@ export function snapTileToBorder(
   items: ReadonlyArray<MapItem>,
   columns: number,
   orig?: MapItem,
-  allowAutoResize = true,
+  allowAutoResize = false,
+  autoShape = true,
 ): MapItem | null {
   if (moved.kind === 'unit' && !moved.unitId) return null;
   if (orig && (moved.w !== orig.w || moved.h !== orig.h)) {
@@ -4333,26 +4596,18 @@ export function snapTileToBorder(
     if (moved.angle) return null;
   }
   activeSnapAutoResize = allowAutoResize;
+  activeAutoShape = autoShape;
   try {
-    let baseMoved = moved;
+    let baseMoved = !autoShape && moved.kind === 'unit' && !moved.label ? { ...moved, label: 'unit:rect' } : moved;
     let detachedFromRing = false;
-    if (baseMoved.kind === 'unit' && (!orig || (baseMoved.w === orig.w && baseMoved.h === orig.h))) {
-      const nearRingNow = Boolean(findNearestCircleCorridorForUnit(baseMoved, items)?.isNear);
-      const wasNearRing = Boolean(orig && findNearestCircleCorridorForUnit(orig, items)?.isNear);
-      const isNearAngledCorridor = (u: MapItem) =>
-        items.some(
-          (i) =>
-            i.kind === 'corridor' &&
-            !isCircleRingCorridor(i) &&
-            Boolean(i.angle) &&
-            Math.max(0, i.x - (u.x + u.w), u.x - (i.x + i.w)) <= MAGNET_SNAP_GAP + 2.5 &&
-            Math.max(0, i.y - (u.y + u.h), u.y - (i.y + i.h)) <= MAGNET_SNAP_GAP + 2.5,
-        );
-      const nearAngledCorridorNow = isNearAngledCorridor(baseMoved);
-      const wasNearAngledCorridor = Boolean(orig && isNearAngledCorridor(orig));
-      if (!nearRingNow && !nearAngledCorridorNow && (wasNearRing || wasNearAngledCorridor || isRingCurveUnitLabel(baseMoved.label))) {
+    if (autoShape && baseMoved.kind === 'unit' && (!orig || (baseMoved.w === orig.w && baseMoved.h === orig.h))) {
+      const nowMatch = findNearestCircleCorridorForUnit(baseMoved, items);
+      const nearRingNow = Boolean(nowMatch && isUnitCloseToCircleAtriumRim(nowMatch));
+      if (!nearRingNow && isAutoAtriumSideCurveLabel(baseMoved.label)) {
         baseMoved = { ...baseMoved, label: 'unit:rect', angle: undefined };
         detachedFromRing = true;
+      } else if (nearRingNow) {
+        baseMoved = applyAtriumAutoShapeToUnit(baseMoved, items, autoShape);
       }
     }
     const siblings = items.filter((i) => {
@@ -4367,78 +4622,156 @@ export function snapTileToBorder(
       if (baseMoved.kind === 'unit' && i.kind === 'unit' && i.unitId === baseMoved.unitId) {
         return true;
       }
-      return tilesConflict(baseMoved, i) || rotatedWorldBoundsOverlap(baseMoved, i) || rectsOverlap(baseMoved, i);
+      return tilesConflict(baseMoved, i);
     });
     const overlapSnapped = snapBlockToSiblingsBorder(baseMoved, siblings, items, columns);
-    if (overlapSnapped) return overlapSnapped;
+    if (overlapSnapped) {
+      return applyAtriumAutoShapeToUnit(overlapSnapped, items, autoShape);
+    }
     const proximitySnapped = snapTileByMagneticProximity(baseMoved, items, columns);
-    if (proximitySnapped) return proximitySnapped;
-    return detachedFromRing ? baseMoved : null;
+    if (proximitySnapped) {
+      return applyAtriumAutoShapeToUnit(proximitySnapped, items, autoShape);
+    }
+    const shaped = applyAtriumAutoShapeToUnit(baseMoved, items, autoShape);
+    if (detachedFromRing || shaped.label !== moved.label || shaped.angle !== moved.angle) {
+      return shaped;
+    }
+    return null;
   } finally {
-    activeSnapAutoResize = true;
+    activeSnapAutoResize = false;
+    activeAutoShape = true;
   }
 }
 
 /**
- * When Auto-Snap is OFF, curves a unit tile around a nearby Circle Atrium in-place (`label: 'unit:ring-curve:free'`,
- * matching the tangent degree `angle`) without magnetically changing its `(x, y)` position or pulling it to touch
- * the Circle Atrium or neighbor units. If dragged away from the Circle Atrium, resets back to `'unit:rect'`.
+ * When Auto-Snap is OFF, curves only the Atrium-facing side of a unit tile (`crescent-*` / `notch-*`, outer walls straight `0°`)
+ * when `autoShape` is ON, or preserves the unit's current shape (`unit:rect` or custom shape) when `autoShape` is OFF.
  */
 export function curveUnitAroundCircleWithoutSnap(
   moved: MapItem,
   items: ReadonlyArray<MapItem>,
-  orig?: MapItem,
+  autoShape = true,
 ): MapItem {
-  if (moved.kind !== 'unit' || !moved.unitId) return moved;
-  if (orig && (moved.w !== orig.w || moved.h !== orig.h)) return moved;
+  return applyAtriumAutoShapeToUnit(moved, items, autoShape);
+}
 
-  const isMultiBlockUnit = items.some((o) => o.key !== moved.key && o.kind === 'unit' && o.unitId === moved.unitId);
-  if (isMultiBlockUnit) return moved;
+/**
+ * Smart Radial Ring Aligner (#23):
+ * Automatically arranges and snaps units surrounding Circle Atriums or Polygon Atriums
+ * along the perimeter with even angular spacing, tangent degree alignment, and Atrium-facing shapes.
+ */
+export function alignUnitsRadiallyAroundAtrium(
+  items: ReadonlyArray<MapItem>,
+  targetAtriumKey: string | null | undefined,
+  columns: number,
+  selectedKeys?: ReadonlySet<string>,
+): { items: MapItem[]; alignedCount: number } {
+  const atriums = items.filter(
+    (i) => i.kind === 'atrium' && (!targetAtriumKey || i.key === targetAtriumKey),
+  );
+  if (atriums.length === 0) return { items: [...items], alignedCount: 0 };
 
-  const match = findNearestCircleCorridorForUnit(moved, items);
-  if (match && match.isNear && !match.insideHole) {
-    if (moved.label && moved.label.startsWith('unit:') && !isRingCurveUnitLabel(moved.label) && moved.label !== 'unit:rect') {
-      return moved;
+  let current = items.map((i) => ({ ...i }));
+  let alignedCount = 0;
+  const prevAutoShape = activeAutoShape;
+  const prevAutoResize = activeSnapAutoResize;
+  activeAutoShape = true;
+  activeSnapAutoResize = false;
+
+  try {
+    for (const atr of atriums) {
+      const acx = atr.x + atr.w * 0.5;
+      const acy = atr.y + atr.h * 0.5;
+      const rx = Math.max(2, atr.w * 0.5);
+      const ry = Math.max(2, atr.h * 0.5);
+      const isCircleAtr = isCircleRingCorridor(atr);
+      const polyFaces = getPolygonAtriumWorldFaces(atr);
+
+      const candidateUnits = current
+        .filter((u) => {
+          if (u.kind !== 'unit' || !u.unitId) return false;
+          if (selectedKeys && selectedKeys.size > 0 && !selectedKeys.has(u.key)) return false;
+          const cp = getClosestPointOnTileToPoint(u, acx, acy);
+          const normDist = Math.hypot((cp.x - acx) / rx, (cp.y - acy) / ry);
+          return normDist >= 0.65 && normDist <= 1.75;
+        })
+        .sort((a, b) => {
+          const ta = Math.atan2(a.y + a.h * 0.5 - acy, a.x + a.w * 0.5 - acx);
+          const tb = Math.atan2(b.y + b.h * 0.5 - acy, b.x + b.w * 0.5 - acx);
+          return ta - tb;
+        });
+
+      for (const u of candidateUnits) {
+        const others = current.filter((o) => o.key !== u.key);
+        let snapped: {
+          x: number;
+          y: number;
+          w: number;
+          h: number;
+          angle: number | undefined;
+          label?: string | null;
+        } | null = null;
+
+        if (polyFaces) {
+          const polyCand = findPolygonAtriumMagneticCandidate(u, atr, others, columns);
+          if (polyCand) {
+            snapped = {
+              x: polyCand.x,
+              y: polyCand.y,
+              w: polyCand.w,
+              h: polyCand.h,
+              angle: polyCand.angle,
+              label: polyCand.hasLabel ? polyCand.label : u.label,
+            };
+          }
+        } else if (isCircleAtr) {
+          const ringCand = findCircleCorridorMagneticCandidate(u, atr, others, columns);
+          if (ringCand) {
+            snapped = {
+              x: ringCand.x,
+              y: ringCand.y,
+              w: ringCand.w,
+              h: ringCand.h,
+              angle: ringCand.angle,
+              label: ringCand.label,
+            };
+          }
+        }
+
+        if (snapped) {
+          const nextUnit: MapItem = applyAtriumAutoShapeToUnit(
+            {
+              ...u,
+              x: snapped.x,
+              y: snapped.y,
+              w: snapped.w,
+              h: snapped.h,
+              angle: snapped.angle,
+              label: snapped.label ?? u.label,
+            },
+            current,
+            true,
+          );
+          if (!others.some((o) => tilesConflict(nextUnit, o))) {
+            if (
+              nextUnit.x !== u.x ||
+              nextUnit.y !== u.y ||
+              nextUnit.angle !== u.angle ||
+              nextUnit.label !== u.label
+            ) {
+              alignedCount++;
+            }
+            current = current.map((item) => (item.key === u.key ? nextUnit : item));
+          }
+        }
+      }
     }
-    const ucx = moved.x + moved.w * 0.5;
-    const ucy = moved.y + moved.h * 0.5;
-    const theta = Math.atan2((ucy - match.cy) / match.ryOut, (ucx - match.cx) / match.rxOut);
-    const gnx = Math.cos(theta) / match.rxOut;
-    const gny = Math.sin(theta) / match.ryOut;
-    const gLen = Math.hypot(gnx, gny) || 1;
-    const nx = gnx / gLen;
-    const ny = gny / gLen;
-
-    const degBottom = (((Math.atan2(nx, -ny) * 180) / Math.PI) % 360 + 360) % 360;
-    const degTop = (((Math.atan2(-nx, ny) * 180) / Math.PI) % 360 + 360) % 360;
-    const bottomUpright = degBottom <= 96 || degBottom >= 264;
-    const topUpright = degTop <= 96 || degTop >= 264;
-    const exactDeg =
-      bottomUpright && !topUpright
-        ? degBottom
-        : topUpright && !bottomUpright
-          ? degTop
-          : angularDiffDeg(degBottom, moved.angle ?? 0) <= angularDiffDeg(degTop, moved.angle ?? 0)
-            ? degBottom
-            : degTop;
-    const alignedAngle = normalizeTileAngle(exactDeg);
-    const cand: MapItem = {
-      ...moved,
-      angle: alignedAngle,
-      label: 'unit:ring-curve:free',
-    };
-    const others = items.filter((o) => o.key !== moved.key);
-    if (!others.some((o) => tilesConflict(cand, o))) {
-      return cand;
-    }
-    return { ...moved, label: 'unit:ring-curve:free' };
+  } finally {
+    activeAutoShape = prevAutoShape;
+    activeSnapAutoResize = prevAutoResize;
   }
 
-  const wasNearRing = Boolean(orig && findNearestCircleCorridorForUnit(orig, items)?.isNear);
-  if (wasNearRing || isRingCurveUnitLabel(moved.label)) {
-    return { ...moved, label: 'unit:rect', angle: undefined };
-  }
-  return moved;
+  return { items: current, alignedCount };
 }
 
 export interface MagneticSnapGuide {
@@ -4474,8 +4807,7 @@ export function computeMagneticSnapGuide(
     const face = polyFaces.find((f) => f.index === match.faceIndex);
     if (!face) continue;
 
-    const align = getAtriumFaceAlignment(snapped, allItems);
-    const deg = Math.round(align ? align.exactAngleDeg : (snapped.angle ?? 0)) % 360;
+    const deg = Math.round(snapped.angle ?? 0) % 360;
     const ext = 1.6;
     return {
       touchLine: { x1: face.x0, y1: face.y0, x2: face.x1, y2: face.y1 },
@@ -4493,26 +4825,11 @@ export function computeMagneticSnapGuide(
     };
   }
 
-  // 1b. Check Circle Atrium / Ring curve or center-hole snap for any Unit or Landmark
+  // 1b. Check Circle Atrium / Ring curve snap for any Unit or Landmark
   if (snapped.kind !== 'atrium' && snapped.kind !== 'corridor') {
     const ringMatch = findNearestCircleCorridorForUnit(snapped, allItems);
-    if (ringMatch && ringMatch.insideHole && snapped.kind === 'unit' && snapped.label === 'unit:circle') {
-      const ucx = snapped.x + snapped.w * 0.5;
-      const ucy = snapped.y + snapped.h * 0.5;
-      return {
-        touchLine: { x1: snapped.x, y1: ucy, x2: snapped.x + snapped.w, y2: ucy },
-        guideLines: [
-          { x1: ringMatch.cx, y1: ringMatch.ring.y, x2: ringMatch.cx, y2: ringMatch.ring.y + ringMatch.ring.h },
-          { x1: ringMatch.ring.x, y1: ringMatch.cy, x2: ringMatch.ring.x + ringMatch.ring.w, y2: ringMatch.cy },
-        ],
-        badgePos: { x: ucx, y: snapped.y },
-        badgeText: 'Circle Center • Auto-Shape',
-        isPolygonAtriumSnap: true,
-      };
-    }
-    if (ringMatch && ringMatch.isNear && !ringMatch.insideHole) {
-      const align = getAtriumFaceAlignment(snapped, allItems);
-      const deg = Math.round(align ? align.exactAngleDeg : (snapped.angle ?? 0)) % 360;
+    if (ringMatch && ringMatch.isNear) {
+      const deg = Math.round(snapped.angle ?? 0) % 360;
       const ucx = snapped.x + snapped.w * 0.5;
       const ucy = snapped.y + snapped.h * 0.5;
       const radialOffset = snapped.kind === 'unit' ? resolveUnitCircleRadialOffset(snapped, ringMatch) : 0;
@@ -4588,17 +4905,15 @@ export function computeMagneticSnapGuide(
     const uy = Math.sin(rad);
     const vx = -uy;
     const vy = ux;
-    const align = getAtriumFaceAlignment(snapped, allItems);
-    const scx = snapped.x + snapped.w * 0.5 + (align?.dx ?? 0);
-    const scy = snapped.y + snapped.h * 0.5 + (align?.dy ?? 0);
+    const scx = snapped.x + snapped.w * 0.5;
+    const scy = snapped.y + snapped.h * 0.5;
     const tol = 0.72;
 
     for (const o of others) {
       const oNormAngle = (((o.angle ?? 0) % 360) + 360) % 360;
       if (oNormAngle !== snappedNormAngle) continue;
-      const oAlign = getAtriumFaceAlignment(o, allItems);
-      const ocx = o.x + o.w * 0.5 + (oAlign?.dx ?? 0);
-      const ocy = o.y + o.h * 0.5 + (oAlign?.dy ?? 0);
+      const ocx = o.x + o.w * 0.5;
+      const ocy = o.y + o.h * 0.5;
       const du = (scx - ocx) * ux + (scy - ocy) * uy;
       const dv = (scx - ocx) * vx + (scy - ocy) * vy;
       const halfU = (snapped.w + o.w) * 0.5;
@@ -4608,7 +4923,7 @@ export function computeMagneticSnapGuide(
       const touchV = Math.abs(Math.abs(dv) - halfV) <= tol && Math.abs(du) <= halfU - 0.25;
       if (!touchU && !touchV) continue;
 
-      const deg = Math.round(align ? align.exactAngleDeg : snappedNormAngle) % 360;
+      const deg = Math.round(snappedNormAngle) % 360;
       if (touchU && (!touchV || Math.abs(Math.abs(du) - halfU) <= Math.abs(Math.abs(dv) - halfV))) {
         const signU = du >= 0 ? 1 : -1;
         const edgeMidX = ocx + signU * (o.w * 0.5) * ux + dv * 0.5 * vx;
@@ -4665,7 +4980,6 @@ export function computeMagneticSnapGuide(
   let bestGuide: { guide: MagneticSnapGuide; overlapLen: number } | null = null;
 
   for (const o of others) {
-    if (isInsideCircleCorridorHole(o, snapped) || isInsideCircleCorridorHole(snapped, o)) continue;
 
     // Vertical shared border (Left or Right of `snapped`)
     if (snapped.x + snapped.w === o.x || snapped.x === o.x + o.w) {
@@ -5181,8 +5495,8 @@ export function buildSmoothRouteSvgPath(
 export function computeRouteDirectionArrows(
   pxPoints: ReadonlyArray<{ x: number; y: number }>,
   spacingPx = 46,
-): Array<{ x: number; y: number; angleDeg: number }> {
-  const arrows: Array<{ x: number; y: number; angleDeg: number }> = [];
+): Array<{ x: number; y: number; angleDeg: number; progress: number }> {
+  const arrows: Array<{ x: number; y: number; angleDeg: number; progress: number }> = [];
   const n = pxPoints.length;
   if (n < 2) return arrows;
 
@@ -5215,6 +5529,7 @@ export function computeRouteDirectionArrows(
         x: p0.x + dx * t,
         y: p0.y + dy * t,
         angleDeg: (Math.atan2(dy, dx) * 180) / Math.PI,
+        progress: Math.max(0, Math.min(1, targetDist / totalLen)),
       });
     }
     targetDist += spacingPx;
@@ -5309,40 +5624,8 @@ export function computeWalkwayPath(
 
   const nonCorridors = items.filter((i) => i.kind !== 'corridor');
 
-  const sectorByUnitKey = new Map<string, CircleRingUnitSector>();
-  for (const it of nonCorridors) {
-    if (it.kind === 'unit') {
-      const sec = computeCircleRingUnitSector(it, items);
-      if (sec) sectorByUnitKey.set(it.key, sec);
-    }
-  }
-
-  const resolveTileVisualCenter = (it: MapItem): { x: number; y: number } => {
-    const sec = sectorByUnitKey.get(it.key);
-    if (sec) {
-      const thOutMid = 0.5 * (sec.thetaStartOut + sec.thetaEndOut);
-      const thVis = 0.5 * (sec.thetaMid + thOutMid);
-      const rxVis = sec.rxOut + sec.radialDepth * 0.48;
-      const ryVis = sec.ryOut + sec.radialDepth * 0.48;
-      return {
-        x: sec.cx + rxVis * Math.cos(thVis),
-        y: sec.cy + ryVis * Math.sin(thVis),
-      };
-    }
-    const align = getAtriumFaceAlignment(it, items);
-    if (align) {
-      return {
-        x: it.x + it.w * 0.5 + align.dx,
-        y: it.y + it.h * 0.5 + align.dy,
-      };
-    }
-    return { x: it.x + it.w * 0.5, y: it.y + it.h * 0.5 };
-  };
-
-  const fromSector = sectorByUnitKey.get(fromItem.key) ?? null;
-  const toSector = sectorByUnitKey.get(toItem.key) ?? null;
-  const exactStart = resolveTileVisualCenter(fromItem);
-  const exactEnd = resolveTileVisualCenter(toItem);
+  const exactStart = { x: fromItem.x + fromItem.w * 0.5, y: fromItem.y + fromItem.h * 0.5 };
+  const exactEnd = { x: toItem.x + toItem.w * 0.5, y: toItem.y + toItem.h * 0.5 };
 
   const startGx = worldToGx(exactStart.x);
   const startGy = worldToGy(exactStart.y);
@@ -5409,57 +5692,6 @@ export function computeWalkwayPath(
   };
 
   const buildTileCollisionShape = (it: MapItem): TileCollisionShape => {
-    const sec = sectorByUnitKey.get(it.key);
-    if (sec) {
-      const corners: Array<{ x: number; y: number }> = [];
-      const arcSteps = 8;
-      for (let s = 0; s <= arcSteps; s++) {
-        const th = sec.thetaStart + (s / arcSteps) * (sec.thetaEnd - sec.thetaStart);
-        corners.push({
-          x: sec.cx + sec.rxOut * Math.cos(th),
-          y: sec.cy + sec.ryOut * Math.sin(th),
-        });
-      }
-      const rOutX = sec.rxOut + sec.radialDepth;
-      const rOutY = sec.ryOut + sec.radialDepth;
-      for (let s = arcSteps; s >= 0; s--) {
-        const th = sec.thetaStartOut + (s / arcSteps) * (sec.thetaEndOut - sec.thetaStartOut);
-        corners.push({
-          x: sec.cx + rOutX * Math.cos(th),
-          y: sec.cy + rOutY * Math.sin(th),
-        });
-      }
-      let minX = Infinity;
-      let maxX = -Infinity;
-      let minY = Infinity;
-      let maxY = -Infinity;
-      for (const c of corners) {
-        if (c.x < minX) minX = c.x;
-        if (c.x > maxX) maxX = c.x;
-        if (c.y < minY) minY = c.y;
-        if (c.y > maxY) maxY = c.y;
-      }
-      const vc = resolveTileVisualCenter(it);
-      return {
-        item: it,
-        vcx: vc.x,
-        vcy: vc.y,
-        hw: (maxX - minX) * 0.5,
-        hh: (maxY - minY) * 0.5,
-        ux: Math.cos(sec.thetaMid),
-        uy: Math.sin(sec.thetaMid),
-        vx: -Math.sin(sec.thetaMid),
-        vy: Math.cos(sec.thetaMid),
-        minX,
-        maxX,
-        minY,
-        maxY,
-        isRotatedOrCurved: true,
-        mode: 'poly',
-        corners,
-      };
-    }
-
     if (it.kind === 'atrium') {
       const polyFaces = getPolygonAtriumWorldFaces(it);
       if (polyFaces && polyFaces.length >= 3) {
@@ -5495,11 +5727,10 @@ export function computeWalkwayPath(
       }
     }
 
-    const align = getAtriumFaceAlignment(it, items);
-    const vcx = it.x + it.w * 0.5 + (align?.dx ?? 0);
-    const vcy = it.y + it.h * 0.5 + (align?.dy ?? 0);
-    const vw = Math.max(0.5, it.w * (align?.scaleX ?? 1));
-    const vh = Math.max(0.5, it.h * (align?.scaleY ?? 1));
+    const vcx = it.x + it.w * 0.5;
+    const vcy = it.y + it.h * 0.5;
+    const vw = Math.max(0.5, it.w);
+    const vh = Math.max(0.5, it.h);
     const hw = vw * 0.5;
     const hh = vh * 0.5;
     const rad = ((it.angle ?? 0) * Math.PI) / 180;
@@ -5514,7 +5745,7 @@ export function computeWalkwayPath(
     const minY = vcy - aabbHalfH;
     const maxY = vcy + aabbHalfH;
 
-    if (isCircleTile(it, items) || (it.kind === 'unit' && parseUnitShapeMode(it) === 'circle')) {
+    if (isCircleTile(it)) {
       return {
         item: it,
         vcx,
@@ -5535,14 +5766,7 @@ export function computeWalkwayPath(
     }
 
     if (it.kind === 'unit') {
-      const visualItem: MapItem = {
-        ...it,
-        x: vcx - hw,
-        y: vcy - hh,
-        w: vw,
-        h: vh,
-      };
-      const customPoly = getCustomUnitPolygonVerticesAndAxes(visualItem, { ux, uy, vx, vy });
+      const customPoly = getCustomUnitPolygonVerticesAndAxes(it, { ux, uy, vx, vy });
       if (customPoly && customPoly.corners.length >= 3) {
         return {
           item: it,
@@ -5744,8 +5968,8 @@ export function computeWalkwayPath(
   const endCellIdx = endGy * gCols + endGx;
   cellCost[startCellIdx] = 1.0;
   cellCost[endCellIdx] = 1.0;
-  allowDiag[startCellIdx] = fromItem.kind === 'marker' || fromItem.angle || fromSector ? 1 : 0;
-  allowDiag[endCellIdx] = toItem.kind === 'marker' || toItem.angle || toSector ? 1 : 0;
+  allowDiag[startCellIdx] = fromItem.kind === 'marker' || fromItem.angle ? 1 : 0;
+  allowDiag[endCellIdx] = toItem.kind === 'marker' || toItem.angle ? 1 : 0;
 
   // Hybrid 4-dir / 8-dir Dijkstra on 0.5-cell subgrid
   const DIRS = [
@@ -5904,7 +6128,7 @@ export function computeWalkwayPath(
 
   // For rotated start/destination tiles, straighten interior sub-cell steps into a clean perpendicular line along the open face normal
   if ((fromItem.angle || toItem.angle) && rawPoints.length >= 4) {
-    if (fromItem.angle && !fromSector) {
+    if (fromItem.angle) {
       let exitIdx = 1;
       while (
         exitIdx < rawPoints.length - 2 &&
@@ -5916,7 +6140,7 @@ export function computeWalkwayPath(
         rawPoints.splice(1, exitIdx - 1);
       }
     }
-    if (toItem.angle && !toSector && rawPoints.length >= 4) {
+    if (toItem.angle && rawPoints.length >= 4) {
       let enterIdx = rawPoints.length - 2;
       while (
         enterIdx > 1 &&
@@ -6563,354 +6787,6 @@ function matchSinglePolygonAtriumFaceForItem(
   return matchSinglePolygonAtriumFace(frame, tile.w, tile.h, atrium);
 }
 
-interface AtriumFaceVisualAlignment {
-  dx: number;
-  dy: number;
-  exactAngleDeg: number;
-  scaleX: number;
-  scaleY: number;
-  edge: 'top' | 'right' | 'bottom' | 'left';
-  faceIndex: number;
-  faceLenCells: number;
-}
-
-/**
- * Computes the exact visual alignment (`dx, dy, exactAngleDeg, scaleX, scaleY`) for any Unit, Card, or Walkway
- * touching a Polygon Atrium (`8/12/24-Face`) face so that its touching border is collinear (`0°` error, `0px` gap)
- * and has the exact same line length (`face.len * cellPx`) and midpoint (`(fmx, fmy)`) as that Atrium face.
- */
-function getDirectAtriumOrCircleAlignment(
-  it: { key?: string; kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
-  allItems: ReadonlyArray<{ key?: string; kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number }>,
-): AtriumFaceVisualAlignment | null {
-  if (it.kind === 'atrium' || it.kind === 'marker') return null;
-  if (it.kind === 'corridor' && parseCorridorShapeMode(it.label) === 'circle') return null;
-  for (const a of allItems) {
-    if (a.kind !== 'atrium') continue;
-    if (it.kind === 'corridor' && isInsideCircleCorridorHole(it, a)) continue;
-    const polyFaces = getPolygonAtriumWorldFaces(a);
-    if (!polyFaces) continue;
-    const match = matchSinglePolygonAtriumFaceForItem(it, a);
-    if (!match) continue;
-    const face = polyFaces.find((f) => f.index === match.faceIndex);
-    if (!face) continue;
-    if (face.isCardinal && !it.angle && !a.angle && face.len < 1.4) {
-      continue;
-    }
-    if (it.kind === 'corridor' && !it.angle && Math.max(it.w, it.h) > face.len + 1.8) {
-      continue;
-    }
-
-    const exactAngleDeg = getExactEdgeFaceAngleDeg(match.edge, face);
-    let norm0 = 0;
-    let norm1 = 1;
-    if (
-      it.kind === 'unit' &&
-      (it.label === 'unit:trapezoid' || it.label === 'unit:trapezoid-l' || it.label === 'unit:trapezoid-r') &&
-      match.edge === 'top'
-    ) {
-      const inset = it.label === 'unit:trapezoid' ? 0.2 : 0.28;
-      norm0 = it.label !== 'unit:trapezoid-r' ? inset : 0;
-      norm1 = it.label !== 'unit:trapezoid-l' ? 1 - inset : 1;
-    } else if (it.kind === 'unit' && it.label === 'unit:trapezoid-ring' && match.edge === 'bottom') {
-      norm0 = 0.18;
-      norm1 = 0.82;
-    }
-
-    const edgeFrac = Math.max(0.2, norm1 - norm0);
-    const midNorm = (norm0 + norm1) * 0.5;
-    let scaleX = 1;
-    let scaleY = 1;
-    if (match.edge === 'top' || match.edge === 'bottom') {
-      const targetW = Math.max(2, Math.round(face.len / edgeFrac));
-      if (Math.abs(it.w - targetW) <= 1) {
-        scaleX = Math.max(0.35, Math.min(2.5, face.len / Math.max(0.2, it.w * edgeFrac)));
-      }
-    } else {
-      const targetH = Math.max(2, Math.round(face.len / edgeFrac));
-      if (Math.abs(it.h - targetH) <= 1) {
-        scaleY = Math.max(0.35, Math.min(2.5, face.len / Math.max(0.2, it.h * edgeFrac)));
-      }
-    }
-
-    const uMidNorm = match.edge === 'left' ? 0 : match.edge === 'right' ? 1 : midNorm;
-    const vMidNorm = match.edge === 'top' ? 0 : match.edge === 'bottom' ? 1 : midNorm;
-    const localU = (uMidNorm - 0.5) * it.w * scaleX;
-    const localV = (vMidNorm - 0.5) * it.h * scaleY;
-    const rad = (exactAngleDeg * Math.PI) / 180;
-    const ux = Math.cos(rad);
-    const uy = Math.sin(rad);
-    const vx = -uy;
-    const vy = ux;
-    const fcx = it.x + it.w * 0.5;
-    const fcy = it.y + it.h * 0.5;
-    const edgeMidWorldX = fcx + localU * ux + localV * vx;
-    const edgeMidWorldY = fcy + localU * uy + localV * vy;
-    const fmx = (face.x0 + face.x1) * 0.5;
-    const fmy = (face.y0 + face.y1) * 0.5;
-
-    return {
-      dx: fmx - edgeMidWorldX,
-      dy: fmy - edgeMidWorldY,
-      exactAngleDeg: Math.round(exactAngleDeg * 100) / 100,
-      scaleX: Math.round(scaleX * 10000) / 10000,
-      scaleY: Math.round(scaleY * 10000) / 10000,
-      edge: match.edge,
-      faceIndex: face.index,
-      faceLenCells: Math.round(face.len * 1000) / 1000,
-    };
-  }
-
-  if (it.kind === 'unit') {
-    const mode = parseUnitShapeMode(it, allItems);
-    if (mode === 'ring-curve' || mode === 'trapezoid-ring') {
-      const sector = computeCircleRingUnitSector(it, allItems);
-      if (sector) {
-        const ucx = it.x + it.w * 0.5;
-        const ucy = it.y + it.h * 0.5;
-        const rawDx = sector.worldCx - ucx;
-        const rawDy = sector.worldCy - ucy;
-        const scaleX = Math.max(0.25, Math.min(8.0, sector.wCells / Math.max(0.5, it.w)));
-        const scaleY = Math.max(0.25, Math.min(8.0, sector.hCells / Math.max(0.5, it.h)));
-        return {
-          dx: Math.round(rawDx * 1000) / 1000,
-          dy: Math.round(rawDy * 1000) / 1000,
-          exactAngleDeg: sector.exactAngleDeg,
-          scaleX: Math.round(scaleX * 10000) / 10000,
-          scaleY: Math.round(scaleY * 10000) / 10000,
-          edge: sector.facingEdge,
-          faceIndex: 0,
-          faceLenCells: Math.round(sector.wCells * 1000) / 1000,
-        };
-      }
-    }
-  } else if (it.kind !== 'corridor' && it.angle) {
-    // Non-unit landmark snapped to the outer rim of a Circle Atrium
-    const ringMatch = findNearestCircleCorridorForUnit(it, allItems);
-    if (ringMatch && ringMatch.isNear && !ringMatch.insideHole) {
-      const ucx = it.x + it.w * 0.5;
-      const ucy = it.y + it.h * 0.5;
-      const theta = Math.atan2((ucy - ringMatch.cy) / ringMatch.ryOut, (ucx - ringMatch.cx) / ringMatch.rxOut);
-      const bx = ringMatch.cx + ringMatch.rxOut * Math.cos(theta);
-      const by = ringMatch.cy + ringMatch.ryOut * Math.sin(theta);
-      const gnx = Math.cos(theta) / ringMatch.rxOut;
-      const gny = Math.sin(theta) / ringMatch.ryOut;
-      const gLen = Math.hypot(gnx, gny) || 1;
-      const nx = gnx / gLen;
-      const ny = gny / gLen;
-      const tx = -ny;
-      const ty = nx;
-      const rawDeg = (((Math.atan2(ty, tx) * 180) / Math.PI) + 360) % 360;
-      const exactAngleDeg = Math.round(((rawDeg > 90 && rawDeg <= 270 ? (rawDeg + 180) % 360 : rawDeg) * 100)) / 100;
-      const angleDiff = Math.abs(((((it.angle ?? 0) - exactAngleDeg + 540) % 360) - 180));
-      const centerDistToRim = (ucx - bx) * nx + (ucy - by) * ny;
-      if (angleDiff <= 18 && Math.abs(centerDistToRim - it.h * 0.5) <= 0.85) {
-        const idealCx = bx + nx * (it.h * 0.5);
-        const idealCy = by + ny * (it.h * 0.5);
-        const rad = (exactAngleDeg * Math.PI) / 180;
-        const facingEdge: 'top' | 'bottom' = -Math.sin(rad) * nx + Math.cos(rad) * ny > 0 ? 'top' : 'bottom';
-        return {
-          dx: Math.round((idealCx - ucx) * 1000) / 1000,
-          dy: Math.round((idealCy - ucy) * 1000) / 1000,
-          exactAngleDeg,
-          scaleX: 1,
-          scaleY: 1,
-          edge: facingEdge,
-          faceIndex: 0,
-          faceLenCells: it.w,
-        };
-      }
-    }
-  }
-  return null;
-}
-
-/**
- * Computes the exact visual alignment (`dx, dy, exactAngleDeg, scaleX, scaleY`) for any Unit, Landmark, or tile:
- * 1. Touching a Polygon Atrium (`8/12/24-Face`) face so that its touching border is collinear (`0°` error, `0px` gap)
- *    and has the exact same line length (`face.len * cellPx`) and midpoint (`(fmx, fmy)`) as that Atrium face.
- * 2. Touching a Circle Atrium's curved outer rim (`unit:ring-curve`, `unit:trapezoid-ring`, or angled Landmark).
- * 3. Touching a same-angle Rotated Neighbor (`it.angle !== 0`), using a deterministic anchor across the connected
- *    rotated component so chains of rotated tiles sit edge-to-edge with `0.0px` visual gap despite integer grid cells.
- */
-export function getAtriumFaceAlignment(
-  it: { key?: string; kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
-  allItems: ReadonlyArray<{ key?: string; kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number }>,
-): AtriumFaceVisualAlignment | null {
-  if (it.kind === 'atrium' || it.kind === 'marker') return null;
-  const direct = getDirectAtriumOrCircleAlignment(it, allItems);
-  if (direct) return direct;
-
-  const normAngle = (((it.angle ?? 0) % 360) + 360) % 360;
-  if (normAngle === 0) return null;
-
-  // Find all tiles in `allItems` that share the same normalized grid angle
-  const peers: Array<{
-    item: { key?: string; kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number };
-    idx: number;
-  }> = [];
-  allItems.forEach((t, idx) => {
-    const tAngle = (((t.angle ?? 0) % 360) + 360) % 360;
-    if (tAngle === normAngle) {
-      peers.push({ item: t, idx });
-    }
-  });
-  if (peers.length < 2) return null;
-
-  const targetIdx = peers.findIndex((p) =>
-    it.key && p.item.key ? p.item.key === it.key : p.item === it || (p.item.x === it.x && p.item.y === it.y && p.item.w === it.w && p.item.h === it.h),
-  );
-  if (targetIdx < 0) return null;
-
-  const gridRad = (normAngle * Math.PI) / 180;
-  const gUx = Math.cos(gridRad);
-  const gUy = Math.sin(gridRad);
-  const gVx = -gUy;
-  const gVy = gUx;
-  const tol = 0.72;
-
-  const getPairOffset = (
-    p: { x: number; y: number; w: number; h: number },
-    q: { x: number; y: number; w: number; h: number },
-  ): { idealDu: number; idealDv: number; qEdge: 'top' | 'right' | 'bottom' | 'left' } | null => {
-    const pcx = p.x + p.w * 0.5;
-    const pcy = p.y + p.h * 0.5;
-    const qcx = q.x + q.w * 0.5;
-    const qcy = q.y + q.h * 0.5;
-    const du = (qcx - pcx) * gUx + (qcy - pcy) * gUy;
-    const dv = (qcx - pcx) * gVx + (qcy - pcy) * gVy;
-    const halfU = (p.w + q.w) * 0.5;
-    const halfV = (p.h + q.h) * 0.5;
-
-    const errU = Math.abs(Math.abs(du) - halfU);
-    const errV = Math.abs(Math.abs(dv) - halfV);
-    const touchU = errU <= tol && Math.abs(dv) <= halfV - 0.25;
-    const touchV = errV <= tol && Math.abs(du) <= halfU - 0.25;
-    if (!touchU && !touchV) return null;
-
-    if (touchU && (!touchV || errU <= errV)) {
-      const signU = du >= 0 ? 1 : -1;
-      const idealDu = signU * halfU;
-      const candVs = [0, (q.h - p.h) * 0.5, (p.h - q.h) * 0.5];
-      let idealDv = dv;
-      let bestDiff = Infinity;
-      for (const cv of candVs) {
-        const d = Math.abs(dv - cv);
-        if (d <= tol && d < bestDiff) {
-          bestDiff = d;
-          idealDv = cv;
-        }
-      }
-      return { idealDu, idealDv, qEdge: signU > 0 ? 'left' : 'right' };
-    } else {
-      const signV = dv >= 0 ? 1 : -1;
-      const idealDv = signV * halfV;
-      const candUs = [0, (q.w - p.w) * 0.5, (p.w - q.w) * 0.5];
-      let idealDu = du;
-      let bestDiff = Infinity;
-      for (const cu of candUs) {
-        const d = Math.abs(du - cu);
-        if (d <= tol && d < bestDiff) {
-          bestDiff = d;
-          idealDu = cu;
-        }
-      }
-      return { idealDu, idealDv, qEdge: signV > 0 ? 'top' : 'bottom' };
-    }
-  };
-
-  // Find connected component containing `targetIdx`
-  const compIndices: number[] = [targetIdx];
-  const inComp = new Set<number>([targetIdx]);
-  for (let head = 0; head < compIndices.length; head++) {
-    const cur = compIndices[head];
-    for (let j = 0; j < peers.length; j++) {
-      if (inComp.has(j)) continue;
-      if (getPairOffset(peers[cur].item, peers[j].item)) {
-        inComp.add(j);
-        compIndices.push(j);
-      }
-    }
-  }
-  if (compIndices.length < 2) return null;
-
-  // Choose deterministic anchor `rootPeerIdx` in the connected component
-  let rootPeerIdx = compIndices[0];
-  let rootDirectAlign: AtriumFaceVisualAlignment | null = null;
-  let rootPriority = -1;
-
-  for (const pi of compIndices) {
-    const cand = peers[pi].item;
-    const directAlign = getDirectAtriumOrCircleAlignment(cand, allItems);
-    const prio = cand.kind === 'atrium' ? 3 : directAlign ? 2 : 1;
-    if (
-      prio > rootPriority ||
-      (prio === rootPriority &&
-        (cand.w * cand.h > peers[rootPeerIdx].item.w * peers[rootPeerIdx].item.h ||
-          (cand.w * cand.h === peers[rootPeerIdx].item.w * peers[rootPeerIdx].item.h &&
-            peers[pi].idx < peers[rootPeerIdx].idx)))
-    ) {
-      rootPriority = prio;
-      rootPeerIdx = pi;
-      rootDirectAlign = directAlign;
-    }
-  }
-
-  if (rootPeerIdx === targetIdx) return null;
-
-  const exactAngleDeg = rootDirectAlign ? rootDirectAlign.exactAngleDeg : normAngle;
-  const exactRad = (exactAngleDeg * Math.PI) / 180;
-  const ux = Math.cos(exactRad);
-  const uy = Math.sin(exactRad);
-  const vx = -uy;
-  const vy = ux;
-
-  const rootItem = peers[rootPeerIdx].item;
-  const resolved = new Map<
-    number,
-    { cx: number; cy: number; edge: 'top' | 'right' | 'bottom' | 'left' }
-  >();
-  resolved.set(rootPeerIdx, {
-    cx: rootItem.x + rootItem.w * 0.5 + (rootDirectAlign?.dx ?? 0),
-    cy: rootItem.y + rootItem.h * 0.5 + (rootDirectAlign?.dy ?? 0),
-    edge: rootDirectAlign?.edge ?? 'top',
-  });
-
-  const queue: number[] = [rootPeerIdx];
-  for (let head = 0; head < queue.length; head++) {
-    const cur = queue[head];
-    const curPos = resolved.get(cur)!;
-    if (cur === targetIdx) break;
-    for (const nxt of compIndices) {
-      if (resolved.has(nxt)) continue;
-      const off = getPairOffset(peers[cur].item, peers[nxt].item);
-      if (!off) continue;
-      resolved.set(nxt, {
-        cx: curPos.cx + off.idealDu * ux + off.idealDv * vx,
-        cy: curPos.cy + off.idealDu * uy + off.idealDv * vy,
-        edge: off.qEdge,
-      });
-      queue.push(nxt);
-    }
-  }
-
-  const targetResolved = resolved.get(targetIdx);
-  if (!targetResolved) return null;
-
-  const rawDx = targetResolved.cx - (it.x + it.w * 0.5);
-  const rawDy = targetResolved.cy - (it.y + it.h * 0.5);
-  return {
-    dx: Math.round(rawDx * 1000) / 1000,
-    dy: Math.round(rawDy * 1000) / 1000,
-    exactAngleDeg: Math.round(exactAngleDeg * 100) / 100,
-    scaleX: 1,
-    scaleY: 1,
-    edge: targetResolved.edge,
-    faceIndex: 0,
-    faceLenCells: targetResolved.edge === 'top' || targetResolved.edge === 'bottom' ? it.w : it.h,
-  };
-}
-
 function clipFrameEdges(
   frame: LocalTileFrame,
   w: number,
@@ -7435,7 +7311,7 @@ export function getCachedDirectory(
 
 /* ── Edit Mode Multi-Select / Group Helpers ── */
 
-function tilesTouchOrOverlapForGroup(a: MapItem, b: MapItem, allItems: ReadonlyArray<MapItem>): boolean {
+function tilesTouchOrOverlapForGroup(a: MapItem, b: MapItem): boolean {
   if (a.key === b.key) return false;
   // Direct overlap or enclosure (e.g. Atrium inside Circle Ring Walkway, or Lift/Escalator inside Atrium)
   if (a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y) {
@@ -7447,22 +7323,6 @@ function tilesTouchOrOverlapForGroup(a: MapItem, b: MapItem, allItems: ReadonlyA
   const touchH = (Math.abs(a.x + a.w - b.x) <= 0.5 || Math.abs(b.x + b.w - a.x) <= 0.5) && overlapY > 0;
   const touchV = (Math.abs(a.y + a.h - b.y) <= 0.5 || Math.abs(b.y + b.h - a.y) <= 0.5) && overlapX > 0;
   if (touchH || touchV) return true;
-
-  // Polygon or Circle Atrium slanted/curved face alignment touch
-  if (a.kind === 'atrium' || b.kind === 'atrium') {
-    const atrium = a.kind === 'atrium' ? a : b;
-    const other = a.kind === 'atrium' ? b : a;
-    const align = getAtriumFaceAlignment(other, allItems);
-    if (align) {
-      const dist = Math.hypot(
-        other.x + other.w * 0.5 - (atrium.x + atrium.w * 0.5),
-        other.y + other.h * 0.5 - (atrium.y + atrium.h * 0.5),
-      );
-      if (dist <= Math.max(atrium.w, atrium.h) + Math.max(other.w, other.h) + 1.5) {
-        return true;
-      }
-    }
-  }
 
   // Same-angle rotated neighbor edge touch
   const aAng = (((a.angle ?? 0) % 360) + 360) % 360;
@@ -7502,7 +7362,7 @@ export function expandTouchingGroupKeys(
   for (const s of seeds) {
     for (const cand of items) {
       if (result.has(cand.key)) continue;
-      if (tilesTouchOrOverlapForGroup(s, cand, items)) {
+      if (tilesTouchOrOverlapForGroup(s, cand)) {
         result.add(cand.key);
       }
     }
@@ -7787,6 +7647,3 @@ export function rotateTileGroup(
     items: baseItems.map((i) => ({ ...i })),
   };
 }
-
-
-

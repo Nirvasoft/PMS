@@ -151,137 +151,164 @@ class MallService {
     };
 
     const isAtriumTransitOverlap = (
-      a: { kind: string },
-      b: { kind: string },
-    ) =>
-      (a.kind === 'atrium' && (b.kind === 'stairs' || b.kind === 'escalator')) ||
-      (b.kind === 'atrium' && (a.kind === 'stairs' || a.kind === 'escalator'));
-
-    const isOutsidePolygonAtrium = (
-      a: { kind: string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
-      b: { kind: string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
+      a: { kind: string; x: number; y: number; w: number; h: number },
+      b: { kind: string; x: number; y: number; w: number; h: number },
     ) => {
-      const check = (
-        atr: { kind: string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
-        other: { kind: string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
-      ) => {
-        if (atr.kind !== 'atrium') return false;
-        const lbl = (atr.label ?? '').trim();
-        const isCircleAtr =
-          !lbl ||
-          lbl === 'Atrium' ||
-          lbl === 'atrium:circle' ||
-          lbl.startsWith('lm:circle') ||
-          lbl.startsWith('lm:fountain');
-        const faces = lbl.includes('poly8')
-          ? 8
-          : lbl.includes('poly12')
-            ? 12
-            : lbl.includes('poly24') || isCircleAtr
-              ? 24
-              : 0;
-        if (!faces) return false;
-        const acx = atr.x + atr.w / 2;
-        const acy = atr.y + atr.h / 2;
-        const arx = atr.w / 2;
-        const ary = atr.h / 2;
-        const aRad = ((atr.angle ?? 0) * Math.PI) / 180;
-        const aCos = Math.cos(aRad);
-        const aSin = Math.sin(aRad);
-        const cosStep = Math.cos(Math.PI / faces);
-        const verts: Array<{ x: number; y: number }> = [];
-        for (let i = 0; i < faces; i++) {
-          const theta = -Math.PI / 2 + ((i + 0.5) * 2 * Math.PI) / faces;
-          const ux = Math.max(-1, Math.min(1, Math.cos(theta) / cosStep)) * arx;
-          const uy = Math.max(-1, Math.min(1, Math.sin(theta) / cosStep)) * ary;
-          verts.push({ x: acx + ux * aCos - uy * aSin, y: acy + ux * aSin + uy * aCos });
-        }
-        const ob = getRotatedTileBox(other);
-        for (let i = 0; i < faces; i++) {
-          const v0 = verts[i];
-          const v1 = verts[(i + 1) % faces];
-          const dx = v1.x - v0.x;
-          const dy = v1.y - v0.y;
-          const len = Math.hypot(dx, dy);
-          if (len <= 1e-6) continue;
-          const nx = dy / len;
-          const ny = -dx / len;
-          let minProj = Infinity;
-          for (const c of ob.corners) {
-            const p = (c.x - v0.x) * nx + (c.y - v0.y) * ny;
-            if (p < minProj) minProj = p;
-          }
-          const centerDist = (ob.cx - v0.x) * nx + (ob.cy - v0.y) * ny;
-          const alignedDiagonal =
-            (Boolean(other.angle) || isCircleAtr) &&
-            centerDist >= 0.15 &&
-            (isCircleAtr ||
-              Math.abs(ob.ux * nx + ob.uy * ny) <= 0.26 ||
-              Math.abs(ob.vx * nx + ob.vy * ny) <= 0.26);
-          const tol = isCircleAtr ? 1.15 : alignedDiagonal ? 0.72 : 0.02;
-          if (minProj >= -tol) return true;
-        }
-        return false;
-      };
-      return check(a, b) || check(b, a);
+      if (a.kind === 'atrium' && (b.kind === 'stairs' || b.kind === 'escalator')) {
+        return b.x >= a.x && b.y >= a.y && b.x + b.w <= a.x + a.w && b.y + b.h <= a.y + a.h;
+      }
+      if (b.kind === 'atrium' && (a.kind === 'stairs' || a.kind === 'escalator')) {
+        return a.x >= b.x && a.y >= b.y && a.x + a.w <= b.x + b.w && a.y + a.h <= b.y + b.h;
+      }
+      return false;
     };
 
-    const getCustomUnitPoly = (
+    const rectsOverlap = (
+      a: { x: number; y: number; w: number; h: number },
+      b: { x: number; y: number; w: number; h: number },
+    ) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+
+    const getTrueShapePoly = (
       t: { kind: string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
       g: { cx: number; cy: number; ux: number; uy: number; vx: number; vy: number },
     ) => {
-      if (t.kind !== 'unit') return null;
-      const raw = (t.label ?? '').trim();
-      const mode = raw.startsWith('unit:') ? raw.slice(5).split(':')[0] : '';
-      if (!mode || mode === 'rect' || mode === 'ring-curve' || mode === 'trapezoid-ring' || mode === 'circle') {
-        return null;
-      }
       let uv: Array<[number, number]> | null = null;
-      switch (mode) {
-        case 'slope-b-l':
-          uv = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.22]];
-          break;
-        case 'slope-b-r':
-          uv = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.22], [-0.5, 0.5]];
-          break;
-        case 'slope-t-l':
-          uv = [[-0.5, -0.22], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]];
-          break;
-        case 'slope-t-r':
-          uv = [[-0.5, -0.5], [0.5, -0.22], [0.5, 0.5], [-0.5, 0.5]];
-          break;
-        case 'chamfer-tr':
-        case 'curve-tr':
-        case 'notch-tr':
-          uv = [[-0.5, -0.5], [0.18, -0.5], [0.5, -0.18], [0.5, 0.5], [-0.5, 0.5]];
-          break;
-        case 'chamfer-tl':
-        case 'curve-tl':
-        case 'notch-tl':
-          uv = [[-0.18, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5], [-0.5, -0.18]];
-          break;
-        case 'chamfer-br':
-        case 'curve-br':
-        case 'notch-br':
-          uv = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.18], [0.18, 0.5], [-0.5, 0.5]];
-          break;
-        case 'chamfer-bl':
-        case 'curve-bl':
-        case 'notch-bl':
-          uv = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.18, 0.5], [-0.5, 0.18]];
-          break;
-        case 'trapezoid':
-          uv = [[-0.36, -0.5], [0.36, -0.5], [0.5, 0.5], [-0.5, 0.5]];
-          break;
-        case 'trapezoid-l':
-          uv = [[-0.28, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]];
-          break;
-        case 'trapezoid-r':
-          uv = [[-0.5, -0.5], [0.28, -0.5], [0.5, 0.5], [-0.5, 0.5]];
-          break;
-        default:
-          return null;
+      const trimmed = (t.label ?? '').trim();
+
+      if (t.kind !== 'unit' && t.kind !== 'corridor') {
+        let variant = '';
+        if (trimmed.startsWith('lm:')) {
+          const body = trimmed.slice(3).split('|')[0];
+          variant = body.endsWith('+L') || body.endsWith('-L') ? body.slice(0, -2) : body;
+        } else if (t.kind === 'atrium') {
+          if (trimmed === 'atrium:rect') variant = 'rect';
+          else variant = 'circle';
+        } else if (t.kind === 'marker' || t.kind === 'info') {
+          variant = 'circle';
+        }
+        const polyMatch = variant.match(/^poly(8|12|24)$/);
+        if (polyMatch) {
+          const faces = Number(polyMatch[1]);
+          const cosStep = Math.cos(Math.PI / faces);
+          uv = [];
+          for (let i = 0; i < faces; i++) {
+            const theta = -Math.PI / 2 + ((i + 0.5) * 2 * Math.PI) / faces;
+            const u = 0.5 * Math.max(-1, Math.min(1, Math.cos(theta) / cosStep));
+            const v = 0.5 * Math.max(-1, Math.min(1, Math.sin(theta) / cosStep));
+            uv.push([u, v]);
+          }
+        } else if (variant === 'circle' || variant.endsWith('-circle') || variant === 'spiral-circle') {
+          const K = 24;
+          uv = [];
+          for (let i = 0; i < K; i++) {
+            const theta = (i * 2 * Math.PI) / K;
+            uv.push([0.5 * Math.cos(theta), 0.5 * Math.sin(theta)]);
+          }
+        }
+      } else if (t.kind === 'unit' && trimmed.startsWith('unit:')) {
+        const mode = trimmed.slice(5).split(':')[0];
+        switch (mode) {
+          case 'circle': {
+            const K = 24;
+            uv = [];
+            for (let i = 0; i < K; i++) {
+              const theta = (i * 2 * Math.PI) / K;
+              uv.push([0.5 * Math.cos(theta), 0.5 * Math.sin(theta)]);
+            }
+            break;
+          }
+          case 'ring-curve':
+            uv = [[-0.5, -0.32], [0, -0.5], [0.5, -0.32], [0.32, 0.5], [-0.32, 0.5]];
+            break;
+          case 'trapezoid-ring':
+            uv = [[-0.5, -0.5], [0.5, -0.5], [0.32, 0.5], [-0.32, 0.5]];
+            break;
+          case 'slope-b-l':
+            uv = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.16]];
+            break;
+          case 'slope-b-r':
+            uv = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.16], [-0.5, 0.5]];
+            break;
+          case 'slope-t-l':
+            uv = [[-0.5, -0.16], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]];
+            break;
+          case 'slope-t-r':
+            uv = [[-0.5, -0.5], [0.5, -0.16], [0.5, 0.5], [-0.5, 0.5]];
+            break;
+          case 'chamfer-tr':
+          case 'curve-tr':
+          case 'notch-tr':
+          case 'step-tr':
+            uv = [[-0.5, -0.5], [0.06, -0.5], [0.5, -0.06], [0.5, 0.5], [-0.5, 0.5]];
+            break;
+          case 'chamfer-tl':
+          case 'curve-tl':
+          case 'notch-tl':
+          case 'step-tl':
+            uv = [[-0.06, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5], [-0.5, -0.06]];
+            break;
+          case 'chamfer-br':
+          case 'curve-br':
+          case 'notch-br':
+          case 'step-br':
+            uv = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.06], [0.06, 0.5], [-0.5, 0.5]];
+            break;
+          case 'chamfer-bl':
+          case 'curve-bl':
+          case 'notch-bl':
+          case 'step-bl':
+            uv = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.06, 0.5], [-0.5, 0.06]];
+            break;
+          case 'crescent-l':
+            uv = [[-0.18, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.18, 0.5]];
+            break;
+          case 'crescent-r':
+            uv = [[-0.5, -0.5], [0.18, -0.5], [0.18, 0.5], [-0.5, 0.5]];
+            break;
+          case 'crescent-t':
+          case 'step-t-mid':
+          case 'u-court-t':
+            uv = [[-0.5, -0.18], [0.5, -0.18], [0.5, 0.5], [-0.5, 0.5]];
+            break;
+          case 'crescent-b':
+          case 'step-b-mid':
+          case 'u-court-b':
+            uv = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.18], [-0.5, 0.18]];
+            break;
+          case 'pie-wedge':
+            uv = [[-0.5, -0.5], [0.5, -0.5], [0.14, 0.5], [-0.14, 0.5]];
+            break;
+          case 'wedge-tl':
+            uv = [[-0.5, -0.5], [0.5, -0.5], [0.5, -0.32], [-0.32, 0.5], [-0.5, 0.5]];
+            break;
+          case 'wedge-tr':
+            uv = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [0.32, 0.5], [-0.5, -0.32]];
+            break;
+          case 'wedge-bl':
+            uv = [[-0.5, -0.5], [-0.32, -0.5], [0.5, 0.32], [0.5, 0.5], [-0.5, 0.5]];
+            break;
+          case 'wedge-br':
+            uv = [[0.32, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5], [-0.5, 0.32]];
+            break;
+          case 'wing-bend-l':
+            uv = [[-0.22, -0.5], [0.5, -0.5], [0.5, 0.04], [-0.12, 0.5], [-0.5, 0.5], [-0.5, -0.14]];
+            break;
+          case 'wing-bend-r':
+            uv = [[-0.5, -0.5], [0.22, -0.5], [0.5, -0.14], [0.5, 0.5], [0.12, 0.5], [-0.5, 0.04]];
+            break;
+          case 'trapezoid':
+            uv = [[-0.36, -0.5], [0.36, -0.5], [0.5, 0.5], [-0.5, 0.5]];
+            break;
+          case 'trapezoid-l':
+            uv = [[-0.28, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]];
+            break;
+          case 'trapezoid-r':
+            uv = [[-0.5, -0.5], [0.28, -0.5], [0.5, 0.5], [-0.5, 0.5]];
+            break;
+        }
       }
+
+      if (!uv) return null;
       const corners = uv.map(([u, v]) => ({
         x: g.cx + g.ux * (u * t.w) + g.vx * (v * t.h),
         y: g.cy + g.uy * (u * t.w) + g.vy * (v * t.h),
@@ -306,24 +333,13 @@ class MallService {
     ) => {
       const angleA = a.angle ?? 0;
       const angleB = b.angle ?? 0;
-      const isRingCurvePair =
-        a.kind === 'unit' &&
-        b.kind === 'unit' &&
-        (Boolean(a.label && (a.label === 'unit:ring-curve' || a.label.startsWith('unit:ring-curve:'))) ||
-          Boolean(b.label && (b.label === 'unit:ring-curve' || b.label.startsWith('unit:ring-curve:'))) ||
-          a.label === 'unit:trapezoid-ring' ||
-          b.label === 'unit:trapezoid-ring');
       const ga = getRotatedTileBox(a);
       const gb = getRotatedTileBox(b);
-      const polyA = getCustomUnitPoly(a, ga);
-      const polyB = getCustomUnitPoly(b, gb);
-      if (angleA === 0 && angleB === 0 && !isRingCurvePair && !polyA && !polyB) return false;
-      if (
-        (a.kind === 'corridor' && a.label === 'walkway:circle') ||
-        (b.kind === 'corridor' && b.label === 'walkway:circle')
-      ) {
-        return false;
-      }
+      const polyA = getTrueShapePoly(a, ga);
+      const polyB = getTrueShapePoly(b, gb);
+      if (angleA === 0 && angleB === 0 && !polyA && !polyB) return false;
+      if (!polyA && !polyB && rectsOverlap(a, b)) return false;
+
       const cornersA = polyA ? polyA.corners : ga.corners;
       const cornersB = polyB ? polyB.corners : gb.corners;
       const axes = [
@@ -332,18 +348,7 @@ class MallService {
         ...(polyA ? polyA.extraAxes : []),
         ...(polyB ? polyB.extraAxes : []),
       ];
-      const centerDist = Math.hypot(ga.cx - gb.cx, ga.cy - gb.cy);
-      const minSpan = Math.min(a.w, a.h, b.w, b.h);
-      const angDiff90 = Math.abs((((angleA - angleB) % 90) + 90) % 90);
-      const isAlignedRotatedPair =
-        angleA !== 0 &&
-        angleB !== 0 &&
-        (angDiff90 <= 15 || angDiff90 >= 75) &&
-        centerDist >= Math.max(1.2, minSpan * 0.72);
-      const sepTol =
-        isRingCurvePair && centerDist >= Math.max(1.2, minSpan * 0.62)
-          ? 1.65
-          : 0.12;
+      const eps = 1e-4;
       for (const ax of axes) {
         let minA = Infinity;
         let maxA = -Infinity;
@@ -359,10 +364,7 @@ class MallService {
           if (p < minB) minB = p;
           if (p > maxB) maxB = p;
         }
-        const effTol = isAlignedRotatedPair
-          ? Math.max(sepTol, Math.min(0.76, 0.54 * (Math.abs(ax.x) + Math.abs(ax.y))))
-          : sepTol;
-        if (maxA <= minB + effTol || maxB <= minA + effTol) return true;
+        if (maxA <= minB + eps || maxB <= minA + eps) return true;
       }
       return false;
     };
@@ -395,17 +397,13 @@ class MallService {
       return ba.minX < bb.maxX - 1e-4 && ba.maxX > bb.minX + 1e-4 && ba.minY < bb.maxY - 1e-4 && ba.maxY > bb.minY + 1e-4;
     };
 
-    // Tiles must not overlap each other (except Elevator / Escalator / Lift / Stairs placed inside or merged with an Atrium)
+    // Tiles must not overlap each other (except Elevator / Escalator / Lift / Stairs placed strictly inside an Atrium)
     for (let a = 0; a < items.length; a++) {
       for (let b = a + 1; b < items.length; b++) {
         const p = items[a];
         const q = items[b];
-        if (
-          rotatedWorldBoundsOverlap(p, q) &&
-          !isAtriumTransitOverlap(p, q) &&
-          !isOutsidePolygonAtrium(p, q) &&
-          !areRotatedRectsSeparated(p, q)
-        ) {
+        if (isAtriumTransitOverlap(p, q)) continue;
+        if (rotatedWorldBoundsOverlap(p, q) && !areRotatedRectsSeparated(p, q)) {
           throw AppError.validation('Tiles overlap each other — move them apart before saving');
         }
       }
