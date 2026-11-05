@@ -497,7 +497,7 @@ function EditDrawer({ property, onClose }: { property: PropertyListItem; onClose
 
       {/* Currency double-click modal */}
       {currencyModal && (
-        <div className="modal-overlay" onClick={() => setCurrencyModal(null)}>
+        <div className="modal-overlay">
           <div className="modal-card" style={{ maxWidth: 420 }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h2>Currency Locked</h2>
@@ -541,7 +541,7 @@ function EditDrawer({ property, onClose }: { property: PropertyListItem; onClose
 
       {/* ISO Currency Picker Modal */}
       {showCurrencyPicker && (
-        <div className="cp-iso-overlay" onClick={() => setShowCurrencyPicker(false)}>
+        <div className="cp-iso-overlay">
           <div className="cp-iso-modal" onClick={e => e.stopPropagation()}>
             <div className="cp-iso-header">
               <span className="cp-iso-title">Select Currency</span>

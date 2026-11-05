@@ -66,7 +66,7 @@ export default function ImportLeadModal({ onClose }: Props) {
   };
 
   return (
-    <div className="il-overlay" onClick={onClose}>
+    <div className="il-overlay">
       <div className="il-modal" onClick={e => e.stopPropagation()}>
 
         {/* Header */}

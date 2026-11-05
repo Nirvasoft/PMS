@@ -618,7 +618,7 @@ export default function PaymentMethodSetupPage() {
 
       {/* Chart of Accounts Lookup Modal */}
       {showCoaModal && (
-        <div className="modal-overlay coa-lookup-overlay" onClick={() => setShowCoaModal(false)}>
+        <div className="modal-overlay coa-lookup-overlay">
           <div className="modal-content coa-lookup-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h2>

@@ -511,7 +511,7 @@ export default function IntegrationsPage() {
 
       {/* Sync Logs Drawer */}
       {showLogs && createPortal(
-        <div className="shop-detail-overlay" onClick={() => setShowLogs(null)}>
+        <div className="shop-detail-overlay">
           <div className="shop-detail-drawer" onClick={e => e.stopPropagation()} style={{ width: 560, padding: 0, display: 'flex', flexDirection: 'column' }}>
             <SyncLogsDrawer
               integration={integrations.find((i: any) => i.id === showLogs)}
@@ -694,7 +694,7 @@ export default function IntegrationsPage() {
 
       {/* Entity Map Drawer */}
       {showEntityMap && createPortal(
-        <div className="shop-detail-overlay" onClick={() => setShowEntityMap(null)}>
+        <div className="shop-detail-overlay">
           <div className="shop-detail-drawer" onClick={e => e.stopPropagation()} style={{ width: 620, padding: 0, display: 'flex', flexDirection: 'column' }}>
             <EntityMapDrawer
               integration={integrations.find((i: any) => i.id === showEntityMap)}

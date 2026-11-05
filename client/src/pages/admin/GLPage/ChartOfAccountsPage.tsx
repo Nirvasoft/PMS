@@ -980,7 +980,7 @@ function AccountModal({
       {/* Department Lookup Modal */}
       {showDeptLookup &&
         createPortal(
-          <div className="modal-overlay coa-lookup-overlay" onClick={() => setShowDeptLookup(false)}>
+          <div className="modal-overlay coa-lookup-overlay">
             <div className="modal-content coa-lookup-modal" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
                 <h2>
@@ -1095,7 +1095,7 @@ function AccountModal({
       {/* Cost Center Lookup Modal */}
       {showCostLookup &&
         createPortal(
-          <div className="modal-overlay coa-lookup-overlay" onClick={() => setShowCostLookup(false)}>
+          <div className="modal-overlay coa-lookup-overlay">
             <div className="modal-content coa-lookup-modal" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
                 <h2>

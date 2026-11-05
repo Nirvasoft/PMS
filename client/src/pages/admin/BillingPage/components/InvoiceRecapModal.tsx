@@ -348,7 +348,7 @@ export const InvoiceRecapModal: React.FC<InvoiceRecapModalProps> = ({
   const totalCreditBase = rows.reduce((s, r) => s + r.creditBase, 0);
 
   return (
-    <div className="recap-modal-overlay" onClick={onClose}>
+    <div className="recap-modal-overlay">
       <div
         className="recap-modal-dialog"
         onClick={(e) => e.stopPropagation()}

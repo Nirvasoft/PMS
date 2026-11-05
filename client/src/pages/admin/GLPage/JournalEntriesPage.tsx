@@ -335,7 +335,7 @@ function JournalEntryDetailModal({
   const entryCcs = getEntryCcs(entry);
 
   return (
-    <div className="gl-modal-overlay" onClick={onClose}>
+    <div className="gl-modal-overlay">
       <div className="gl-modal je-detail-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 960 }}>
         <div className="je-detail-header">
           <div>

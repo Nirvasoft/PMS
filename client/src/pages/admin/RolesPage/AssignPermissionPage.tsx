@@ -1042,7 +1042,7 @@ export default function AssignPermissionPage() {
 
 
       {floorModalOpen && (
-        <div className="modal-overlay" onClick={() => setFloorModalOpen(false)}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 640 }}>
             <div className="modal-header">
               <h2>All Floor</h2>

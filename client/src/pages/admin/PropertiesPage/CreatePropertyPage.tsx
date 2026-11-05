@@ -701,7 +701,7 @@ export default function CreatePropertyPage() {
 
       {/* ISO Currency Picker Modal */}
       {showCurrencyPicker && (
-        <div className="cp-iso-overlay" onClick={() => setShowCurrencyPicker(false)}>
+        <div className="cp-iso-overlay">
           <div className="cp-iso-modal" onClick={e => e.stopPropagation()}>
             <div className="cp-iso-header">
               <span className="cp-iso-title">Select Currency</span>

@@ -630,7 +630,6 @@ export default function DetailedTrialBalancePage() {
       {showTemplatePopup && (
         <div
           className="dt-template-popup-overlay"
-          onClick={() => setShowTemplatePopup(false)}
         >
           <div
             className="dt-template-popup"
@@ -921,7 +920,7 @@ export default function DetailedTrialBalancePage() {
 
       {/* Account Code Lookup Modal */}
       {lookupTarget && (
-        <div className="gl-modal-overlay" onClick={() => setLookupTarget(null)}>
+        <div className="gl-modal-overlay">
           <div
             className="gl-modal"
             style={{ maxWidth: 560, width: '92%' }}

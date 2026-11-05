@@ -302,7 +302,7 @@ function CampaignFormModal({ campaign, activePropertyId, onClose }: {
   };
 
   return (
-    <div className="crm-modal-overlay" onClick={onClose}>
+    <div className="crm-modal-overlay">
       <div className="crm-modal camp-form-modal" onClick={e => e.stopPropagation()}>
         <div className="camp-modal-header">
           <div className="camp-modal-header-left">

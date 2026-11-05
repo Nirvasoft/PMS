@@ -289,7 +289,7 @@ function DepartmentCenterModal({
   };
 
   return (
-    <div className="gl-modal-overlay" onClick={onClose}>
+    <div className="gl-modal-overlay">
       <div className="gl-modal" onClick={(e) => e.stopPropagation()}>
         <h3>{isEdit ? 'Edit Department' : 'New Department'}</h3>
         <form onSubmit={handleSubmit} noValidate>

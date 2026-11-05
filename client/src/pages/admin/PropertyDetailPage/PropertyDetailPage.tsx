@@ -1534,7 +1534,7 @@ function MeterRecordsTab({ propertyId }: { propertyId: string }) {
 
       {/* Export-options modal */}
       {showExportModal && (
-        <div className="modal-overlay" onClick={() => setShowExportModal(false)}>
+        <div className="modal-overlay">
           <div className="modal-card" style={{ maxWidth: 400 }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>Export Meter Records</h2>

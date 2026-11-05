@@ -514,7 +514,7 @@ export default function CronJobsPage() {
 
       {/* ─── MODAL 1: EDIT SCHEDULE MODAL (HYBRID) ─── */}
       {editingJob && (
-        <div className="cron-modal-backdrop" onClick={() => setEditingJob(null)}>
+        <div className="cron-modal-backdrop">
           <div className="cron-modal" onClick={e => e.stopPropagation()}>
             <div className="cron-modal-header">
               <h2>
@@ -734,7 +734,7 @@ export default function CronJobsPage() {
 
       {/* ─── MODAL 2: RUN NOW CONFIRMATION MODAL ─── */}
       {runConfirmJob && (
-        <div className="cron-modal-backdrop" onClick={() => setRunConfirmJob(null)}>
+        <div className="cron-modal-backdrop">
           <div className="cron-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '460px' }}>
             <div className="cron-modal-header">
               <h2>
@@ -788,7 +788,7 @@ function CronJobLogsModal({ job, onClose }: { job: CronJobItem; onClose: () => v
   const logs = logsRes?.logs || [];
 
   return (
-    <div className="cron-modal-backdrop" onClick={onClose}>
+    <div className="cron-modal-backdrop">
       <div className="cron-modal wide" onClick={e => e.stopPropagation()}>
         <div className="cron-modal-header">
           <h2>

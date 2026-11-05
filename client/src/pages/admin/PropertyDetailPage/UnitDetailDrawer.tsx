@@ -704,7 +704,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
 
   return (
     <>
-      <div className="drawer-overlay" onClick={() => dispatch(closeDrawer())} />
+      <div className="drawer-overlay" />
       <div className="unit-drawer">
         {/* Header */}
         <div className="drawer-header">
@@ -2019,7 +2019,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
           (s: any) => s.status === 'active' && s.chargeType?.id === chargeTypeId
         );
         return (
-          <div className="modal-overlay" onClick={() => setSyncConfirmPending(null)}>
+          <div className="modal-overlay">
             <div className="modal-box" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
                 <span>Update Billing Schedules?</span>

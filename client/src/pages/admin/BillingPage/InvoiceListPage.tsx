@@ -827,7 +827,7 @@ export default function InvoiceListPage() {
 
       {/* ═══ V6 ERP Result Modal ═══ */}
       {v6ErpResult && (
-        <div className="mall-modal-overlay" onClick={() => setV6ErpResult(null)}>
+        <div className="mall-modal-overlay">
           <div className="mall-modal" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
             <div className="mall-modal-header">
               <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -955,7 +955,7 @@ function RunBillingModal({ activeProperty, onClose, onSubmit, isLoading }: {
   };
 
   return (
-    <div className="rb-overlay" onClick={onClose}>
+    <div className="rb-overlay">
       <div className="rb-modal rb-modal-lg" onClick={e => e.stopPropagation()}>
         <div className="rb-header">
           <div className="rb-title"><Play size={16} /> Run Billing</div>
@@ -1261,7 +1261,7 @@ function ViewInvoiceReportModal({
   };
 
   return (
-    <div className="rb-overlay" onClick={onClose}>
+    <div className="rb-overlay">
       <div className="rb-modal rb-modal-lg" style={{ maxWidth: 600 }} onClick={e => e.stopPropagation()}>
         <div className="rb-header">
           <div className="rb-title">

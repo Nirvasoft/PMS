@@ -748,7 +748,7 @@ export default function CurrencyRatesPage() {
 
       {/* ISO Currency Picker Modal */}
       {showIsoModal && (
-        <div className="cr-iso-overlay" onClick={() => setShowIsoModal(false)}>
+        <div className="cr-iso-overlay">
           <div className="cr-iso-modal" onClick={(e) => e.stopPropagation()}>
 
             {/* Header */}
