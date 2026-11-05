@@ -28,11 +28,11 @@ import {
   computeWalkwayPath, buildSmoothRouteSvgPath, computeRouteDirectionArrows, computeFloorplateBounds, findDefaultStartItem, findNearestFacilityItem,
   rotateMapLayout, parseRotationAngle, computeUnitMergeMap,
   normalizeTileAngle,
-  UNIT_SHAPE_LABELS, UNIT_SHAPE_OPTIONS, parseUnitShapeMode, encodeUnitShapeMode, isAutoUnitShapeLabel, nextUnitShapeMode, isTrapezoidUnitMode, getTrapezoidUnitGeometry,
+  UNIT_SHAPE_LABELS, UNIT_SHAPE_CATEGORY_TABS, UNIT_SHAPE_COMPACT_FAMILIES, parseUnitShapeMode, encodeUnitShapeMode, isAutoUnitShapeLabel, nextUnitShapeMode, resolveSmartFamilyShapeMode, isTrapezoidUnitMode, getTrapezoidUnitGeometry,
   LANDMARK_VARIANTS, parseLandmarkMeta, encodeLandmarkMeta, nextLandmarkVariant, autoSquareCircleLandmark, getPolygonAtriumGeometry,
   parseFloorPlanData, buildCopiedFloorLayout, saveCachedFloorPlan, getCachedFloorPlan,
   expandTouchingGroupKeys, computeGroupBoundingBox, moveTileGroupByDelta, rotateTileGroup,
-  type MapItem, type TileKind, type MapRotationAngle, type SharpCorners, type EdgeMergeGeometry, type UnitShapeMode, type TrapezoidUnitGeometry, type MagneticSnapGuide,
+  type MapItem, type TileKind, type MapRotationAngle, type SharpCorners, type EdgeMergeGeometry, type UnitShapeMode, type UnitShapeCategoryId, type TrapezoidUnitGeometry, type MagneticSnapGuide,
 } from './shopMapLayout';
 import {
   hasFailedUnitPhoto,
@@ -54,8 +54,8 @@ interface Props {
 }
 
 const ALL_RESIZE_HANDLES = ['se', 'sw', 'nw', 'ne', 'e', 'w', 's', 'n'] as const;
-const EDIT_LEFT_PAD = 12;
-const EDIT_RIGHT_PAD = 16;
+const EDIT_LEFT_PAD = 4;
+const EDIT_RIGHT_PAD = 32;
 
 interface BlueprintOverlayConfig {
   dataUrl: string;
@@ -64,6 +64,10 @@ interface BlueprintOverlayConfig {
   scale: number;
   offsetX: number;
   offsetY: number;
+  offsetCellX?: number;
+  offsetCellY?: number;
+  gridCols?: number;
+  aspectRatio?: number;
   rotation: number;
 }
 
@@ -71,22 +75,23 @@ function getBlueprintStorageKey(floorName: string): string {
   return `pms_floor_blueprint_v1_${floorName.trim().toLowerCase()}`;
 }
 
-function compressBlueprintImageToDataUrl(file: File): Promise<string> {
+function compressBlueprintImageToDataUrl(file: File): Promise<{ dataUrl: string; aspectRatio: number }> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error('Failed to read image file'));
     reader.onload = () => {
       const rawUrl = String(reader.result || '');
-      if (file.type === 'image/svg+xml' || file.size <= 350 * 1024) {
-        resolve(rawUrl);
-        return;
-      }
       const img = new window.Image();
-      img.onerror = () => resolve(rawUrl);
+      img.onerror = () => resolve({ dataUrl: rawUrl, aspectRatio: 0.75 });
       img.onload = () => {
-        const maxDim = 1600;
         const w = img.naturalWidth || img.width || 1200;
         const h = img.naturalHeight || img.height || 900;
+        const aspectRatio = Math.max(0.15, Math.min(4, Math.round((h / Math.max(1, w)) * 10000) / 10000));
+        if (file.type === 'image/svg+xml' || file.size <= 350 * 1024) {
+          resolve({ dataUrl: rawUrl, aspectRatio });
+          return;
+        }
+        const maxDim = 1600;
         const ratio = Math.min(1, maxDim / Math.max(w, h));
         const targetW = Math.max(1, Math.round(w * ratio));
         const targetH = Math.max(1, Math.round(h * ratio));
@@ -95,15 +100,18 @@ function compressBlueprintImageToDataUrl(file: File): Promise<string> {
         canvas.height = targetH;
         const ctx = canvas.getContext('2d');
         if (!ctx) {
-          resolve(rawUrl);
+          resolve({ dataUrl: rawUrl, aspectRatio });
           return;
         }
         ctx.drawImage(img, 0, 0, targetW, targetH);
         try {
           const webpUrl = canvas.toDataURL('image/webp', 0.85);
-          resolve(webpUrl.startsWith('data:image/') ? webpUrl : canvas.toDataURL('image/jpeg', 0.85));
+          resolve({
+            dataUrl: webpUrl.startsWith('data:image/') ? webpUrl : canvas.toDataURL('image/jpeg', 0.85),
+            aspectRatio,
+          });
         } catch {
-          resolve(rawUrl);
+          resolve({ dataUrl: rawUrl, aspectRatio });
         }
       };
       img.src = rawUrl;
@@ -170,6 +178,34 @@ function AtriumShapeIcon({ mode, size }: { mode: UnitShapeMode | string; size: n
       </svg>
     );
   }
+  if (mode === 'slope-l-t') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <polygon points="6.2 3.2 13.8 3.2 13.8 12.8 2.2 12.8" />
+      </svg>
+    );
+  }
+  if (mode === 'slope-l-b') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <polygon points="2.2 3.2 13.8 3.2 13.8 12.8 6.2 12.8" />
+      </svg>
+    );
+  }
+  if (mode === 'slope-r-t') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <polygon points="2.2 3.2 9.8 3.2 13.8 12.8 2.2 12.8" />
+      </svg>
+    );
+  }
+  if (mode === 'slope-r-b') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <polygon points="2.2 3.2 13.8 3.2 9.8 12.8 2.2 12.8" />
+      </svg>
+    );
+  }
   if (mode === 'chamfer-tr') {
     return (
       <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
@@ -195,6 +231,62 @@ function AtriumShapeIcon({ mode, size }: { mode: UnitShapeMode | string; size: n
     return (
       <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
         <polygon points="2.2 3.2 13.8 3.2 13.8 12.8 6.6 12.8 2.2 8.4" />
+      </svg>
+    );
+  }
+  if (mode === 'bevel-l') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <polygon points="6.2 3.2 13.8 3.2 13.8 12.8 6.2 12.8 2.2 8.0" />
+      </svg>
+    );
+  }
+  if (mode === 'bevel-r') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <polygon points="2.2 3.2 9.8 3.2 13.8 8.0 9.8 12.8 2.2 12.8" />
+      </svg>
+    );
+  }
+  if (mode === 'bevel-t') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <polygon points="8.0 2.4 13.8 6.6 13.8 12.8 2.2 12.8 2.2 6.6" />
+      </svg>
+    );
+  }
+  if (mode === 'bevel-b') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <polygon points="2.2 3.2 13.8 3.2 13.8 9.4 8.0 13.6 2.2 9.4" />
+      </svg>
+    );
+  }
+  if (mode === 'notch-br-chamfer-tl') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <path d="M 6.2 3.2 L 13.8 3.2 L 13.8 8.2 Q 9.2 8.2 9.2 12.8 L 2.2 12.8 L 2.2 7.2 Z" />
+      </svg>
+    );
+  }
+  if (mode === 'notch-tr-chamfer-bl') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <path d="M 2.2 3.2 L 9.2 3.2 Q 9.2 7.8 13.8 7.8 L 13.8 12.8 L 6.2 12.8 L 2.2 8.8 Z" />
+      </svg>
+    );
+  }
+  if (mode === 'notch-bl-chamfer-tr') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <path d="M 2.2 3.2 L 9.8 3.2 L 13.8 7.2 L 13.8 12.8 L 6.8 12.8 Q 6.8 8.2 2.2 8.2 Z" />
+      </svg>
+    );
+  }
+  if (mode === 'notch-tl-chamfer-br') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <path d="M 6.8 3.2 L 13.8 3.2 L 13.8 8.8 L 9.8 12.8 L 2.2 12.8 L 2.2 7.8 Q 6.8 7.8 6.8 3.2 Z" />
       </svg>
     );
   }
@@ -666,7 +758,7 @@ function DecorIcon({
   variant = 'default',
   size = 14,
 }: {
-  kind: Exclude<TileKind, 'unit' | 'corridor'>;
+  kind: Exclude<TileKind, 'unit'>;
   variant?: string;
   size?: number;
 }) {
@@ -1200,6 +1292,8 @@ export default function ShopMapView({
   const [showRouteQrModal, setShowRouteQrModal] = useState(false);
   const [editingLandmarkKey, setEditingLandmarkKey] = useState<string | null>(null);
   const [editingUnitShapeKey, setEditingUnitShapeKey] = useState<string | null>(null);
+  const [unitShapeCatTab, setUnitShapeCatTab] = useState<UnitShapeCategoryId>('all');
+  const [showFloorToolsMenu, setShowFloorToolsMenu] = useState(false);
   const [focusedLayerKey, setFocusedLayerKey] = useState<string | null>(null);
   const [rotatingTileKey, setRotatingTileKey] = useState<string | null>(null);
   const [isRotatingGroup, setIsRotatingGroup] = useState(false);
@@ -1270,9 +1364,11 @@ export default function ShopMapView({
     }
   }, [otherFloorsForCopy, copySourceFloor]);
 
+  const localSavedPlanRef = useRef<{ floor: string; data: any } | null>(null);
   const networkPlanData: any = (plan as any)?.data ?? plan;
   useEffect(() => {
     if (networkPlanData && propertyId && floor) {
+      localSavedPlanRef.current = null;
       saveCachedFloorPlan(propertyId, floor, networkPlanData);
     }
   }, [networkPlanData, propertyId, floor]);
@@ -1281,9 +1377,8 @@ export default function ShopMapView({
     () => networkPlanData ?? getCachedFloorPlan(propertyId, floor),
     [networkPlanData, propertyId, floor],
   );
-
-  const editLeftOffsetRef = useRef(0);
-  const pendingScrollAdjustPxRef = useRef(0);
+  const activePlanData =
+    localSavedPlanRef.current?.floor === floor ? localSavedPlanRef.current.data : planData;
 
   const applyParsedLayout = (parsed: {
     sqftPerCell: number;
@@ -1291,21 +1386,49 @@ export default function ShopMapView({
     decorSeq: number;
     items: MapItem[];
   }) => {
-    editLeftOffsetRef.current = 0;
     setSqftPerCell(parsed.sqftPerCell);
     setColumns(parsed.columns);
     setDecorSeq(parsed.decorSeq);
+    itemsRef.current = parsed.items;
     setItems(parsed.items);
   };
 
   // (Re)load draft from server or local offline cache whenever floor / data changes and there are no unsaved edits.
   useEffect(() => {
     if (dirty) return;
-    applyParsedLayout(parseFloorPlanData(planData, shopByUnit));
-  }, [planData, shopByUnit, dirty]);
+    applyParsedLayout(parseFloorPlanData(activePlanData, shopByUnit));
+  }, [activePlanData, shopByUnit, dirty]);
+
+  const blueprintInputRef = useRef<HTMLInputElement | null>(null);
+  const [blueprint, setBlueprint] = useState<BlueprintOverlayConfig | null>(null);
+  const editOriginBlueprintRef = useRef<BlueprintOverlayConfig | null>(null);
+  const [adjustingBlueprint, setAdjustingBlueprint] = useState(false);
+
+  const blueprintGridBounds = useMemo(() => {
+    if (!editing || !blueprint || !blueprint.visible) return null;
+    const bpWCells = (DEFAULT_COLUMNS * blueprint.scale) / 100;
+    const aspect = blueprint.aspectRatio && blueprint.aspectRatio > 0 ? blueprint.aspectRatio : 0.75;
+    const bpHCells = bpWCells * aspect;
+    const bpXCells =
+      typeof blueprint.offsetCellX === 'number'
+        ? blueprint.offsetCellX
+        : Math.max(0, Math.round((blueprint.offsetX / 9) * 100) / 100);
+    const bpYCells =
+      typeof blueprint.offsetCellY === 'number'
+        ? blueprint.offsetCellY
+        : Math.max(0, Math.round((blueprint.offsetY / 9) * 100) / 100);
+    const isBpQuarterTurn = blueprint.rotation % 180 !== 0;
+    const rightCells = isBpQuarterTurn
+      ? Math.ceil(bpXCells + bpWCells * 0.5 + bpHCells * 0.5)
+      : Math.ceil(bpXCells + bpWCells);
+    const bottomCells = isBpQuarterTurn
+      ? Math.ceil(bpYCells + bpHCells * 0.5 + bpWCells * 0.5)
+      : Math.ceil(bpYCells + bpHCells);
+    return { bpXCells, bpYCells, bpWCells, bpHCells, rightCells, bottomCells };
+  }, [editing, blueprint]);
 
   const maxEditingRight = useMemo(() => {
-    let maxR = 0;
+    let maxR = blueprintGridBounds ? blueprintGridBounds.rightCells : 0;
     for (const it of items) {
       const dx =
         editing && dragGroupDelta && selectedGroupSet.has(it.key) ? dragGroupDelta.dx : 0;
@@ -1317,10 +1440,10 @@ export default function ShopMapView({
       if (r > maxR) maxR = r;
     }
     return maxR;
-  }, [items, editing, dragPreviewItem, dragGroupDelta, selectedGroupSet]);
+  }, [items, editing, dragPreviewItem, dragGroupDelta, selectedGroupSet, blueprintGridBounds]);
 
   const effectiveColumns = editing
-    ? Math.max(columns, DEFAULT_COLUMNS + editLeftOffsetRef.current, maxEditingRight + EDIT_RIGHT_PAD)
+    ? Math.max(columns, DEFAULT_COLUMNS, maxEditingRight + EDIT_RIGHT_PAD)
     : Math.max(columns, DEFAULT_COLUMNS, maxEditingRight);
 
   const effectiveRotation: MapRotationAngle = editing ? 0 : mapRotation;
@@ -1333,13 +1456,13 @@ export default function ShopMapView({
   const displayItems = useMemo(
     () => [
       ...rotatedLayout.items.filter((i) => i.kind === 'atrium'),
-      ...rotatedLayout.items.filter((i) => i.kind !== 'corridor' && i.kind !== 'atrium'),
+      ...rotatedLayout.items.filter((i) => i.kind !== 'atrium'),
     ],
     [rotatedLayout.items],
   );
   const displayColumns = rotatedLayout.columns;
   const maxDisplayBottom = useMemo(() => {
-    let maxB = 10;
+    let maxB = blueprintGridBounds ? Math.max(20, blueprintGridBounds.bottomCells) : 20;
     for (const it of displayItems) {
       const dy =
         editing && dragGroupDelta && selectedGroupSet.has(it.key) ? dragGroupDelta.dy : 0;
@@ -1351,8 +1474,8 @@ export default function ShopMapView({
       if (b > maxB) maxB = b;
     }
     return maxB;
-  }, [displayItems, editing, dragPreviewItem, dragGroupDelta, selectedGroupSet]);
-  const rows = maxDisplayBottom + (editing ? 8 : 1);
+  }, [displayItems, editing, dragPreviewItem, dragGroupDelta, selectedGroupSet, blueprintGridBounds]);
+  const rows = maxDisplayBottom + (editing ? 16 : 2);
 
   const itemsRef = useRef<MapItem[]>(items);
   itemsRef.current = items;
@@ -1443,7 +1566,7 @@ export default function ShopMapView({
         const orig = baseItems[idx];
         const moved = orig && (it.x !== orig.x || it.y !== orig.y || it.w !== orig.w || it.h !== orig.h);
         if (!moved) return it;
-        return curveUnitAroundCircleWithoutSnap(it, candidateItems, orig, autoShapeEnabled);
+        return curveUnitAroundCircleWithoutSnap(it, candidateItems, autoShapeEnabled);
       });
     }
 
@@ -1486,7 +1609,7 @@ export default function ShopMapView({
     if (anyAtriumChanged && autoShapeEnabled) {
       candidateItems = candidateItems.map((t) =>
         t.kind === 'unit' && isAutoUnitShapeLabel(t.label)
-          ? curveUnitAroundCircleWithoutSnap(t, candidateItems, undefined, true)
+          ? curveUnitAroundCircleWithoutSnap(t, candidateItems, true)
           : t,
       );
     }
@@ -1560,7 +1683,7 @@ export default function ShopMapView({
       Array.from(
         new Set(
           items
-            .filter((i) => i.kind !== 'unit' && i.kind !== 'corridor')
+            .filter((i) => i.kind !== 'unit')
             .map((i) => i.kind as Exclude<TileKind, 'unit'>),
         ),
       ),
@@ -1587,16 +1710,29 @@ export default function ShopMapView({
 
   const { width, containerRef } = useContainerWidth();
   const availWidth = Math.max(0, (width || viewport.w || 900) - 16);
-  const minDeviceCellPx = editing ? 10 : viewport.w <= 480 ? 10 : viewport.w <= 768 ? 11 : 4;
-  // In Edit mode, keep cell size constant (based on DEFAULT_COLUMNS) so tiles never shrink as horizontal columns expand;
-  // in View mode, fit the floor map to the screen width.
+  const minDeviceCellPx = editing ? 5 : viewport.w <= 480 ? 5 : viewport.w <= 768 ? 6 : 2;
+  // In Edit mode, keep cell size constant (based on DEFAULT_COLUMNS) and lock it against scrollbar width changes
+  // so neither tiles nor the blueprint ever shrink or zoom when placing units below or to the sides.
   const rawCellPx = Math.floor(availWidth / Math.max(1, editing ? DEFAULT_COLUMNS : displayColumns));
+  const lockedEditCellPxRef = useRef<{ windowW: number; containerW: number; cellPx: number } | null>(null);
+  if (!editing) {
+    lockedEditCellPxRef.current = null;
+  } else if (width && width > 0) {
+    const nextEditCellPx = Math.max(5, rawCellPx);
+    if (
+      !lockedEditCellPxRef.current ||
+      Math.abs(lockedEditCellPxRef.current.windowW - viewport.w) > 2 ||
+      Math.abs(lockedEditCellPxRef.current.containerW - width) > 24
+    ) {
+      lockedEditCellPxRef.current = { windowW: viewport.w, containerW: width, cellPx: nextEditCellPx };
+    }
+  }
   const maxCanvasHeight = Math.max(340, Math.round(viewport.h * (fullScreen ? 0.72 : 0.65)));
   const maxCellByHeight = Math.max(minDeviceCellPx, Math.floor(maxCanvasHeight / Math.max(1, rows)));
   const cellPx = editing
-    ? Math.max(10, rawCellPx)
+    ? (lockedEditCellPxRef.current?.cellPx ?? Math.max(5, rawCellPx))
     : isQuarterTurn
-      ? Math.max(minDeviceCellPx, Math.min(rawCellPx, maxCellByHeight, 26))
+      ? Math.max(minDeviceCellPx, Math.min(rawCellPx, maxCellByHeight, 13))
       : Math.max(minDeviceCellPx, rawCellPx);
   const naturalGridWidth = displayColumns * cellPx;
   const gridWidth = Math.max(240, naturalGridWidth);
@@ -1608,13 +1744,10 @@ export default function ShopMapView({
   );
 
   // ── Feature #7: Background Floorplan Blueprint Image Overlay (Edit Layout) ──
-  const blueprintInputRef = useRef<HTMLInputElement | null>(null);
-  const [blueprint, setBlueprint] = useState<BlueprintOverlayConfig | null>(null);
-  const [adjustingBlueprint, setAdjustingBlueprint] = useState(false);
-
   useEffect(() => {
     if (!floor || typeof window === 'undefined') {
       setBlueprint(null);
+      editOriginBlueprintRef.current = null;
       setAdjustingBlueprint(false);
       return;
     }
@@ -1622,25 +1755,47 @@ export default function ShopMapView({
       const raw = window.localStorage.getItem(getBlueprintStorageKey(floor));
       if (!raw) {
         setBlueprint(null);
+        editOriginBlueprintRef.current = null;
         setAdjustingBlueprint(false);
         return;
       }
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed.dataUrl === 'string' && parsed.dataUrl.length > 0) {
-        setBlueprint({
+        const refCellPx = Math.max(5, cellPx);
+        const savedGridCols = typeof parsed.gridCols === 'number' && parsed.gridCols > 0 ? parsed.gridCols : 60;
+        const colScale = DEFAULT_COLUMNS / savedGridCols;
+        const offsetX = typeof parsed.offsetX === 'number' ? parsed.offsetX : Math.round(EDIT_LEFT_PAD * refCellPx);
+        const offsetY = typeof parsed.offsetY === 'number' ? parsed.offsetY : Math.round(2 * refCellPx);
+        const offsetCellX =
+          typeof parsed.offsetCellX === 'number'
+            ? Math.round(parsed.offsetCellX * colScale * 100) / 100
+            : Math.round((offsetX / refCellPx) * 100) / 100;
+        const offsetCellY =
+          typeof parsed.offsetCellY === 'number'
+            ? Math.round(parsed.offsetCellY * colScale * 100) / 100
+            : Math.round((offsetY / refCellPx) * 100) / 100;
+        const loadedBp: BlueprintOverlayConfig = {
           dataUrl: parsed.dataUrl,
           visible: parsed.visible !== false,
           opacity: typeof parsed.opacity === 'number' ? Math.min(95, Math.max(10, parsed.opacity)) : 45,
           scale: typeof parsed.scale === 'number' ? Math.min(250, Math.max(25, parsed.scale)) : 75,
-          offsetX: typeof parsed.offsetX === 'number' ? parsed.offsetX : Math.round(EDIT_LEFT_PAD * cellPx),
-          offsetY: typeof parsed.offsetY === 'number' ? parsed.offsetY : 16,
+          offsetX: Math.round(offsetCellX * refCellPx),
+          offsetY: Math.round(offsetCellY * refCellPx),
+          offsetCellX,
+          offsetCellY,
+          gridCols: DEFAULT_COLUMNS,
+          aspectRatio: typeof parsed.aspectRatio === 'number' && parsed.aspectRatio > 0 ? parsed.aspectRatio : undefined,
           rotation: typeof parsed.rotation === 'number' ? ((parsed.rotation % 360) + 360) % 360 : 0,
-        });
+        };
+        setBlueprint(loadedBp);
+        editOriginBlueprintRef.current = loadedBp;
       } else {
         setBlueprint(null);
+        editOriginBlueprintRef.current = null;
       }
     } catch {
       setBlueprint(null);
+      editOriginBlueprintRef.current = null;
     }
     setAdjustingBlueprint(false);
   }, [floor]);
@@ -1651,25 +1806,31 @@ export default function ShopMapView({
     }
   }, [editing, adjustingBlueprint]);
 
-  const saveBlueprintConfig = (next: BlueprintOverlayConfig | null) => {
+  const saveBlueprintConfig = (next: BlueprintOverlayConfig | null, markDirty = true) => {
     setBlueprint(next);
+    if (editing && markDirty) {
+      setDirty(true);
+    }
     if (!floor || typeof window === 'undefined') return;
     try {
       const key = getBlueprintStorageKey(floor);
       if (!next) {
         window.localStorage.removeItem(key);
       } else {
-        window.localStorage.setItem(key, JSON.stringify(next));
+        window.localStorage.setItem(key, JSON.stringify({ ...next, gridCols: DEFAULT_COLUMNS }));
       }
     } catch {
       // Ignore storage quota errors; keep in-memory state active for the session
     }
   };
 
-  const updateBlueprint = (patch: Partial<BlueprintOverlayConfig>) => {
+  const updateBlueprint = (patch: Partial<BlueprintOverlayConfig>, markDirty = true) => {
+    if (editing && markDirty) {
+      setDirty(true);
+    }
     setBlueprint((prev) => {
       if (!prev) return null;
-      const next: BlueprintOverlayConfig = { ...prev, ...patch };
+      const next: BlueprintOverlayConfig = { ...prev, ...patch, gridCols: DEFAULT_COLUMNS };
       if (floor && typeof window !== 'undefined') {
         try {
           window.localStorage.setItem(getBlueprintStorageKey(floor), JSON.stringify(next));
@@ -1690,17 +1851,24 @@ export default function ShopMapView({
       return;
     }
     try {
-      const dataUrl = await compressBlueprintImageToDataUrl(file);
+      const { dataUrl, aspectRatio } = await compressBlueprintImageToDataUrl(file);
+      const refCellPx = Math.max(5, cellPx);
+      const offsetCellX = blueprint?.offsetCellX ?? EDIT_LEFT_PAD;
+      const offsetCellY = blueprint?.offsetCellY ?? 2;
       const next: BlueprintOverlayConfig = {
         dataUrl,
         visible: true,
         opacity: blueprint?.opacity ?? 45,
         scale: blueprint?.scale ?? 75,
-        offsetX: blueprint?.offsetX ?? Math.round(EDIT_LEFT_PAD * cellPx),
-        offsetY: blueprint?.offsetY ?? 16,
+        offsetX: Math.round(offsetCellX * refCellPx),
+        offsetY: Math.round(offsetCellY * refCellPx),
+        offsetCellX,
+        offsetCellY,
+        gridCols: DEFAULT_COLUMNS,
+        aspectRatio,
         rotation: blueprint?.rotation ?? 0,
       };
-      saveBlueprintConfig(next);
+      saveBlueprintConfig(next, true);
       toast.success('Blueprint overlay loaded');
     } catch {
       toast.error('Could not load blueprint image');
@@ -1708,7 +1876,7 @@ export default function ShopMapView({
   };
 
   const handleRemoveBlueprint = () => {
-    saveBlueprintConfig(null);
+    saveBlueprintConfig(null, true);
     setAdjustingBlueprint(false);
     toast.success('Blueprint overlay removed');
   };
@@ -1719,14 +1887,21 @@ export default function ShopMapView({
     e.preventDefault();
     const startX = e.clientX;
     const startY = e.clientY;
-    const origX = blueprint.offsetX;
-    const origY = blueprint.offsetY;
+    const refCellPx = Math.max(5, cellPx);
+    const origCellX =
+      typeof blueprint.offsetCellX === 'number' ? blueprint.offsetCellX : blueprint.offsetX / refCellPx;
+    const origCellY =
+      typeof blueprint.offsetCellY === 'number' ? blueprint.offsetCellY : blueprint.offsetY / refCellPx;
     const onMove = (ev: PointerEvent) => {
       const dx = ev.clientX - startX;
       const dy = ev.clientY - startY;
+      const nextCellX = Math.round((origCellX + dx / refCellPx) * 100) / 100;
+      const nextCellY = Math.round((origCellY + dy / refCellPx) * 100) / 100;
       updateBlueprint({
-        offsetX: Math.round(origX + dx),
-        offsetY: Math.round(origY + dy),
+        offsetCellX: nextCellX,
+        offsetCellY: nextCellY,
+        offsetX: Math.round(nextCellX * refCellPx),
+        offsetY: Math.round(nextCellY * refCellPx),
       });
     };
     const onUp = () => {
@@ -1745,7 +1920,7 @@ export default function ShopMapView({
     e.preventDefault();
     const startX = e.clientX;
     const origScale = blueprint.scale;
-    const baseW = Math.max(240, gridWidth);
+    const baseW = Math.max(240, DEFAULT_COLUMNS * cellPx);
     const onMove = (ev: PointerEvent) => {
       const dx = ev.clientX - startX;
       const deltaPct = (dx / baseW) * 100;
@@ -1761,26 +1936,6 @@ export default function ShopMapView({
     window.addEventListener('pointerup', onUp);
     window.addEventListener('pointercancel', onUp);
   };
-
-  const ensureLeftPad = (list: MapItem[], minPad = EDIT_LEFT_PAD): MapItem[] => {
-    if (list.length === 0) return list;
-    const minX = Math.min(...list.map((i) => i.x));
-    if (minX >= minPad) return list;
-    const shiftX = minPad - minX;
-    editLeftOffsetRef.current += shiftX;
-    pendingScrollAdjustPxRef.current += shiftX * cellPx;
-    setColumns((c) => Math.max(c + shiftX, DEFAULT_COLUMNS + editLeftOffsetRef.current));
-    return list.map((i) => ({ ...i, x: i.x + shiftX }));
-  };
-
-  useEffect(() => {
-    if (pendingScrollAdjustPxRef.current !== 0 && containerRef.current) {
-      containerRef.current.scrollLeft += pendingScrollAdjustPxRef.current;
-      pendingScrollAdjustPxRef.current = 0;
-    } else {
-      pendingScrollAdjustPxRef.current = 0;
-    }
-  }, [items, columns, containerRef]);
 
   const staticTileMetaMap = useMemo(() => {
     const map = new Map<
@@ -1801,10 +1956,10 @@ export default function ShopMapView({
       const hPx = Math.max(1, it.h * cellPx);
       const decor = it.kind !== 'unit';
       const um = !decor ? unitMergeMap.get(it.key) ?? null : null;
-      const lmMeta = decor && it.kind !== 'corridor' ? parseLandmarkMeta(it.kind, it.label) : null;
+      const lmMeta = decor ? parseLandmarkMeta(it.kind, it.label) : null;
       const unitMode =
         it.kind === 'unit'
-          ? parseUnitShapeMode(it, autoShapeEnabled ? liveDisplayItems : undefined, Boolean(um?.siblingHasMerge))
+          ? parseUnitShapeMode(it, autoShapeEnabled ? liveDisplayItems : undefined)
           : null;
       const polyAtriumGeo = lmMeta?.polygonFaces
         ? getPolygonAtriumGeometry(lmMeta.polygonFaces, wPx, hPx)
@@ -1973,10 +2128,7 @@ export default function ShopMapView({
     if (it.kind === 'unit' && it.unitId) {
       return shopDisplayName(shopByUnit.get(it.unitId), 'Shop');
     }
-    if (it.kind !== 'unit' && it.kind !== 'corridor') {
-      return parseLandmarkMeta(it.kind, it.label).displayLabel;
-    }
-    return DECORATION_LABELS[it.kind as Exclude<TileKind, 'unit'>] || it.label || it.kind;
+    return parseLandmarkMeta(it.kind, it.label).displayLabel;
   };
 
   // Compute route path and landmark/shop waypoint steps
@@ -2018,7 +2170,7 @@ export default function ShopMapView({
 
   const openLandmarkConfig = (key: string) => {
     const target = items.find((i) => i.key === key);
-    if (!target || target.kind === 'unit' || target.kind === 'corridor') return;
+    if (!target || target.kind === 'unit') return;
     const meta = parseLandmarkMeta(target.kind, target.label);
     setEditingLandmarkKey(key);
     setLandmarkVariantDraft(meta.variant);
@@ -2057,7 +2209,7 @@ export default function ShopMapView({
     if (!editingLandmarkKey) return;
     update((prev) =>
       prev.map((i) => {
-        if (i.key !== editingLandmarkKey || i.kind === 'unit' || i.kind === 'corridor') return i;
+        if (i.key !== editingLandmarkKey || i.kind === 'unit') return i;
         const nextLabel = encodeLandmarkMeta(i.kind, landmarkVariantDraft, landmarkCustomDraft, landmarkShowLabelDraft);
         const nextItem: MapItem = { ...i, label: nextLabel };
         const squared =
@@ -2071,7 +2223,7 @@ export default function ShopMapView({
   };
 
   const navOptions = useMemo(() => {
-    const rawLandmarks = displayItems.filter((i) => i.kind !== 'unit' && i.kind !== 'corridor');
+    const rawLandmarks = displayItems.filter((i) => i.kind !== 'unit');
     const startByLabel = new Map<string, MapItem>();
     const destByLabel = new Map<string, MapItem>();
     for (const lm of rawLandmarks) {
@@ -2155,7 +2307,12 @@ export default function ShopMapView({
   };
 
   const update = (fn: (prev: MapItem[]) => MapItem[]) => {
-    setItems((prev) => fn(prev));
+    setItems((prev) => {
+      const next = fn(prev);
+      itemsRef.current = next;
+      return next;
+    });
+    setLayoutResetTick((n) => n + 1);
     setDirty(true);
   };
 
@@ -2247,14 +2404,14 @@ export default function ShopMapView({
       const nextList = [...prev, rawItem];
       const snapped = magnetEnabled
         ? snapTileToBorder(rawItem, nextList, effectiveColumns, undefined, snapAutoResize, autoShapeEnabled)
-        : curveUnitAroundCircleWithoutSnap(rawItem, nextList, undefined, autoShapeEnabled);
+        : curveUnitAroundCircleWithoutSnap(rawItem, nextList, autoShapeEnabled);
       const keepSnapped =
         snapped &&
         Math.hypot(snapped.x - rawItem.x, snapped.y - rawItem.y) <= 2.5 &&
         snapped.x >= vpBounds.minX - 1 &&
         snapped.x + snapped.w <= vpBounds.maxX + 1 &&
         !prev.some((o) => tilesConflict(snapped, o));
-      return ensureLeftPad(keepSnapped && snapped ? [...prev, snapped] : nextList, EDIT_LEFT_PAD);
+      return keepSnapped && snapped ? [...prev, snapped] : nextList;
     });
     focusNewlyPlacedTile(newKey);
   };
@@ -2262,13 +2419,14 @@ export default function ShopMapView({
   const addUnitWing = (anchorKey: string) => {
     const anchor = items.find((i) => i.key === anchorKey);
     const newKey = anchor?.unitId ? nextUnitBlockKey(items, anchor.unitId) : null;
-    update((prev) => ensureLeftPad(addConnectedUnitWing(prev, anchorKey, effectiveColumns), EDIT_LEFT_PAD));
+    update((prev) => addConnectedUnitWing(prev, anchorKey, effectiveColumns));
     if (newKey) focusNewlyPlacedTile(newKey);
   };
 
   const handleSyncUnitSqft = () => {
     const res = syncUnitTilesToSqft(items, shopByUnit, effectiveSqftPerCell, effectiveColumns);
-    setItems(ensureLeftPad(res.items, EDIT_LEFT_PAD));
+    itemsRef.current = res.items;
+    setItems(res.items);
     setSqftPerCell(res.calibratedSqftPerCell);
     if (res.updatedCount > 0) {
       setDirty(true);
@@ -2285,9 +2443,8 @@ export default function ShopMapView({
       effectiveColumns,
       selectedGroupSet.size > 0 ? selectedGroupSet : undefined,
     );
-    const padded = ensureLeftPad(res.items, EDIT_LEFT_PAD);
-    itemsRef.current = padded;
-    setItems(padded);
+    itemsRef.current = res.items;
+    setItems(res.items);
     setLayoutResetTick((n) => n + 1);
     if (res.alignedCount > 0) {
       setDirty(true);
@@ -2310,7 +2467,7 @@ export default function ShopMapView({
     focusNewlyPlacedTile(newKey);
   };
 
-  const createTransitInAtrium = (atriumKey: string, kind: 'escalator' | 'stairs', variant: string) => {
+  const createTransitInAtrium = (atriumKey: string, kind: 'escalator' | 'stairs' | 'info', variant: string) => {
     const newKey = `d:${decorSeq}`;
     update((prev) => addTransitIntoAtrium(prev, atriumKey, kind, variant, effectiveColumns, newKey));
     setDecorSeq((n) => n + 1);
@@ -2358,7 +2515,7 @@ export default function ShopMapView({
         blocked = true;
         return i;
       });
-      return blocked ? rotatedList : ensureLeftPad(rotatedList, EDIT_LEFT_PAD);
+      return rotatedList;
     });
     if (blocked) {
       toast.error('Cannot rotate — blocked by another tile');
@@ -2387,7 +2544,7 @@ export default function ShopMapView({
       if (Math.hypot(dx, dy) < 4) return;
       // Handle sits at +90 deg (bottom of unrotated tile: dx=0, dy=+1 -> atan2 = +90 deg -> angle = 0 deg)
       const rawDeg = (Math.atan2(dy, dx) * 180) / Math.PI - 90 - mapRotation;
-      const snapped = Math.round(rawDeg);
+      const snapped = ev.shiftKey ? Math.round(rawDeg / 15) * 15 : Math.round(rawDeg);
       const nextAngle = normalizeTileAngle(snapped);
       setItems((prev) => {
         const cur = prev.find((i) => i.key === key);
@@ -2408,11 +2565,6 @@ export default function ShopMapView({
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
       setRotatingTileKey(null);
-      setItems((prev) => {
-        const padded = ensureLeftPad(prev, EDIT_LEFT_PAD);
-        itemsRef.current = padded;
-        return padded;
-      });
       setLayoutResetTick((n) => n + 1);
     };
 
@@ -2426,7 +2578,7 @@ export default function ShopMapView({
       const prevMergeMap = computeUnitMergeMap(prev);
       return prev.map((i) => {
         if (i.key !== key) return i;
-        if (i.kind !== 'unit' && i.kind !== 'corridor') {
+        if (i.kind !== 'unit') {
           const meta = parseLandmarkMeta(i.kind, i.label);
           const nextVar = nextLandmarkVariant(i.kind, meta.variant);
           const explicitlyHidden = Boolean(i.label?.startsWith('lm:') && i.label.split('|')[0].endsWith('-L'));
@@ -2437,13 +2589,10 @@ export default function ShopMapView({
             : nextItem;
           return resolveConflictFreeTileShapeChange(squared, prev, 4);
         }
-        if (i.kind === 'unit') {
-          const isMerged = Boolean(prevMergeMap.get(i.key)?.siblingHasMerge);
-          const curr = parseUnitShapeMode(i, prev, isMerged);
-          const nextUnit: MapItem = { ...i, label: encodeUnitShapeMode(nextUnitShapeMode(curr, isMerged)) };
-          return resolveConflictFreeTileShapeChange(nextUnit, prev, 4);
-        }
-        return i;
+        const isMerged = Boolean(prevMergeMap.get(i.key)?.siblingHasMerge);
+        const curr = parseUnitShapeMode(i, prev);
+        const nextUnit: MapItem = { ...i, label: encodeUnitShapeMode(nextUnitShapeMode(curr, isMerged)) };
+        return resolveConflictFreeTileShapeChange(nextUnit, prev, 4);
       });
     });
 
@@ -2462,7 +2611,7 @@ export default function ShopMapView({
       prev.map((i) => {
         if (i.key !== key || i.kind !== 'unit') return i;
         const resetItem: MapItem = { ...i, label: null };
-        const curved = curveUnitAroundCircleWithoutSnap(resetItem, prev, undefined, true);
+        const curved = curveUnitAroundCircleWithoutSnap(resetItem, prev, true);
         return resolveConflictFreeTileShapeChange(curved, prev, 4);
       }),
     );
@@ -2477,7 +2626,7 @@ export default function ShopMapView({
         ? currentItems.find((x) => x.key === itemOrKey)
         : itemOrKey;
     if (!t) return { shape: 'rect', clipPath: 'none' };
-    if (t.kind !== 'unit' && t.kind !== 'corridor') {
+    if (t.kind !== 'unit') {
       const meta = parseLandmarkMeta(t.kind, t.label);
       if (meta.polygonFaces) {
         const geo = getPolygonAtriumGeometry(
@@ -2490,7 +2639,7 @@ export default function ShopMapView({
       return { shape: meta.isCircle ? 'circle' : 'rect', clipPath: 'none' };
     }
     const um = unitMergeMap.get(t.key) ?? null;
-    const mode = parseUnitShapeMode(t, autoShapeEnabled ? currentItems : undefined, Boolean(um?.siblingHasMerge));
+    const mode = parseUnitShapeMode(t, autoShapeEnabled ? currentItems : undefined);
     if (isTrapezoidUnitMode(mode)) {
       const wPx = Math.max(1, Math.round(t.w * cellPx));
       const hPx = Math.max(1, Math.round(t.h * cellPx));
@@ -2552,18 +2701,7 @@ export default function ShopMapView({
   const nudgeSelectedGroup = (dx: number, dy: number) => {
     if (selectedGroupSetRef.current.size === 0) return;
     groupRotBaseRef.current = null;
-    let baseList = itemsRef.current;
-    if (dx < 0) {
-      const groupMinX = Math.min(
-        ...baseList.filter((i) => selectedGroupSetRef.current.has(i.key)).map((i) => i.x),
-      );
-      if (groupMinX + dx < EDIT_LEFT_PAD) {
-        const shiftX = EDIT_LEFT_PAD - (groupMinX + dx);
-        editLeftOffsetRef.current += shiftX;
-        pendingScrollAdjustPxRef.current += shiftX * cellPx;
-        baseList = baseList.map((i) => ({ ...i, x: i.x + shiftX }));
-      }
-    }
+    const baseList = itemsRef.current;
     const maxR = baseList.reduce((m, it) => Math.max(m, it.x + it.w), 0) + Math.max(0, dx) + EDIT_RIGHT_PAD;
     const res = moveTileGroupByDelta(
       baseList,
@@ -2577,9 +2715,8 @@ export default function ShopMapView({
       return;
     }
     if (res.moved) {
-      const nextItems = ensureLeftPad(res.items, EDIT_LEFT_PAD);
-      itemsRef.current = nextItems;
-      setItems(nextItems);
+      itemsRef.current = res.items;
+      setItems(res.items);
       setLayoutResetTick((n) => n + 1);
       setDirty(true);
     }
@@ -2628,7 +2765,9 @@ export default function ShopMapView({
       if (snappedCum === 0) {
         groupRotBaseRef.current.cumulativeDeg = 0;
         setGroupFrameAngle(nextFrameAngle);
-        setItems(groupRotBaseRef.current.baseItems.map((i) => ({ ...i })));
+        const restored = groupRotBaseRef.current.baseItems.map((i) => ({ ...i }));
+        itemsRef.current = restored;
+        setItems(restored);
         setLayoutResetTick((n) => n + 1);
         setDirty(true);
         return;
@@ -2642,6 +2781,7 @@ export default function ShopMapView({
       if (!res.conflict) {
         groupRotBaseRef.current.cumulativeDeg = snappedCum;
         setGroupFrameAngle(nextFrameAngle);
+        itemsRef.current = res.items;
         setItems(res.items);
         setLayoutResetTick((n) => n + 1);
         setDirty(true);
@@ -2653,11 +2793,6 @@ export default function ShopMapView({
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
       setIsRotatingGroup(false);
-      setItems((prev) => {
-        const padded = ensureLeftPad(prev, EDIT_LEFT_PAD);
-        itemsRef.current = padded;
-        return padded;
-      });
     };
 
     window.addEventListener('pointermove', onMove);
@@ -2734,7 +2869,14 @@ export default function ShopMapView({
     setDragClipPath(vis.clipPath);
   };
 
-  const handleInteractionMove = (nextLayout: readonly any[], _oldItem: any, l: any, placeholder: any, e?: MouseEvent) => {
+  const handleInteractionMove = (
+    nextLayout: readonly any[],
+    _oldItem: any,
+    l: any,
+    placeholder: any,
+    e?: MouseEvent,
+    node?: HTMLElement,
+  ) => {
     if (!editing || !l || !placeholder) return;
     if (e && typeof e.altKey === 'boolean') {
       const bypass = Boolean(e.altKey || e.shiftKey);
@@ -2747,6 +2889,12 @@ export default function ShopMapView({
     const { conflict, items: resolvedItems, groupDelta } = resolveInteractionLayout(nextLayout, baseItems);
     const resolved = resolvedItems.find((i) => i.key === l.i);
     if (!resolved) return;
+
+    if (node?.classList?.contains('react-resizable-handle') && node.parentElement) {
+      const gridItemEl = node.parentElement;
+      if (gridItemEl.style.width) gridItemEl.style.setProperty('--tile-w', gridItemEl.style.width);
+      if (gridItemEl.style.height) gridItemEl.style.setProperty('--tile-h', gridItemEl.style.height);
+    }
 
     placeholder.x = resolved.x;
     placeholder.y = resolved.y;
@@ -2767,10 +2915,10 @@ export default function ShopMapView({
 
   const handleInteractionStop = (finalLayout: readonly any[]) => {
     const baseItems = dragOriginItemsRef.current ?? itemsRef.current;
-    const { conflict, items: rawResolvedItems } = resolveInteractionLayout(finalLayout, baseItems);
+    const { conflict, items: resolvedItems } = resolveInteractionLayout(finalLayout, baseItems);
     const didMoveOrChange =
       !conflict &&
-      rawResolvedItems.some((it, idx) => {
+      resolvedItems.some((it, idx) => {
         const b = baseItems[idx];
         return (
           b &&
@@ -2782,9 +2930,6 @@ export default function ShopMapView({
             it.label !== b.label)
         );
       });
-    const resolvedItems = didMoveOrChange
-      ? ensureLeftPad(rawResolvedItems, EDIT_LEFT_PAD)
-      : rawResolvedItems;
     const maxRightAfter = resolvedItems.reduce((m, it) => Math.max(m, it.x + it.w), 0);
     if (maxRightAfter + EDIT_RIGHT_PAD > columns) {
       setColumns(maxRightAfter + EDIT_RIGHT_PAD);
@@ -2822,25 +2967,20 @@ export default function ShopMapView({
   const startEditingLayout = () => {
     setDecorKind('marker');
     clearGroupSelection();
-    editLeftOffsetRef.current = 0;
+    editOriginBlueprintRef.current = blueprint ? { ...blueprint } : null;
     const hadMarker = items.some((i) => i.kind === 'marker');
     setEditing(true);
-    setItems((prev) => {
-      let next = ensureLeftPad(prev, EDIT_LEFT_PAD);
-      if (!prev.some((i) => i.kind === 'marker')) {
-        const { w, h } = DECORATION_DEFAULT_SIZES.marker || { w: 3, h: 3 };
-        const maxR = next.reduce((m, it) => Math.max(m, it.x + it.w), 0);
-        const cols = Math.max(columns, DEFAULT_COLUMNS + editLeftOffsetRef.current, maxR + EDIT_RIGHT_PAD);
-        const pos = findFreeSpot(next, w, h, cols, EDIT_LEFT_PAD);
-        next = [
-          ...next,
-          { key: `d:${decorSeq}`, kind: 'marker', unitId: null, label: DECORATION_LABELS.marker, x: pos.x, y: pos.y, w, h },
-        ];
-      }
-      itemsRef.current = next;
-      return next;
-    });
     if (!hadMarker) {
+      const { w, h } = DECORATION_DEFAULT_SIZES.marker || { w: 6, h: 6 };
+      const maxR = items.reduce((m, it) => Math.max(m, it.x + it.w), 0);
+      const cols = Math.max(columns, DEFAULT_COLUMNS, maxR + EDIT_RIGHT_PAD);
+      const pos = findFreeSpot(items, w, h, cols, EDIT_LEFT_PAD);
+      const next = [
+        ...items,
+        { key: `d:${decorSeq}`, kind: 'marker' as const, unitId: null, label: DECORATION_LABELS.marker, x: pos.x, y: pos.y, w, h },
+      ];
+      itemsRef.current = next;
+      setItems(next);
       setDecorSeq((n) => n + 1);
       setDirty(true);
     }
@@ -2848,10 +2988,11 @@ export default function ShopMapView({
 
   const discard = () => {
     clearGroupSelection();
-    editLeftOffsetRef.current = 0;
+    setAdjustingBlueprint(false);
     setDirty(false);
     setEditing(false);
-    applyParsedLayout(parseFloorPlanData(planData, shopByUnit));
+    saveBlueprintConfig(editOriginBlueprintRef.current, false);
+    applyParsedLayout(parseFloorPlanData(activePlanData, shopByUnit));
   };
 
   const handleCopyFromFloor = async () => {
@@ -2872,7 +3013,6 @@ export default function ShopMapView({
       }
       const copied = buildCopiedFloorLayout(srcData, floorShops, allShopByUnit, copyIncludeUnits);
       applyParsedLayout(copied);
-      setItems((prev) => ensureLeftPad(prev, EDIT_LEFT_PAD));
       setDirty(true);
       toast.success(
         copyIncludeUnits
@@ -2885,25 +3025,18 @@ export default function ShopMapView({
   };
 
   const save = async () => {
-    const rawCleanItems = items.filter((i) => i.kind !== 'corridor');
-    if (hasAnyOverlap(rawCleanItems)) {
+    if (hasAnyOverlap(items)) {
       toast.error('Some tiles overlap. Please separate them before saving.');
       return;
     }
-    const minX = rawCleanItems.length > 0 ? Math.min(...rawCleanItems.map((i) => i.x)) : 0;
-    const rawMaxX = rawCleanItems.length > 0 ? Math.max(...rawCleanItems.map((i) => i.x + i.w)) : 0;
-    const trimLeft =
-      rawCleanItems.length > 0
-        ? rawMaxX > DEFAULT_COLUMNS
-          ? Math.max(0, minX - 2)
-          : Math.max(0, Math.min(minX - 1, editLeftOffsetRef.current))
-        : 0;
-    const cleanItems =
-      trimLeft > 0
-        ? rawCleanItems.map((i) => ({ ...i, x: Math.max(0, i.x - trimLeft) }))
-        : rawCleanItems;
+    const cleanItems = items.map((i) => ({
+      ...i,
+      x: Math.max(0, i.x),
+      y: Math.max(0, i.y),
+    }));
     const maxRight = cleanItems.reduce((m, i) => Math.max(m, i.x + i.w), 0);
-    const savedColumns = Math.max(DEFAULT_COLUMNS, maxRight + 2);
+    const bpRight = blueprintGridBounds ? blueprintGridBounds.rightCells : 0;
+    const savedColumns = Math.max(DEFAULT_COLUMNS, maxRight + 2, bpRight);
     const payloadData = {
       sqftPerCell: effectiveSqftPerCell,
       columns: savedColumns,
@@ -2915,8 +3048,14 @@ export default function ShopMapView({
         floor,
         data: payloadData,
       } as any).unwrap();
-      editLeftOffsetRef.current = 0;
+      localSavedPlanRef.current = { floor, data: payloadData };
+      editOriginBlueprintRef.current = blueprint ? { ...blueprint } : null;
+      if (blueprint) {
+        saveBlueprintConfig(blueprint, false);
+      }
+      setAdjustingBlueprint(false);
       setColumns(savedColumns);
+      itemsRef.current = cleanItems;
       setItems(cleanItems);
       saveCachedFloorPlan(propertyId, floor, payloadData);
       toast.success('Floor plan saved');
@@ -3390,9 +3529,9 @@ export default function ShopMapView({
       {editing && (
         <div className="shop-map-edit-bar">
           <select value={decorKind} onChange={(e) => setDecorKind(e.target.value as any)}>
-            {Object.entries(DECORATION_LABELS)
-              .filter(([k]) => k !== 'corridor')
-              .map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            {Object.entries(DECORATION_LABELS).map(([k, v]) => (
+              <option key={k} value={k}>{v}</option>
+            ))}
           </select>
           <button
             className="btn btn-secondary"
@@ -3400,15 +3539,6 @@ export default function ShopMapView({
             disabled={decorKind === 'marker' && hasMarkerOnFloor}
           >
             <Plus size={14} /> Add
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={handleSyncUnitSqft}
-            disabled={!items.some((i) => i.kind === 'unit')}
-            title={`Resize placed unit tiles proportionally to their database areaSqft (Scale: 1 cell ≈ ${effectiveSqftPerCell} sqft)`}
-          >
-            <Maximize2 size={13} /> Auto-Size by Sqft ({Math.round(effectiveSqftPerCell)} sqft/cell)
           </button>
           <div className="shop-map-group-toolbar shop-map-snap-mode-toolbar" role="group" aria-label="Edit Snap Mode">
             <button
@@ -3436,16 +3566,6 @@ export default function ShopMapView({
               <Wand2 size={12} /> Smart Fit{editSnapMode === 'smart' && magnetBypassActive ? ' (Bypass)' : ''}
             </button>
           </div>
-          {items.some((i) => i.kind === 'atrium') && items.some((i) => i.kind === 'unit') && (
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={() => handleRadialAlignAtrium()}
-              title="Smart Radial Ring Aligner: Automatically align and evenly space surrounding units around the Atrium perimeter"
-            >
-              <Wand2 size={12} /> Ring Align Atrium
-            </button>
-          )}
           <div className="shop-map-group-toolbar">
             <button
               type="button"
@@ -3589,48 +3709,91 @@ export default function ShopMapView({
             )}
           </div>
           <button
-            className="btn btn-secondary shop-map-clear-btn"
-            onClick={() => {
-              clearGroupSelection();
-              update((prev) => prev.filter((i) => i.kind === 'marker'));
-            }}
-            disabled={items.every((i) => i.kind === 'marker')}
-            title="Remove all tiles from this floor"
+            type="button"
+            className={`btn btn-secondary btn-sm shop-map-group-btn ${showFloorToolsMenu ? 'active' : ''}`}
+            onClick={() => setShowFloorToolsMenu((prev) => !prev)}
+            title="Batch Floor Tools: Auto-Size by Sqft, Ring Align Atrium, Copy Layout from Floor, and Clear All"
           >
-            <Trash2 size={14} /> Clear All
+            <LayoutGrid size={13} /> Floor Tools <ChevronDown size={12} style={{ transform: showFloorToolsMenu ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }} />
           </button>
-          {otherFloorsForCopy.length > 0 && (
-            <div className="shop-map-copy-group">
-              <span className="shop-map-copy-label">Copy from:</span>
-              <select
-                value={copySourceFloor}
-                onChange={(e) => setCopySourceFloor(e.target.value)}
-                title="Select floor to copy layout from"
-              >
-                {otherFloorsForCopy.map((f) => (
-                  <option key={f} value={f}>{f}</option>
-                ))}
-              </select>
-              <select
-                value={copyIncludeUnits ? 'all' : 'landmarks'}
-                onChange={(e) => setCopyIncludeUnits(e.target.value === 'all')}
-                title="Choose what to copy from the selected floor"
-              >
-                <option value="all">Landmarks + Match Units</option>
-                <option value="landmarks">Landmarks Only</option>
-              </select>
+          {dirty && <span className="shop-map-dirty">● Unsaved changes</span>}
+          {showFloorToolsMenu && (
+            <div
+              style={{
+                width: '100%',
+                display: 'flex',
+                flexWrap: 'wrap',
+                alignItems: 'center',
+                gap: 8,
+                paddingTop: 8,
+                marginTop: 4,
+                borderTop: '1px dashed rgba(148, 163, 184, 0.35)',
+              }}
+            >
               <button
                 type="button"
-                className="btn btn-secondary"
-                onClick={handleCopyFromFloor}
-                disabled={isCopyingFloor || !copySourceFloor}
-                title={`Copy layout from ${copySourceFloor} to ${floor}`}
+                className="btn btn-secondary btn-sm"
+                onClick={handleSyncUnitSqft}
+                disabled={!items.some((i) => i.kind === 'unit')}
+                title={`Resize placed unit tiles proportionally to their database areaSqft (Scale: 1 cell ≈ ${effectiveSqftPerCell} sqft)`}
               >
-                <Copy size={13} /> {isCopyingFloor ? 'Copying…' : 'Copy Layout'}
+                <Maximize2 size={13} /> Auto-Size by Sqft ({Math.round(effectiveSqftPerCell)} sqft/cell)
+              </button>
+              {items.some((i) => i.kind === 'atrium') && items.some((i) => i.kind === 'unit') && (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => handleRadialAlignAtrium()}
+                  title="Smart Radial Ring Aligner: Automatically align and evenly space surrounding units around the Atrium perimeter"
+                >
+                  <Wand2 size={12} /> Ring Align Atrium
+                </button>
+              )}
+              {otherFloorsForCopy.length > 0 && (
+                <div className="shop-map-copy-group">
+                  <span className="shop-map-copy-label">Copy from:</span>
+                  <select
+                    value={copySourceFloor}
+                    onChange={(e) => setCopySourceFloor(e.target.value)}
+                    title="Select floor to copy layout from"
+                  >
+                    {otherFloorsForCopy.map((f) => (
+                      <option key={f} value={f}>{f}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={copyIncludeUnits ? 'all' : 'landmarks'}
+                    onChange={(e) => setCopyIncludeUnits(e.target.value === 'all')}
+                    title="Choose what to copy from the selected floor"
+                  >
+                    <option value="all">Landmarks + Match Units</option>
+                    <option value="landmarks">Landmarks Only</option>
+                  </select>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={handleCopyFromFloor}
+                    disabled={isCopyingFloor || !copySourceFloor}
+                    title={`Copy layout from ${copySourceFloor} to ${floor}`}
+                  >
+                    <Copy size={13} /> {isCopyingFloor ? 'Copying…' : 'Copy Layout'}
+                  </button>
+                </div>
+              )}
+              <button
+                className="btn btn-secondary btn-sm shop-map-clear-btn"
+                style={{ marginLeft: 'auto' }}
+                onClick={() => {
+                  clearGroupSelection();
+                  update((prev) => prev.filter((i) => i.kind === 'marker'));
+                }}
+                disabled={items.every((i) => i.kind === 'marker')}
+                title="Remove all tiles from this floor"
+              >
+                <Trash2 size={14} /> Clear All
               </button>
             </div>
           )}
-          {dirty && <span className="shop-map-dirty">● Unsaved changes</span>}
         </div>
       )}
 
@@ -3682,6 +3845,7 @@ export default function ShopMapView({
                 data-drag-shape={dragShape}
                 style={{
                   width: gridWidth,
+                  ...(editing ? { minHeight: `${rows * cellPx}px` } : {}),
                   ['--drag-angle' as string]: `${dragAngle}deg`,
                   ['--drag-clip-path' as string]: dragClipPath,
                 } as CSSProperties}
@@ -3690,9 +3854,17 @@ export default function ShopMapView({
                   <div
                     className={`shop-map-blueprint-layer ${adjustingBlueprint ? 'is-adjusting' : ''}`}
                     style={{
-                      left: `${blueprint.offsetX}px`,
-                      top: `${blueprint.offsetY}px`,
-                      width: `${Math.round((gridWidth * blueprint.scale) / 100)}px`,
+                      left: `${Math.round(
+                        (typeof blueprint.offsetCellX === 'number'
+                          ? blueprint.offsetCellX
+                          : blueprint.offsetX / Math.max(5, cellPx)) * cellPx,
+                      )}px`,
+                      top: `${Math.round(
+                        (typeof blueprint.offsetCellY === 'number'
+                          ? blueprint.offsetCellY
+                          : blueprint.offsetY / Math.max(5, cellPx)) * cellPx,
+                      )}px`,
+                      width: `${Math.round(((DEFAULT_COLUMNS * blueprint.scale) / 100) * cellPx)}px`,
                       opacity: blueprint.opacity / 100,
                       transform: blueprint.rotation ? `rotate(${blueprint.rotation}deg)` : undefined,
                     }}
@@ -3706,6 +3878,16 @@ export default function ShopMapView({
                       alt="Floorplan Blueprint Overlay"
                       className="shop-map-blueprint-img"
                       draggable={false}
+                      onLoad={(e) => {
+                        const nw = e.currentTarget.naturalWidth;
+                        const nh = e.currentTarget.naturalHeight;
+                        if (nw > 0 && nh > 0) {
+                          const measured = Math.max(0.15, Math.min(4, Math.round((nh / nw) * 10000) / 10000));
+                          if (!blueprint.aspectRatio || Math.abs(blueprint.aspectRatio - measured) > 0.005) {
+                            updateBlueprint({ aspectRatio: measured }, false);
+                          }
+                        }
+                      }}
                     />
                     {adjustingBlueprint && (
                       <>
@@ -3770,6 +3952,7 @@ export default function ShopMapView({
                 )}
                 <ReactGridLayout
                   width={gridWidth}
+                  style={editing ? ({ minHeight: `${rows * cellPx}px` } as CSSProperties) : undefined}
                   layout={layout as any}
                   gridConfig={{ cols: displayColumns, rowHeight: cellPx, margin: [0, 0], containerPadding: [0, 0], maxRows: rows } as any}
                   positionStrategy={absoluteStrategy as any}
@@ -3818,10 +4001,10 @@ export default function ShopMapView({
                     const dim = Boolean(
                       !editing &&
                         hasActiveSearch &&
-                        (decor ? it.kind !== 'corridor' : !isSearchMatch),
+                        (decor || !isSearchMatch),
                     );
-                    const gridItemWPx = Math.max(1, it.w * colStepPx);
-                    const gridItemHPx = Math.max(1, it.h * rowStepPx);
+                    const gridItemWPx = Math.max(1, effectiveIt.w * colStepPx);
+                    const gridItemHPx = Math.max(1, effectiveIt.h * rowStepPx);
                     const wPx = cachedMeta ? cachedMeta.wPx : Math.max(1, effectiveIt.w * cellPx);
                     const hPx = cachedMeta ? cachedMeta.hPx : Math.max(1, effectiveIt.h * cellPx);
                     const isVerticalTile = !decor && hPx > wPx * 1.15;
@@ -3859,7 +4042,7 @@ export default function ShopMapView({
                     const hasUnitPhoto = showPhotoMode && hasPhotoImage;
                     const lmMeta = cachedMeta
                       ? cachedMeta.lmMeta
-                      : decor && it.kind !== 'corridor'
+                      : decor
                         ? parseLandmarkMeta(it.kind, it.label)
                         : null;
                     const unitMode = cachedMeta
@@ -3868,7 +4051,6 @@ export default function ShopMapView({
                         ? parseUnitShapeMode(
                             effectiveIt,
                             autoShapeEnabled ? effectiveDisplayItems : undefined,
-                            Boolean(um?.siblingHasMerge),
                           )
                         : null;
                     const shapeMode =
@@ -3888,7 +4070,7 @@ export default function ShopMapView({
                         : null;
                     const isEmergencyLandmark = Boolean(lmMeta?.isEmergency);
                     const hasLandmarkVariants = Boolean(
-                      decor && it.kind !== 'corridor' && (LANDMARK_VARIANTS[it.kind as Exclude<TileKind, 'unit' | 'corridor'>]?.length ?? 0) > 1,
+                      decor && (LANDMARK_VARIANTS[it.kind as Exclude<TileKind, 'unit'>]?.length ?? 0) > 1,
                     );
                     const showLandmarkSublabel = Boolean(lmMeta && lmMeta.showLabel);
                     const isFullIconMarker = it.kind === 'marker';
@@ -3924,7 +4106,7 @@ export default function ShopMapView({
                     const totalNudgeDx = groupMoveNudge?.dx ?? 0;
                     const totalNudgeDy = groupMoveNudge?.dy ?? 0;
                     const hasTotalNudge = totalNudgeDx !== 0 || totalNudgeDy !== 0;
-                    const hasSizeOverride = wPx !== gridItemWPx || hPx !== gridItemHPx;
+                    const hasSizeOverride = !editing && (wPx !== gridItemWPx || hPx !== gridItemHPx);
                     const tileStyle: CSSProperties | undefined =
                       effectiveAngle || hasTotalNudge || hasSizeOverride
                         ? ({
@@ -4053,7 +4235,7 @@ export default function ShopMapView({
                               <div className="shop-map-decor-badge" style={{ width: effectiveBadgePx, height: effectiveBadgePx }}>
                                 <span className="shop-map-decor-icon">
                                   <DecorIcon
-                                    kind={decorType as Exclude<TileKind, 'unit' | 'corridor'>}
+                                    kind={decorType}
                                     variant={lmMeta?.variant}
                                     size={effectiveIconPx}
                                   />
@@ -4281,10 +4463,10 @@ export default function ShopMapView({
                             )}
                             <button
                               className="shop-map-tile-btn rot"
-                              title="Rotate 1°"
+                              title="Rotate +15° (Shift+Click: +45°, Alt+Click: +1°)"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                rotate(it.key, 1);
+                                rotate(it.key, e.shiftKey ? 45 : e.altKey ? 1 : 15);
                               }}
                             >
                               <RotateCw size={tileActionIconPx} />
@@ -4419,7 +4601,7 @@ export default function ShopMapView({
                       title={`Click to route to nearest ${DECORATION_LABELS[kind]}`}
                     >
                       <span className={`shop-map-directory-marker-badge lg-${kind}`}>
-                        <DecorIcon kind={kind as Exclude<TileKind, 'unit' | 'corridor'>} size={legendIconPx} />
+                        <DecorIcon kind={kind} size={legendIconPx} />
                       </span>
                       <span className="shop-map-directory-name">{DECORATION_LABELS[kind]}</span>
                     </div>
@@ -4599,7 +4781,7 @@ export default function ShopMapView({
       {/* ── Customize Landmark Variant & Gate/Location Tag Modal ── */}
       {editingLandmarkKey && (() => {
         const editingItem = items.find((i) => i.key === editingLandmarkKey);
-        if (!editingItem || editingItem.kind === 'unit' || editingItem.kind === 'corridor') return null;
+        if (!editingItem || editingItem.kind === 'unit') return null;
         const lmKind = editingItem.kind;
         const variants = LANDMARK_VARIANTS[lmKind] || [];
         const activeSpec = variants.find((v) => v.id === landmarkVariantDraft) || variants[0];
@@ -4665,7 +4847,7 @@ export default function ShopMapView({
             {lmKind === 'atrium' && (
               <div className="shop-map-lm-modal-section">
                 <label className="shop-map-lm-modal-label">
-                  Add Inside Atrium (Elevator / Escalator / Stairs) &amp; Ring Layout
+                  Add Inside Atrium (Elevator / Escalator / Stairs / Info Desk) &amp; Ring Layout
                 </label>
                 <div className="shop-map-lm-variant-grid">
                   {(
@@ -4677,6 +4859,8 @@ export default function ShopMapView({
                       { kind: 'escalator' as const, variant: 'escalator-down', label: '+ Escalator (Down ↓)', sub: 'Down Escalator' },
                       { kind: 'stairs' as const, variant: 'default', label: '+ Stairs (⇅)', sub: 'Atrium Stairs' },
                       { kind: 'stairs' as const, variant: 'circle', label: '+ Spiral Stairs', sub: 'Circle Stairs' },
+                      { kind: 'info' as const, variant: 'default', label: '+ Info Desk (i)', sub: 'Reception Desk' },
+                      { kind: 'info' as const, variant: 'circle', label: '+ Circle Info Kiosk (i)', sub: 'Round Info Kiosk' },
                     ]
                   ).map((opt) => (
                     <button
@@ -4777,16 +4961,18 @@ export default function ShopMapView({
         const unitShop = editingUnitItem.unitId ? shopByUnit.get(editingUnitItem.unitId) : null;
         const isMerged = Boolean(unitMergeMap.get(editingUnitItem.key)?.siblingHasMerge);
         const isAutoShape = isAutoUnitShapeLabel(editingUnitItem.label);
-        const currentMode = parseUnitShapeMode(editingUnitItem, autoShapeEnabled ? items : undefined, isMerged);
+        const currentMode = parseUnitShapeMode(editingUnitItem, autoShapeEnabled ? items : undefined);
         const unitTitle = unitShop
           ? `${shopDisplayName(unitShop)} (${unitNumberOf(unitShop)})`
           : 'Shop Unit';
-        const groups = Array.from(new Set(UNIT_SHAPE_OPTIONS.map((o) => o.group)));
+        const visibleFamilies = UNIT_SHAPE_COMPACT_FAMILIES.filter(
+          (fam) => unitShapeCatTab === 'all' || fam.category === unitShapeCatTab,
+        );
 
         return (
           <QrModalDialog
             title={`Unit Shape — ${unitTitle}`}
-            subtitle="Choose any shape to lock it manually (moving the unit will never overwrite a locked shape)"
+            subtitle="Click any shape family to auto-match direction (click the active card again to flip direction)"
             onClose={() => setEditingUnitShapeKey(null)}
             footer={
               <button
@@ -4799,59 +4985,84 @@ export default function ShopMapView({
             }
           >
             <div className="shop-map-lm-modal-section">
-              <label className="shop-map-lm-modal-label">Shape Mode</label>
-              <div className="shop-map-lm-variant-grid">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+                <label className="shop-map-lm-modal-label" style={{ margin: 0 }}>
+                  Shape Catalog <span style={{ fontWeight: 400, opacity: 0.75 }}>({isAutoShape ? `Auto: ${UNIT_SHAPE_LABELS[currentMode]}` : UNIT_SHAPE_LABELS[currentMode]})</span>
+                </label>
                 <button
                   type="button"
-                  className={`shop-map-lm-variant-btn ${isAutoShape ? 'active' : ''}`}
+                  className={`btn btn-sm ${isAutoShape ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ padding: '4px 10px', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 5 }}
                   onClick={() => {
                     resetUnitShapeToAuto(editingUnitItem.key);
                     setEditingUnitShapeKey(null);
                   }}
                 >
-                  <span className="shop-map-lm-variant-icon">
-                    <Wand2 size={16} />
-                  </span>
-                  <span className="shop-map-lm-variant-text">
-                    <strong>Auto (Follow Atrium)</strong>
-                  </span>
+                  <Wand2 size={13} /> Auto (Smart Detect)
                 </button>
               </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 10 }}>
+                {UNIT_SHAPE_CATEGORY_TABS.map((tab) => {
+                  const activeTab = unitShapeCatTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      className={`btn btn-sm ${activeTab ? 'btn-primary' : 'btn-secondary'}`}
+                      style={{ padding: '4px 10px', fontSize: 11.5, borderRadius: 999 }}
+                      onClick={() => setUnitShapeCatTab(tab.id)}
+                    >
+                      {tab.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="shop-map-lm-variant-grid">
+                {visibleFamilies.map((fam) => {
+                  const famVariants = fam.variants.filter((mode) => !isMerged || mode !== 'circle');
+                  if (famVariants.length === 0) return null;
+                  const activeIdx = !isAutoShape ? famVariants.indexOf(currentMode) : -1;
+                  const activeMode = activeIdx >= 0 ? famVariants[activeIdx] : undefined;
+                  const smartMode = resolveSmartFamilyShapeMode(editingUnitItem, fam, items, isMerged);
+                  const previewMode = activeMode ?? smartMode;
+                  const nextMode =
+                    activeMode && famVariants.length > 1
+                      ? famVariants[(activeIdx + 1) % famVariants.length]
+                      : smartMode;
+
+                  return (
+                    <button
+                      key={fam.id}
+                      type="button"
+                      className={`shop-map-lm-variant-btn ${activeMode ? 'active' : ''}`}
+                      title={
+                        activeMode && famVariants.length > 1
+                          ? `${UNIT_SHAPE_LABELS[activeMode]} — Click again to flip direction`
+                          : UNIT_SHAPE_LABELS[smartMode]
+                      }
+                      onClick={() => {
+                        applyUnitShapeMode(editingUnitItem.key, nextMode);
+                        if (famVariants.length <= 1) {
+                          setEditingUnitShapeKey(null);
+                        }
+                      }}
+                    >
+                      <span className={`shop-map-lm-variant-icon ${previewMode === 'circle' ? 'is-circle' : ''}`}>
+                        <AtriumShapeIcon mode={previewMode} size={18} />
+                      </span>
+                      <span className="shop-map-lm-variant-text">
+                        <strong>{fam.title}</strong>
+                        <small>
+                          {activeMode && famVariants.length > 1
+                            ? `${UNIT_SHAPE_LABELS[activeMode]} • Click to flip`
+                            : fam.subtitle}
+                        </small>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            {groups.map((grp) => {
-              const grpOptions = UNIT_SHAPE_OPTIONS.filter(
-                (o) => o.group === grp && (!isMerged || o.id !== 'circle'),
-              );
-              if (grpOptions.length === 0) return null;
-              return (
-                <div key={grp} className="shop-map-lm-modal-section">
-                  <label className="shop-map-lm-modal-label">{grp}</label>
-                  <div className="shop-map-lm-variant-grid">
-                    {grpOptions.map((opt) => {
-                      const selected = !isAutoShape && currentMode === opt.id;
-                      return (
-                        <button
-                          key={opt.id}
-                          type="button"
-                          className={`shop-map-lm-variant-btn ${selected ? 'active' : ''}`}
-                          onClick={() => {
-                            applyUnitShapeMode(editingUnitItem.key, opt.id);
-                            setEditingUnitShapeKey(null);
-                          }}
-                        >
-                          <span className={`shop-map-lm-variant-icon ${opt.id === 'circle' ? 'is-circle' : ''}`}>
-                            <AtriumShapeIcon mode={opt.id} size={16} />
-                          </span>
-                          <span className="shop-map-lm-variant-text">
-                            <strong>{opt.label}</strong>
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
           </QrModalDialog>
         );
       })()}

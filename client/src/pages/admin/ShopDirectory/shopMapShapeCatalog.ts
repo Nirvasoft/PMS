@@ -1,0 +1,431 @@
+// Centralized Unit Shape Catalog, Compact UI Families, Category Tabs & Convex Collision Polygons.
+// Single source of truth for all 49 architectural unit shapes.
+
+export type TileKind =
+  | 'unit'
+  | 'atrium'
+  | 'stairs'
+  | 'escalator'
+  | 'toilet'
+  | 'marker'
+  | 'entrance'
+  | 'exit'
+  | 'info'
+  | 'parking'
+  | 'atm'
+  | 'medical';
+
+export interface MapItem {
+  /** Stable key used by react-grid-layout: `u:<unitId>` for units, `d:<n>` for decorations. */
+  key: string;
+  kind: TileKind;
+  unitId: string | null;
+  label: string | null;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** Visual tilt in degrees (1-degree steps). 0/undefined = upright. */
+  angle?: number;
+}
+
+/** Normalizes any value to 1-degree integer steps 1..359 (returns undefined for 0 / upright). */
+export function normalizeTileAngle(val: unknown): number | undefined {
+  const raw = Number(val);
+  if (!Number.isFinite(raw)) return undefined;
+  const n = Math.round(raw);
+  const a = ((n % 360) + 360) % 360;
+  return a === 0 ? undefined : a;
+}
+
+export type UnitShapeMode =
+  | 'rect'
+  | 'circle'
+  | 'ring-curve'
+  | 'trapezoid-ring'
+  | 'crescent-l'
+  | 'crescent-r'
+  | 'crescent-t'
+  | 'crescent-b'
+  | 'pie-wedge'
+  | 'wedge-tl'
+  | 'wedge-tr'
+  | 'wedge-bl'
+  | 'wedge-br'
+  | 'step-tl'
+  | 'step-tr'
+  | 'step-bl'
+  | 'step-br'
+  | 'step-t-mid'
+  | 'step-b-mid'
+  | 'wing-bend-l'
+  | 'wing-bend-r'
+  | 'u-court-t'
+  | 'u-court-b'
+  | 'slope-b-l'
+  | 'slope-b-r'
+  | 'slope-t-l'
+  | 'slope-t-r'
+  | 'slope-l-t'
+  | 'slope-l-b'
+  | 'slope-r-t'
+  | 'slope-r-b'
+  | 'bevel-l'
+  | 'bevel-r'
+  | 'bevel-t'
+  | 'bevel-b'
+  | 'chamfer-tr'
+  | 'chamfer-tl'
+  | 'chamfer-br'
+  | 'chamfer-bl'
+  | 'curve-bl'
+  | 'curve-br'
+  | 'curve-tl'
+  | 'curve-tr'
+  | 'notch-tl'
+  | 'notch-tr'
+  | 'notch-bl'
+  | 'notch-br'
+  | 'notch-br-chamfer-tl'
+  | 'notch-tr-chamfer-bl'
+  | 'notch-bl-chamfer-tr'
+  | 'notch-tl-chamfer-br'
+  | 'trapezoid'
+  | 'trapezoid-l'
+  | 'trapezoid-r';
+
+export const UNIT_SHAPE_LABELS: Record<UnitShapeMode, string> = {
+  rect: 'Rectangle (Standard)',
+  circle: 'Circle / Oval',
+  'ring-curve': 'Fan / Ring Sector',
+  'trapezoid-ring': 'Curved Arch',
+  'crescent-l': 'Inner Crescent (Left Arc)',
+  'crescent-r': 'Inner Crescent (Right Arc)',
+  'crescent-t': 'Inner Crescent (Top Arc)',
+  'crescent-b': 'Inner Crescent (Bottom Arc)',
+  'pie-wedge': 'Pie-Slice Wedge (Curved)',
+  'wedge-tl': 'Triangle Wedge (Top-Left)',
+  'wedge-tr': 'Triangle Wedge (Top-Right)',
+  'wedge-bl': 'Triangle Wedge (Bottom-Left)',
+  'wedge-br': 'Triangle Wedge (Bottom-Right)',
+  'step-tl': 'Stepped Cutout (Top-Left)',
+  'step-tr': 'Stepped Cutout (Top-Right)',
+  'step-bl': 'Stepped Cutout (Bottom-Left)',
+  'step-br': 'Stepped Cutout (Bottom-Right)',
+  'step-t-mid': 'Center Alcove Notch (Top)',
+  'step-b-mid': 'Center Alcove Notch (Bottom)',
+  'wing-bend-l': 'Corner-Bend Wing (Left)',
+  'wing-bend-r': 'Corner-Bend Wing (Right)',
+  'u-court-t': 'U-Wing Courtyard (Top)',
+  'u-court-b': 'U-Wing Courtyard (Bottom)',
+  'slope-b-l': 'Slant Bottom (Up-Left)',
+  'slope-b-r': 'Slant Bottom (Up-Right)',
+  'slope-t-l': 'Slant Top (Down-Left)',
+  'slope-t-r': 'Slant Top (Down-Right)',
+  'slope-l-t': 'Slant Left Wall (Top-In)',
+  'slope-l-b': 'Slant Left Wall (Bottom-In)',
+  'slope-r-t': 'Slant Right Wall (Top-In)',
+  'slope-r-b': 'Slant Right Wall (Bottom-In)',
+  'bevel-l': 'Pointed Bevel End (Left)',
+  'bevel-r': 'Pointed Bevel End (Right)',
+  'bevel-t': 'Pointed Bevel End (Top)',
+  'bevel-b': 'Pointed Bevel End (Bottom)',
+  'chamfer-tr': 'Cut Corner (Top-Right)',
+  'chamfer-tl': 'Cut Corner (Top-Left)',
+  'chamfer-br': 'Cut Corner (Bottom-Right)',
+  'chamfer-bl': 'Cut Corner (Bottom-Left)',
+  'curve-bl': 'Curved Corner (Bottom-Left)',
+  'curve-br': 'Curved Corner (Bottom-Right)',
+  'curve-tl': 'Curved Corner (Top-Left)',
+  'curve-tr': 'Curved Corner (Top-Right)',
+  'notch-tl': 'Concave Cutout (Top-Left)',
+  'notch-tr': 'Concave Cutout (Top-Right)',
+  'notch-bl': 'Concave Cutout (Bottom-Left)',
+  'notch-br': 'Concave Cutout (Bottom-Right)',
+  'notch-br-chamfer-tl': 'Kiosk Notch BR + Cut TL',
+  'notch-tr-chamfer-bl': 'Kiosk Notch TR + Cut BL',
+  'notch-bl-chamfer-tr': 'Kiosk Notch BL + Cut TR',
+  'notch-tl-chamfer-br': 'Kiosk Notch TL + Cut BR',
+  trapezoid: 'Trapezoid (Symmetric)',
+  'trapezoid-l': 'Trapezoid (Left Slant)',
+  'trapezoid-r': 'Trapezoid (Right Slant)',
+};
+
+export const VALID_UNIT_SHAPE_MODES = new Set<UnitShapeMode>(
+  Object.keys(UNIT_SHAPE_LABELS) as UnitShapeMode[],
+);
+
+export type UnitShapeCategoryId = 'all' | 'ring' | 'cut' | 'notch' | 'slant' | 'step';
+
+export const UNIT_SHAPE_CATEGORY_TABS: ReadonlyArray<{ id: UnitShapeCategoryId; label: string }> = [
+  { id: 'all', label: 'All Shapes' },
+  { id: 'ring', label: 'Ring & Arc' },
+  { id: 'cut', label: '45° Cut & Bevel' },
+  { id: 'notch', label: 'Notch & Kiosk' },
+  { id: 'slant', label: 'Slanted & Trapezoid' },
+  { id: 'step', label: 'Stepped & Wing' },
+];
+
+export interface UnitShapeCompactFamily {
+  id: string;
+  title: string;
+  subtitle: string;
+  category: Exclude<UnitShapeCategoryId, 'all'>;
+  variants: ReadonlyArray<UnitShapeMode>;
+}
+
+export const UNIT_SHAPE_COMPACT_FAMILIES: ReadonlyArray<UnitShapeCompactFamily> = [
+  {
+    id: 'rect-standard',
+    title: 'Rectangle (Standard)',
+    subtitle: 'Standard rectangular shop unit',
+    category: 'ring',
+    variants: ['rect'],
+  },
+  {
+    id: 'circle-kiosk',
+    title: 'Circle / Oval Kiosk',
+    subtitle: 'Round or oval island kiosk unit',
+    category: 'ring',
+    variants: ['circle'],
+  },
+  {
+    id: 'ring-sector',
+    title: 'Fan / Ring Sector & Arch',
+    subtitle: 'Curved fan sector or arch hugging a circular Atrium',
+    category: 'ring',
+    variants: ['ring-curve', 'trapezoid-ring'],
+  },
+  {
+    id: 'crescent-arc',
+    title: 'Inner Crescent (Atrium Arc)',
+    subtitle: 'Concave curved side hugging an oval/circle Atrium',
+    category: 'ring',
+    variants: ['crescent-l', 'crescent-r', 'crescent-t', 'crescent-b'],
+  },
+  {
+    id: 'chamfer-corner',
+    title: '45° Cut Corner (Chamfer)',
+    subtitle: 'Diagonal corner cut facing an Octagonal Atrium or intersection',
+    category: 'cut',
+    variants: ['chamfer-tl', 'chamfer-tr', 'chamfer-bl', 'chamfer-br'],
+  },
+  {
+    id: 'bevel-end',
+    title: 'Pointed / Bevel Island End',
+    subtitle: 'Double-chamfered pointed end for middle island rows',
+    category: 'cut',
+    variants: ['bevel-l', 'bevel-r', 'bevel-t', 'bevel-b'],
+  },
+  {
+    id: 'curved-corner',
+    title: 'Rounded Outer Corner',
+    subtitle: 'Smooth convex rounded outer corner',
+    category: 'cut',
+    variants: ['curve-tl', 'curve-tr', 'curve-bl', 'curve-br'],
+  },
+  {
+    id: 'concave-notch',
+    title: 'Concave Corner Cutout (Notch)',
+    subtitle: 'Quarter-circle concave corner cutout around a Kiosk or Atrium',
+    category: 'notch',
+    variants: ['notch-tl', 'notch-tr', 'notch-bl', 'notch-br'],
+  },
+  {
+    id: 'notch-chamfer-combo',
+    title: 'Kiosk Notch + Outer 45° Cut',
+    subtitle: 'Inner Kiosk concave cutout + opposite outer 45° chamfer',
+    category: 'notch',
+    variants: [
+      'notch-br-chamfer-tl',
+      'notch-tr-chamfer-bl',
+      'notch-bl-chamfer-tr',
+      'notch-tl-chamfer-br',
+    ],
+  },
+  {
+    id: 'wedge-kiosk',
+    title: 'Pie-Wedge & Triangle Kiosk',
+    subtitle: 'Pie-slice sector or triangular corner unit',
+    category: 'notch',
+    variants: ['pie-wedge', 'wedge-tl', 'wedge-tr', 'wedge-bl', 'wedge-br'],
+  },
+  {
+    id: 'slant-top-bottom',
+    title: 'Slanted Top / Bottom Edge',
+    subtitle: 'Angled top or bottom wall with vertical left/right walls',
+    category: 'slant',
+    variants: ['slope-b-l', 'slope-b-r', 'slope-t-l', 'slope-t-r'],
+  },
+  {
+    id: 'slant-left-right',
+    title: 'Slanted Left / Right Wall',
+    subtitle: 'Angled left or right side wall with horizontal top/bottom edges',
+    category: 'slant',
+    variants: ['slope-l-t', 'slope-l-b', 'slope-r-t', 'slope-r-b'],
+  },
+  {
+    id: 'trapezoid-taper',
+    title: 'Tapered-Side Trapezoid',
+    subtitle: 'Symmetric or single-side tapered trapezoid',
+    category: 'slant',
+    variants: ['trapezoid', 'trapezoid-l', 'trapezoid-r'],
+  },
+  {
+    id: 'stepped-corner',
+    title: 'Stepped L-Cutout & Alcove',
+    subtitle: 'Rectangular corner step or center alcove cutout',
+    category: 'step',
+    variants: ['step-tl', 'step-tr', 'step-bl', 'step-br', 'step-t-mid', 'step-b-mid'],
+  },
+  {
+    id: 'wing-courtyard',
+    title: 'Corner-Bend & U-Courtyard',
+    subtitle: 'Bent corridor wing or U-shaped courtyard anchor block',
+    category: 'step',
+    variants: ['wing-bend-l', 'wing-bend-r', 'u-court-t', 'u-court-b'],
+  },
+];
+
+const CIRCLE_24_UV: ReadonlyArray<[number, number]> = Array.from({ length: 24 }, (_, i) => {
+  const theta = (i * 2 * Math.PI) / 24;
+  return [0.485 * Math.cos(theta), 0.485 * Math.sin(theta)] as [number, number];
+});
+
+/**
+ * Single-source lookup table of normalized `[-0.5..0.5, -0.5..0.5]` convex collision sub-polygons
+ * for each non-rectangular `UnitShapeMode`.
+ */
+export const UNIT_SHAPE_CONVEX_UV_PARTS: Partial<
+  Record<UnitShapeMode, ReadonlyArray<ReadonlyArray<[number, number]>>>
+> = {
+  circle: [CIRCLE_24_UV],
+  'ring-curve': [
+    [[-0.47, -0.29], [0, -0.48], [0, 0.28], [-0.29, 0.45]],
+    [[0, -0.48], [0.47, -0.29], [0.29, 0.45], [0, 0.28]],
+  ],
+  'trapezoid-ring': [
+    [[-0.48, -0.48], [0, -0.48], [0, 0.22], [-0.31, 0.45]],
+    [[0, -0.48], [0.48, -0.48], [0.31, 0.45], [0, 0.22]],
+  ],
+  'slope-b-l': [[[-0.48, -0.48], [0.48, -0.48], [0.48, 0.48], [-0.48, 0.16]]],
+  'slope-b-r': [[[-0.48, -0.48], [0.48, -0.48], [0.48, 0.16], [-0.48, 0.48]]],
+  'slope-t-l': [[[-0.48, -0.16], [0.48, -0.48], [0.48, 0.48], [-0.48, 0.48]]],
+  'slope-t-r': [[[-0.48, -0.48], [0.48, -0.16], [0.48, 0.48], [-0.48, 0.48]]],
+  'slope-l-t': [[[-0.16, -0.48], [0.48, -0.48], [0.48, 0.48], [-0.48, 0.48]]],
+  'slope-l-b': [[[-0.48, -0.48], [0.48, -0.48], [0.48, 0.48], [-0.16, 0.48]]],
+  'slope-r-t': [[[-0.48, -0.48], [0.16, -0.48], [0.48, 0.48], [-0.48, 0.48]]],
+  'slope-r-b': [[[-0.48, -0.48], [0.48, -0.48], [0.16, 0.48], [-0.48, 0.48]]],
+  'bevel-l': [[[-0.16, -0.48], [0.48, -0.48], [0.48, 0.48], [-0.16, 0.48], [-0.48, 0]]],
+  'bevel-r': [[[-0.48, -0.48], [0.16, -0.48], [0.48, 0], [0.16, 0.48], [-0.48, 0.48]]],
+  'bevel-t': [[[0, -0.48], [0.48, -0.16], [0.48, 0.48], [-0.48, 0.48], [-0.48, -0.16]]],
+  'bevel-b': [[[-0.48, -0.48], [0.48, -0.48], [0.48, 0.16], [0, 0.48], [-0.48, 0.16]]],
+  'chamfer-tr': [[[-0.48, -0.48], [0.08, -0.48], [0.48, -0.08], [0.48, 0.48], [-0.48, 0.48]]],
+  'curve-tr': [[[-0.48, -0.48], [0.08, -0.48], [0.48, -0.08], [0.48, 0.48], [-0.48, 0.48]]],
+  'chamfer-tl': [[[-0.08, -0.48], [0.48, -0.48], [0.48, 0.48], [-0.48, 0.48], [-0.48, -0.08]]],
+  'curve-tl': [[[-0.08, -0.48], [0.48, -0.48], [0.48, 0.48], [-0.48, 0.48], [-0.48, -0.08]]],
+  'chamfer-br': [[[-0.48, -0.48], [0.48, -0.48], [0.48, 0.08], [0.08, 0.48], [-0.48, 0.48]]],
+  'curve-br': [[[-0.48, -0.48], [0.48, -0.48], [0.48, 0.08], [0.08, 0.48], [-0.48, 0.48]]],
+  'chamfer-bl': [[[-0.48, -0.48], [0.48, -0.48], [0.48, 0.48], [-0.08, 0.48], [-0.48, 0.08]]],
+  'curve-bl': [[[-0.48, -0.48], [0.48, -0.48], [0.48, 0.48], [-0.08, 0.48], [-0.48, 0.08]]],
+  'notch-tl': [
+    [[0.12, -0.48], [0.48, -0.48], [0.48, 0.48], [0.12, 0.48]],
+    [[-0.48, 0.12], [0.48, 0.12], [0.48, 0.48], [-0.48, 0.48]],
+  ],
+  'step-tl': [
+    [[0.12, -0.48], [0.48, -0.48], [0.48, 0.48], [0.12, 0.48]],
+    [[-0.48, 0.12], [0.48, 0.12], [0.48, 0.48], [-0.48, 0.48]],
+  ],
+  'notch-tl-chamfer-br': [
+    [[0.12, -0.48], [0.48, -0.48], [0.48, 0.08], [0.12, 0.48]],
+    [[-0.48, 0.12], [0.44, 0.12], [0.08, 0.48], [-0.48, 0.48]],
+  ],
+  'notch-tr': [
+    [[-0.48, -0.48], [-0.12, -0.48], [-0.12, 0.48], [-0.48, 0.48]],
+    [[-0.48, 0.12], [0.48, 0.12], [0.48, 0.48], [-0.48, 0.48]],
+  ],
+  'step-tr': [
+    [[-0.48, -0.48], [-0.12, -0.48], [-0.12, 0.48], [-0.48, 0.48]],
+    [[-0.48, 0.12], [0.48, 0.12], [0.48, 0.48], [-0.48, 0.48]],
+  ],
+  'notch-tr-chamfer-bl': [
+    [[-0.48, -0.48], [-0.12, -0.48], [-0.12, 0.48], [-0.48, 0.08]],
+    [[-0.44, 0.12], [0.48, 0.12], [0.48, 0.48], [-0.08, 0.48]],
+  ],
+  'notch-br': [
+    [[-0.48, -0.48], [0.48, -0.48], [0.48, -0.12], [-0.48, -0.12]],
+    [[-0.48, -0.48], [-0.12, -0.48], [-0.12, 0.48], [-0.48, 0.48]],
+  ],
+  'step-br': [
+    [[-0.48, -0.48], [0.48, -0.48], [0.48, -0.12], [-0.48, -0.12]],
+    [[-0.48, -0.48], [-0.12, -0.48], [-0.12, 0.48], [-0.48, 0.48]],
+  ],
+  'notch-br-chamfer-tl': [
+    [[-0.08, -0.48], [0.48, -0.48], [0.48, -0.12], [-0.44, -0.12]],
+    [[-0.12, -0.48], [-0.12, 0.48], [-0.48, 0.48], [-0.48, -0.08]],
+  ],
+  'notch-bl': [
+    [[-0.48, -0.48], [0.48, -0.48], [0.48, -0.12], [-0.48, -0.12]],
+    [[0.12, -0.48], [0.48, -0.48], [0.48, 0.48], [0.12, 0.48]],
+  ],
+  'step-bl': [
+    [[-0.48, -0.48], [0.48, -0.48], [0.48, -0.12], [-0.48, -0.12]],
+    [[0.12, -0.48], [0.48, -0.48], [0.48, 0.48], [0.12, 0.48]],
+  ],
+  'notch-bl-chamfer-tr': [
+    [[-0.48, -0.48], [0.08, -0.48], [0.44, -0.12], [-0.48, -0.12]],
+    [[0.12, -0.48], [0.48, -0.08], [0.48, 0.48], [0.12, 0.48]],
+  ],
+  'crescent-l': [
+    [[-0.44, -0.48], [0.48, -0.48], [0.48, 0], [-0.10, 0]],
+    [[-0.10, 0], [0.48, 0], [0.48, 0.48], [-0.44, 0.48]],
+  ],
+  'crescent-r': [
+    [[-0.48, -0.48], [0.44, -0.48], [0.10, 0], [-0.48, 0]],
+    [[-0.48, 0], [0.10, 0], [0.44, 0.48], [-0.48, 0.48]],
+  ],
+  'crescent-t': [
+    [[-0.48, -0.44], [0, -0.10], [0, 0.48], [-0.48, 0.48]],
+    [[0, -0.10], [0.48, -0.44], [0.48, 0.48], [0, 0.48]],
+  ],
+  'crescent-b': [
+    [[-0.48, -0.48], [0, -0.48], [0, 0.10], [-0.48, 0.44]],
+    [[0, -0.48], [0.48, -0.48], [0.48, 0.44], [0, 0.10]],
+  ],
+  'step-t-mid': [
+    [[-0.48, -0.48], [-0.22, -0.48], [-0.22, 0.48], [-0.48, 0.48]],
+    [[-0.48, 0.02], [0.48, 0.02], [0.48, 0.48], [-0.48, 0.48]],
+    [[0.22, -0.48], [0.48, -0.48], [0.48, 0.48], [0.22, 0.48]],
+  ],
+  'u-court-t': [
+    [[-0.48, -0.48], [-0.22, -0.48], [-0.22, 0.48], [-0.48, 0.48]],
+    [[-0.48, 0.02], [0.48, 0.02], [0.48, 0.48], [-0.48, 0.48]],
+    [[0.22, -0.48], [0.48, -0.48], [0.48, 0.48], [0.22, 0.48]],
+  ],
+  'step-b-mid': [
+    [[-0.48, -0.48], [-0.22, -0.48], [-0.22, 0.48], [-0.48, 0.48]],
+    [[-0.48, -0.48], [0.48, -0.48], [0.48, -0.02], [-0.48, -0.02]],
+    [[0.22, -0.48], [0.48, -0.48], [0.48, 0.48], [0.22, 0.48]],
+  ],
+  'u-court-b': [
+    [[-0.48, -0.48], [-0.22, -0.48], [-0.22, 0.48], [-0.48, 0.48]],
+    [[-0.48, -0.48], [0.48, -0.48], [0.48, -0.02], [-0.48, -0.02]],
+    [[0.22, -0.48], [0.48, -0.48], [0.48, 0.48], [0.22, 0.48]],
+  ],
+  'pie-wedge': [[[-0.48, -0.48], [0.48, -0.48], [0.14, 0.48], [-0.14, 0.48]]],
+  'wedge-tl': [[[-0.48, -0.48], [0.48, -0.48], [0.48, -0.32], [-0.32, 0.48], [-0.48, 0.48]]],
+  'wedge-tr': [[[-0.48, -0.48], [0.48, -0.48], [0.48, 0.48], [0.32, 0.48], [-0.48, -0.32]]],
+  'wedge-bl': [[[-0.48, -0.48], [-0.32, -0.48], [0.48, 0.32], [0.48, 0.48], [-0.48, 0.48]]],
+  'wedge-br': [[[0.32, -0.48], [0.48, -0.48], [0.48, 0.48], [-0.48, 0.48], [-0.48, 0.32]]],
+  'wing-bend-l': [
+    [[-0.22, -0.48], [0.48, -0.48], [0.48, 0.04], [-0.48, 0.04], [-0.48, -0.14]],
+    [[-0.48, -0.14], [0.06, 0.04], [-0.12, 0.48], [-0.48, 0.48]],
+  ],
+  'wing-bend-r': [
+    [[-0.48, -0.48], [0.22, -0.48], [0.48, -0.14], [0.48, 0.04], [-0.48, 0.04]],
+    [[-0.06, 0.04], [0.48, -0.14], [0.48, 0.48], [0.12, 0.48]],
+  ],
+  trapezoid: [[[-0.32, -0.48], [0.32, -0.48], [0.48, 0.48], [-0.48, 0.48]]],
+  'trapezoid-l': [[[-0.24, -0.48], [0.48, -0.48], [0.48, 0.48], [-0.48, 0.48]]],
+  'trapezoid-r': [[[-0.48, -0.48], [0.24, -0.48], [0.48, 0.48], [-0.48, 0.48]]],
+};
