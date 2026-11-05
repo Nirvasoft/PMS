@@ -21,14 +21,14 @@ import {
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import {
   DECORATION_DEFAULT_SIZES, DECORATION_LABELS, DEFAULT_COLUMNS, DEFAULT_SQFT_PER_CELL,
-  SHOP_CATEGORIES, compareShopsByUnitNumber, findFreeSpot, findSpotNextToAnchor, addConnectedUnitWing, snapTileToBorder, curveUnitAroundCircleWithoutSnap, alignUnitsRadiallyAroundAtrium, computeMagneticSnapGuide, addTransitIntoAtrium, isTransitLandmark, floorKeyOf, tilesConflict, hasAnyOverlap,
+  SHOP_CATEGORIES, compareShopsByUnitNumber, findFreeSpot, findSpotNextToAnchor, findNextRingSectorPlacement, addConnectedUnitWing, snapTileToBorder, curveUnitAroundCircleWithoutSnap, alignUnitsRadiallyAroundAtrium, alignUnitToNearestCircleAtrium, computeMagneticSnapGuide, addTransitIntoAtrium, isTransitLandmark, floorKeyOf, tilesConflict, hasAnyOverlap,
   tileSizeFromSqft, calibrateSqftPerCell, syncUnitTilesToSqft,
   unitKey, nextUnitBlockKey, findPrimaryUnitTile, resolveTileByKey,
   unitNumberOf, shopDisplayName, matchesShopQuery, scoreShopSearchMatch,
   computeWalkwayPath, buildSmoothRouteSvgPath, computeRouteDirectionArrows, computeFloorplateBounds, findDefaultStartItem, findNearestFacilityItem,
   rotateMapLayout, parseRotationAngle, computeUnitMergeMap,
   normalizeTileAngle,
-  UNIT_SHAPE_LABELS, UNIT_SHAPE_CATEGORY_TABS, UNIT_SHAPE_COMPACT_FAMILIES, parseUnitShapeMode, encodeUnitShapeMode, isAutoUnitShapeLabel, nextUnitShapeMode, resolveSmartFamilyShapeMode, isTrapezoidUnitMode, getTrapezoidUnitGeometry,
+  UNIT_SHAPE_LABELS, UNIT_SHAPE_CATEGORY_TABS, UNIT_SHAPE_COMPACT_FAMILIES, parseUnitShapeMode, encodeUnitShapeMode, isAutoUnitShapeLabel, nextUnitShapeMode, resolveSmartFamilyShapeMode, isTrapezoidUnitMode, getTrapezoidUnitGeometry, getCircleRingSectorAlignment,
   LANDMARK_VARIANTS, parseLandmarkMeta, encodeLandmarkMeta, nextLandmarkVariant, autoSquareCircleLandmark, getPolygonAtriumGeometry,
   parseFloorPlanData, buildCopiedFloorLayout, saveCachedFloorPlan, getCachedFloorPlan,
   expandTouchingGroupKeys, computeGroupBoundingBox, moveTileGroupByDelta, rotateTileGroup, resizeTileGroup,
@@ -343,6 +343,34 @@ function AtriumShapeIcon({ mode, size }: { mode: UnitShapeMode | string; size: n
     return (
       <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
         <path d="M 2.2 3.2 L 13.8 3.2 L 13.8 7.2 Q 8.6 7.6 8.2 12.8 L 2.2 12.8 Z" />
+      </svg>
+    );
+  }
+  if (mode === 'arch-tl') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <path d="M 2.2 2.6 L 11.2 2.6 L 13.8 5.2 Q 5.8 5.8 5.4 13.4 L 2.2 13.4 Z" />
+      </svg>
+    );
+  }
+  if (mode === 'arch-tr') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <path d="M 4.8 2.6 L 13.8 2.6 L 13.8 13.4 L 10.6 13.4 Q 10.2 5.8 2.2 5.2 Z" />
+      </svg>
+    );
+  }
+  if (mode === 'arch-bl') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <path d="M 2.2 2.6 L 5.4 2.6 Q 5.8 10.2 13.8 10.8 L 11.2 13.4 L 2.2 13.4 Z" />
+      </svg>
+    );
+  }
+  if (mode === 'arch-br') {
+    return (
+      <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+        <path d="M 10.6 2.6 L 13.8 2.6 L 13.8 13.4 L 4.8 13.4 L 2.2 10.8 Q 10.2 10.2 10.6 2.6 Z" />
       </svg>
     );
   }
@@ -1495,8 +1523,8 @@ export default function ShopMapView({
               y: l.y,
               w: l.w,
               h: l.h,
-              ...(l.angle !== undefined ? { angle: l.angle } : {}),
-              ...(l.label !== undefined ? { label: l.label } : {}),
+              ...('angle' in l ? { angle: l.angle } : {}),
+              ...('label' in l ? { label: l.label } : {}),
             }
           : null;
       })
@@ -1948,6 +1976,7 @@ export default function ShopMapView({
         unitMode: UnitShapeMode | null;
         polyAtriumGeo: ReturnType<typeof getPolygonAtriumGeometry> | null;
         trapezoidGeo: TrapezoidUnitGeometry | null;
+        ringSectorAlign: ReturnType<typeof getCircleRingSectorAlignment> | null;
         hasInnerItems: boolean;
         parentAtrium: MapItem | null;
       }
@@ -1969,15 +1998,21 @@ export default function ShopMapView({
         unitMode && isTrapezoidUnitMode(unitMode)
           ? getTrapezoidUnitGeometry(unitMode, wPx, hPx, cellPx, um, it, liveDisplayItems)
           : null;
+      const ringSectorAlign =
+        it.kind === 'unit' ? getCircleRingSectorAlignment(it, liveDisplayItems) : null;
       let hasInnerItems = false;
       let parentAtrium: MapItem | null = null;
       for (const o of liveDisplayItems) {
         if (o.key === it.key) continue;
         if (it.x < o.x + o.w && it.x + it.w > o.x && it.y < o.y + o.h && it.y + it.h > o.y) {
-          if (it.kind === 'atrium' && o.kind !== 'atrium') {
-            hasInnerItems = true;
+          if (it.kind === 'atrium' && isTransitLandmark(o.kind)) {
+            const ocx = o.x + o.w * 0.5;
+            const ocy = o.y + o.h * 0.5;
+            if (ocx >= it.x && ocx <= it.x + it.w && ocy >= it.y && ocy <= it.y + it.h) {
+              hasInnerItems = true;
+            }
           }
-          if (it.kind !== 'atrium' && o.kind === 'atrium' && !parentAtrium) {
+          if (isTransitLandmark(it.kind) && o.kind === 'atrium' && !parentAtrium) {
             parentAtrium = o;
           }
         }
@@ -1989,6 +2024,7 @@ export default function ShopMapView({
         unitMode,
         polyAtriumGeo,
         trapezoidGeo,
+        ringSectorAlign,
         hasInnerItems,
         parentAtrium,
       });
@@ -2420,6 +2456,11 @@ export default function ShopMapView({
     update((prev) => {
       const actualKey = nextUnitBlockKey(prev, shop.unitId);
       const anchor = resolvePlacementAnchor(prev, 'unit');
+      const ringPlaced = findNextRingSectorPlacement(prev, anchor, shop.unitId, actualKey, effectiveColumns);
+      if (ringPlaced) {
+        lastActiveTileKeyRef.current = actualKey;
+        return [...prev, ringPlaced];
+      }
       const pos = anchor
         ? findSpotNextToAnchor(prev, anchor, w, h, effectiveColumns, EDIT_LEFT_PAD, vpBounds, 'unit', shop.unitId)
         : findFreeSpot(prev, w, h, effectiveColumns, EDIT_LEFT_PAD, vpBounds);
@@ -2639,8 +2680,18 @@ export default function ShopMapView({
     update((prev) =>
       prev.map((i) => {
         if (i.key !== key || i.kind !== 'unit') return i;
-        const nextUnit: MapItem = { ...i, label: encodeUnitShapeMode(nextMode) };
-        return resolveConflictFreeTileShapeChange(nextUnit, prev, 4);
+        const wasRingSector =
+          Boolean(i.label?.startsWith('unit:ring-curve')) || i.label === 'unit:trapezoid-ring';
+        const isNextRingSector = nextMode === 'ring-curve' || nextMode === 'trapezoid-ring';
+        const baseUnit: MapItem = {
+          ...i,
+          label: encodeUnitShapeMode(nextMode),
+          ...(wasRingSector && !isNextRingSector ? { angle: undefined } : {}),
+        };
+        const orientedUnit = isNextRingSector
+          ? alignUnitToNearestCircleAtrium(baseUnit, prev, effectiveColumns)
+          : baseUnit;
+        return resolveConflictFreeTileShapeChange(orientedUnit, prev, 4);
       }),
     );
   };
@@ -4209,17 +4260,26 @@ export default function ShopMapView({
                       : unitMode
                         ? UNIT_SHAPE_LABELS[unitMode]
                         : '';
-                    const effectiveAngle = effectiveIt.angle ?? 0;
+                    const ringSectorAlign = cachedMeta
+                      ? cachedMeta.ringSectorAlign
+                      : effectiveIt.kind === 'unit'
+                        ? getCircleRingSectorAlignment(effectiveIt, effectiveDisplayItems)
+                        : null;
+                    const effectiveAngle = ringSectorAlign
+                      ? ringSectorAlign.exactAngle
+                      : (effectiveIt.angle ?? 0);
                     const title = decor
                       ? editing && tileShapeDesc
-                        ? `${decorLabel} • ${tileShapeDesc}${effectiveAngle ? ` • ${effectiveAngle}°` : ''}`
+                        ? `${decorLabel} • ${tileShapeDesc}${effectiveAngle ? ` • ${Math.round(effectiveAngle)}°` : ''}`
                         : lmMeta?.displayLabel || decorLabel
                       : undefined;
                     const groupMoveNudge = isGroupPeerMoving && dragGroupDelta
                       ? { dx: dragGroupDelta.dx, dy: dragGroupDelta.dy }
                       : null;
-                    const totalNudgeDx = groupMoveNudge?.dx ?? 0;
-                    const totalNudgeDy = groupMoveNudge?.dy ?? 0;
+                    const totalNudgeDx =
+                      (groupMoveNudge?.dx ?? 0) + (groupMoveNudge ? 0 : (ringSectorAlign?.dx ?? 0));
+                    const totalNudgeDy =
+                      (groupMoveNudge?.dy ?? 0) + (groupMoveNudge ? 0 : (ringSectorAlign?.dy ?? 0));
                     const hasTotalNudge = totalNudgeDx !== 0 || totalNudgeDy !== 0;
                     const hasSizeOverride = !editing && (wPx !== gridItemWPx || hPx !== gridItemHPx);
                     const tileStyle: CSSProperties | undefined =

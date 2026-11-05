@@ -290,6 +290,10 @@
 .shop-map-grid-item.is-layer-focused > .shop-map-tile:is(.is-polygon-atrium, .is-trapezoid-tile) {
   filter: drop-shadow(0 0 4px #a78bfa) !important;
 }
+.shop-map-grid-item.is-atrium-item.has-inner-items > .shop-map-tile {
+  justify-content: flex-start;
+  padding-top: 6px;
+}
 
 .shop-map-tile {
   width: 100%; height: 100%;
