@@ -115,7 +115,23 @@ export class ChargeTypesService {
     }
     if (dto.isActive !== undefined) updateData.isActive = dto.isActive;
 
-    return prisma.chargeType.update({ where: { id }, data: updateData, include: chargeTypeInclude });
+    const updated = await prisma.chargeType.update({ where: { id }, data: updateData, include: chargeTypeInclude });
+
+    if (dto.departmentCenterId !== undefined || dto.costCenterId !== undefined) {
+      await prisma.billingSchedule.updateMany({
+        where: {
+          companyId,
+          chargeTypeId: id,
+          status: { in: ['draft', 'active', 'paused'] },
+        },
+        data: {
+          departmentCenterId: updated.departmentCenterId ?? null,
+          costCenterId: updated.costCenterId ?? null,
+        },
+      });
+    }
+
+    return updated;
   }
 }
 

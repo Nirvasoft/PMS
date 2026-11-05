@@ -62,7 +62,27 @@ export class LeasesLifecycleService {
     const lease = await prisma.lease.findFirst({
       where: { id, companyId, deletedAt: null },
       include: {
-        unit: { include: { property: true } },
+        unit: {
+          include: {
+            property: true,
+            unitCharges: {
+              include: {
+                chargeType: {
+                  select: {
+                    id: true,
+                    code: true,
+                    name: true,
+                    category: true,
+                    glAccountCode: true,
+                    departmentCenterId: true,
+                    costCenterId: true,
+                  },
+                },
+              },
+              orderBy: { createdAt: 'asc' },
+            },
+          },
+        },
         // Load charge schedules (created at lease-creation time, promoted to active on activation).
         // These are what invoicesService.createFromLease iterates to issue per-charge invoices.
         billingSchedules: {
@@ -73,7 +93,19 @@ export class LeasesLifecycleService {
             amount: true,
             description: true,
             billingCycle: true,
-            chargeType: { select: { id: true, code: true, name: true, category: true } },
+            departmentCenterId: true,
+            costCenterId: true,
+            chargeType: {
+              select: {
+                id: true,
+                code: true,
+                name: true,
+                category: true,
+                glAccountCode: true,
+                departmentCenterId: true,
+                costCenterId: true,
+              },
+            },
           },
         },
       },

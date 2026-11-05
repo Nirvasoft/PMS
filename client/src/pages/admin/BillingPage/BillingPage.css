@@ -3112,7 +3112,7 @@
   background: var(--surface, #12231d);
   color: var(--text-primary, #e8f5ef);
   width: 92vw;
-  max-width: 780px;
+  max-width: 940px;
   border: 1px solid var(--border, #1f3a30);
   border-radius: var(--radius-md, 12px);
   box-shadow: var(--shadow-lg, 0 12px 36px rgba(0, 0, 0, 0.55));
@@ -3120,11 +3120,6 @@
   flex-direction: column;
   overflow: hidden;
   font-family: var(--font-sans, 'Inter', -apple-system, BlinkMacSystemFont, sans-serif);
-  transition: max-width 0.2s ease;
-}
-
-.recap-modal-dialog.recap-modal-dialog--expanded {
-  max-width: 940px;
 }
 
 .recap-modal-header {

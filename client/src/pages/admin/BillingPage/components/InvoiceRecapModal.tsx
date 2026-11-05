@@ -187,6 +187,14 @@ export const InvoiceRecapModal: React.FC<InvoiceRecapModalProps> = ({
           if (deptAr) return deptAr;
         }
         if (targetCcId) {
+          const blankDeptCode = glAccounts.find(
+            (a) => isCodeMatch(a) && !a.departmentCenterId && a.costCenterId === targetCcId,
+          );
+          if (blankDeptCode) return blankDeptCode;
+          const blankDeptAr = glAccounts.find(
+            (a) => isArCandidate(a) && !a.departmentCenterId && a.costCenterId === targetCcId,
+          );
+          if (blankDeptAr) return blankDeptAr;
           const ccCode = glAccounts.find(
             (a) => isCodeMatch(a) && a.costCenterId === targetCcId,
           );
@@ -211,12 +219,16 @@ export const InvoiceRecapModal: React.FC<InvoiceRecapModalProps> = ({
       }
       if (targetDeptId) {
         const byDept = glAccounts.find(
+          (a) => isCodeMatch(a) && a.departmentCenterId === targetDeptId && !a.costCenterId,
+        ) || glAccounts.find(
           (a) => isCodeMatch(a) && a.departmentCenterId === targetDeptId,
         );
         if (byDept) return byDept;
       }
       if (targetCcId) {
         const byCc = glAccounts.find(
+          (a) => isCodeMatch(a) && !a.departmentCenterId && a.costCenterId === targetCcId,
+        ) || glAccounts.find(
           (a) => isCodeMatch(a) && a.costCenterId === targetCcId,
         );
         if (byCc) return byCc;
@@ -228,8 +240,9 @@ export const InvoiceRecapModal: React.FC<InvoiceRecapModalProps> = ({
     const arAcc = resolveAccount(tenantGlAccountCode || '1-2210', deptId, ccId, true);
     const arCode = arAcc?.code || tenantGlAccountCode || '1-2210';
     const arDesc = arAcc?.name || 'Account Receivable';
-    const arDept = formatCenterLabel(departmentCenter || arAcc?.departmentCenter);
-    const arCc = formatCenterLabel(costCenter || arAcc?.costCenter);
+    const hasInvoiceCenters = Boolean(departmentCenter || costCenter);
+    const arDept = formatCenterLabel(departmentCenter || (!hasInvoiceCenters ? arAcc?.departmentCenter : null));
+    const arCc = formatCenterLabel(costCenter || (!hasInvoiceCenters ? arAcc?.costCenter : null));
 
     // Prefix a credit description with the invoice number, e.g. "INV-001847,Operating Bank Account"
     const withInvoiceNo = (text: string): string => {
@@ -253,8 +266,10 @@ export const InvoiceRecapModal: React.FC<InvoiceRecapModalProps> = ({
 
     const hasTaxRow = Number(taxAmount) > 0;
     const creditRows: RecapRow[] = lines.map((line) => {
-      const lineDept = line.departmentCenter || departmentCenter;
-      const lineCc = line.costCenter || costCenter;
+      const hasLineCenters = Boolean(line.departmentCenter || line.costCenter);
+      const lineDept = hasLineCenters ? line.departmentCenter : departmentCenter;
+      const lineCc = hasLineCenters ? line.costCenter : costCenter;
+      const hasEffectiveCenters = Boolean(lineDept || lineCc);
       const revAcc = resolveAccount(
         line.glAccountCode,
         lineDept?.id || null,
@@ -270,8 +285,8 @@ export const InvoiceRecapModal: React.FC<InvoiceRecapModalProps> = ({
       return {
         accountCode: code,
         description: desc,
-        department: formatCenterLabel(lineDept || revAcc?.departmentCenter),
-        costCentre: formatCenterLabel(lineCc || revAcc?.costCenter),
+        department: formatCenterLabel(lineDept || (!hasEffectiveCenters ? revAcc?.departmentCenter : null)),
+        costCentre: formatCenterLabel(lineCc || (!hasEffectiveCenters ? revAcc?.costCenter : null)),
         debit: 0,
         credit: creditAmt,
         debitBase: 0,
@@ -335,7 +350,7 @@ export const InvoiceRecapModal: React.FC<InvoiceRecapModalProps> = ({
   return (
     <div className="recap-modal-overlay" onClick={onClose}>
       <div
-        className={`recap-modal-dialog ${showDepartment || showCostCentre ? 'recap-modal-dialog--expanded' : ''}`}
+        className="recap-modal-dialog"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

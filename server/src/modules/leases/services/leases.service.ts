@@ -319,7 +319,15 @@ export class LeasesService {
       const ctIds = leaseCharges.map((c: { chargeTypeId: string }) => c.chargeTypeId);
       const cts = await prisma.chargeType.findMany({
         where: { id: { in: ctIds } },
-        select: { id: true, code: true, name: true, category: true },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          category: true,
+          glAccountCode: true,
+          departmentCenterId: true,
+          costCenterId: true,
+        },
       });
       const rentCtIds = new Set(
         cts
@@ -333,25 +341,31 @@ export class LeasesService {
       );
       const validLeaseCharges = leaseCharges.filter((c: { chargeTypeId: string }) => !rentCtIds.has(c.chargeTypeId));
       if (validLeaseCharges.length > 0) {
+        const centersByCtId = await this.resolveChargeTypeCenters(companyId, propertyId, cts);
         await prisma.billingSchedule.createMany({
-          data: validLeaseCharges.map((c: { chargeTypeId: string; amount: number }) => ({
-            companyId,
-            propertyId,
-            unitId,
-            tenantId,
-            leaseId: lease.id,
-            chargeTypeId: c.chargeTypeId,
-            amount: c.amount,
-            quantity: 1,
-            currency: rest.currency || 'USD',
-            billingCycle: rest.billingCycle || 'monthly',
-            billingDay: rest.billingDay || 1,
-            paymentDueDays: rest.paymentDueDays || 7,
-            startDate: start,
-            endDate: end,
-            createdBy,
-            status: 'draft',   // hidden until lease activates
-          })),
+          data: validLeaseCharges.map((c: { chargeTypeId: string; amount: number }) => {
+            const centers = centersByCtId.get(c.chargeTypeId);
+            return {
+              companyId,
+              propertyId,
+              unitId,
+              tenantId,
+              leaseId: lease.id,
+              departmentCenterId: centers?.departmentCenterId ?? null,
+              costCenterId: centers?.costCenterId ?? null,
+              chargeTypeId: c.chargeTypeId,
+              amount: c.amount,
+              quantity: 1,
+              currency: rest.currency || 'USD',
+              billingCycle: rest.billingCycle || 'monthly',
+              billingDay: rest.billingDay || 1,
+              paymentDueDays: rest.paymentDueDays || 7,
+              startDate: start,
+              endDate: end,
+              createdBy,
+              status: 'draft',   // hidden until lease activates
+            };
+          }),
         });
       }
     }
@@ -418,7 +432,15 @@ export class LeasesService {
         const ctIds = leaseCharges.map((c: { chargeTypeId: string }) => c.chargeTypeId);
         const cts = await prisma.chargeType.findMany({
           where: { id: { in: ctIds } },
-          select: { id: true, code: true, name: true, category: true },
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            category: true,
+            glAccountCode: true,
+            departmentCenterId: true,
+            costCenterId: true,
+          },
         });
         const rentCtIds = new Set(
           cts
@@ -432,24 +454,30 @@ export class LeasesService {
         );
         const validLeaseCharges = leaseCharges.filter((c: { chargeTypeId: string }) => !rentCtIds.has(c.chargeTypeId));
         if (validLeaseCharges.length > 0) {
+          const centersByCtId = await this.resolveChargeTypeCenters(companyId, lease.propertyId, cts);
           await prisma.billingSchedule.createMany({
-            data: validLeaseCharges.map((c: { chargeTypeId: string; amount: number }) => ({
-              companyId,
-              propertyId: lease.propertyId,
-              unitId: lease.unitId,
-              tenantId: lease.tenantId,
-              leaseId: id,
-              chargeTypeId: c.chargeTypeId,
-              amount: c.amount,
-              quantity: 1,
-              currency: lease.currency,
-              billingCycle: lease.billingCycle,
-              billingDay: lease.billingDay,
-              paymentDueDays: lease.paymentDueDays,
-              startDate: start,
-              endDate: end,
-              status: 'draft',   // hidden until lease activates
-            })),
+            data: validLeaseCharges.map((c: { chargeTypeId: string; amount: number }) => {
+              const centers = centersByCtId.get(c.chargeTypeId);
+              return {
+                companyId,
+                propertyId: lease.propertyId,
+                unitId: lease.unitId,
+                tenantId: lease.tenantId,
+                leaseId: id,
+                departmentCenterId: centers?.departmentCenterId ?? null,
+                costCenterId: centers?.costCenterId ?? null,
+                chargeTypeId: c.chargeTypeId,
+                amount: c.amount,
+                quantity: 1,
+                currency: lease.currency,
+                billingCycle: lease.billingCycle,
+                billingDay: lease.billingDay,
+                paymentDueDays: lease.paymentDueDays,
+                startDate: start,
+                endDate: end,
+                status: 'draft',   // hidden until lease activates
+              };
+            }),
           });
         }
       }
@@ -474,6 +502,64 @@ export class LeasesService {
     }
 
     return updated;
+  }
+
+  private async resolveChargeTypeCenters(
+    companyId: string,
+    propertyId: string | null | undefined,
+    cts: Array<{
+      id: string;
+      glAccountCode?: string | null;
+      departmentCenterId?: string | null;
+      costCenterId?: string | null;
+    }>,
+  ): Promise<Map<string, { departmentCenterId: string | null; costCenterId: string | null }>> {
+    const result = new Map<string, { departmentCenterId: string | null; costCenterId: string | null }>();
+    const codesToLookup = new Set<string>();
+
+    for (const ct of cts) {
+      if (ct.departmentCenterId || ct.costCenterId) {
+        result.set(ct.id, {
+          departmentCenterId: ct.departmentCenterId ?? null,
+          costCenterId: ct.costCenterId ?? null,
+        });
+      } else if (ct.glAccountCode?.trim()) {
+        codesToLookup.add(ct.glAccountCode.trim());
+      } else {
+        result.set(ct.id, { departmentCenterId: null, costCenterId: null });
+      }
+    }
+
+    if (codesToLookup.size > 0) {
+      const glAccounts = await prisma.glAccount.findMany({
+        where: {
+          companyId,
+          code: { in: Array.from(codesToLookup) },
+          isActive: true,
+          ...(propertyId ? { OR: [{ propertyId }, { propertyId: null }] } : {}),
+        },
+        select: {
+          code: true,
+          propertyId: true,
+          departmentCenterId: true,
+          costCenterId: true,
+        },
+      });
+
+      for (const ct of cts) {
+        if (result.has(ct.id)) continue;
+        const code = ct.glAccountCode?.trim();
+        const matches = code ? glAccounts.filter((a) => a.code === code) : [];
+        const propMatch = propertyId ? matches.find((a) => a.propertyId === propertyId) : undefined;
+        const chosen = propMatch || matches[0];
+        result.set(ct.id, {
+          departmentCenterId: chosen?.departmentCenterId ?? null,
+          costCenterId: chosen?.costCenterId ?? null,
+        });
+      }
+    }
+
+    return result;
   }
 
   // ── Soft delete ──────────────────────────

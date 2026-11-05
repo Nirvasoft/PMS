@@ -52,7 +52,7 @@ export class BillingSchedulesService {
       prisma.billingSchedule.findMany({
         where,
         include: {
-          chargeType: { select: { id: true, code: true, name: true, category: true } },
+          chargeType: { select: { id: true, code: true, name: true, category: true, glAccountCode: true, departmentCenterId: true, costCenterId: true } },
           tenant: { select: { id: true, firstName: true, lastName: true, companyName: true, tenantType: true } },
           unit: { select: { id: true, unitNumber: true, floorNumber: true, floorLabel: true } },
           property: { select: { id: true, name: true } },
@@ -132,7 +132,7 @@ export class BillingSchedulesService {
         createdBy: userId,
       },
       include: {
-        chargeType: { select: { id: true, code: true, name: true, category: true } },
+        chargeType: { select: { id: true, code: true, name: true, category: true, glAccountCode: true, departmentCenterId: true, costCenterId: true } },
         departmentCenter: { select: { id: true, code: true, name: true } },
         costCenter: { select: { id: true, code: true, name: true } },
       },
@@ -256,6 +256,15 @@ export class BillingSchedulesService {
       }
     }
 
+    const unitDefaultCenters = await this.resolveUnitDefaultCenters(lease);
+    const rentCenters =
+      rentChargeType.departmentCenterId || rentChargeType.costCenterId
+        ? {
+            departmentCenterId: rentChargeType.departmentCenterId ?? null,
+            costCenterId: rentChargeType.costCenterId ?? null,
+          }
+        : unitDefaultCenters;
+
     // 1. RENT schedule (only when there is positive rent remaining to schedule)
     if (scheduleRentAmount > 0 && (!endDate || rentNextBillingDate <= endDate)) {
       const floorDisplay = lease.unit?.floorLabel || (lease.unit?.floorNumber != null ? `Floor ${lease.unit.floorNumber}` : '');
@@ -263,6 +272,8 @@ export class BillingSchedulesService {
       await prisma.billingSchedule.create({
         data: {
           ...this.leaseScheduleBase(lease, startDate, billingDay),
+          departmentCenterId: rentCenters.departmentCenterId,
+          costCenterId: rentCenters.costCenterId,
           quantity: scheduleQty,
           nextBillingDate: rentNextBillingDate,
           chargeTypeId: rentChargeType.id,
@@ -304,6 +315,13 @@ export class BillingSchedulesService {
             data: { code: 'SECURITY_DEPOSIT', name: 'Security Deposit', category: 'other', isActive: true, isSystem: true },
           });
         }
+        const depositCenters =
+          depositChargeType.departmentCenterId || depositChargeType.costCenterId
+            ? {
+                departmentCenterId: depositChargeType.departmentCenterId ?? null,
+                costCenterId: depositChargeType.costCenterId ?? null,
+              }
+            : unitDefaultCenters;
         const existingDeposit = await prisma.billingSchedule.findFirst({
           where: { leaseId: lease.id, chargeTypeId: depositChargeType.id, status: { not: 'cancelled' } },
         });
@@ -311,6 +329,8 @@ export class BillingSchedulesService {
           await prisma.billingSchedule.create({
             data: {
               ...this.leaseScheduleBase(lease, startDate, billingDay),
+              departmentCenterId: depositCenters.departmentCenterId,
+              costCenterId: depositCenters.costCenterId,
               chargeTypeId: depositChargeType.id,
               description: `Security Deposit — Unit ${lease.unit?.unitNumber || ''}`,
               amount: deposit,
@@ -328,9 +348,17 @@ export class BillingSchedulesService {
         where: { code: 'SERVICE_CHARGE', OR: [{ companyId: null }, { companyId: lease.companyId }] },
       });
       if (scChargeType) {
+        const scCentersMap = await this.resolveChargeTypeCenters(lease.companyId, lease.propertyId, [scChargeType]);
+        const scCenters = scCentersMap.get(scChargeType.id);
+        const effectiveScCenters =
+          scCenters && (scCenters.departmentCenterId || scCenters.costCenterId)
+            ? scCenters
+            : unitDefaultCenters;
         await prisma.billingSchedule.create({
           data: {
             ...this.leaseScheduleBase(lease, startDate, billingDay),
+            departmentCenterId: effectiveScCenters.departmentCenterId,
+            costCenterId: effectiveScCenters.costCenterId,
             chargeTypeId: scChargeType.id,
             description: `Service Charge — Unit ${lease.unit?.unitNumber || ''}`,
             amount: serviceChargeAmount,
@@ -356,7 +384,15 @@ export class BillingSchedulesService {
       where: { leaseId: lease.id, status: { in: ['draft', 'active'] } },
       include: {
         chargeType: {
-          select: { id: true, code: true, name: true, category: true },
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            category: true,
+            glAccountCode: true,
+            departmentCenterId: true,
+            costCenterId: true,
+          },
         },
       },
     });
@@ -366,6 +402,12 @@ export class BillingSchedulesService {
       return code !== 'RENT' && code !== 'SECURITY_DEPOSIT';
     });
     if (schedules.length === 0) return;
+
+    const centersByCtId = await this.resolveChargeTypeCenters(
+      lease.companyId,
+      lease.propertyId,
+      schedules.map((s) => s.chargeType).filter((ct): ct is NonNullable<typeof ct> => Boolean(ct)),
+    );
 
     // Fetch categories that have monthly=true so we know which ones override the lease cycle
     const allCategories = await prisma.chargeCategory.findMany({
@@ -412,7 +454,7 @@ export class BillingSchedulesService {
             description: true,
             periodFrom: true,
             periodTo: true,
-            chargeType: { select: { id: true, code: true, name: true, category: true } },
+            chargeType: { select: { id: true, code: true, name: true, category: true, glAccountCode: true, departmentCenterId: true, costCenterId: true } },
           },
         },
       },
@@ -458,14 +500,25 @@ export class BillingSchedulesService {
 
         const isFullyInvoiced = endDate != null && nextBillingDate > endDate;
 
+        const ctCenters = centersByCtId.get(schedule.chargeTypeId);
+        const hasCtCenters = Boolean(ctCenters && (ctCenters.departmentCenterId || ctCenters.costCenterId));
+        const resolvedDeptId = hasCtCenters
+          ? ctCenters!.departmentCenterId
+          : (schedule.departmentCenterId ?? null);
+        const resolvedCcId = hasCtCenters
+          ? ctCenters!.costCenterId
+          : (schedule.costCenterId ?? null);
+
         return prisma.billingSchedule.update({
           where: { id: schedule.id },
           data: {
-            status:          isFullyInvoiced ? 'completed' : 'active',
-            quantity:        1,
-            billingCycle:    effectiveCycle,
-            billingDay:      leaseBillingDay,
-            nextBillingDate: isFullyInvoiced ? null : nextBillingDate,
+            status:             isFullyInvoiced ? 'completed' : 'active',
+            quantity:           1,
+            billingCycle:       effectiveCycle,
+            billingDay:         leaseBillingDay,
+            nextBillingDate:    isFullyInvoiced ? null : nextBillingDate,
+            departmentCenterId: resolvedDeptId,
+            costCenterId:       resolvedCcId,
           },
         });
       })
@@ -548,7 +601,7 @@ export class BillingSchedulesService {
       where: { id },
       data: updateData,
       include: {
-        chargeType: { select: { id: true, code: true, name: true, category: true } },
+        chargeType: { select: { id: true, code: true, name: true, category: true, glAccountCode: true, departmentCenterId: true, costCenterId: true } },
         tenant: { select: { id: true, firstName: true, lastName: true, companyName: true, tenantType: true } },
         unit: { select: { id: true, unitNumber: true, floorNumber: true, floorLabel: true } },
         property: { select: { id: true, name: true } },
@@ -598,6 +651,123 @@ export class BillingSchedulesService {
         lease: true,
       },
     });
+  }
+
+  private async resolveChargeTypeCenters(
+    companyId: string,
+    propertyId: string | null | undefined,
+    cts: Array<{
+      id: string;
+      glAccountCode?: string | null;
+      departmentCenterId?: string | null;
+      costCenterId?: string | null;
+    }>,
+  ): Promise<Map<string, { departmentCenterId: string | null; costCenterId: string | null }>> {
+    const result = new Map<string, { departmentCenterId: string | null; costCenterId: string | null }>();
+    const codesToLookup = new Set<string>();
+
+    for (const ct of cts) {
+      if (ct.departmentCenterId || ct.costCenterId) {
+        result.set(ct.id, {
+          departmentCenterId: ct.departmentCenterId ?? null,
+          costCenterId: ct.costCenterId ?? null,
+        });
+      } else if (ct.glAccountCode?.trim()) {
+        codesToLookup.add(ct.glAccountCode.trim());
+      } else {
+        result.set(ct.id, { departmentCenterId: null, costCenterId: null });
+      }
+    }
+
+    if (codesToLookup.size > 0) {
+      const glAccounts = await prisma.glAccount.findMany({
+        where: {
+          companyId,
+          code: { in: Array.from(codesToLookup) },
+          isActive: true,
+          ...(propertyId ? { OR: [{ propertyId }, { propertyId: null }] } : {}),
+        },
+        select: {
+          code: true,
+          propertyId: true,
+          departmentCenterId: true,
+          costCenterId: true,
+        },
+      });
+
+      for (const ct of cts) {
+        if (result.has(ct.id)) continue;
+        const code = ct.glAccountCode?.trim();
+        const matches = code ? glAccounts.filter((a) => a.code === code) : [];
+        const propMatch = propertyId ? matches.find((a) => a.propertyId === propertyId) : undefined;
+        const chosen = propMatch || matches[0];
+        result.set(ct.id, {
+          departmentCenterId: chosen?.departmentCenterId ?? null,
+          costCenterId: chosen?.costCenterId ?? null,
+        });
+      }
+    }
+
+    return result;
+  }
+
+  private async resolveUnitDefaultCenters(
+    lease: any,
+  ): Promise<{ departmentCenterId: string | null; costCenterId: string | null }> {
+    const unitCharges: Array<{ chargeType?: any }> = Array.isArray(lease.unit?.unitCharges)
+      ? lease.unit.unitCharges
+      : lease.unitId
+      ? await prisma.unitCharge.findMany({
+          where: { unitId: lease.unitId },
+          include: {
+            chargeType: {
+              select: {
+                id: true,
+                code: true,
+                name: true,
+                category: true,
+                glAccountCode: true,
+                departmentCenterId: true,
+                costCenterId: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'asc' },
+        })
+      : [];
+
+    const scheduleCharges: Array<{ chargeType?: any }> = Array.isArray(lease.billingSchedules)
+      ? lease.billingSchedules
+      : [];
+
+    const allCts = [...unitCharges, ...scheduleCharges]
+      .map((u) => u.chargeType)
+      .filter((ct): ct is NonNullable<typeof ct> => Boolean(ct));
+
+    if (allCts.length === 0) {
+      return { departmentCenterId: null, costCenterId: null };
+    }
+
+    const centersMap = await this.resolveChargeTypeCenters(lease.companyId, lease.propertyId, allCts);
+
+    const isRentLike = (ct: any) => {
+      const code = (ct.code || '').toUpperCase();
+      const cat = (ct.category || '').toLowerCase();
+      const name = (ct.name || '').toLowerCase();
+      return code === 'RENT' || cat === 'rent' || /^U\d{4}/i.test(code) || name === 'base rent' || name.includes('unit fee');
+    };
+
+    for (const ct of allCts.filter(isRentLike)) {
+      const c = centersMap.get(ct.id);
+      if (c && (c.departmentCenterId || c.costCenterId)) return c;
+    }
+
+    for (const ct of allCts) {
+      const c = centersMap.get(ct.id);
+      if (c && (c.departmentCenterId || c.costCenterId)) return c;
+    }
+
+    return { departmentCenterId: null, costCenterId: null };
   }
 }
 

@@ -323,8 +323,14 @@ export default function BillingSchedulesPage() {
       tenantId: s.tenant.id,
       unitId: s.unit?.id || '',
       leaseId: s.leaseId || '',
-      departmentCenterId: s.departmentCenterId || s.departmentCenter?.id || '',
-      costCenterId: s.costCenterId || s.costCenter?.id || '',
+      departmentCenterId:
+        s.departmentCenterId ||
+        s.departmentCenter?.id ||
+        (!s.costCenterId && !s.costCenter?.id ? (s.chargeType as any)?.departmentCenterId || '' : ''),
+      costCenterId:
+        s.costCenterId ||
+        s.costCenter?.id ||
+        (!s.departmentCenterId && !s.departmentCenter?.id ? (s.chargeType as any)?.costCenterId || '' : ''),
       amount: Number(s.amount),
       quantity: effectiveQty,
       currency: s.currency,
