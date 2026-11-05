@@ -72,12 +72,6 @@
   opacity: 0.45;
   cursor: not-allowed;
 }
-.shop-map-magnet-btn.active {
-  background: rgba(16, 185, 129, 0.16) !important;
-  border-color: rgba(16, 185, 129, 0.65) !important;
-  color: #10b981 !important;
-  font-weight: 700;
-}
 .shop-map-snap-guides-svg {
   position: absolute;
   inset: 0;
@@ -1233,6 +1227,7 @@
 /* Drag drop-shadow (placeholder): glass look, rotates with a tilted tile and matches true tile shape */
 .shop-map-stage .react-grid-item.react-grid-placeholder {
   rotate: var(--drag-angle, 0deg);
+  scale: var(--drag-scale, 1 1);
   clip-path: var(--drag-clip-path, none);
   background: linear-gradient(145deg, rgba(255, 255, 255, 0.14) 0%, rgba(148, 163, 184, 0.07) 100%);
   opacity: 1;
@@ -3145,65 +3140,3 @@
 .shop-map-grid-item.is-newly-placed > .shop-map-tile {
   animation: shopMapNewlyPlacedPulse 1.15s ease-out 2;
 }
-
-/* ── Feature #1 & #2: 2.5D Isometric Perspective Tilt & 3D Extruded Walls ── */
-.shop-map-stage {
-  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.45s ease;
-}
-
-.shop-map.is-3d-pitch .shop-map-canvas-wrap {
-  perspective: 1500px;
-  overflow-x: auto;
-  overflow-y: auto;
-}
-
-.shop-map-stage.is-3d-stage {
-  transform: perspective(1500px) rotateX(27deg) scale(0.95);
-  transform-origin: center 36%;
-  transform-style: preserve-3d;
-  margin-top: 12px;
-  margin-bottom: 26px;
-}
-
-.shop-map-stage.is-3d-stage .shop-map-floorplate {
-  box-shadow:
-    0 8px 0 #cbd5e1,
-    0 13px 0 #94a3b8,
-    0 20px 32px rgba(15, 23, 42, 0.24);
-}
-
-/* 3D Extruded Walls (#2) */
-.shop-map-stage.is-3d-stage .shop-map-tile.unit:not(.is-trapezoid-tile) {
-  transform: translateY(-4px);
-  box-shadow:
-    0 2px 0 rgba(148, 163, 184, 0.85),
-    0 4px 0 rgba(100, 116, 139, 0.78),
-    0 6px 0 rgba(71, 85, 105, 0.7),
-    0 8px 12px rgba(15, 23, 42, 0.22);
-}
-
-.shop-map-stage.is-3d-stage .shop-map-tile.unit.is-trapezoid-tile {
-  transform: translateY(-4px);
-  filter:
-    drop-shadow(0 2px 0 rgba(148, 163, 184, 0.88))
-    drop-shadow(0 4px 0 rgba(100, 116, 139, 0.76))
-    drop-shadow(0 6px 8px rgba(15, 23, 42, 0.22));
-}
-
-.shop-map-stage.is-3d-stage .shop-map-tile.unit:hover,
-.shop-map-stage.is-3d-stage .shop-map-tile.unit.selected,
-.shop-map-stage.is-3d-stage .shop-map-tile.unit.start-node {
-  transform: translateY(-8px);
-}
-
-.shop-map-stage.is-3d-stage .shop-map-tile.decor:not(.atrium):not(.corridor) {
-  transform: translateY(-5px);
-  box-shadow:
-    0 3px 0 rgba(100, 116, 139, 0.55),
-    0 5px 0 rgba(71, 85, 105, 0.45),
-    0 8px 12px rgba(15, 23, 42, 0.22);
-}
-
-
-
-

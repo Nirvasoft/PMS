@@ -1443,7 +1443,7 @@ export default function ShopMapView({
         const orig = baseItems[idx];
         const moved = orig && (it.x !== orig.x || it.y !== orig.y || it.w !== orig.w || it.h !== orig.h);
         if (!moved) return it;
-        return curveUnitAroundCircleWithoutSnap(it, candidateItems, autoShapeEnabled);
+        return curveUnitAroundCircleWithoutSnap(it, candidateItems, orig, autoShapeEnabled);
       });
     }
 
@@ -1486,7 +1486,7 @@ export default function ShopMapView({
     if (anyAtriumChanged && autoShapeEnabled) {
       candidateItems = candidateItems.map((t) =>
         t.kind === 'unit' && isAutoUnitShapeLabel(t.label)
-          ? curveUnitAroundCircleWithoutSnap(t, candidateItems, true)
+          ? curveUnitAroundCircleWithoutSnap(t, candidateItems, undefined, true)
           : t,
       );
     }
@@ -1804,7 +1804,7 @@ export default function ShopMapView({
       const lmMeta = decor && it.kind !== 'corridor' ? parseLandmarkMeta(it.kind, it.label) : null;
       const unitMode =
         it.kind === 'unit'
-          ? parseUnitShapeMode(it, Boolean(um?.siblingHasMerge))
+          ? parseUnitShapeMode(it, autoShapeEnabled ? liveDisplayItems : undefined, Boolean(um?.siblingHasMerge))
           : null;
       const polyAtriumGeo = lmMeta?.polygonFaces
         ? getPolygonAtriumGeometry(lmMeta.polygonFaces, wPx, hPx)
@@ -1838,7 +1838,7 @@ export default function ShopMapView({
       });
     }
     return map;
-  }, [displayItems, liveDisplayItems, cellPx, unitMergeMap]);
+  }, [displayItems, liveDisplayItems, cellPx, unitMergeMap, autoShapeEnabled]);
 
   // Resolve starting point ("You Are Here" by default, or user-selected shop/landmark)
   const defaultStartItem = useMemo(() => findDefaultStartItem(displayItems), [displayItems]);
@@ -2247,7 +2247,7 @@ export default function ShopMapView({
       const nextList = [...prev, rawItem];
       const snapped = magnetEnabled
         ? snapTileToBorder(rawItem, nextList, effectiveColumns, undefined, snapAutoResize, autoShapeEnabled)
-        : curveUnitAroundCircleWithoutSnap(rawItem, nextList, autoShapeEnabled);
+        : curveUnitAroundCircleWithoutSnap(rawItem, nextList, undefined, autoShapeEnabled);
       const keepSnapped =
         snapped &&
         Math.hypot(snapped.x - rawItem.x, snapped.y - rawItem.y) <= 2.5 &&
@@ -2439,7 +2439,7 @@ export default function ShopMapView({
         }
         if (i.kind === 'unit') {
           const isMerged = Boolean(prevMergeMap.get(i.key)?.siblingHasMerge);
-          const curr = parseUnitShapeMode(i, isMerged);
+          const curr = parseUnitShapeMode(i, prev, isMerged);
           const nextUnit: MapItem = { ...i, label: encodeUnitShapeMode(nextUnitShapeMode(curr, isMerged)) };
           return resolveConflictFreeTileShapeChange(nextUnit, prev, 4);
         }
@@ -2462,7 +2462,7 @@ export default function ShopMapView({
       prev.map((i) => {
         if (i.key !== key || i.kind !== 'unit') return i;
         const resetItem: MapItem = { ...i, label: null };
-        const curved = curveUnitAroundCircleWithoutSnap(resetItem, prev, true);
+        const curved = curveUnitAroundCircleWithoutSnap(resetItem, prev, undefined, true);
         return resolveConflictFreeTileShapeChange(curved, prev, 4);
       }),
     );
@@ -2490,7 +2490,7 @@ export default function ShopMapView({
       return { shape: meta.isCircle ? 'circle' : 'rect', clipPath: 'none' };
     }
     const um = unitMergeMap.get(t.key) ?? null;
-    const mode = parseUnitShapeMode(t, Boolean(um?.siblingHasMerge));
+    const mode = parseUnitShapeMode(t, autoShapeEnabled ? currentItems : undefined, Boolean(um?.siblingHasMerge));
     if (isTrapezoidUnitMode(mode)) {
       const wPx = Math.max(1, Math.round(t.w * cellPx));
       const hPx = Math.max(1, Math.round(t.h * cellPx));
@@ -2815,7 +2815,6 @@ export default function ShopMapView({
     setDragGroupDelta(null);
     setDragSnapGuide(null);
     setDragAngle(0);
-    setDragScale('1 1');
     setDragShape('rect');
     setDragClipPath('none');
   };
@@ -3821,6 +3820,8 @@ export default function ShopMapView({
                         hasActiveSearch &&
                         (decor ? it.kind !== 'corridor' : !isSearchMatch),
                     );
+                    const gridItemWPx = Math.max(1, it.w * colStepPx);
+                    const gridItemHPx = Math.max(1, it.h * rowStepPx);
                     const wPx = cachedMeta ? cachedMeta.wPx : Math.max(1, effectiveIt.w * cellPx);
                     const hPx = cachedMeta ? cachedMeta.hPx : Math.max(1, effectiveIt.h * cellPx);
                     const isVerticalTile = !decor && hPx > wPx * 1.15;
@@ -3867,6 +3868,7 @@ export default function ShopMapView({
                         ? parseUnitShapeMode(
                             effectiveIt,
                             autoShapeEnabled ? effectiveDisplayItems : undefined,
+                            Boolean(um?.siblingHasMerge),
                           )
                         : null;
                     const shapeMode =
@@ -3922,9 +3924,18 @@ export default function ShopMapView({
                     const totalNudgeDx = groupMoveNudge?.dx ?? 0;
                     const totalNudgeDy = groupMoveNudge?.dy ?? 0;
                     const hasTotalNudge = totalNudgeDx !== 0 || totalNudgeDy !== 0;
+                    const hasSizeOverride = wPx !== gridItemWPx || hPx !== gridItemHPx;
                     const tileStyle: CSSProperties | undefined =
-                      effectiveAngle || hasTotalNudge
+                      effectiveAngle || hasTotalNudge || hasSizeOverride
                         ? ({
+                            ...(hasSizeOverride
+                              ? {
+                                  width: `${wPx}px`,
+                                  height: `${hPx}px`,
+                                  left: `${((gridItemWPx - wPx) / 2).toFixed(1)}px`,
+                                  top: `${((gridItemHPx - hPx) / 2).toFixed(1)}px`,
+                                }
+                              : {}),
                             ...(effectiveAngle ? { rotate: `${effectiveAngle}deg` } : {}),
                             ...(hasTotalNudge
                               ? {
@@ -4766,7 +4777,7 @@ export default function ShopMapView({
         const unitShop = editingUnitItem.unitId ? shopByUnit.get(editingUnitItem.unitId) : null;
         const isMerged = Boolean(unitMergeMap.get(editingUnitItem.key)?.siblingHasMerge);
         const isAutoShape = isAutoUnitShapeLabel(editingUnitItem.label);
-        const currentMode = parseUnitShapeMode(editingUnitItem, isMerged);
+        const currentMode = parseUnitShapeMode(editingUnitItem, autoShapeEnabled ? items : undefined, isMerged);
         const unitTitle = unitShop
           ? `${shopDisplayName(unitShop)} (${unitNumberOf(unitShop)})`
           : 'Shop Unit';
