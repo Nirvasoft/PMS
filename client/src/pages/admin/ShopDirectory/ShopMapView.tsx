@@ -21,7 +21,7 @@ import {
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import {
   DECORATION_DEFAULT_SIZES, DECORATION_LABELS, DEFAULT_COLUMNS, DEFAULT_SQFT_PER_CELL,
-  SHOP_CATEGORIES, compareShopsByUnitNumber, findFreeSpot, addConnectedUnitWing, snapTileToBorder, curveUnitAroundCircleWithoutSnap, alignUnitsRadiallyAroundAtrium, computeMagneticSnapGuide, addTransitIntoAtrium, isTransitLandmark, floorKeyOf, tilesConflict, hasAnyOverlap,
+  SHOP_CATEGORIES, compareShopsByUnitNumber, findFreeSpot, findSpotNextToAnchor, addConnectedUnitWing, snapTileToBorder, curveUnitAroundCircleWithoutSnap, alignUnitsRadiallyAroundAtrium, computeMagneticSnapGuide, addTransitIntoAtrium, isTransitLandmark, floorKeyOf, tilesConflict, hasAnyOverlap,
   tileSizeFromSqft, calibrateSqftPerCell, syncUnitTilesToSqft,
   unitKey, nextUnitBlockKey, findPrimaryUnitTile, resolveTileByKey,
   unitNumberOf, shopDisplayName, matchesShopQuery, scoreShopSearchMatch,
@@ -31,8 +31,8 @@ import {
   UNIT_SHAPE_LABELS, UNIT_SHAPE_CATEGORY_TABS, UNIT_SHAPE_COMPACT_FAMILIES, parseUnitShapeMode, encodeUnitShapeMode, isAutoUnitShapeLabel, nextUnitShapeMode, resolveSmartFamilyShapeMode, isTrapezoidUnitMode, getTrapezoidUnitGeometry,
   LANDMARK_VARIANTS, parseLandmarkMeta, encodeLandmarkMeta, nextLandmarkVariant, autoSquareCircleLandmark, getPolygonAtriumGeometry,
   parseFloorPlanData, buildCopiedFloorLayout, saveCachedFloorPlan, getCachedFloorPlan,
-  expandTouchingGroupKeys, computeGroupBoundingBox, moveTileGroupByDelta, rotateTileGroup,
-  type MapItem, type TileKind, type MapRotationAngle, type SharpCorners, type EdgeMergeGeometry, type UnitShapeMode, type UnitShapeCategoryId, type TrapezoidUnitGeometry, type MagneticSnapGuide,
+  expandTouchingGroupKeys, computeGroupBoundingBox, moveTileGroupByDelta, rotateTileGroup, resizeTileGroup,
+  type MapItem, type TileKind, type MapRotationAngle, type SharpCorners, type EdgeMergeGeometry, type UnitShapeMode, type UnitShapeCategoryId, type TrapezoidUnitGeometry, type MagneticSnapGuide, type GroupResizeHandle,
 } from './shopMapLayout';
 import {
   hasFailedUnitPhoto,
@@ -1389,6 +1389,7 @@ export default function ShopMapView({
     setSqftPerCell(parsed.sqftPerCell);
     setColumns(parsed.columns);
     setDecorSeq(parsed.decorSeq);
+    lastActiveTileKeyRef.current = null;
     itemsRef.current = parsed.items;
     setItems(parsed.items);
   };
@@ -1777,8 +1778,8 @@ export default function ShopMapView({
         const loadedBp: BlueprintOverlayConfig = {
           dataUrl: parsed.dataUrl,
           visible: parsed.visible !== false,
-          opacity: typeof parsed.opacity === 'number' ? Math.min(95, Math.max(10, parsed.opacity)) : 45,
-          scale: typeof parsed.scale === 'number' ? Math.min(250, Math.max(25, parsed.scale)) : 75,
+          opacity: typeof parsed.opacity === 'number' ? Math.min(95, Math.max(10, parsed.opacity)) : 15,
+          scale: typeof parsed.scale === 'number' ? Math.min(250, Math.max(25, parsed.scale)) : 100,
           offsetX: Math.round(offsetCellX * refCellPx),
           offsetY: Math.round(offsetCellY * refCellPx),
           offsetCellX,
@@ -1858,8 +1859,8 @@ export default function ShopMapView({
       const next: BlueprintOverlayConfig = {
         dataUrl,
         visible: true,
-        opacity: blueprint?.opacity ?? 45,
-        scale: blueprint?.scale ?? 75,
+        opacity: blueprint?.opacity ?? 15,
+        scale: blueprint?.scale ?? 100,
         offsetX: Math.round(offsetCellX * refCellPx),
         offsetY: Math.round(offsetCellY * refCellPx),
         offsetCellX,
@@ -2222,6 +2223,7 @@ export default function ShopMapView({
     setEditingLandmarkKey(null);
   };
 
+  const targetLandmarkKey = targetKey && !targetKey.startsWith('unit:') ? targetKey : '';
   const navOptions = useMemo(() => {
     const rawLandmarks = displayItems.filter((i) => i.kind !== 'unit');
     const startByLabel = new Map<string, MapItem>();
@@ -2235,7 +2237,7 @@ export default function ShopMapView({
         const nearest = findNearestFacilityItem(displayItems, activeStartItem, [lm.kind]) || lm;
         destByLabel.set(label, nearest);
       }
-      if (lm.key === targetKey) {
+      if (targetLandmarkKey && lm.key === targetLandmarkKey) {
         destByLabel.set(label, lm);
       }
     }
@@ -2255,10 +2257,10 @@ export default function ShopMapView({
         ...otherFloorShops.map((s) => ({ value: `cross:${s.unitId}`, label: shopDisplayName(s) })),
       ],
     };
-  }, [displayItems, placedShops, otherFloorShops, activeStartItem, targetKey, shopByUnit]);
+  }, [displayItems, placedShops, otherFloorShops, activeStartItem, targetLandmarkKey, shopByUnit]);
 
   const handleSelectDestination = (val: string) => {
-    setHighlightedAmenityKinds([]);
+    setHighlightedAmenityKinds((prev) => (prev.length > 0 ? [] : prev));
     if (!val) {
       setTargetKey('');
       setCrossFloorUnitId(null);
@@ -2351,7 +2353,34 @@ export default function ShopMapView({
     return { minX, maxX, minY, maxY };
   };
 
+  const lastActiveTileKeyRef = useRef<string | null>(null);
+
+  const resolvePlacementAnchor = (
+    list: ReadonlyArray<MapItem>,
+    preferredKind?: TileKind,
+  ): MapItem | null => {
+    if (lastActiveTileKeyRef.current) {
+      const byActive = list.find((i) => i.key === lastActiveTileKeyRef.current);
+      if (byActive) return byActive;
+    }
+    if (selectedGroupKeys.length > 0) {
+      const lastGroupKey = selectedGroupKeys[selectedGroupKeys.length - 1];
+      const byGroup = list.find((i) => i.key === lastGroupKey);
+      if (byGroup) return byGroup;
+    }
+    if (preferredKind) {
+      for (let idx = list.length - 1; idx >= 0; idx--) {
+        if (list[idx].kind === preferredKind) return list[idx];
+      }
+    }
+    for (let idx = list.length - 1; idx >= 0; idx--) {
+      if (list[idx].kind !== 'atrium') return list[idx];
+    }
+    return list.length > 0 ? list[list.length - 1] : null;
+  };
+
   const focusNewlyPlacedTile = (tileKey: string) => {
+    lastActiveTileKeyRef.current = tileKey;
     if (newlyPlacedTimerRef.current) {
       window.clearTimeout(newlyPlacedTimerRef.current);
     }
@@ -2390,7 +2419,10 @@ export default function ShopMapView({
     const newKey = nextUnitBlockKey(items, shop.unitId);
     update((prev) => {
       const actualKey = nextUnitBlockKey(prev, shop.unitId);
-      const pos = findFreeSpot(prev, w, h, effectiveColumns, EDIT_LEFT_PAD, vpBounds);
+      const anchor = resolvePlacementAnchor(prev, 'unit');
+      const pos = anchor
+        ? findSpotNextToAnchor(prev, anchor, w, h, effectiveColumns, EDIT_LEFT_PAD, vpBounds, 'unit', shop.unitId)
+        : findFreeSpot(prev, w, h, effectiveColumns, EDIT_LEFT_PAD, vpBounds);
       const rawItem: MapItem = {
         key: actualKey,
         kind: 'unit',
@@ -2408,9 +2440,10 @@ export default function ShopMapView({
       const keepSnapped =
         snapped &&
         Math.hypot(snapped.x - rawItem.x, snapped.y - rawItem.y) <= 2.5 &&
-        snapped.x >= vpBounds.minX - 1 &&
-        snapped.x + snapped.w <= vpBounds.maxX + 1 &&
+        snapped.x >= 0 &&
+        snapped.x + snapped.w <= effectiveColumns &&
         !prev.some((o) => tilesConflict(snapped, o));
+      lastActiveTileKeyRef.current = actualKey;
       return keepSnapped && snapped ? [...prev, snapped] : nextList;
     });
     focusNewlyPlacedTile(newKey);
@@ -2460,7 +2493,11 @@ export default function ShopMapView({
     const vpBounds = getVisibleViewportGridBounds();
     const newKey = `d:${decorSeq}`;
     update((prev) => {
-      const pos = findFreeSpot(prev, w, h, effectiveColumns, EDIT_LEFT_PAD, vpBounds);
+      const anchor = resolvePlacementAnchor(prev, kind);
+      const pos = anchor
+        ? findSpotNextToAnchor(prev, anchor, w, h, effectiveColumns, EDIT_LEFT_PAD, vpBounds, kind, null)
+        : findFreeSpot(prev, w, h, effectiveColumns, EDIT_LEFT_PAD, vpBounds);
+      lastActiveTileKeyRef.current = newKey;
       return [...prev, { key: newKey, kind, unitId: null, label: DECORATION_LABELS[kind], x: pos.x, y: pos.y, w, h }];
     });
     setDecorSeq((n) => n + 1);
@@ -2503,6 +2540,7 @@ export default function ShopMapView({
   };
 
   const rotate = (key: string, stepDeg = 1) => {
+    lastActiveTileKeyRef.current = key;
     groupRotBaseRef.current = null;
     let blocked = false;
     update((prev) => {
@@ -2527,6 +2565,7 @@ export default function ShopMapView({
   const startDragRotateTile = (e: React.PointerEvent<HTMLButtonElement>, key: string) => {
     e.stopPropagation();
     e.preventDefault();
+    lastActiveTileKeyRef.current = key;
     groupRotBaseRef.current = null;
     const gridEl = e.currentTarget.closest('.shop-map-grid-item') as HTMLElement | null;
     if (!gridEl) return;
@@ -2800,6 +2839,69 @@ export default function ShopMapView({
     window.addEventListener('pointercancel', onUp);
   };
 
+  const startDragResizeGroup = (e: React.PointerEvent<HTMLSpanElement>, handle: GroupResizeHandle) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (selectedGroupSetRef.current.size === 0) return;
+    groupRotBaseRef.current = null;
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const baseItems = itemsRef.current.map((i) => ({ ...i }));
+    const frameAng = groupFrameAngleRef.current;
+    const baseBox = computeGroupBoundingBox(baseItems, selectedGroupSetRef.current, frameAng);
+    const rad = ((baseBox?.angle ?? 0) * Math.PI) / 180;
+    const ux = Math.cos(rad);
+    const uy = Math.sin(rad);
+    const vx = -uy;
+    const vy = ux;
+    const stepX = Math.max(5, colStepPx);
+    const stepY = Math.max(5, rowStepPx);
+    let lastSig = '0:0';
+
+    const onMove = (ev: PointerEvent) => {
+      const dxGrid = (ev.clientX - startX) / stepX;
+      const dyGrid = (ev.clientY - startY) / stepY;
+      const du = Math.round(dxGrid * ux + dyGrid * uy);
+      const dv = Math.round(dxGrid * vx + dyGrid * vy);
+      const sig = `${du}:${dv}`;
+      if (sig === lastSig) return;
+      lastSig = sig;
+      if (du === 0 && dv === 0) {
+        const restored = baseItems.map((i) => ({ ...i }));
+        itemsRef.current = restored;
+        setItems(restored);
+        setLayoutResetTick((n) => n + 1);
+        setDirty(true);
+        return;
+      }
+      const res = resizeTileGroup(
+        baseItems,
+        selectedGroupSetRef.current,
+        handle,
+        du,
+        dv,
+        frameAng,
+        effectiveColumns + EDIT_RIGHT_PAD,
+      );
+      if (!res.conflict) {
+        itemsRef.current = res.items;
+        setItems(res.items);
+        setLayoutResetTick((n) => n + 1);
+        setDirty(true);
+      }
+    };
+
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  };
+
   useEffect(() => {
     if (!editing) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -2858,6 +2960,9 @@ export default function ShopMapView({
   };
 
   const handleInteractionStart = (_l: unknown, oldItem: { i: string } | null) => {
+    if (oldItem?.i) {
+      lastActiveTileKeyRef.current = oldItem.i;
+    }
     dragOriginItemsRef.current = itemsRef.current.map((i) => ({ ...i }));
     const orig = itemsRef.current.find((t) => t.key === oldItem?.i);
     setDragPreviewItem(orig ? { ...orig } : null);
@@ -3948,6 +4053,16 @@ export default function ShopMapView({
                     >
                       <span className="shop-map-group-rot-dot" />
                     </button>
+                    {ALL_RESIZE_HANDLES.map((dir) => (
+                      <span
+                        key={dir}
+                        className={`shop-map-group-resize-handle handle-${dir}`}
+                        title="Drag to resize group"
+                        onClick={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onPointerDown={(e) => startDragResizeGroup(e, dir)}
+                      />
+                    ))}
                   </div>
                 )}
                 <ReactGridLayout
@@ -4172,6 +4287,7 @@ export default function ShopMapView({
                         }}
                         onClick={(e) => {
                           if (editing) {
+                            lastActiveTileKeyRef.current = it.key;
                             if (groupSelectMode || e.ctrlKey || e.metaKey) {
                               e.stopPropagation();
                               toggleGroupSelection(it.key);
@@ -4194,7 +4310,7 @@ export default function ShopMapView({
                             onOpenShop(shop);
                           } else {
                             setCrossFloorUnitId(null);
-                            setHighlightedAmenityKinds([]);
+                            setHighlightedAmenityKinds((prev) => (prev.length > 0 ? [] : prev));
                             setTargetKey(it.unitId ? unitKey(it.unitId) : it.key);
                           }
                         }}

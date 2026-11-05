@@ -3036,6 +3036,64 @@
 .shop-map-group-rot-handle:active {
   cursor: grabbing;
 }
+.shop-map-group-resize-handle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #10b981;
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 5px rgba(15, 23, 42, 0.45), 0 0 0 1.5px rgba(5, 150, 105, 0.45);
+  pointer-events: auto;
+  z-index: 43;
+  transform: translate(-50%, -50%);
+  transition: transform 0.12s ease, background 0.12s ease;
+}
+.shop-map-group-resize-handle.handle-nw {
+  left: 0;
+  top: 0;
+  cursor: nwse-resize;
+}
+.shop-map-group-resize-handle.handle-n {
+  left: 50%;
+  top: 0;
+  cursor: ns-resize;
+}
+.shop-map-group-resize-handle.handle-ne {
+  left: 100%;
+  top: 0;
+  cursor: nesw-resize;
+}
+.shop-map-group-resize-handle.handle-e {
+  left: 100%;
+  top: 50%;
+  cursor: ew-resize;
+}
+.shop-map-group-resize-handle.handle-se {
+  left: 100%;
+  top: 100%;
+  cursor: nwse-resize;
+}
+.shop-map-group-resize-handle.handle-s {
+  left: 50%;
+  top: 100%;
+  cursor: ns-resize;
+}
+.shop-map-group-resize-handle.handle-sw {
+  left: 0;
+  top: 100%;
+  cursor: nesw-resize;
+}
+.shop-map-group-resize-handle.handle-w {
+  left: 0;
+  top: 50%;
+  cursor: ew-resize;
+}
+.shop-map-group-resize-handle:hover {
+  transform: translate(-50%, -50%) scale(1.28);
+  background: #059669;
+}
+
 
 /* ── Feature #7: Blueprint Reference Image Overlay (Edit Layout) ── */
 .shop-map-blueprint-toolbar {

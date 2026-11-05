@@ -257,10 +257,294 @@ function simplifyCollinearWaypoints(pts: ReadonlyArray<{ x: number; y: number }>
   return simplified;
 }
 
+interface TileCollisionShape {
+  item: MapItem;
+  vcx: number;
+  vcy: number;
+  hw: number;
+  hh: number;
+  ux: number;
+  uy: number;
+  vx: number;
+  vy: number;
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+  isRotatedOrCurved: boolean;
+  mode: 'rect' | 'ellipse' | 'poly';
+  corners?: Array<{ x: number; y: number }>;
+}
+
+interface FloorRoutingCache {
+  cols: number;
+  rows: number;
+  gCols: number;
+  gRows: number;
+  shapes: TileCollisionShape[];
+  min1Dist: Float32Array;
+  min1Tile: Int16Array;
+  min2Dist: Float32Array;
+  min2Tile: Int16Array;
+  min3Dist: Float32Array;
+  min3Tile: Int16Array;
+  routeCache: Map<string, WalkwayRouteResult>;
+}
+
+const MAX_CLEARANCE_RADIUS = 1.85;
+const floorRoutingCacheByItems = new WeakMap<MapItem[], Map<string, FloorRoutingCache>>();
+
+function isPointInPolygon(wx: number, wy: number, corners: ReadonlyArray<{ x: number; y: number }>): boolean {
+  let inside = false;
+  for (let i = 0, j = corners.length - 1; i < corners.length; j = i++) {
+    const xi = corners[i].x;
+    const yi = corners[i].y;
+    const xj = corners[j].x;
+    const yj = corners[j].y;
+    const intersect = yi > wy !== yj > wy && wx < ((xj - xi) * (wy - yi)) / (yj - yi + 1e-12) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+function minDistToPolygonEdges(
+  wx: number,
+  wy: number,
+  corners: ReadonlyArray<{ x: number; y: number }>,
+): number {
+  let minD2 = Infinity;
+  for (let i = 0, n = corners.length; i < n; i++) {
+    const p0 = corners[i];
+    const p1 = corners[(i + 1) % n];
+    const dx = p1.x - p0.x;
+    const dy = p1.y - p0.y;
+    const len2 = dx * dx + dy * dy;
+    const t = len2 > 1e-8 ? Math.max(0, Math.min(1, ((wx - p0.x) * dx + (wy - p0.y) * dy) / len2)) : 0;
+    const ex = wx - (p0.x + dx * t);
+    const ey = wy - (p0.y + dy * t);
+    const d2 = ex * ex + ey * ey;
+    if (d2 < minD2) minD2 = d2;
+  }
+  return Math.sqrt(minD2);
+}
+
+function buildTileCollisionShape(it: MapItem): TileCollisionShape {
+  if (it.kind === 'atrium') {
+    const polyFaces = getPolygonAtriumWorldFaces(it);
+    if (polyFaces && polyFaces.length >= 3) {
+      const corners = polyFaces.map((f) => ({ x: f.x0, y: f.y0 }));
+      let minX = Infinity;
+      let maxX = -Infinity;
+      let minY = Infinity;
+      let maxY = -Infinity;
+      for (const c of corners) {
+        if (c.x < minX) minX = c.x;
+        if (c.x > maxX) maxX = c.x;
+        if (c.y < minY) minY = c.y;
+        if (c.y > maxY) maxY = c.y;
+      }
+      return {
+        item: it,
+        vcx: it.x + it.w * 0.5,
+        vcy: it.y + it.h * 0.5,
+        hw: it.w * 0.5,
+        hh: it.h * 0.5,
+        ux: 1,
+        uy: 0,
+        vx: 0,
+        vy: 1,
+        minX,
+        maxX,
+        minY,
+        maxY,
+        isRotatedOrCurved: true,
+        mode: 'poly',
+        corners,
+      };
+    }
+  }
+
+  const vcx = it.x + it.w * 0.5;
+  const vcy = it.y + it.h * 0.5;
+  const vw = Math.max(0.5, it.w);
+  const vh = Math.max(0.5, it.h);
+  const hw = vw * 0.5;
+  const hh = vh * 0.5;
+  const rad = ((it.angle ?? 0) * Math.PI) / 180;
+  const ux = Math.cos(rad);
+  const uy = Math.sin(rad);
+  const vx = -uy;
+  const vy = ux;
+  const aabbHalfW = hw * Math.abs(ux) + hh * Math.abs(vx);
+  const aabbHalfH = hw * Math.abs(uy) + hh * Math.abs(vy);
+  const minX = vcx - aabbHalfW;
+  const maxX = vcx + aabbHalfW;
+  const minY = vcy - aabbHalfH;
+  const maxY = vcy + aabbHalfH;
+
+  if (isCircleTile(it) || (it.kind === 'unit' && parseUnitShapeMode(it) === 'circle')) {
+    return {
+      item: it,
+      vcx,
+      vcy,
+      hw,
+      hh,
+      ux,
+      uy,
+      vx,
+      vy,
+      minX,
+      maxX,
+      minY,
+      maxY,
+      isRotatedOrCurved: true,
+      mode: 'ellipse',
+    };
+  }
+
+  if (it.kind === 'unit') {
+    const customPoly = getCustomUnitPolygonVerticesAndAxes(it, { ux, uy, vx, vy });
+    if (customPoly && customPoly.corners.length >= 3) {
+      return {
+        item: it,
+        vcx,
+        vcy,
+        hw,
+        hh,
+        ux,
+        uy,
+        vx,
+        vy,
+        minX,
+        maxX,
+        minY,
+        maxY,
+        isRotatedOrCurved: true,
+        mode: 'poly',
+        corners: customPoly.corners,
+      };
+    }
+  }
+
+  return {
+    item: it,
+    vcx,
+    vcy,
+    hw,
+    hh,
+    ux,
+    uy,
+    vx,
+    vy,
+    minX,
+    maxX,
+    minY,
+    maxY,
+    isRotatedOrCurved: Boolean(it.angle),
+    mode: 'rect',
+  };
+}
+
+function signedDistanceToShape(wx: number, wy: number, s: TileCollisionShape): number {
+  if (s.mode === 'poly' && s.corners) {
+    const edgeDist = minDistToPolygonEdges(wx, wy, s.corners);
+    return isPointInPolygon(wx, wy, s.corners) ? -edgeDist : edgeDist;
+  }
+  const du = (wx - s.vcx) * s.ux + (wy - s.vcy) * s.uy;
+  const dv = (wx - s.vcx) * s.vx + (wy - s.vcy) * s.vy;
+  if (s.mode === 'ellipse') {
+    const norm = Math.hypot(du / Math.max(0.4, s.hw), dv / Math.max(0.4, s.hh));
+    return (norm - 1) * Math.min(s.hw, s.hh);
+  }
+  const qx = Math.abs(du) - s.hw;
+  const qy = Math.abs(dv) - s.hh;
+  return Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0);
+}
+
+function getOrBuildFloorRoutingCache(items: MapItem[], cols: number, rows: number): FloorRoutingCache {
+  let byDim = floorRoutingCacheByItems.get(items);
+  if (!byDim) {
+    byDim = new Map<string, FloorRoutingCache>();
+    floorRoutingCacheByItems.set(items, byDim);
+  }
+  const dimKey = `${cols}:${rows}`;
+  const existing = byDim.get(dimKey);
+  if (existing) return existing;
+
+  const SUB = 2;
+  const gCols = cols * SUB;
+  const gRows = rows * SUB;
+  const totalNodes = gCols * gRows;
+  const shapes = items.map(buildTileCollisionShape);
+
+  const min1Dist = new Float32Array(totalNodes);
+  min1Dist.fill(MAX_CLEARANCE_RADIUS);
+  const min1Tile = new Int16Array(totalNodes);
+  min1Tile.fill(-1);
+  const min2Dist = new Float32Array(totalNodes);
+  min2Dist.fill(MAX_CLEARANCE_RADIUS);
+  const min2Tile = new Int16Array(totalNodes);
+  min2Tile.fill(-1);
+  const min3Dist = new Float32Array(totalNodes);
+  min3Dist.fill(MAX_CLEARANCE_RADIUS);
+  const min3Tile = new Int16Array(totalNodes);
+  min3Tile.fill(-1);
+
+  for (let tIdx = 0; tIdx < shapes.length; tIdx++) {
+    const s = shapes[tIdx];
+    const gx0 = Math.max(0, Math.floor((s.minX - MAX_CLEARANCE_RADIUS) * 2));
+    const gx1 = Math.min(gCols - 1, Math.ceil((s.maxX + MAX_CLEARANCE_RADIUS) * 2));
+    const gy0 = Math.max(0, Math.floor((s.minY - MAX_CLEARANCE_RADIUS) * 2));
+    const gy1 = Math.min(gRows - 1, Math.ceil((s.maxY + MAX_CLEARANCE_RADIUS) * 2));
+
+    for (let gy = gy0; gy <= gy1; gy++) {
+      const wy = gy <= 0 ? 0.22 : gy * 0.5;
+      const rowOff = gy * gCols;
+      for (let gx = gx0; gx <= gx1; gx++) {
+        const idx = rowOff + gx;
+        const wx = gx <= 0 ? 0.22 : gx * 0.5;
+        const d = signedDistanceToShape(wx, wy, s);
+        if (d < min1Dist[idx]) {
+          min3Dist[idx] = min2Dist[idx];
+          min3Tile[idx] = min2Tile[idx];
+          min2Dist[idx] = min1Dist[idx];
+          min2Tile[idx] = min1Tile[idx];
+          min1Dist[idx] = d;
+          min1Tile[idx] = tIdx;
+        } else if (d < min2Dist[idx]) {
+          min3Dist[idx] = min2Dist[idx];
+          min3Tile[idx] = min2Tile[idx];
+          min2Dist[idx] = d;
+          min2Tile[idx] = tIdx;
+        } else if (d < min3Dist[idx]) {
+          min3Dist[idx] = d;
+          min3Tile[idx] = tIdx;
+        }
+      }
+    }
+  }
+
+  const built: FloorRoutingCache = {
+    cols,
+    rows,
+    gCols,
+    gRows,
+    shapes,
+    min1Dist,
+    min1Tile,
+    min2Dist,
+    min2Tile,
+    min3Dist,
+    min3Tile,
+    routeCache: new Map<string, WalkwayRouteResult>(),
+  };
+  byDim.set(dimKey, built);
+  return built;
+}
+
 /**
  * Computes an indoor walking path from `fromItem` to `toItem` that follows
- * `corridor` (Walkway) centerlines — including tilted straight walkways
- * and hollow circular ring roundabouts — while avoiding shop units.
+ * open walkway corridors while avoiding shop units.
  */
 export function computeWalkwayPath(
   items: MapItem[],
@@ -272,9 +556,12 @@ export function computeWalkwayPath(
 ): WalkwayRouteResult {
   const cols = Math.max(columns, ...items.map((i) => i.x + i.w), 12) + 2;
   const rows = Math.max(12, ...items.map((i) => i.y + i.h)) + 3;
-  const SUB = 2;
-  const gCols = cols * SUB;
-  const gRows = rows * SUB;
+  const floorCache = getOrBuildFloorRoutingCache(items, cols, rows);
+  const routeCacheKey = `${fromItem.key}->${toItem.key}:${Math.round(sqftPerCell * 10)}`;
+  const cachedRoute = floorCache.routeCache.get(routeCacheKey);
+  if (cachedRoute) return cachedRoute;
+
+  const { gCols, gRows, shapes, min1Dist, min1Tile, min2Dist, min2Tile, min3Dist, min3Tile } = floorCache;
   const gxToWorld = (gx: number): number => (gx <= 0 ? 0.22 : gx * 0.5);
   const gyToWorld = (gy: number): number => (gy <= 0 ? 0.22 : gy * 0.5);
   const worldToGx = (wx: number): number => Math.max(0, Math.min(gCols - 1, Math.round(wx * 2)));
@@ -294,213 +581,31 @@ export function computeWalkwayPath(
     (Boolean(fromItem.unitId) && it.unitId === fromItem.unitId) ||
     (Boolean(toItem.unitId) && it.unitId === toItem.unitId);
 
-  const isPointInPolygon = (wx: number, wy: number, corners: ReadonlyArray<{ x: number; y: number }>): boolean => {
-    let inside = false;
-    for (let i = 0, j = corners.length - 1; i < corners.length; j = i++) {
-      const xi = corners[i].x;
-      const yi = corners[i].y;
-      const xj = corners[j].x;
-      const yj = corners[j].y;
-      const intersect = yi > wy !== yj > wy && wx < ((xj - xi) * (wy - yi)) / (yj - yi + 1e-12) + xi;
-      if (intersect) inside = !inside;
-    }
-    return inside;
-  };
-
-  const minDistToPolygonEdges = (
-    wx: number,
-    wy: number,
-    corners: ReadonlyArray<{ x: number; y: number }>,
-  ): number => {
-    let minD2 = Infinity;
-    for (let i = 0, n = corners.length; i < n; i++) {
-      const p0 = corners[i];
-      const p1 = corners[(i + 1) % n];
-      const dx = p1.x - p0.x;
-      const dy = p1.y - p0.y;
-      const len2 = dx * dx + dy * dy;
-      const t = len2 > 1e-8 ? Math.max(0, Math.min(1, ((wx - p0.x) * dx + (wy - p0.y) * dy) / len2)) : 0;
-      const ex = wx - (p0.x + dx * t);
-      const ey = wy - (p0.y + dy * t);
-      const d2 = ex * ex + ey * ey;
-      if (d2 < minD2) minD2 = d2;
-    }
-    return Math.sqrt(minD2);
-  };
-
-  type TileCollisionShape = {
-    item: MapItem;
-    vcx: number;
-    vcy: number;
-    hw: number;
-    hh: number;
-    ux: number;
-    uy: number;
-    vx: number;
-    vy: number;
-    minX: number;
-    maxX: number;
-    minY: number;
-    maxY: number;
-    isRotatedOrCurved: boolean;
-    mode: 'rect' | 'ellipse' | 'poly';
-    corners?: Array<{ x: number; y: number }>;
-  };
-
-  const buildTileCollisionShape = (it: MapItem): TileCollisionShape => {
-    if (it.kind === 'atrium') {
-      const polyFaces = getPolygonAtriumWorldFaces(it);
-      if (polyFaces && polyFaces.length >= 3) {
-        const corners = polyFaces.map((f) => ({ x: f.x0, y: f.y0 }));
-        let minX = Infinity;
-        let maxX = -Infinity;
-        let minY = Infinity;
-        let maxY = -Infinity;
-        for (const c of corners) {
-          if (c.x < minX) minX = c.x;
-          if (c.x > maxX) maxX = c.x;
-          if (c.y < minY) minY = c.y;
-          if (c.y > maxY) maxY = c.y;
-        }
-        return {
-          item: it,
-          vcx: it.x + it.w * 0.5,
-          vcy: it.y + it.h * 0.5,
-          hw: it.w * 0.5,
-          hh: it.h * 0.5,
-          ux: 1,
-          uy: 0,
-          vx: 0,
-          vy: 1,
-          minX,
-          maxX,
-          minY,
-          maxY,
-          isRotatedOrCurved: true,
-          mode: 'poly',
-          corners,
-        };
-      }
-    }
-
-    const vcx = it.x + it.w * 0.5;
-    const vcy = it.y + it.h * 0.5;
-    const vw = Math.max(0.5, it.w);
-    const vh = Math.max(0.5, it.h);
-    const hw = vw * 0.5;
-    const hh = vh * 0.5;
-    const rad = ((it.angle ?? 0) * Math.PI) / 180;
-    const ux = Math.cos(rad);
-    const uy = Math.sin(rad);
-    const vx = -uy;
-    const vy = ux;
-    const aabbHalfW = hw * Math.abs(ux) + hh * Math.abs(vx);
-    const aabbHalfH = hw * Math.abs(uy) + hh * Math.abs(vy);
-    const minX = vcx - aabbHalfW;
-    const maxX = vcx + aabbHalfW;
-    const minY = vcy - aabbHalfH;
-    const maxY = vcy + aabbHalfH;
-
-    if (isCircleTile(it) || (it.kind === 'unit' && parseUnitShapeMode(it) === 'circle')) {
-      return {
-        item: it,
-        vcx,
-        vcy,
-        hw,
-        hh,
-        ux,
-        uy,
-        vx,
-        vy,
-        minX,
-        maxX,
-        minY,
-        maxY,
-        isRotatedOrCurved: true,
-        mode: 'ellipse',
-      };
-    }
-
-    if (it.kind === 'unit') {
-      const customPoly = getCustomUnitPolygonVerticesAndAxes(it, { ux, uy, vx, vy });
-      if (customPoly && customPoly.corners.length >= 3) {
-        return {
-          item: it,
-          vcx,
-          vcy,
-          hw,
-          hh,
-          ux,
-          uy,
-          vx,
-          vy,
-          minX,
-          maxX,
-          minY,
-          maxY,
-          isRotatedOrCurved: true,
-          mode: 'poly',
-          corners: customPoly.corners,
-        };
-      }
-    }
-
-    return {
-      item: it,
-      vcx,
-      vcy,
-      hw,
-      hh,
-      ux,
-      uy,
-      vx,
-      vy,
-      minX,
-      maxX,
-      minY,
-      maxY,
-      isRotatedOrCurved: Boolean(it.angle),
-      mode: 'rect',
-    };
-  };
-
-  const signedDistanceToShape = (wx: number, wy: number, s: TileCollisionShape): number => {
-    if (s.mode === 'poly' && s.corners) {
-      const edgeDist = minDistToPolygonEdges(wx, wy, s.corners);
-      return isPointInPolygon(wx, wy, s.corners) ? -edgeDist : edgeDist;
-    }
-    const du = (wx - s.vcx) * s.ux + (wy - s.vcy) * s.uy;
-    const dv = (wx - s.vcx) * s.vx + (wy - s.vcy) * s.vy;
-    if (s.mode === 'ellipse') {
-      const norm = Math.hypot(du / Math.max(0.4, s.hw), dv / Math.max(0.4, s.hh));
-      return (norm - 1) * Math.min(s.hw, s.hh);
-    }
-    const qx = Math.abs(du) - s.hw;
-    const qy = Math.abs(dv) - s.hh;
-    return Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0);
-  };
-
   const startDestShapes: TileCollisionShape[] = [];
   const obstacleShapes: TileCollisionShape[] = [];
   const containerAtriumShapes: TileCollisionShape[] = [];
+  const isExcludedTile = new Uint8Array(shapes.length);
 
-  for (const it of items) {
-    const shape = buildTileCollisionShape(it);
+  for (let tIdx = 0; tIdx < shapes.length; tIdx++) {
+    const shape = shapes[tIdx];
+    const it = shape.item;
     if (isStartOrDestTile(it)) {
       startDestShapes.push(shape);
+      isExcludedTile[tIdx] = 1;
     } else if (
       it.kind === 'atrium' &&
       (signedDistanceToShape(exactStart.x, exactStart.y, shape) < -0.1 ||
         signedDistanceToShape(exactEnd.x, exactEnd.y, shape) < -0.1)
     ) {
       containerAtriumShapes.push(shape);
+      isExcludedTile[tIdx] = 1;
     } else {
       obstacleShapes.push(shape);
     }
   }
 
-  const minObstacleDistanceAt = (wx: number, wy: number): number => {
-    let minD = Infinity;
+  const minObstacleDistanceAt = (wx: number, wy: number, maxCap = MAX_CLEARANCE_RADIUS): number => {
+    let minD = maxCap;
     for (const obs of obstacleShapes) {
       if (
         wx < obs.minX - minD ||
@@ -535,22 +640,43 @@ export function computeWalkwayPath(
   const totalNodes = gCols * gRows;
   const cellCost = new Float32Array(totalNodes);
   cellCost.fill(6.5);
+  const obsDistGrid = new Float32Array(totalNodes);
+  obsDistGrid.fill(MAX_CLEARANCE_RADIUS);
   const allowDiag = new Uint8Array(totalNodes);
   const isOpenFloorCell = new Uint8Array(totalNodes);
 
   for (let gy = 0; gy < gRows; gy++) {
     const wy = gyToWorld(gy);
+    const rowOff = gy * gCols;
     for (let gx = 0; gx < gCols; gx++) {
-      const idx = gy * gCols + gx;
+      const idx = rowOff + gx;
       const wx = gxToWorld(gx);
 
       if (!isInsideFloorplate(wx, wy)) {
         cellCost[idx] = 25000.0;
+        obsDistGrid[idx] = 0;
         allowDiag[idx] = 0;
         continue;
       }
 
-      const obsDist = minObstacleDistanceAt(wx, wy);
+      const t1 = min1Tile[idx];
+      let obsDist: number;
+      if (t1 === -1 || !isExcludedTile[t1]) {
+        obsDist = min1Dist[idx];
+      } else {
+        const t2 = min2Tile[idx];
+        if (t2 === -1 || !isExcludedTile[t2]) {
+          obsDist = min2Dist[idx];
+        } else {
+          const t3 = min3Tile[idx];
+          if (t3 === -1 || !isExcludedTile[t3]) {
+            obsDist = min3Dist[idx];
+          } else {
+            obsDist = minObstacleDistanceAt(wx, wy, MAX_CLEARANCE_RADIUS);
+          }
+        }
+      }
+      obsDistGrid[idx] = obsDist;
 
       if (obsDist <= 0.04) {
         cellCost[idx] = 50000.0;
@@ -558,29 +684,32 @@ export function computeWalkwayPath(
         continue;
       }
 
-      const startDestHit = findStartDestShapeAt(wx, wy, 0.04);
-      if (startDestHit) {
-        if (startDestHit.item.kind === 'marker' && obsDist >= 0.22) {
-          cellCost[idx] = 1.0;
-          allowDiag[idx] = 1;
-          isOpenFloorCell[idx] = 1;
+      // Fast check: only test start/dest or container atrium shapes if some tile is within 0.04 of this cell
+      if (min1Dist[idx] <= 0.04) {
+        const startDestHit = findStartDestShapeAt(wx, wy, 0.04);
+        if (startDestHit) {
+          if (startDestHit.item.kind === 'marker' && obsDist >= 0.22) {
+            cellCost[idx] = 1.0;
+            allowDiag[idx] = 1;
+            isOpenFloorCell[idx] = 1;
+            continue;
+          }
+          const distToEndpoints = Math.min(
+            Math.hypot(wx - exactStart.x, wy - exactStart.y),
+            Math.hypot(wx - exactEnd.x, wy - exactEnd.y),
+          );
+          if (obsDist < 0.28 && distToEndpoints > 0.65) {
+            cellCost[idx] = 450.0;
+            allowDiag[idx] = 0;
+            continue;
+          }
+          const du = (wx - startDestHit.vcx) * startDestHit.ux + (wy - startDestHit.vcy) * startDestHit.uy;
+          const dv = (wx - startDestHit.vcx) * startDestHit.vx + (wy - startDestHit.vcy) * startDestHit.vy;
+          const axisOffset = Math.min(Math.abs(du), Math.abs(dv));
+          cellCost[idx] = 16.0 + axisOffset * 3.5;
+          allowDiag[idx] = startDestHit.isRotatedOrCurved ? 1 : 0;
           continue;
         }
-        const distToEndpoints = Math.min(
-          Math.hypot(wx - exactStart.x, wy - exactStart.y),
-          Math.hypot(wx - exactEnd.x, wy - exactEnd.y),
-        );
-        if (obsDist < 0.28 && distToEndpoints > 0.65) {
-          cellCost[idx] = 450.0;
-          allowDiag[idx] = 0;
-          continue;
-        }
-        const du = (wx - startDestHit.vcx) * startDestHit.ux + (wy - startDestHit.vcy) * startDestHit.uy;
-        const dv = (wx - startDestHit.vcx) * startDestHit.vx + (wy - startDestHit.vcy) * startDestHit.vy;
-        const axisOffset = Math.min(Math.abs(du), Math.abs(dv));
-        cellCost[idx] = 16.0 + axisOffset * 3.5;
-        allowDiag[idx] = startDestHit.isRotatedOrCurved ? 1 : 0;
-        continue;
       }
 
       if (obsDist < 0.18) {
@@ -589,11 +718,11 @@ export function computeWalkwayPath(
         continue;
       }
 
-      const inContainerAtrium =
+      if (
+        min1Dist[idx] <= 0.04 &&
         containerAtriumShapes.length > 0 &&
-        containerAtriumShapes.some((s) => signedDistanceToShape(wx, wy, s) <= 0.04);
-
-      if (inContainerAtrium) {
+        containerAtriumShapes.some((s) => signedDistanceToShape(wx, wy, s) <= 0.04)
+      ) {
         cellCost[idx] = 24.0;
         allowDiag[idx] = 1;
         continue;
@@ -640,11 +769,20 @@ export function computeWalkwayPath(
   const stateCount = totalNodes * STATE_STRIDE;
   const dist = new Float32Array(stateCount);
   dist.fill(Infinity);
+  const fScore = new Float32Array(stateCount);
+  fScore.fill(Infinity);
   const parent = new Int32Array(stateCount);
   parent.fill(-1);
 
+  const heuristicCost = (gx: number, gy: number): number => {
+    const dx = Math.abs(gx - endGx);
+    const dy = Math.abs(gy - endGy);
+    return (Math.max(dx, dy) + 0.41421356 * Math.min(dx, dy)) * 0.5;
+  };
+
   const startState = startCellIdx * STATE_STRIDE + INIT_DIR;
   dist[startState] = 0;
+  fScore[startState] = heuristicCost(startGx, startGy);
 
   const heap: number[] = [startState];
   const pushHeap = (s: number) => {
@@ -652,7 +790,7 @@ export function computeWalkwayPath(
     let i = heap.length - 1;
     while (i > 0) {
       const p = (i - 1) >> 1;
-      if (dist[heap[p]] <= dist[heap[i]]) break;
+      if (fScore[heap[p]] <= fScore[heap[i]]) break;
       const tmp = heap[p];
       heap[p] = heap[i];
       heap[i] = tmp;
@@ -670,8 +808,8 @@ export function computeWalkwayPath(
         let smallest = i;
         const l = i * 2 + 1;
         const r = i * 2 + 2;
-        if (l < n && dist[heap[l]] < dist[heap[smallest]]) smallest = l;
-        if (r < n && dist[heap[r]] < dist[heap[smallest]]) smallest = r;
+        if (l < n && fScore[heap[l]] < fScore[heap[smallest]]) smallest = l;
+        if (r < n && fScore[heap[r]] < fScore[heap[smallest]]) smallest = r;
         if (smallest === i) break;
         const tmp = heap[i];
         heap[i] = heap[smallest];
@@ -687,6 +825,7 @@ export function computeWalkwayPath(
     const cur = popHeap();
     const curCost = dist[cur];
     const { dir, cellIdx, gx, gy } = decodeState(cur);
+    if (curCost + heuristicCost(gx, gy) > fScore[cur] + 1e-4) continue;
 
     if (gx === endGx && gy === endGy) {
       goalState = cur;
@@ -702,16 +841,18 @@ export function computeWalkwayPath(
 
       if (nd >= 4) {
         if (!allowDiag[cellIdx] || !allowDiag[nCellIdx]) continue;
-        const wx0 = gxToWorld(gx);
-        const wy0 = gyToWorld(gy);
-        const wx1 = gxToWorld(ngx);
-        const wy1 = gyToWorld(ngy);
-        if (
-          minObstacleDistanceAt((wx0 + wx1) * 0.5, (wy0 + wy1) * 0.5) < 0.18 ||
-          minObstacleDistanceAt(wx0 * 0.75 + wx1 * 0.25, wy0 * 0.75 + wy1 * 0.25) < 0.16 ||
-          minObstacleDistanceAt(wx0 * 0.25 + wx1 * 0.75, wy0 * 0.25 + wy1 * 0.75) < 0.16
-        ) {
-          continue;
+        if (obsDistGrid[cellIdx] < 0.55 || obsDistGrid[nCellIdx] < 0.55) {
+          const wx0 = gxToWorld(gx);
+          const wy0 = gyToWorld(gy);
+          const wx1 = gxToWorld(ngx);
+          const wy1 = gyToWorld(ngy);
+          if (
+            minObstacleDistanceAt((wx0 + wx1) * 0.5, (wy0 + wy1) * 0.5, 0.19) < 0.18 ||
+            minObstacleDistanceAt(wx0 * 0.75 + wx1 * 0.25, wy0 * 0.75 + wy1 * 0.25, 0.17) < 0.16 ||
+            minObstacleDistanceAt(wx0 * 0.25 + wx1 * 0.75, wy0 * 0.25 + wy1 * 0.75, 0.17) < 0.16
+          ) {
+            continue;
+          }
         }
       }
 
@@ -728,6 +869,7 @@ export function computeWalkwayPath(
       const nextState = nCellIdx * STATE_STRIDE + nd;
       if (nextCost < dist[nextState]) {
         dist[nextState] = nextCost;
+        fScore[nextState] = nextCost + heuristicCost(ngx, ngy);
         parent[nextState] = cur;
         pushHeap(nextState);
       }
@@ -758,7 +900,7 @@ export function computeWalkwayPath(
       const t = s / steps;
       const sx = a.x + (b.x - a.x) * t;
       const sy = a.y + (b.y - a.y) * t;
-      if (!isInsideFloorplate(sx, sy) || minObstacleDistanceAt(sx, sy) < minClearance) {
+      if (!isInsideFloorplate(sx, sy) || minObstacleDistanceAt(sx, sy, minClearance + 0.02) < minClearance) {
         return false;
       }
     }
@@ -1020,13 +1162,15 @@ export function computeWalkwayPath(
     });
   }
 
-  return {
+  const result: WalkwayRouteResult = {
     points: smoothedPoints,
     distanceFeet,
     distanceMeters,
     estimatedMinutes,
     steps,
   };
+  floorCache.routeCache.set(routeCacheKey, result);
+  return result;
 }
 
 // ── Offline / Low-Connection Local Storage Cache for Floor Plans & Directory ──

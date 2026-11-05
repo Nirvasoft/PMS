@@ -2795,6 +2795,101 @@ export function findFreeSpot(
 }
 
 /**
+ * Places a newly added w×h tile directly next to `anchor` (Right → Bottom → Left → Top),
+ * or in the nearest free spot along/around `anchor`'s row so sequential additions line up
+ * cleanly instead of jumping back to the top-left of the canvas.
+ */
+export function findSpotNextToAnchor(
+  items: MapItem[],
+  anchor: MapItem | null | undefined,
+  w: number,
+  h: number,
+  columns: number,
+  minStartX = 0,
+  viewportBounds?: ViewportGridBounds,
+  candidateKind: TileKind = 'unit',
+  candidateUnitId: string | null = '__new__',
+): { x: number; y: number } {
+  const width = Math.min(w, columns);
+  if (!anchor) {
+    return findFreeSpot(items, width, h, columns, minStartX, viewportBounds);
+  }
+  const startX = Math.max(0, Math.min(minStartX, columns - width));
+  const fits = (x: number, y: number): boolean => {
+    if (x < startX || y < 0 || x + width > columns) return false;
+    const candidate: MapItem = {
+      key: '__spot__',
+      kind: candidateKind,
+      unitId: candidateUnitId,
+      label: null,
+      x,
+      y,
+      w: width,
+      h,
+    };
+    return !items.some((it) => tilesConflict(candidate, it));
+  };
+
+  // 1. Direct touching sides in priority order: Right -> Bottom -> Left -> Top
+  const directCandidates: Array<[number, number]> = [
+    [anchor.x + anchor.w, anchor.y],
+    [anchor.x + anchor.w, anchor.y + anchor.h - h],
+    [anchor.x, anchor.y + anchor.h],
+    [anchor.x + anchor.w - width, anchor.y + anchor.h],
+    [anchor.x - width, anchor.y],
+    [anchor.x - width, anchor.y + anchor.h - h],
+    [anchor.x, anchor.y - h],
+    [anchor.x + anchor.w - width, anchor.y - h],
+  ];
+  for (const [cx, cy] of directCandidates) {
+    if (fits(cx, cy)) return { x: cx, y: cy };
+  }
+
+  // Slide along each of the 4 sides (Right -> Bottom -> Left -> Top)
+  for (let dy = -h + 1; dy < anchor.h; dy++) {
+    if (fits(anchor.x + anchor.w, anchor.y + dy)) return { x: anchor.x + anchor.w, y: anchor.y + dy };
+  }
+  for (let dx = -width + 1; dx < anchor.w; dx++) {
+    if (fits(anchor.x + dx, anchor.y + anchor.h)) return { x: anchor.x + dx, y: anchor.y + anchor.h };
+  }
+  for (let dy = -h + 1; dy < anchor.h; dy++) {
+    if (fits(anchor.x - width, anchor.y + dy)) return { x: anchor.x - width, y: anchor.y + dy };
+  }
+  for (let dx = -width + 1; dx < anchor.w; dx++) {
+    if (fits(anchor.x + dx, anchor.y - h)) return { x: anchor.x + dx, y: anchor.y - h };
+  }
+
+  // 2. Continue rightward on the same row, then downward/nearby around anchor
+  for (let x = anchor.x + anchor.w + 1; x + width <= columns; x++) {
+    if (fits(x, anchor.y)) return { x, y: anchor.y };
+  }
+  for (let radius = 1; radius <= 36; radius++) {
+    const minY = Math.max(0, anchor.y - radius);
+    const maxY = anchor.y + anchor.h + radius;
+    const minX = Math.max(startX, anchor.x - width - radius);
+    const maxX = Math.min(columns - width, anchor.x + anchor.w + radius);
+    for (let y = anchor.y; y <= maxY; y++) {
+      for (let x = anchor.x; x <= maxX; x++) {
+        if (fits(x, y)) return { x, y };
+      }
+      for (let x = anchor.x - 1; x >= minX; x--) {
+        if (fits(x, y)) return { x, y };
+      }
+    }
+    for (let y = anchor.y - 1; y >= minY; y--) {
+      for (let x = anchor.x; x <= maxX; x++) {
+        if (fits(x, y)) return { x, y };
+      }
+      for (let x = anchor.x - 1; x >= minX; x--) {
+        if (fits(x, y)) return { x, y };
+      }
+    }
+  }
+
+  return findFreeSpot(items, width, h, columns, minStartX, viewportBounds);
+}
+
+/**
  * Finds a free w×h spot directly touching one of `anchor`'s 4 sides so a new unit wing
  * immediately auto-merges into an L / T / U shape; falls back to `findFreeSpot` if surrounded.
  */
@@ -6970,3 +7065,172 @@ export function rotateTileGroup(
     items: baseItems.map((i) => ({ ...i })),
   };
 }
+
+export type GroupResizeHandle = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
+
+/**
+ * Resizes/scales all tiles in `groupKeys` proportionally when dragging one of the 8 resize handles
+ * (`nw`, `n`, `ne`, `e`, `se`, `s`, `sw`, `w`) on the group bounding box.
+ */
+export function resizeTileGroup(
+  baseItems: ReadonlyArray<MapItem>,
+  groupKeys: ReadonlySet<string>,
+  handle: GroupResizeHandle,
+  deltaU: number,
+  deltaV: number,
+  frameAngle: number,
+  columns: number,
+): { resized: boolean; conflict: boolean; items: MapItem[] } {
+  const groupItems = baseItems.filter((i) => groupKeys.has(i.key));
+  if (groupItems.length === 0) {
+    return { resized: false, conflict: false, items: baseItems.map((i) => ({ ...i })) };
+  }
+
+  const baseBox = computeGroupBoundingBox(baseItems, groupKeys, frameAngle);
+  if (!baseBox || baseBox.w <= 0 || baseBox.h <= 0) {
+    return { resized: false, conflict: false, items: baseItems.map((i) => ({ ...i })) };
+  }
+
+  const ang = baseBox.angle;
+  const baseW = Math.max(1, baseBox.w);
+  const baseH = Math.max(1, baseBox.h);
+  const baseCx = baseBox.x + baseW * 0.5;
+  const baseCy = baseBox.y + baseH * 0.5;
+  const rad = (ang * Math.PI) / 180;
+  const ux = Math.cos(rad);
+  const uy = Math.sin(rad);
+  const vx = -uy;
+  const vy = ux;
+
+  const minGroupW = Math.max(2, Math.round(baseW * 0.25));
+  const minGroupH = Math.max(2, Math.round(baseH * 0.25));
+
+  let minU = -baseW * 0.5;
+  let maxU = baseW * 0.5;
+  let minV = -baseH * 0.5;
+  let maxV = baseH * 0.5;
+
+  if (handle.includes('w')) {
+    minU = Math.min(maxU - minGroupW, minU + deltaU);
+  }
+  if (handle.includes('e')) {
+    maxU = Math.max(minU + minGroupW, maxU + deltaU);
+  }
+  if (handle.includes('n')) {
+    minV = Math.min(maxV - minGroupH, minV + deltaV);
+  }
+  if (handle.includes('s')) {
+    maxV = Math.max(minV + minGroupH, maxV + deltaV);
+  }
+
+  const targetW = maxU - minU;
+  const targetH = maxV - minV;
+  if (Math.abs(targetW - baseW) < 0.2 && Math.abs(targetH - baseH) < 0.2) {
+    return { resized: false, conflict: false, items: baseItems.map((i) => ({ ...i })) };
+  }
+
+  const targetMinX = baseCx + minU;
+  const targetMinY = baseCy + minV;
+  const scaleU = targetW / baseW;
+  const scaleV = targetH / baseH;
+
+  const resizedGroup: MapItem[] = groupItems.map((it) => {
+    if (ang === 0 && !it.angle) {
+      const relX0 = (it.x - baseBox.x) / baseW;
+      const relX1 = (it.x + it.w - baseBox.x) / baseW;
+      const relY0 = (it.y - baseBox.y) / baseH;
+      const relY1 = (it.y + it.h - baseBox.y) / baseH;
+      const nx0 = Math.max(0, Math.round(targetMinX + relX0 * targetW));
+      const nx1 = Math.min(columns, Math.max(nx0 + 1, Math.round(targetMinX + relX1 * targetW)));
+      const ny0 = Math.max(0, Math.round(targetMinY + relY0 * targetH));
+      const ny1 = Math.max(ny0 + 1, Math.round(targetMinY + relY1 * targetH));
+      const nw = Math.max(1, Math.min(columns - nx0, nx1 - nx0));
+      const nh = Math.max(1, ny1 - ny0);
+      return { ...it, x: nx0, y: ny0, w: nw, h: nh };
+    }
+
+    const cx = it.x + it.w * 0.5;
+    const cy = it.y + it.h * 0.5;
+    const lu = (cx - baseCx) * ux + (cy - baseCy) * uy;
+    const lv = (cx - baseCx) * vx + (cy - baseCy) * vy;
+    const uRel = (lu + baseW * 0.5) / baseW;
+    const vRel = (lv + baseH * 0.5) / baseH;
+    const newLu = minU + uRel * targetW;
+    const newLv = minV + vRel * targetH;
+    const newCx = baseCx + newLu * ux + newLv * vx;
+    const newCy = baseCy + newLu * uy + newLv * vy;
+
+    const diffRad = (((it.angle ?? 0) - ang) * Math.PI) / 180;
+    const cosD = Math.abs(Math.cos(diffRad));
+    const sinD = Math.abs(Math.sin(diffRad));
+    const wScale = cosD * scaleU + sinD * scaleV;
+    const hScale = sinD * scaleU + cosD * scaleV;
+    const nw = Math.max(1, Math.min(columns, Math.round(it.w * wScale)));
+    const nh = Math.max(1, Math.round(it.h * hScale));
+    const nx = Math.max(0, Math.min(columns - nw, Math.round(newCx - nw * 0.5)));
+    const ny = Math.max(0, Math.round(newCy - nh * 0.5));
+    return { ...it, x: nx, y: ny, w: nw, h: nh };
+  });
+
+  const groupCenterNextX = baseCx + (minU + maxU) * 0.5 * ux + (minV + maxV) * 0.5 * vx;
+  const groupCenterNextY = baseCy + (minU + maxU) * 0.5 * uy + (minV + maxV) * 0.5 * vy;
+
+  for (let pass = 0; pass < 3; pass++) {
+    let fixedAny = false;
+    for (let i = 0; i < resizedGroup.length; i++) {
+      for (let j = i + 1; j < resizedGroup.length; j++) {
+        const a = resizedGroup[i];
+        const b = resizedGroup[j];
+        if (!tilesConflict(a, b)) continue;
+        const acx = a.x + a.w * 0.5;
+        const acy = a.y + a.h * 0.5;
+        const bcx = b.x + b.w * 0.5;
+        const bcy = b.y + b.h * 0.5;
+        const distA = Math.hypot(acx - groupCenterNextX, acy - groupCenterNextY);
+        const distB = Math.hypot(bcx - groupCenterNextX, bcy - groupCenterNextY);
+        const mover = distB >= distA ? b : a;
+        const anchor = mover === b ? a : b;
+        const dx = mover.x + mover.w * 0.5 - (anchor.x + anchor.w * 0.5);
+        const dy = mover.y + mover.h * 0.5 - (anchor.y + anchor.h * 0.5);
+        const stepX = Math.abs(dx) >= Math.abs(dy) * 0.5 ? (dx >= 0 ? 1 : -1) : 0;
+        const stepY = Math.abs(dy) >= Math.abs(dx) * 0.5 ? (dy >= 0 ? 1 : -1) : 0;
+        const nx = Math.max(0, Math.min(columns - mover.w, mover.x + (stepX || 1)));
+        const ny = Math.max(0, mover.y + (stepY || 1));
+        if (nx !== mover.x || ny !== mover.y) {
+          mover.x = nx;
+          mover.y = ny;
+          fixedAny = true;
+        }
+      }
+    }
+    if (!fixedAny) break;
+  }
+
+  const staticOthers = baseItems.filter((i) => !groupKeys.has(i.key));
+  const conflictsWithOutside = resizedGroup.some((g) => staticOthers.some((o) => tilesConflict(g, o)));
+  if (conflictsWithOutside) {
+    return {
+      resized: false,
+      conflict: true,
+      items: baseItems.map((i) => ({ ...i })),
+    };
+  }
+
+  const byKey = new Map(resizedGroup.map((g) => [g.key, g]));
+  let anyChanged = false;
+  const nextItems = baseItems.map((it) => {
+    const g = byKey.get(it.key);
+    if (!g) return { ...it };
+    if (g.x !== it.x || g.y !== it.y || g.w !== it.w || g.h !== it.h) {
+      anyChanged = true;
+    }
+    return g;
+  });
+
+  return {
+    resized: anyChanged,
+    conflict: false,
+    items: nextItems,
+  };
+}
+
