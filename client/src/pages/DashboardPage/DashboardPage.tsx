@@ -368,16 +368,16 @@ export default function DashboardLayout() {
                   <span>Dashboard</span>
                 </NavLink>
               </PermissionGuard>
-              <PermissionGuard hideWhenDenied permission="billing-invoices.read">
-                <NavLink to="/admin/billing/invoices" className="nav-item" title="Invoices">
-                  <Receipt size={18} />
-                  <span>Invoices</span>
-                </NavLink>
-              </PermissionGuard>
               <PermissionGuard hideWhenDenied permission="billing-schedules.read">
                 <NavLink to="/admin/billing/schedules" className="nav-item" title="Schedules">
                   <CalendarClock size={18} />
                   <span>Schedules</span>
+                </NavLink>
+              </PermissionGuard>
+              <PermissionGuard hideWhenDenied permission="billing-invoices.read">
+                <NavLink to="/admin/billing/invoices" className="nav-item" title="Invoices">
+                  <Receipt size={18} />
+                  <span>Invoices</span>
                 </NavLink>
               </PermissionGuard>
               <PermissionGuard hideWhenDenied permission="charge-category.read">
