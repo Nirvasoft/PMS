@@ -381,15 +381,41 @@
 .billing-filter-bar .filter-select {
   height: 38px;
   box-sizing: border-box;
-  padding: 0 14px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 10px;
+  padding: 0 30px 0 12px;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: 0.8rem;
+  font-weight: 600;
   outline: none;
   min-width: 150px;
   cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888888' stroke-width='2.5'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+}
+.billing-filters .filter-select:hover,
+.billing-filter-bar .filter-select:hover {
+  border-color: var(--accent);
+}
+.billing-filters .filter-select:focus,
+.billing-filter-bar .filter-select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow, rgba(16, 185, 129, 0.2));
+}
+[data-theme="light"] .billing-filters .filter-select:hover,
+[data-theme="light"] .billing-filter-bar .filter-select:hover {
+  border-color: var(--accent);
+}
+[data-theme="light"] .billing-filters .filter-select:focus,
+[data-theme="light"] .billing-filter-bar .filter-select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-subtle, rgba(5, 150, 105, 0.12));
 }
 .billing-filters .filter-select option,
 .billing-filter-bar .filter-select option { background: #1a1f2e; }
@@ -1738,9 +1764,18 @@
 }
 [data-theme="light"] .billing-filters .search-wrap input,
 [data-theme="light"] .billing-filters .filter-select {
-  background: white;
-  border-color: rgba(0,0,0,0.12);
-  color: #111;
+  background-color: white;
+  border-color: var(--border);
+  color: var(--text-primary);
+}
+[data-theme="light"] .billing-filters .filter-select:hover,
+[data-theme="light"] .billing-filter-bar .filter-select:hover {
+  border-color: var(--accent);
+}
+[data-theme="light"] .billing-filters .filter-select:focus,
+[data-theme="light"] .billing-filter-bar .filter-select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-subtle);
 }
 [data-theme="light"] .billing-filters .filter-select option,
 [data-theme="light"] .page-size-selector select option {

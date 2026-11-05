@@ -75,6 +75,7 @@ interface SavedInvoiceListState {
   fromDate: string;
   toDate: string;
   search: string;
+  sortBy?: 'issueDate' | 'invoiceNumber';
 }
 
 const INVOICE_LIST_STATE_KEY = 'pms_invoice_list_state';
@@ -105,6 +106,7 @@ export default function InvoiceListPage() {
   const [fromDate, setFromDate] = useState<string>(() => initialSaved.fromDate || '');
   const [toDate, setToDate] = useState<string>(() => initialSaved.toDate || '');
   const [search, setSearch] = useState<string>(() => initialSaved.search || '');
+  const [sortBy, setSortBy] = useState<'issueDate' | 'invoiceNumber'>(() => initialSaved.sortBy || 'issueDate');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkProcessing, setBulkProcessing] = useState(false);
   const [runBillingModalOpen, setRunBillingModalOpen] = useState(false);
@@ -169,12 +171,13 @@ export default function InvoiceListPage() {
         fromDate,
         toDate,
         search,
+        sortBy,
       };
       sessionStorage.setItem(INVOICE_LIST_STATE_KEY, JSON.stringify(stateToSave));
     } catch {
       // Ignore storage quota errors
     }
-  }, [activePropertyFilter, page, pageSize, showFilters, status, currencyFilter, billType, fromDate, toDate, search]);
+  }, [activePropertyFilter, page, pageSize, showFilters, status, currencyFilter, billType, fromDate, toDate, search, sortBy]);
 
   const { data, isFetching, refetch } = useGetInvoicesQuery({
     propertyId: activePropertyFilter || undefined,
@@ -184,6 +187,8 @@ export default function InvoiceListPage() {
     from: fromDate || undefined,
     to: toDate || undefined,
     search: debouncedSearch || undefined,
+    sortBy,
+    sortOrder: 'desc',
     includeLines: false,
     page, limit: pageSize,
   });
@@ -481,6 +486,25 @@ export default function InvoiceListPage() {
           >
             <Filter size={14} /> Filters{hasActiveFilters ? ' •' : ''}
           </button>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <label htmlFor="invoice-sort-by" style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+              Sort By
+            </label>
+            <select
+              id="invoice-sort-by"
+              className="filter-select"
+              value={sortBy}
+              onChange={e => {
+                setSortBy(e.target.value as 'issueDate' | 'invoiceNumber');
+                setPage(1);
+                clearSelection();
+              }}
+              title="Sort By"
+            >
+              <option value="issueDate">Date</option>
+              <option value="invoiceNumber">Invoice Number</option>
+            </select>
+          </div>
         </div>
 
         <div className="billing-filters-actions">
