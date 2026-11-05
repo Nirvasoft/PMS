@@ -173,19 +173,8 @@ export default function BillingSchedulesPage() {
     if (!form.departmentCenterId && !form.costCenterId) return [];
     return chargeTypes.filter((ct) => {
       if (!ct.isActive) return false;
-      const acc = ct.glAccountCode ? glAccountByCode.get(ct.glAccountCode) : undefined;
-      const ctDeptId =
-        ct.departmentCenterId ||
-        ct.departmentCenter?.id ||
-        acc?.departmentCenterId ||
-        acc?.departmentCenter?.id ||
-        '';
-      const ctCcId =
-        ct.costCenterId ||
-        ct.costCenter?.id ||
-        acc?.costCenterId ||
-        acc?.costCenter?.id ||
-        '';
+      const ctDeptId = ct.departmentCenterId || ct.departmentCenter?.id || '';
+      const ctCcId = ct.costCenterId || ct.costCenter?.id || '';
       if (form.departmentCenterId && ctDeptId !== form.departmentCenterId) return false;
       if (form.costCenterId && ctCcId !== form.costCenterId) return false;
       return true;

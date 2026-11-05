@@ -127,23 +127,12 @@ export default function PaymentMethodSetupPage() {
   const openEdit = (pm: PaymentMethod) => {
     setHasAttemptedSubmit(false);
     setEditing(pm);
-    const linkedGl = pm.glAccountCode ? glAccountByCode.get(pm.glAccountCode) : undefined;
     setForm({
       code: pm.code,
       name: pm.name,
       glAccountCode: pm.glAccountCode || '',
-      departmentCenterId:
-        pm.departmentCenterId ||
-        pm.departmentCenter?.id ||
-        linkedGl?.departmentCenterId ||
-        linkedGl?.departmentCenter?.id ||
-        '',
-      costCenterId:
-        pm.costCenterId ||
-        pm.costCenter?.id ||
-        linkedGl?.costCenterId ||
-        linkedGl?.costCenter?.id ||
-        '',
+      departmentCenterId: pm.departmentCenterId || pm.departmentCenter?.id || '',
+      costCenterId: pm.costCenterId || pm.costCenter?.id || '',
       isActive: pm.isActive,
     });
     setShowForm(true);
@@ -207,9 +196,8 @@ export default function PaymentMethodSetupPage() {
   const filteredPaymentMethods = paymentMethods.filter((pm) => {
     if (search.trim()) {
       const q = search.trim().toLowerCase();
-      const linkedGl = pm.glAccountCode ? glAccountByCode.get(pm.glAccountCode) : undefined;
-      const deptCode = pm.departmentCenter?.code || linkedGl?.departmentCenter?.code || '';
-      const ccCode = pm.costCenter?.code || linkedGl?.costCenter?.code || '';
+      const deptCode = pm.departmentCenter?.code || '';
+      const ccCode = pm.costCenter?.code || '';
       const codeMatch = pm.code.toLowerCase().includes(q);
       const nameMatch = pm.name.toLowerCase().includes(q);
       const glMatch = pm.glAccountCode ? pm.glAccountCode.toLowerCase().includes(q) : false;
@@ -371,9 +359,8 @@ export default function PaymentMethodSetupPage() {
                   </td>
                 </tr>
               ) : paginatedPaymentMethods.map(pm => {
-                const linkedGl = pm.glAccountCode ? glAccountByCode.get(pm.glAccountCode) : undefined;
-                const deptCode = pm.departmentCenter?.code || linkedGl?.departmentCenter?.code;
-                const ccCode = pm.costCenter?.code || linkedGl?.costCenter?.code;
+                const deptCode = pm.departmentCenter?.code;
+                const ccCode = pm.costCenter?.code;
                 return (
                   <tr key={pm.id}>
                     <td><span className="cell-mono">{pm.code}</span></td>

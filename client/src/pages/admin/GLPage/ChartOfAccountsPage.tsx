@@ -651,8 +651,14 @@ function AccountModal({
   const [showCostLookup, setShowCostLookup] = useState(false);
   const [costSearch, setCostSearch] = useState('');
 
-  const selectedDept = departmentCenters.find((d) => d.id === form.departmentCenterId) || account?.departmentCenter || null;
-  const selectedCost = costCenters.find((c) => c.id === form.costCenterId) || account?.costCenter || null;
+  const selectedDept = form.departmentCenterId
+    ? departmentCenters.find((d) => d.id === form.departmentCenterId) ||
+      (account?.departmentCenter?.id === form.departmentCenterId ? account.departmentCenter : null)
+    : null;
+  const selectedCost = form.costCenterId
+    ? costCenters.find((c) => c.id === form.costCenterId) ||
+      (account?.costCenter?.id === form.costCenterId ? account.costCenter : null)
+    : null;
 
   const filteredDepts = departmentCenters.filter((d) => {
     if (!d.isActive && d.id !== form.departmentCenterId) return false;

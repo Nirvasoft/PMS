@@ -124,24 +124,13 @@ export default function ChargeTypesPage() {
   const openEdit = (ct: ChargeType) => {
     setHasAttemptedSubmit(false);
     setEditing(ct);
-    const linkedGl = ct.glAccountCode ? glAccountByCode.get(ct.glAccountCode) : undefined;
     setForm({
       code: ct.code,
       name: ct.name,
       category: ct.category,
       glAccountCode: ct.glAccountCode || '',
-      departmentCenterId:
-        ct.departmentCenterId ||
-        ct.departmentCenter?.id ||
-        linkedGl?.departmentCenterId ||
-        linkedGl?.departmentCenter?.id ||
-        '',
-      costCenterId:
-        ct.costCenterId ||
-        ct.costCenter?.id ||
-        linkedGl?.costCenterId ||
-        linkedGl?.costCenter?.id ||
-        '',
+      departmentCenterId: ct.departmentCenterId || ct.departmentCenter?.id || '',
+      costCenterId: ct.costCenterId || ct.costCenter?.id || '',
       isTaxable: ct.isTaxable,
       taxRate: Number(ct.taxRate),
     });
@@ -186,9 +175,8 @@ export default function ChargeTypesPage() {
   const filteredChargeTypes = chargeTypes.filter((ct) => {
     if (search.trim()) {
       const q = search.trim().toLowerCase();
-      const linkedGl = ct.glAccountCode ? glAccountByCode.get(ct.glAccountCode) : undefined;
-      const deptCode = ct.departmentCenter?.code || linkedGl?.departmentCenter?.code || '';
-      const ccCode = ct.costCenter?.code || linkedGl?.costCenter?.code || '';
+      const deptCode = ct.departmentCenter?.code || '';
+      const ccCode = ct.costCenter?.code || '';
       const codeMatch = ct.code.toLowerCase().includes(q);
       const nameMatch = ct.name.toLowerCase().includes(q);
       const glMatch = ct.glAccountCode ? ct.glAccountCode.toLowerCase().includes(q) : false;
@@ -371,9 +359,8 @@ export default function ChargeTypesPage() {
                 </td>
               </tr>
             ) : paginatedChargeTypes.map(ct => {
-              const linkedGl = ct.glAccountCode ? glAccountByCode.get(ct.glAccountCode) : undefined;
-              const deptCode = ct.departmentCenter?.code || linkedGl?.departmentCenter?.code;
-              const ccCode = ct.costCenter?.code || linkedGl?.costCenter?.code;
+              const deptCode = ct.departmentCenter?.code;
+              const ccCode = ct.costCenter?.code;
               return (
                 <tr key={ct.id}>
                   <td><span className="cell-mono">{ct.code}</span></td>
