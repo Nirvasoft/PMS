@@ -212,12 +212,15 @@ class MeterRecordsService {
     sheet.columns = EXPORT_COLUMNS;
     sheet.getRow(1).font = { bold: true };
 
+    const targetBillDate = isoToUtcDate(billDate);
+
     for (const m of meterSetups) {
+      const trimmedMeterNo = m.meterNo.trim();
       // A meter's assigned unit is looked up the same way meterSetup.service.ts's delete
       // guard does — by matching meterNo/meterSerialNo within the same property.
       const utilityMeter = await prisma.utilityMeter.findFirst({
-        where: { meterSerialNo: { equals: m.meterNo.trim(), mode: 'insensitive' }, propertyId },
-        select: { unitId: true },
+        where: { meterSerialNo: { equals: trimmedMeterNo, mode: 'insensitive' }, propertyId },
+        select: { unitId: true, lastReading: true },
       });
 
       let unitCode = '';
@@ -245,6 +248,35 @@ class MeterRecordsService {
       // Skip meters on unoccupied units when occupiedOnly is requested.
       if (occupiedOnly && !hasActiveLease) continue;
 
+      // Populate Start Unit from the latest previous record's End Unit for this meter
+      // (falling back to any latest record for the meter, then utilityMeter.lastReading, then 0).
+      const prevRecord =
+        (await prisma.meterRecordList.findFirst({
+          where: {
+            propertyId,
+            companyId,
+            meterNo: { equals: trimmedMeterNo, mode: 'insensitive' },
+            billDate: { lte: targetBillDate },
+          },
+          orderBy: [{ endDate: 'desc' }, { billDate: 'desc' }, { createdAt: 'desc' }],
+          select: { endUnit: true },
+        })) ??
+        (await prisma.meterRecordList.findFirst({
+          where: {
+            propertyId,
+            companyId,
+            meterNo: { equals: trimmedMeterNo, mode: 'insensitive' },
+          },
+          orderBy: [{ endDate: 'desc' }, { billDate: 'desc' }, { createdAt: 'desc' }],
+          select: { endUnit: true },
+        }));
+
+      const startUnit = prevRecord
+        ? prevRecord.endUnit.toNumber()
+        : utilityMeter?.lastReading
+          ? utilityMeter.lastReading.toNumber()
+          : 0;
+
       sheet.addRow({
         property: property.name,
         tenant,
@@ -253,12 +285,12 @@ class MeterRecordsService {
         meterNo: m.meterNo,
         category: CATEGORY_LABELS[m.category] || m.category,
         rate: m.rate ? m.rate.toNumber() : 0,
-        startUnit: 0,
+        startUnit,
         endUnit: 0,
         totalUnit: 0,
         startDate: '',
         endDate: '',
-        billDate: isoToUtcDate(billDate),
+        billDate: targetBillDate,
       });
     }
 
