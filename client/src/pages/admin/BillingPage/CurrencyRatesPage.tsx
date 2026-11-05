@@ -179,23 +179,6 @@ export default function CurrencyRatesPage() {
   const [form, setForm] = useState(emptyForm);
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
-  const editingCurrencyHistory = useMemo(() => {
-    if (!editing) return [];
-    return historyList.filter(
-      (h) => h.currencyRateId === editing.id || h.currency === editing.currency,
-    );
-  }, [editing, historyList]);
-
-  const [editHistoryPageSize, setEditHistoryPageSize] = useState(10);
-  const [editHistoryPage, setEditHistoryPage] = useState(1);
-  useEffect(() => { setEditHistoryPage(1); }, [editing?.id, editHistoryPageSize]);
-  const totalEditHistoryPages = Math.max(1, Math.ceil(editingCurrencyHistory.length / editHistoryPageSize));
-  const currentEditHistoryPage = Math.min(editHistoryPage, totalEditHistoryPages);
-  const paginatedEditingHistory = editingCurrencyHistory.slice(
-    (currentEditHistoryPage - 1) * editHistoryPageSize,
-    currentEditHistoryPage * editHistoryPageSize,
-  );
-
   // No rows yet for this property means no base currency is set — the row about to be
   // created must be it, so Code/Base Currency below bind to and lock onto the property's
   // own currency instead of offering a free choice.
@@ -760,102 +743,6 @@ export default function CurrencyRatesPage() {
             </div>
           </form>
 
-          {editing && (
-            <div className="billing-table-wrap" style={{ marginTop: 20 }}>
-              <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <History size={16} style={{ color: 'var(--accent)' }} />
-                <span style={{ fontWeight: 700, fontSize: 14 }}>
-                  Rate Update History ({editing.currency})
-                </span>
-                <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 'auto' }}>
-                  {editingCurrencyHistory.length} record{editingCurrencyHistory.length === 1 ? '' : 's'}
-                </span>
-              </div>
-              <TableScrollWrapper>
-                <table className="billing-table">
-                  <thead>
-                    <tr>
-                      <th>Date & Time</th>
-                      <th>Code</th>
-                      <th>Base Currency</th>
-                      <th>Operator</th>
-                      <th>Action</th>
-                      <th className="text-right">Old Rate</th>
-                      <th className="text-right">New Rate</th>
-                      <th>Changed By</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {editingCurrencyHistory.length === 0 ? (
-                      <tr><td colSpan={8} className="billing-empty">No rate update history for {editing.currency} yet</td></tr>
-                    ) : paginatedEditingHistory.map((h) => (
-                      <tr key={h.id}>
-                        <td style={{ whiteSpace: 'nowrap', color: 'var(--text-secondary)', fontSize: 12.5 }}>
-                          {formatDateTime(h.changedAt)}
-                        </td>
-                        <td><span className="cell-primary">{h.currency}</span></td>
-                        <td style={{ color: 'var(--text-secondary)', fontSize: 13 }}>{h.baseCurrency}</td>
-                        <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{h.operator === 'divide' ? '/' : '*'}</td>
-                        <td>{renderActionBadge(h.action)}</td>
-                        <td className="text-right">
-                          {h.oldRate != null ? <span className="cell-mono">{formatRate(h.oldRate)}</span> : <span style={{ color: 'var(--text-muted)' }}>—</span>}
-                        </td>
-                        <td className="text-right">
-                          {h.newRate != null ? <span className="cell-mono">{formatRate(h.newRate)}</span> : <span style={{ color: 'var(--text-muted)' }}>—</span>}
-                        </td>
-                        <td style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{formatChangedBy(h)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </TableScrollWrapper>
-
-              {editingCurrencyHistory.length >= 10 && (
-                <div className="positions-pagination billing-pagination">
-                  <div className="pagination-left">
-                    <div className="page-size-selector">
-                      <label htmlFor="cr-edit-history-page-size">Rows per page:</label>
-                      <select
-                        id="cr-edit-history-page-size"
-                        value={editHistoryPageSize}
-                        onChange={(e) => {
-                          setEditHistoryPageSize(Number(e.target.value));
-                          setEditHistoryPage(1);
-                        }}
-                      >
-                        <option value={10}>10</option>
-                        <option value={25}>25</option>
-                        <option value={50}>50</option>
-                        <option value={100}>100</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="page-btns">
-                    <button
-                      type="button"
-                      disabled={currentEditHistoryPage === 1}
-                      onClick={() => setEditHistoryPage((p) => p - 1)}
-                      title="Previous page"
-                    >
-                      <ChevronLeft size={15} />
-                    </button>
-                    <span className="page-num-display">
-                      Page {currentEditHistoryPage} of {totalEditHistoryPages}
-                    </span>
-                    <button
-                      type="button"
-                      disabled={currentEditHistoryPage >= totalEditHistoryPages}
-                      onClick={() => setEditHistoryPage((p) => p + 1)}
-                      title="Next page"
-                    >
-                      <ChevronRight size={15} />
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
         </>
       )}
 

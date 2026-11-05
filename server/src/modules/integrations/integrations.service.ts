@@ -2602,7 +2602,7 @@ class IntegrationsService {
     const v6CcByCode   = new Map<string, { code: string; name: string; syskey: string }>();
     const v6CcByName   = new Map<string, { code: string; name: string; syskey: string }>();
     let activeCoaRows: any[] = [];
-    let defaultSalePersonSk = v6Usk;
+    let defaultSalePersonSk = '0';
     let v6WhskStr = '0';
     let v6CusTypesArr: string[] = ['0'];
     let v6DefAccList: any = null;
@@ -2702,9 +2702,14 @@ class IntegrationsService {
       if (spResp && spResp.ok) {
         const spList = (await spResp.json().catch(() => null)) as any[];
         if (Array.isArray(spList) && spList.length > 0) {
-          const adminSp = spList.find((s: any) => String(s?.t1 || '').toLowerCase() === 'admin') || spList[0];
-          if (adminSp?.code && adminSp.code !== '0') {
-            defaultSalePersonSk = String(adminSp.code);
+          // Default Sale Person = V6 user "v6admin"; fall back to "admin" when it is not set up.
+          const findSpByCode = (code: string) =>
+            spList.find((s: any) => String(s?.t1 || '').trim().toLowerCase() === code);
+          const defaultSp = findSpByCode('v6admin') || findSpByCode('admin');
+          if (defaultSp?.code && defaultSp.code !== '0') {
+            defaultSalePersonSk = String(defaultSp.code);
+          } else {
+            logger.warn('V6 ERP: Default Sale Person "v6admin"/"admin" not found in /main/saleperson/ — n21 will be 0');
           }
         }
       }

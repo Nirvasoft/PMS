@@ -152,6 +152,7 @@ export const createBillingScheduleSchema = z.object({
     paymentDueDays: z.number().int().min(1).max(90).optional(),
     startDate: dateString,
     endDate: dateString.optional(),
+    isTemporary: z.boolean().optional(),
     notes: z.string().optional(),
   }),
 });
@@ -174,6 +175,7 @@ export const updateBillingScheduleSchema = z.object({
     paymentDueDays: z.number().int().min(1).max(90).optional(),
     startDate: dateString.optional(),
     endDate: dateString.nullable().optional(),
+    isTemporary: z.boolean().optional(),
     notes: z.string().optional(),
   }),
 });

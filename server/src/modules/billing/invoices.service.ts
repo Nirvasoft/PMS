@@ -497,6 +497,10 @@ export class InvoicesService {
     return sequenceService.next(companyId, 'invoice', { propertyId });
   }
 
+  async generateTempInvoiceNumber(companyId: string, propertyId?: string | null): Promise<string> {
+    return sequenceService.next(companyId, 'tmp_invoice', { propertyId, prefix: 'TMPINV' });
+  }
+
   // ── Manual Invoice Creation ─────────────────
 
   async createManual(companyId: string, dto: Record<string, unknown>, userId: string) {
@@ -1292,7 +1296,19 @@ export class InvoicesService {
     const taxAmount = lineInputs.reduce((sum, l) => sum + l.taxAmount, 0);
     const totalAmount = subtotal + taxAmount;
 
-    const invoiceNumber = await this.generateInvoiceNumber(first.companyId);
+    let isTemporary = lineInputs.some(l => Boolean((l.schedule as any).isTemporary));
+    if (!isTemporary) {
+      try {
+        const schedIds = lineInputs.map(l => l.schedule.id);
+        const tempRows = await prisma.$queryRaw<Array<{ is_temporary: boolean }>>`
+          SELECT "is_temporary" FROM "billing_schedules" WHERE "id"::text = ANY(${schedIds})
+        `;
+        isTemporary = tempRows.some(r => Boolean(r.is_temporary));
+      } catch (_e) {}
+    }
+    const invoiceNumber = isTemporary
+      ? await this.generateTempInvoiceNumber(first.companyId, first.propertyId)
+      : await this.generateInvoiceNumber(first.companyId, first.propertyId);
 
     // Get grace period (prefer property-scoped penalty configuration)
     const penaltyConfig =
@@ -1472,10 +1488,10 @@ export class InvoicesService {
    * one consolidated invoice per group. Used by both the manual "Run Billing" endpoint
    * and the daily billing cron so their behavior stays identical.
    */
-  async runBilling(dueSchedules: Array<{ id: string; propertyId: string; tenantId: string; unitId: string | null }>, asOfDate?: Date) {
+  async runBilling(dueSchedules: Array<{ id: string; propertyId: string; tenantId: string; unitId: string | null; isTemporary?: boolean }>, asOfDate?: Date) {
     const groups = new Map<string, string[]>();
     for (const s of dueSchedules) {
-      const key = `${s.propertyId}|${s.tenantId}|${s.unitId ?? 'none'}`;
+      const key = `${s.propertyId}|${s.tenantId}|${s.unitId ?? 'none'}|${s.isTemporary ? 'tmp' : 'reg'}`;
       const ids = groups.get(key);
       if (ids) ids.push(s.id); else groups.set(key, [s.id]);
     }

@@ -1,5 +1,6 @@
 import { createApi } from '@reduxjs/toolkit/query/react';
 import { baseQueryWithReauth } from './baseQuery';
+import { unitsApi } from './unitsApi';
 
 // ─── Types ───────────────────────────────────
 
@@ -121,6 +122,7 @@ export interface BillingSchedule {
   nextBillingDate: string | null;
   status: string;
   invoiceCount: number;
+  isTemporary?: boolean;
   departmentCenterId?: string | null;
   costCenterId?: string | null;
   departmentCenter?: { id: string; code: string; name: string } | null;
@@ -359,6 +361,12 @@ export const billingApi = createApi({
     createBillingSchedule: builder.mutation<ApiResponse<BillingSchedule>, Record<string, unknown>>({
       query: (body) => ({ url: '/billing/schedules', method: 'POST', body }),
       invalidatesTags: ['BillingSchedules'],
+      async onQueryStarted(_, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          dispatch(unitsApi.util.invalidateTags(['Units', 'UnitStats', 'FloorPlan']));
+        } catch {}
+      },
     }),
 
     pauseSchedule: builder.mutation<ApiResponse<BillingSchedule>, string>({
@@ -374,11 +382,23 @@ export const billingApi = createApi({
     cancelSchedule: builder.mutation<ApiResponse<BillingSchedule>, string>({
       query: (id) => ({ url: `/billing/schedules/${id}/cancel`, method: 'POST' }),
       invalidatesTags: ['BillingSchedules'],
+      async onQueryStarted(_, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          dispatch(unitsApi.util.invalidateTags(['Units', 'UnitStats', 'FloorPlan']));
+        } catch {}
+      },
     }),
 
     updateSchedule: builder.mutation<ApiResponse<BillingSchedule>, { id: string; data: Record<string, unknown> }>({
       query: ({ id, data }) => ({ url: `/billing/schedules/${id}`, method: 'PUT', body: data }),
       invalidatesTags: ['BillingSchedules'],
+      async onQueryStarted(_, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          dispatch(unitsApi.util.invalidateTags(['Units', 'UnitStats', 'FloorPlan']));
+        } catch {}
+      },
     }),
 
     // ── Invoices ──────────────────────────

@@ -3062,6 +3062,7 @@ model BillingSchedule {
   lastInvoicedAt     DateTime? @map("last_invoiced_at") @db.Timestamptz
   invoiceCount       Int       @default(0) @map("invoice_count")
   isProrated         Boolean   @default(false) @map("is_prorated")
+  isTemporary        Boolean   @default(false) @map("is_temporary")
   prorateStart       DateTime? @map("prorate_start") @db.Date
   notes              String?   @db.Text
   createdBy          String?   @map("created_by") @db.Uuid

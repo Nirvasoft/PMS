@@ -1,5 +1,6 @@
 import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
+import { unitsService } from '../units/units.service';
 
 export class BillingSchedulesService {
   // Fields every schedule spawned from an activated lease shares (RENT, SERVICE_CHARGE,
@@ -84,12 +85,27 @@ export class BillingSchedulesService {
       }
     }
 
+    const tempMap = new Map<string, boolean>();
+    if (rawData.length > 0) {
+      try {
+        const ids = rawData.map((s) => s.id);
+        const tempRows = await prisma.$queryRaw<Array<{ id: string; is_temporary: boolean }>>`
+          SELECT "id", "is_temporary" FROM "billing_schedules" WHERE "id"::text = ANY(${ids})
+        `;
+        for (const r of tempRows) {
+          tempMap.set(r.id, Boolean(r.is_temporary));
+        }
+      } catch (_e) {}
+    }
+
     const data = rawData.map((s) => {
-      if (!s.unit) return s;
+      const isTemporary = tempMap.get(s.id) ?? Boolean((s as any).isTemporary);
+      if (!s.unit) return { ...s, isTemporary };
       const resolvedFloorLabel = s.unit.floorLabel
         ?? (s.unit.floorNumber != null ? floorLookup.get(`${s.propertyId}|${s.unit.floorNumber}`) ?? null : null);
       return {
         ...s,
+        isTemporary,
         unit: {
           ...s.unit,
           floorLabel: resolvedFloorLabel,
@@ -107,7 +123,8 @@ export class BillingSchedulesService {
     const isProrated = startDate.getUTCDate() !== billingDay;
     const nextBillingDate = this.computeNextBillingDateFromStart(startDate, billingCycle, billingDay);
 
-    return prisma.billingSchedule.create({
+    const isTemporary = Boolean(dto.isTemporary);
+    const created = await prisma.billingSchedule.create({
       data: {
         companyId,
         propertyId: dto.propertyId as string,
@@ -137,6 +154,21 @@ export class BillingSchedulesService {
         costCenter: { select: { id: true, code: true, name: true } },
       },
     });
+
+    await prisma.$executeRaw`
+      UPDATE "billing_schedules" SET "is_temporary" = ${isTemporary} WHERE "id" = ${created.id}::uuid
+    `;
+    (created as any).isTemporary = isTemporary;
+
+    if (isTemporary && created.unitId) {
+      await prisma.unit.updateMany({
+        where: { id: created.unitId, status: { not: 'occupied' } },
+        data: { status: 'reserved' },
+      });
+      await unitsService.invalidateStatsCache(created.propertyId);
+    }
+
+    return created;
   }
 
   /**
@@ -574,6 +606,11 @@ export class BillingSchedulesService {
     if (dto.quantity !== undefined) updateData.quantity = dto.quantity;
     if (dto.billingDay !== undefined) updateData.billingDay = dto.billingDay;
     if (dto.paymentDueDays !== undefined) updateData.paymentDueDays = dto.paymentDueDays;
+    const prevTempRows = await prisma.$queryRaw<Array<{ is_temporary: boolean }>>`
+      SELECT "is_temporary" FROM "billing_schedules" WHERE "id" = ${id}::uuid
+    `;
+    const wasTemporary = Boolean(prevTempRows[0]?.is_temporary ?? (schedule as any).isTemporary);
+
     if (dto.endDate !== undefined) updateData.endDate = dto.endDate ? new Date(dto.endDate as string) : null;
     if (dto.notes !== undefined) updateData.notes = dto.notes;
     if (dto.startDate !== undefined) {
@@ -597,7 +634,7 @@ export class BillingSchedulesService {
       updateData.nextBillingDate = nextDate;
     }
 
-    return prisma.billingSchedule.update({
+    const updated = await prisma.billingSchedule.update({
       where: { id },
       data: updateData,
       include: {
@@ -610,6 +647,32 @@ export class BillingSchedulesService {
         costCenter: { select: { id: true, code: true, name: true } },
       },
     });
+
+    const nextIsTemporary = dto.isTemporary !== undefined ? Boolean(dto.isTemporary) : wasTemporary;
+    if (dto.isTemporary !== undefined) {
+      await prisma.$executeRaw`
+        UPDATE "billing_schedules" SET "is_temporary" = ${nextIsTemporary} WHERE "id" = ${id}::uuid
+      `;
+    }
+    (updated as any).isTemporary = nextIsTemporary;
+
+    if (nextIsTemporary && updated.unitId) {
+      await prisma.unit.updateMany({
+        where: { id: updated.unitId, status: { not: 'occupied' } },
+        data: { status: 'reserved' },
+      });
+      await unitsService.invalidateStatsCache(updated.propertyId);
+    }
+
+    if (
+      schedule.unitId &&
+      wasTemporary &&
+      (!nextIsTemporary || schedule.unitId !== updated.unitId)
+    ) {
+      await this.releaseTempUnitIfUnused(schedule.unitId, schedule.propertyId);
+    }
+
+    return updated;
   }
 
   async pause(id: string, companyId: string) {
@@ -633,7 +696,43 @@ export class BillingSchedulesService {
     if (!schedule) throw AppError.notFound('Billing schedule');
     if (['cancelled', 'completed'].includes(schedule.status)) throw AppError.validation('Schedule is already cancelled or completed');
 
-    return prisma.billingSchedule.update({ where: { id }, data: { status: 'cancelled' } });
+    const prevTempRows = await prisma.$queryRaw<Array<{ is_temporary: boolean }>>`
+      SELECT "is_temporary" FROM "billing_schedules" WHERE "id" = ${id}::uuid
+    `;
+    const wasTemporary = Boolean(prevTempRows[0]?.is_temporary ?? (schedule as any).isTemporary);
+
+    const cancelled = await prisma.billingSchedule.update({ where: { id }, data: { status: 'cancelled' } });
+    if (wasTemporary && schedule.unitId) {
+      await this.releaseTempUnitIfUnused(schedule.unitId, schedule.propertyId);
+    }
+    return cancelled;
+  }
+
+  public async releaseTempUnitIfUnused(unitId: string | null | undefined, propertyId: string) {
+    if (!unitId) return;
+    const otherTempRows = await prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT "id" FROM "billing_schedules"
+      WHERE "unit_id" = ${unitId}::uuid
+        AND "is_temporary" = true
+        AND "status" <> 'cancelled'
+      LIMIT 1
+    `;
+    if (otherTempRows.length > 0) return;
+
+    const activeLease = await prisma.lease.findFirst({
+      where: {
+        unitId,
+        status: 'active',
+        deletedAt: null,
+      },
+    });
+    if (activeLease) return;
+
+    await prisma.unit.updateMany({
+      where: { id: unitId, status: 'reserved' },
+      data: { status: 'available' },
+    });
+    await unitsService.invalidateStatsCache(propertyId);
   }
 
   async findDueSchedules(asOfDate: Date, propertyId?: string) {
@@ -643,7 +742,7 @@ export class BillingSchedulesService {
     };
     if (propertyId) where.propertyId = propertyId;
 
-    return prisma.billingSchedule.findMany({
+    const rows = await prisma.billingSchedule.findMany({
       where,
       include: {
         chargeType: true,
@@ -651,6 +750,21 @@ export class BillingSchedulesService {
         lease: true,
       },
     });
+
+    if (rows.length > 0) {
+      try {
+        const ids = rows.map((r) => r.id);
+        const tempRows = await prisma.$queryRaw<Array<{ id: string; is_temporary: boolean }>>`
+          SELECT "id", "is_temporary" FROM "billing_schedules" WHERE "id"::text = ANY(${ids})
+        `;
+        const tempMap = new Map(tempRows.map((r) => [r.id, Boolean(r.is_temporary)]));
+        for (const r of rows) {
+          (r as any).isTemporary = tempMap.get(r.id) ?? Boolean((r as any).isTemporary);
+        }
+      } catch (_e) {}
+    }
+
+    return rows;
   }
 
   private async resolveChargeTypeCenters(

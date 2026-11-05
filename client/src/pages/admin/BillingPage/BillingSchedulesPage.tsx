@@ -11,6 +11,7 @@ import { useGetDepartmentCentersQuery, useGetCostCentersQuery, useGetGlAccountsQ
 import { useGetPropertiesQuery, useGetFloorSetupsQuery, useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useGetUnitsQuery } from '../../../store/api/unitsApi';
 import { useGetLeasesQuery } from '../../../store/api/leasesApi';
+import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
 import { CalendarClock, Pause, Play, X, ChevronLeft, ChevronRight, CircleDot, Plus, Pencil, Search, Filter } from 'lucide-react';
 import { format } from 'date-fns';
 import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
@@ -35,6 +36,7 @@ const BILLING_CYCLES = ['monthly', 'quarterly', 'semi_annual', 'annual'] as cons
 interface ScheduleForm {
   chargeTypeId: string; propertyId: string; tenantId: string; unitId: string; leaseId: string;
   departmentCenterId: string; costCenterId: string;
+  isTemporary: boolean;
   amount: number; quantity: number; currency: string; billingCycle: string; billingDay: number;
   paymentDueDays: number; startDate: string; endDate: string; description: string;
 }
@@ -42,6 +44,7 @@ interface ScheduleForm {
 const emptyForm: ScheduleForm = {
   chargeTypeId: '', propertyId: '', tenantId: '', unitId: '', leaseId: '',
   departmentCenterId: '', costCenterId: '',
+  isTemporary: false,
   amount: 0, quantity: 1, currency: 'USD', billingCycle: 'monthly', billingDay: 1,
   paymentDueDays: 14, startDate: new Date().toISOString().split('T')[0], endDate: '', description: '',
 };
@@ -139,9 +142,12 @@ export default function BillingSchedulesPage() {
   const { data: unitsData } = useGetUnitsQuery(
     form.propertyId ? { propertyId: form.propertyId, floor: floorNumber, limit: 5000 } : skipToken,
   );
-  // Tenant choices come from the property's active leases, so a schedule is always tied to the lease it bills.
+  // Tenant choices come from the property's active leases (or all property tenants when Is Temporary is checked).
   const { data: leasesData } = useGetLeasesQuery(
     form.propertyId ? { propertyId: form.propertyId, status: 'active', limit: 5000 } : skipToken,
+  );
+  const { data: tenantsData } = useGetTenantsQuery(
+    form.propertyId ? { propertyId: form.propertyId, page: 1, limit: 5000 } : skipToken,
   );
 
   const [pauseSchedule] = usePauseScheduleMutation();
@@ -162,6 +168,7 @@ export default function BillingSchedulesPage() {
   const floors = (floorsData?.data || []).slice().sort((a, b) => a.floorNumber - b.floorNumber);
   const units = unitsData?.data || [];
   const leases = leasesData?.data || [];
+  const tenants = tenantsData?.data || [];
 
   const glAccountByCode = useMemo(() => {
     const map = new Map<string, GlAccount>();
@@ -196,7 +203,11 @@ export default function BillingSchedulesPage() {
   // existed) — not something a schedule sets independently, so it's not user-editable here.
   const propertyCurrency = properties.find((p: any) => p.id === form.propertyId)?.currency
     || scopeProperties.find((p) => p.id === form.propertyId)?.currency;
-  const boundCurrency = units.find((u) => u.id === form.unitId)?.currency || propertyCurrency || '';
+  const boundCurrency =
+    units.find((u) => u.id === form.unitId)?.currency ||
+    (form.isTemporary ? tenants.find((t) => t.id === form.tenantId)?.currency : '') ||
+    propertyCurrency ||
+    '';
   useEffect(() => {
     // Only auto-bind for new schedules — editing an existing one keeps its saved
     // currency untouched even though changing property/unit re-runs this effect.
@@ -331,6 +342,7 @@ export default function BillingSchedulesPage() {
         s.costCenterId ||
         s.costCenter?.id ||
         (!s.departmentCenterId && !s.departmentCenter?.id ? (s.chargeType as any)?.costCenterId || '' : ''),
+      isTemporary: Boolean(s.isTemporary),
       amount: Number(s.amount),
       quantity: effectiveQty,
       currency: s.currency,
@@ -345,7 +357,7 @@ export default function BillingSchedulesPage() {
   };
 
   const isChargeTypeMissing = hasAttemptedSubmit && !form.chargeTypeId;
-  const isTenantMissing = hasAttemptedSubmit && !form.leaseId;
+  const isTenantMissing = hasAttemptedSubmit && (form.isTemporary ? !form.tenantId : !form.leaseId);
   const isAmountMissing = hasAttemptedSubmit && (form.amount === undefined || form.amount === null || isNaN(form.amount) || form.amount <= 0 || String(form.amount).trim() === '');
   const isBillingCycleMissing = hasAttemptedSubmit && !form.billingCycle;
   const isBillingDayMissing = hasAttemptedSubmit && (!form.billingDay || form.billingDay < 1 || form.billingDay > 28);
@@ -357,7 +369,7 @@ export default function BillingSchedulesPage() {
     if (
       !form.chargeTypeId ||
       !form.propertyId ||
-      !form.leaseId ||
+      (form.isTemporary ? !form.tenantId : !form.leaseId) ||
       form.amount === undefined || form.amount === null || isNaN(form.amount) || form.amount <= 0 || String(form.amount).trim() === '' ||
       !form.billingCycle ||
       !form.billingDay || form.billingDay < 1 || form.billingDay > 28 ||
@@ -371,6 +383,7 @@ export default function BillingSchedulesPage() {
         chargeTypeId: form.chargeTypeId,
         propertyId: form.propertyId,
         tenantId: form.tenantId,
+        isTemporary: form.isTemporary,
         amount: form.amount,
         quantity: form.quantity,
         currency: form.currency,
@@ -542,7 +555,24 @@ export default function BillingSchedulesPage() {
                 return (
                   <tr key={s.id}>
                     <td>
-                      <div className="cell-primary">{s.chargeType.name}</div>
+                      <div className="cell-primary" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        <span>{s.chargeType.name}</span>
+                        {s.isTemporary && (
+                          <span
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 700,
+                              padding: '1px 6px',
+                              borderRadius: 6,
+                              background: 'rgba(245, 158, 11, 0.14)',
+                              color: '#f59e0b',
+                              letterSpacing: '0.02em',
+                            }}
+                          >
+                            TEMP
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td>
                       <div className="cell-primary">{getTenantName(s)}</div>
@@ -687,12 +717,54 @@ export default function BillingSchedulesPage() {
             <form onSubmit={handleSubmit} noValidate>
               <div className="modal-body">
                 <div className="inv-form-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                  {/* Top Row: Is Temporary */}
+                  <div className="inv-field" style={{ gridColumn: '1 / -1', marginBottom: 4 }}>
+                    <label
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        cursor: 'pointer',
+                        userSelect: 'none',
+                        fontWeight: 600,
+                        fontSize: '0.88rem',
+                        color: 'var(--text-primary)',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={form.isTemporary}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          if (checked) {
+                            setForm({ ...form, isTemporary: true });
+                          } else {
+                            const hasActiveLease = Boolean(form.leaseId && filteredLeases.some(l => l.id === form.leaseId));
+                            setForm({
+                              ...form,
+                              isTemporary: false,
+                              tenantId: hasActiveLease ? form.tenantId : '',
+                              leaseId: hasActiveLease ? form.leaseId : '',
+                            });
+                          }
+                        }}
+                        style={{ width: 16, height: 16, accentColor: 'var(--accent)', cursor: 'pointer' }}
+                      />
+                      Is Temporary
+                    </label>
+                  </div>
+
                   {/* Row 1: Floor | Unit */}
                   <div className="inv-field">
                     <label>Floor</label>
                     <select value={floorId} disabled={!form.propertyId} onChange={e => {
                       setFloorId(e.target.value);
-                      setForm({ ...form, unitId: '', tenantId: '', leaseId: '' });
+                      setForm({
+                        ...form,
+                        unitId: '',
+                        tenantId: form.isTemporary ? form.tenantId : '',
+                        leaseId: '',
+                      });
                     }}>
                       <option value="">{form.propertyId ? 'Select floor' : 'Select property first'}</option>
                       {floors.map(f => <option key={f.id} value={f.id}>{f.floorLabel}</option>)}
@@ -702,7 +774,12 @@ export default function BillingSchedulesPage() {
                     <label>Unit</label>
                     <select value={form.unitId} disabled={!form.propertyId} onChange={e => {
                       const unitId = e.target.value;
-                      setForm({ ...form, unitId, tenantId: '', leaseId: '' });
+                      if (form.isTemporary) {
+                        const matchingLease = leases.find(l => l.unit?.id === unitId && l.tenant.id === form.tenantId);
+                        setForm({ ...form, unitId, leaseId: matchingLease?.id || '' });
+                      } else {
+                        setForm({ ...form, unitId, tenantId: '', leaseId: '' });
+                      }
                       if (unitId) setFloorId(deriveFloorId(unitId));
                     }}>
                       <option value="">{form.propertyId ? 'No specific unit' : 'Select property first'}</option>
@@ -742,52 +819,90 @@ export default function BillingSchedulesPage() {
                   {/* Row 3: Tenant * | Charge Type * */}
                   <div className={`inv-field ${isTenantMissing ? 'inv-field-error' : ''}`}>
                     <label>Tenant <span className="req">*</span></label>
-                    <ComboBox
-                      id="schedule-tenant"
-                      value={form.leaseId}
-                      disabled={!form.propertyId}
-                      placeholder={
-                        !form.propertyId
-                          ? 'Select property first'
-                          : (filteredLeases.length > 0 || (selectedSchedule && form.leaseId))
-                          ? 'Select tenant'
-                          : 'No active leases'
-                      }
-                      emptyText="No active leases"
-                      options={[
-                        ...(selectedSchedule && form.leaseId && !filteredLeases.some(l => l.id === form.leaseId)
-                          ? [{
-                              id: form.leaseId,
-                              label: (selectedSchedule.tenant.lastName || selectedSchedule.tenant.companyName || selectedSchedule.tenant.firstName || '').trim(),
-                              sublabel: (selectedSchedule.tenant.firstName || '').trim() && (selectedSchedule.tenant.firstName || '').trim() !== (selectedSchedule.tenant.lastName || selectedSchedule.tenant.companyName || selectedSchedule.tenant.firstName || '').trim()
-                                ? (selectedSchedule.tenant.firstName || '').trim()
-                                : undefined,
-                            }]
-                          : []),
-                        ...filteredLeases.map(l => {
-                          const topLine = (l.tenant.lastName || l.tenant.companyName || l.tenant.firstName || '').trim();
-                          const firstName = (l.tenant.firstName || '').trim();
-                          return {
-                            id: l.id,
-                            label: topLine,
-                            sublabel: firstName && firstName !== topLine ? firstName : undefined,
-                          };
-                        }),
-                      ].filter(o => o.label !== '')}
-                      onChange={val => {
-                        const lease = leases.find(l => l.id === val);
-                        const unitId = lease?.unit?.id || form.unitId;
-                        const currentCt = chargeTypes.find(ct => ct.id === form.chargeTypeId) || selectedSchedule?.chargeType;
-                        setForm({
-                          ...form,
-                          leaseId: lease?.id || '',
-                          tenantId: lease?.tenant.id || '',
-                          unitId,
-                          quantity: isBaseRentCharge(currentCt) ? (lease?.leaseTermMonths ?? form.quantity) : 1,
-                        });
-                        if (lease?.unit?.id) setFloorId(deriveFloorId(lease.unit.id));
-                      }}
-                    />
+                    {form.isTemporary ? (
+                      <ComboBox
+                        id="schedule-tenant-temp"
+                        value={form.tenantId}
+                        disabled={!form.propertyId}
+                        placeholder={!form.propertyId ? 'Select property first' : 'Select tenant'}
+                        emptyText="No tenants found"
+                        options={[
+                          ...(selectedSchedule && form.tenantId && !tenants.some(t => t.id === form.tenantId)
+                            ? [{
+                                id: form.tenantId,
+                                label: (selectedSchedule.tenant.lastName || selectedSchedule.tenant.companyName || selectedSchedule.tenant.firstName || '').trim(),
+                                sublabel: (selectedSchedule.tenant.firstName || '').trim() && (selectedSchedule.tenant.firstName || '').trim() !== (selectedSchedule.tenant.lastName || selectedSchedule.tenant.companyName || selectedSchedule.tenant.firstName || '').trim()
+                                  ? (selectedSchedule.tenant.firstName || '').trim()
+                                  : undefined,
+                              }]
+                            : []),
+                          ...tenants.map((t: any) => {
+                            const topLine = (t.lastName || t.companyName || t.displayName || t.firstName || '').trim();
+                            const firstName = (t.firstName || '').trim();
+                            return {
+                              id: t.id,
+                              label: topLine,
+                              sublabel: firstName && firstName !== topLine ? firstName : undefined,
+                            };
+                          }),
+                        ].filter(o => o.label !== '')}
+                        onChange={val => {
+                          const matchingLease = filteredLeases.find(l => l.tenant.id === val);
+                          setForm({
+                            ...form,
+                            tenantId: val,
+                            leaseId: matchingLease?.id || '',
+                          });
+                        }}
+                      />
+                    ) : (
+                      <ComboBox
+                        id="schedule-tenant"
+                        value={form.leaseId}
+                        disabled={!form.propertyId}
+                        placeholder={
+                          !form.propertyId
+                            ? 'Select property first'
+                            : (filteredLeases.length > 0 || (selectedSchedule && form.leaseId))
+                            ? 'Select tenant'
+                            : 'No active leases'
+                        }
+                        emptyText="No active leases"
+                        options={[
+                          ...(selectedSchedule && form.leaseId && !filteredLeases.some(l => l.id === form.leaseId)
+                            ? [{
+                                id: form.leaseId,
+                                label: (selectedSchedule.tenant.lastName || selectedSchedule.tenant.companyName || selectedSchedule.tenant.firstName || '').trim(),
+                                sublabel: (selectedSchedule.tenant.firstName || '').trim() && (selectedSchedule.tenant.firstName || '').trim() !== (selectedSchedule.tenant.lastName || selectedSchedule.tenant.companyName || selectedSchedule.tenant.firstName || '').trim()
+                                  ? (selectedSchedule.tenant.firstName || '').trim()
+                                  : undefined,
+                              }]
+                            : []),
+                          ...filteredLeases.map(l => {
+                            const topLine = (l.tenant.lastName || l.tenant.companyName || l.tenant.firstName || '').trim();
+                            const firstName = (l.tenant.firstName || '').trim();
+                            return {
+                              id: l.id,
+                              label: topLine,
+                              sublabel: firstName && firstName !== topLine ? firstName : undefined,
+                            };
+                          }),
+                        ].filter(o => o.label !== '')}
+                        onChange={val => {
+                          const lease = leases.find(l => l.id === val);
+                          const unitId = lease?.unit?.id || form.unitId;
+                          const currentCt = chargeTypes.find(ct => ct.id === form.chargeTypeId) || selectedSchedule?.chargeType;
+                          setForm({
+                            ...form,
+                            leaseId: lease?.id || '',
+                            tenantId: lease?.tenant.id || '',
+                            unitId,
+                            quantity: isBaseRentCharge(currentCt) ? (lease?.leaseTermMonths ?? form.quantity) : 1,
+                          });
+                          if (lease?.unit?.id) setFloorId(deriveFloorId(lease.unit.id));
+                        }}
+                      />
+                    )}
                     {isTenantMissing && <span className="inv-error-text">Tenant is required</span>}
                   </div>
                   <div className="inv-field">
