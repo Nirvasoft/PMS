@@ -581,6 +581,41 @@
     );
   transition: opacity 0.14s ease;
 }
+.shop-map-stage .react-grid-item:not(.is-rotated-item) > .react-resizable-handle {
+  transform: translate(-50%, -50%) !important;
+}
+.shop-map-stage .react-grid-item:not(.is-rotated-item) > .react-resizable-handle.react-resizable-handle-nw {
+  left: calc(0% + var(--tile-nudge-x, 0px)) !important;
+  top: calc(0% + var(--tile-nudge-y, 0px)) !important;
+}
+.shop-map-stage .react-grid-item:not(.is-rotated-item) > .react-resizable-handle.react-resizable-handle-ne {
+  left: calc(100% + var(--tile-nudge-x, 0px)) !important;
+  top: calc(0% + var(--tile-nudge-y, 0px)) !important;
+}
+.shop-map-stage .react-grid-item:not(.is-rotated-item) > .react-resizable-handle.react-resizable-handle-sw {
+  left: calc(0% + var(--tile-nudge-x, 0px)) !important;
+  top: calc(100% + var(--tile-nudge-y, 0px)) !important;
+}
+.shop-map-stage .react-grid-item:not(.is-rotated-item) > .react-resizable-handle.react-resizable-handle-se {
+  left: calc(100% + var(--tile-nudge-x, 0px)) !important;
+  top: calc(100% + var(--tile-nudge-y, 0px)) !important;
+}
+.shop-map-stage .react-grid-item:not(.is-rotated-item) > .react-resizable-handle.react-resizable-handle-n {
+  left: calc(50% + var(--tile-nudge-x, 0px)) !important;
+  top: calc(0% + var(--tile-nudge-y, 0px)) !important;
+}
+.shop-map-stage .react-grid-item:not(.is-rotated-item) > .react-resizable-handle.react-resizable-handle-s {
+  left: calc(50% + var(--tile-nudge-x, 0px)) !important;
+  top: calc(100% + var(--tile-nudge-y, 0px)) !important;
+}
+.shop-map-stage .react-grid-item:not(.is-rotated-item) > .react-resizable-handle.react-resizable-handle-e {
+  left: calc(100% + var(--tile-nudge-x, 0px)) !important;
+  top: calc(50% + var(--tile-nudge-y, 0px)) !important;
+}
+.shop-map-stage .react-grid-item:not(.is-rotated-item) > .react-resizable-handle.react-resizable-handle-w {
+  left: calc(0% + var(--tile-nudge-x, 0px)) !important;
+  top: calc(50% + var(--tile-nudge-y, 0px)) !important;
+}
 .shop-map-stage .react-grid-item:hover > .react-resizable-handle,
 .shop-map-stage .react-grid-item:focus-within > .react-resizable-handle,
 .shop-map-stage .react-grid-item.resizing > .react-resizable-handle,

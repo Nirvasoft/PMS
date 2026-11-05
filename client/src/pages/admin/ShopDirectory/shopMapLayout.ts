@@ -1,204 +1,37 @@
 // Pure helpers for the Shop Directory "Map" view (grid layout, sqft-based tile sizing).
 // Kept free of React so the logic is easy to reason about and test.
 
-export type TileKind =
-  | 'unit'
-  | 'atrium'
-  | 'stairs'
-  | 'escalator'
-  | 'corridor'
-  | 'toilet'
-  | 'marker'
-  | 'entrance'
-  | 'exit'
-  | 'info'
-  | 'parking'
-  | 'atm'
-  | 'medical';
+import {
+  normalizeTileAngle,
+  UNIT_SHAPE_CATEGORY_TABS,
+  UNIT_SHAPE_COMPACT_FAMILIES,
+  UNIT_SHAPE_CONVEX_UV_PARTS,
+  UNIT_SHAPE_LABELS,
+  VALID_UNIT_SHAPE_MODES,
+} from './shopMapShapeCatalog';
+import type {
+  MapItem,
+  TileKind,
+  UnitShapeCategoryId,
+  UnitShapeCompactFamily,
+  UnitShapeMode,
+} from './shopMapShapeCatalog';
 
-export interface MapItem {
-  /** Stable key used by react-grid-layout: `u:<unitId>` for units, `d:<n>` for decorations. */
-  key: string;
-  kind: TileKind;
-  unitId: string | null;
-  label: string | null;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  /** Visual tilt in degrees (1-degree steps). 0/undefined = upright. */
-  angle?: number;
-}
-
-/** Normalizes any value to 1-degree integer steps 1..359 (returns undefined for 0 / upright). */
-export function normalizeTileAngle(val: unknown): number | undefined {
-  const raw = Number(val);
-  if (!Number.isFinite(raw)) return undefined;
-  const n = Math.round(raw);
-  const a = ((n % 360) + 360) % 360;
-  return a === 0 ? undefined : a;
-}
-
-export type UnitShapeMode =
-  | 'rect'
-  | 'circle'
-  | 'ring-curve'
-  | 'trapezoid-ring'
-  | 'crescent-l'
-  | 'crescent-r'
-  | 'crescent-t'
-  | 'crescent-b'
-  | 'pie-wedge'
-  | 'wedge-tl'
-  | 'wedge-tr'
-  | 'wedge-bl'
-  | 'wedge-br'
-  | 'step-tl'
-  | 'step-tr'
-  | 'step-bl'
-  | 'step-br'
-  | 'step-t-mid'
-  | 'step-b-mid'
-  | 'wing-bend-l'
-  | 'wing-bend-r'
-  | 'u-court-t'
-  | 'u-court-b'
-  | 'slope-b-l'
-  | 'slope-b-r'
-  | 'slope-t-l'
-  | 'slope-t-r'
-  | 'chamfer-tr'
-  | 'chamfer-tl'
-  | 'chamfer-br'
-  | 'chamfer-bl'
-  | 'curve-bl'
-  | 'curve-br'
-  | 'curve-tl'
-  | 'curve-tr'
-  | 'notch-tl'
-  | 'notch-tr'
-  | 'notch-bl'
-  | 'notch-br'
-  | 'trapezoid'
-  | 'trapezoid-l'
-  | 'trapezoid-r';
-
-export const UNIT_SHAPE_LABELS: Record<UnitShapeMode, string> = {
-  rect: 'Rectangle (Standard)',
-  circle: 'Circle / Oval',
-  'ring-curve': 'Fan / Ring Sector',
-  'trapezoid-ring': 'Curved Arch',
-  'crescent-l': 'Inner Crescent (Left Arc)',
-  'crescent-r': 'Inner Crescent (Right Arc)',
-  'crescent-t': 'Inner Crescent (Top Arc)',
-  'crescent-b': 'Inner Crescent (Bottom Arc)',
-  'pie-wedge': 'Pie-Slice Wedge (Curved)',
-  'wedge-tl': 'Triangle Wedge (Top-Left)',
-  'wedge-tr': 'Triangle Wedge (Top-Right)',
-  'wedge-bl': 'Triangle Wedge (Bottom-Left)',
-  'wedge-br': 'Triangle Wedge (Bottom-Right)',
-  'step-tl': 'Stepped Cutout (Top-Left)',
-  'step-tr': 'Stepped Cutout (Top-Right)',
-  'step-bl': 'Stepped Cutout (Bottom-Left)',
-  'step-br': 'Stepped Cutout (Bottom-Right)',
-  'step-t-mid': 'Center Alcove Notch (Top)',
-  'step-b-mid': 'Center Alcove Notch (Bottom)',
-  'wing-bend-l': 'Corner-Bend Wing (Left)',
-  'wing-bend-r': 'Corner-Bend Wing (Right)',
-  'u-court-t': 'U-Wing Courtyard (Top)',
-  'u-court-b': 'U-Wing Courtyard (Bottom)',
-  'slope-b-l': 'Slant Bottom (Up-Left)',
-  'slope-b-r': 'Slant Bottom (Up-Right)',
-  'slope-t-l': 'Slant Top (Down-Left)',
-  'slope-t-r': 'Slant Top (Down-Right)',
-  'chamfer-tr': 'Cut Corner (Top-Right)',
-  'chamfer-tl': 'Cut Corner (Top-Left)',
-  'chamfer-br': 'Cut Corner (Bottom-Right)',
-  'chamfer-bl': 'Cut Corner (Bottom-Left)',
-  'curve-bl': 'Curved Corner (Bottom-Left)',
-  'curve-br': 'Curved Corner (Bottom-Right)',
-  'curve-tl': 'Curved Corner (Top-Left)',
-  'curve-tr': 'Curved Corner (Top-Right)',
-  'notch-tl': 'Concave Cutout (Top-Left)',
-  'notch-tr': 'Concave Cutout (Top-Right)',
-  'notch-bl': 'Concave Cutout (Bottom-Left)',
-  'notch-br': 'Concave Cutout (Bottom-Right)',
-  trapezoid: 'Trapezoid (Symmetric)',
-  'trapezoid-l': 'Trapezoid (Left Slant)',
-  'trapezoid-r': 'Trapezoid (Right Slant)',
+export {
+  normalizeTileAngle,
+  UNIT_SHAPE_CATEGORY_TABS,
+  UNIT_SHAPE_COMPACT_FAMILIES,
+  UNIT_SHAPE_CONVEX_UV_PARTS,
+  UNIT_SHAPE_LABELS,
+  VALID_UNIT_SHAPE_MODES,
 };
-
-interface UnitShapeOptionDef {
-  id: UnitShapeMode;
-  label: string;
-  group: string;
-}
-
-export const UNIT_SHAPE_OPTIONS: ReadonlyArray<UnitShapeOptionDef> = [
-  // 1. Basic & Ring / Fan
-  { id: 'rect', label: 'Rectangle (Standard)', group: 'Basic & Ring / Fan Shapes' },
-  { id: 'circle', label: 'Circle / Oval', group: 'Basic & Ring / Fan Shapes' },
-  { id: 'ring-curve', label: 'Fan / Ring Sector', group: 'Basic & Ring / Fan Shapes' },
-  { id: 'trapezoid-ring', label: 'Curved Arch', group: 'Basic & Ring / Fan Shapes' },
-
-  // 2. Inner Crescent / Concave Arc (Atrium-Hugging)
-  { id: 'crescent-l', label: 'Inner Crescent (Left Arc)', group: 'Inner Crescent / Concave Arc' },
-  { id: 'crescent-r', label: 'Inner Crescent (Right Arc)', group: 'Inner Crescent / Concave Arc' },
-  { id: 'crescent-t', label: 'Inner Crescent (Top Arc)', group: 'Inner Crescent / Concave Arc' },
-  { id: 'crescent-b', label: 'Inner Crescent (Bottom Arc)', group: 'Inner Crescent / Concave Arc' },
-
-  // 3. Pie-Wedge & Triangle Kiosk
-  { id: 'pie-wedge', label: 'Pie-Slice Wedge (Curved)', group: 'Pie-Wedge & Triangle Kiosk' },
-  { id: 'wedge-tl', label: 'Triangle Wedge (Top-Left)', group: 'Pie-Wedge & Triangle Kiosk' },
-  { id: 'wedge-tr', label: 'Triangle Wedge (Top-Right)', group: 'Pie-Wedge & Triangle Kiosk' },
-  { id: 'wedge-bl', label: 'Triangle Wedge (Bottom-Left)', group: 'Pie-Wedge & Triangle Kiosk' },
-  { id: 'wedge-br', label: 'Triangle Wedge (Bottom-Right)', group: 'Pie-Wedge & Triangle Kiosk' },
-
-  // 4. Stepped & Multi-Notch (Alcove)
-  { id: 'step-tl', label: 'Stepped Cutout (Top-Left)', group: 'Stepped & Multi-Notch (Alcove)' },
-  { id: 'step-tr', label: 'Stepped Cutout (Top-Right)', group: 'Stepped & Multi-Notch (Alcove)' },
-  { id: 'step-bl', label: 'Stepped Cutout (Bottom-Left)', group: 'Stepped & Multi-Notch (Alcove)' },
-  { id: 'step-br', label: 'Stepped Cutout (Bottom-Right)', group: 'Stepped & Multi-Notch (Alcove)' },
-  { id: 'step-t-mid', label: 'Center Alcove Notch (Top)', group: 'Stepped & Multi-Notch (Alcove)' },
-  { id: 'step-b-mid', label: 'Center Alcove Notch (Bottom)', group: 'Stepped & Multi-Notch (Alcove)' },
-
-  // 5. Double-Wing & Corner-Bend
-  { id: 'wing-bend-l', label: 'Corner-Bend Wing (Left)', group: 'Double-Wing & Corner-Bend' },
-  { id: 'wing-bend-r', label: 'Corner-Bend Wing (Right)', group: 'Double-Wing & Corner-Bend' },
-  { id: 'u-court-t', label: 'U-Wing Courtyard (Top)', group: 'Double-Wing & Corner-Bend' },
-  { id: 'u-court-b', label: 'U-Wing Courtyard (Bottom)', group: 'Double-Wing & Corner-Bend' },
-
-  // 6. Slanted Top / Bottom Edge (Vertical Left & Right Side Walls — Side-by-Side Flush)
-  { id: 'slope-b-l', label: 'Slant Bottom (Up-Left)', group: 'Slanted Edge (Vertical Side Walls)' },
-  { id: 'slope-b-r', label: 'Slant Bottom (Up-Right)', group: 'Slanted Edge (Vertical Side Walls)' },
-  { id: 'slope-t-l', label: 'Slant Top (Down-Left)', group: 'Slanted Edge (Vertical Side Walls)' },
-  { id: 'slope-t-r', label: 'Slant Top (Down-Right)', group: 'Slanted Edge (Vertical Side Walls)' },
-
-  // 7. 45° Cut Corner (Chamfer)
-  { id: 'chamfer-tr', label: 'Cut Corner (Top-Right)', group: '45° Cut Corner (Chamfer)' },
-  { id: 'chamfer-tl', label: 'Cut Corner (Top-Left)', group: '45° Cut Corner (Chamfer)' },
-  { id: 'chamfer-br', label: 'Cut Corner (Bottom-Right)', group: '45° Cut Corner (Chamfer)' },
-  { id: 'chamfer-bl', label: 'Cut Corner (Bottom-Left)', group: '45° Cut Corner (Chamfer)' },
-
-  // 8. Curved Outer Corner
-  { id: 'curve-bl', label: 'Curved Corner (Bottom-Left)', group: 'Curved Outer Corner' },
-  { id: 'curve-br', label: 'Curved Corner (Bottom-Right)', group: 'Curved Outer Corner' },
-  { id: 'curve-tl', label: 'Curved Corner (Top-Left)', group: 'Curved Outer Corner' },
-  { id: 'curve-tr', label: 'Curved Corner (Top-Right)', group: 'Curved Outer Corner' },
-
-  // 9. Concave Circular Cutout (Notch)
-  { id: 'notch-tl', label: 'Concave Cutout (Top-Left)', group: 'Concave Circular Cutout (Notch)' },
-  { id: 'notch-tr', label: 'Concave Cutout (Top-Right)', group: 'Concave Circular Cutout (Notch)' },
-  { id: 'notch-bl', label: 'Concave Cutout (Bottom-Left)', group: 'Concave Circular Cutout (Notch)' },
-  { id: 'notch-br', label: 'Concave Cutout (Bottom-Right)', group: 'Concave Circular Cutout (Notch)' },
-
-  // 10. Tapered-Side Trapezoids
-  { id: 'trapezoid', label: 'Trapezoid (Symmetric)', group: 'Tapered-Side Trapezoids' },
-  { id: 'trapezoid-l', label: 'Trapezoid (Left Slant)', group: 'Tapered-Side Trapezoids' },
-  { id: 'trapezoid-r', label: 'Trapezoid (Right Slant)', group: 'Tapered-Side Trapezoids' },
-];
-
-const VALID_UNIT_SHAPE_MODES = new Set<UnitShapeMode>(UNIT_SHAPE_OPTIONS.map((o) => o.id));
+export type {
+  MapItem,
+  TileKind,
+  UnitShapeCategoryId,
+  UnitShapeCompactFamily,
+  UnitShapeMode,
+};
 
 export interface TrapezoidUnitGeometry {
   clipPath: string;
@@ -214,7 +47,17 @@ export interface TrapezoidUnitGeometry {
 function isCircleRingCorridor(
   c: { kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number },
 ): boolean {
-  return c.kind === 'atrium' && c.w >= 3 && c.h >= 3 && parseLandmarkMeta('atrium', c.label).isCircle;
+  if (c.w < 3 || c.h < 3) return false;
+  if (c.kind === 'atrium') {
+    return parseLandmarkMeta('atrium', c.label).isCircle;
+  }
+  if (c.kind !== 'unit') {
+    return parseLandmarkMeta(c.kind, c.label).isCircle;
+  }
+  if (c.kind === 'unit') {
+    return c.label === 'unit:circle';
+  }
+  return false;
 }
 
 function computeCircleRingRadii(
@@ -275,10 +118,13 @@ function getClosestPointOnTileToPoint(
 }
 
 function findNearestCircleCorridorForUnit(
-  it: { x: number; y: number; w: number; h: number; angle?: number },
+  it: { key?: string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
   allItems: ReadonlyArray<{ key?: string; kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number }>,
 ): CircleCorridorUnitMatch | null {
-  const rings = allItems.filter(isCircleRingCorridor);
+  if (it.label === 'unit:circle') return null;
+  const rings = allItems.filter(
+    (r) => r !== it && (!it.key || r.key !== it.key) && isCircleRingCorridor(r),
+  );
   if (rings.length === 0) return null;
   const ux = it.x + it.w * 0.5;
   const uy = it.y + it.h * 0.5;
@@ -297,9 +143,10 @@ function findNearestCircleCorridorForUnit(
     const avgR = (rxOut + ryOut) * 0.5;
     const radialDist = Math.abs(normClosest - 1) * avgR;
     const normCenter = Math.hypot((ux - rcx) / rxOut, (uy - rcy) / ryOut);
-    const score = boxGap + radialDist * 0.6;
+    const atriumPriority = r.kind === 'atrium' ? 0 : 1.5;
+    const score = boxGap + radialDist * 0.6 + atriumPriority;
     const isNear =
-      boxGap <= 6.0 && normCenter >= 0.40 && normClosest >= 0.18 && (normClosest - 1) * avgR <= 5.5;
+      boxGap <= 15.0 && normCenter >= 0.35 && normClosest >= 0.15 && (normClosest - 1) * avgR <= 15.0;
     if (score < bestScore) {
       bestScore = score;
       best = {
@@ -345,16 +192,10 @@ function computeUnitNaturalRadialOffset(
   const ucx = u.x + u.w * 0.5;
   const ucy = u.y + u.h * 0.5;
   const thetaRaw = Math.atan2((ucy - match.cy) / match.ryOut, (ucx - match.cx) / match.rxOut);
-  const parSpan = Math.max(u.w, u.h);
-  const perpDepth = Math.max(2, Math.min(2.6, Math.min(u.w, u.h)));
+  const effDepth = Math.max(2, u.h * 0.84);
   const rRim = Math.hypot(match.rxOut * Math.cos(thetaRaw), match.ryOut * Math.sin(thetaRaw)) || match.rxOut;
   const rCenter = Math.hypot(ucx - match.cx, ucy - match.cy);
-  const dTheta0 = Math.max(
-    (18 * Math.PI) / 180,
-    Math.min((95 * Math.PI) / 180, parSpan / Math.max(2, rRim + perpDepth * 0.5)),
-  );
-  const cHalf = Math.max(0.7, 0.5 + 0.5 * Math.cos(dTheta0 * 0.5));
-  return Math.max(0, (rCenter - 0.5 * perpDepth) / cHalf - rRim);
+  return Math.max(0, rCenter - 0.5 * effDepth - rRim);
 }
 
 function resolveUnitCircleRadialOffset(
@@ -363,10 +204,10 @@ function resolveUnitCircleRadialOffset(
 ): number {
   const naturalOffset = computeUnitNaturalRadialOffset(u, match);
   const meta = parseRingCurveLabelMeta(u.label);
-  if (meta?.mode === 'rim' && naturalOffset <= 1.35) {
+  if (meta?.mode === 'rim' && naturalOffset <= 2.4) {
     return 0;
   }
-  if (meta?.mode === 'outer' && meta.radialOffset !== undefined && Math.abs(meta.radialOffset - naturalOffset) <= 1.5) {
+  if (meta?.mode === 'outer' && meta.radialOffset !== undefined && Math.abs(meta.radialOffset - naturalOffset) <= 2.5) {
     return meta.radialOffset;
   }
   return naturalOffset;
@@ -387,7 +228,7 @@ function isUnitCloseToCircleAtriumRim(
 ): boolean {
   const avgR = (match.rxOut + match.ryOut) * 0.5;
   const radialGap = (match.normClosest - 1) * avgR;
-  return match.boxGap <= 1.5 && match.normClosest >= 0.72 && radialGap <= 1.25;
+  return match.boxGap <= 3.5 && match.normClosest >= 0.55 && radialGap <= 3.0;
 }
 
 function resolveAtriumFacingSideCurveMode(
@@ -409,10 +250,10 @@ function resolveAtriumFacingSideCurveMode(
 
   // Diagonal corner of the Atrium: curve only the corner facing the Atrium
   if (
-    ovX <= u.w * 0.75 &&
-    ovY <= u.h * 0.75 &&
-    Math.abs(nx) >= 0.42 &&
-    Math.abs(ny) >= 0.42
+    ovX <= u.w * 0.78 &&
+    ovY <= u.h * 0.78 &&
+    Math.abs(nx) >= 0.38 &&
+    Math.abs(ny) >= 0.38
   ) {
     if (nx >= 0 && ny >= 0) return 'notch-tl';
     if (nx < 0 && ny >= 0) return 'notch-tr';
@@ -429,19 +270,22 @@ function resolveAtriumFacingSideCurveMode(
 export function parseUnitShapeMode(
   it: { key?: string; kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
   allItems?: ReadonlyArray<{ key?: string; kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number }>,
-  _isMergedUnit?: boolean,
 ): UnitShapeMode {
   if (typeof it.label === 'string' && it.label.startsWith('unit:')) {
     const rawMode = it.label.slice(5).split(':')[0] as UnitShapeMode;
+    if (!isAutoUnitShapeLabel(it.label) && VALID_UNIT_SHAPE_MODES.has(rawMode)) {
+      return rawMode;
+    }
+    if (allItems) {
+      const autoDetected = resolveAutoUnitShapeMode(it, allItems);
+      if (autoDetected !== 'rect') return autoDetected;
+    }
     if (VALID_UNIT_SHAPE_MODES.has(rawMode)) {
       return rawMode;
     }
   }
   if (allItems) {
-    const match = findNearestCircleCorridorForUnit(it, allItems);
-    if (match && match.isNear && isUnitCloseToCircleAtriumRim(it, match)) {
-      return resolveAtriumFacingSideCurveMode(it, match);
-    }
+    return resolveAutoUnitShapeMode(it, allItems);
   }
   return 'rect';
 }
@@ -454,12 +298,258 @@ export function encodeUnitShapeMode(mode: UnitShapeMode): string {
 }
 
 export function nextUnitShapeMode(mode: UnitShapeMode, isMergedUnit = false): UnitShapeMode {
-  const list = isMergedUnit
-    ? UNIT_SHAPE_OPTIONS.filter((o) => o.id !== 'circle')
-    : UNIT_SHAPE_OPTIONS;
-  const idx = list.findIndex((o) => o.id === mode);
+  // If the current shape belongs to a multi-variant directional family, cycle within that family first
+  const family = UNIT_SHAPE_COMPACT_FAMILIES.find((f) => f.variants.includes(mode));
+  if (family && family.variants.length > 1) {
+    const famVars = isMergedUnit
+      ? family.variants.filter((v) => v !== 'circle')
+      : family.variants;
+    const fIdx = famVars.indexOf(mode);
+    if (fIdx !== -1 && famVars.length > 1) {
+      return famVars[(fIdx + 1) % famVars.length];
+    }
+  }
+  const allModes = Object.keys(UNIT_SHAPE_LABELS) as UnitShapeMode[];
+  const list = isMergedUnit ? allModes.filter((id) => id !== 'circle') : allModes;
+  const idx = list.indexOf(mode);
   if (idx === -1) return 'rect';
-  return list[(idx + 1) % list.length].id;
+  return list[(idx + 1) % list.length];
+}
+
+/**
+ * Automatically selects the best directional variant (`TL / TR / BL / BR` or `Left / Right / Top / Bottom`)
+ * for a given `UnitShapeCompactFamily` based on the unit's position relative to nearby circular Kiosks,
+ * Atriums, touching neighbor units, or the floor center.
+ */
+export function resolveSmartFamilyShapeMode(
+  u: { key?: string; x: number; y: number; w: number; h: number; angle?: number },
+  family: UnitShapeCompactFamily,
+  allItems?: ReadonlyArray<{ key?: string; kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number }>,
+  isMergedUnit = false,
+): UnitShapeMode {
+  const famVariants = isMergedUnit
+    ? family.variants.filter((v) => v !== 'circle')
+    : family.variants;
+  if (famVariants.length === 0) return 'rect';
+  if (famVariants.length === 1) return famVariants[0];
+
+  const ucx = u.x + u.w * 0.5;
+  const ucy = u.y + u.h * 0.5;
+  const items = allItems ?? [];
+
+  // 1. Find nearest circular Kiosk (unit:circle)
+  let nearestKiosk: { cx: number; cy: number; gap: number } | null = null;
+  // 2. Find nearest Atrium or Circle Ring Corridor
+  let nearestAtrium: { cx: number; cy: number; gap: number; isCircle: boolean } | null = null;
+  // 3. Detect touching neighbor units to identify open island ends
+  let hasLeftNeighbor = false;
+  let hasRightNeighbor = false;
+  let hasTopNeighbor = false;
+  let hasBottomNeighbor = false;
+  let sumX = 0;
+  let sumY = 0;
+  let count = 0;
+
+  for (const o of items) {
+    if (o === u || (u.key && o.key === u.key)) continue;
+    const ocx = o.x + o.w * 0.5;
+    const ocy = o.y + o.h * 0.5;
+    sumX += ocx;
+    sumY += ocy;
+    count++;
+
+    const gapX = Math.max(0, u.x - (o.x + o.w), o.x - (u.x + u.w));
+    const gapY = Math.max(0, u.y - (o.y + o.h), o.y - (u.y + u.h));
+    const boxGap = Math.hypot(gapX, gapY);
+
+    if (o.kind === 'unit' && o.label === 'unit:circle') {
+      if (!nearestKiosk || boxGap < nearestKiosk.gap) {
+        nearestKiosk = { cx: ocx, cy: ocy, gap: boxGap };
+      }
+      continue;
+    }
+
+    if (o.kind === 'atrium' || isCircleRingCorridor(o)) {
+      const priorityGap = o.kind === 'atrium' ? boxGap : boxGap + 1.5;
+      if (!nearestAtrium || priorityGap < nearestAtrium.gap) {
+        nearestAtrium = { cx: ocx, cy: ocy, gap: priorityGap, isCircle: isCircleRingCorridor(o) };
+      }
+    }
+
+    if (o.kind === 'unit') {
+      const ovX = Math.min(u.x + u.w, o.x + o.w) - Math.max(u.x, o.x);
+      const ovY = Math.min(u.y + u.h, o.y + o.h) - Math.max(u.y, o.y);
+      if (ovY >= 0.8 && Math.abs(u.x - (o.x + o.w)) <= 0.6) hasLeftNeighbor = true;
+      if (ovY >= 0.8 && Math.abs(o.x - (u.x + u.w)) <= 0.6) hasRightNeighbor = true;
+      if (ovX >= 0.8 && Math.abs(u.y - (o.y + o.h)) <= 0.6) hasTopNeighbor = true;
+      if (ovX >= 0.8 && Math.abs(o.y - (u.y + u.h)) <= 0.6) hasBottomNeighbor = true;
+    }
+  }
+
+  const openSide: 'left' | 'right' | 'top' | 'bottom' | null =
+    hasRightNeighbor && !hasLeftNeighbor
+      ? 'left'
+      : hasLeftNeighbor && !hasRightNeighbor
+        ? 'right'
+        : hasBottomNeighbor && !hasTopNeighbor
+          ? 'top'
+          : hasTopNeighbor && !hasBottomNeighbor
+            ? 'bottom'
+            : null;
+
+  const floorCx = count > 0 ? sumX / count : ucx;
+  const floorCy = count > 0 ? sumY / count : ucy;
+  const isNotchFamily = family.id === 'concave-notch' || family.id === 'notch-chamfer-combo';
+  const focus = isNotchFamily
+    ? (nearestKiosk && nearestKiosk.gap <= 8 ? nearestKiosk : nearestAtrium ?? nearestKiosk ?? { cx: floorCx, cy: floorCy })
+    : (nearestAtrium ?? (nearestKiosk && nearestKiosk.gap <= 8 ? nearestKiosk : { cx: floorCx, cy: floorCy }));
+
+  // Vector from unit center toward the focus point (dx < 0 => Left, dx >= 0 => Right, dy < 0 => Top, dy >= 0 => Bottom)
+  const dx = focus.cx - ucx;
+  const dy = focus.cy - ucy;
+
+  const pickIfValid = (candidate: UnitShapeMode): UnitShapeMode =>
+    famVariants.includes(candidate) ? candidate : famVariants[0];
+
+  switch (family.id) {
+    case 'crescent-arc':
+      return pickIfValid(
+        Math.abs(dx) >= Math.abs(dy)
+          ? dx < 0
+            ? 'crescent-l'
+            : 'crescent-r'
+          : dy < 0
+            ? 'crescent-t'
+            : 'crescent-b',
+      );
+    case 'chamfer-corner':
+      return pickIfValid(
+        dx < 0 && dy < 0
+          ? 'chamfer-tl'
+          : dx >= 0 && dy < 0
+            ? 'chamfer-tr'
+            : dx < 0 && dy >= 0
+              ? 'chamfer-bl'
+              : 'chamfer-br',
+      );
+    case 'bevel-end':
+      if (openSide === 'left') return pickIfValid('bevel-l');
+      if (openSide === 'right') return pickIfValid('bevel-r');
+      if (openSide === 'top') return pickIfValid('bevel-t');
+      if (openSide === 'bottom') return pickIfValid('bevel-b');
+      return pickIfValid(
+        Math.abs(dx) >= Math.abs(dy)
+          ? dx < 0
+            ? 'bevel-l'
+            : 'bevel-r'
+          : dy < 0
+            ? 'bevel-t'
+            : 'bevel-b',
+      );
+    case 'curved-corner':
+      return pickIfValid(
+        dx < 0 && dy < 0
+          ? 'curve-tl'
+          : dx >= 0 && dy < 0
+            ? 'curve-tr'
+            : dx < 0 && dy >= 0
+              ? 'curve-bl'
+              : 'curve-br',
+      );
+    case 'concave-notch':
+      return pickIfValid(
+        dx < 0 && dy < 0
+          ? 'notch-tl'
+          : dx >= 0 && dy < 0
+            ? 'notch-tr'
+            : dx < 0 && dy >= 0
+              ? 'notch-bl'
+              : 'notch-br',
+      );
+    case 'notch-chamfer-combo': {
+      if (nearestKiosk && nearestKiosk.gap <= 8) {
+        const kdx = nearestKiosk.cx - ucx;
+        const kdy = nearestKiosk.cy - ucy;
+        return pickIfValid(
+          kdx < 0 && kdy < 0
+            ? 'notch-tl-chamfer-br'
+            : kdx >= 0 && kdy < 0
+              ? 'notch-tr-chamfer-bl'
+              : kdx < 0 && kdy >= 0
+                ? 'notch-bl-chamfer-tr'
+                : 'notch-br-chamfer-tl',
+        );
+      }
+      return pickIfValid(
+        dx < 0 && dy < 0
+          ? 'notch-br-chamfer-tl'
+          : dx >= 0 && dy < 0
+            ? 'notch-bl-chamfer-tr'
+            : dx < 0 && dy >= 0
+              ? 'notch-tr-chamfer-bl'
+              : 'notch-tl-chamfer-br',
+      );
+    }
+    case 'wedge-kiosk':
+      if (nearestAtrium?.isCircle) return pickIfValid('pie-wedge');
+      return pickIfValid(
+        dx < 0 && dy < 0
+          ? 'wedge-tl'
+          : dx >= 0 && dy < 0
+            ? 'wedge-tr'
+            : dx < 0 && dy >= 0
+              ? 'wedge-bl'
+              : 'wedge-br',
+      );
+    case 'slant-top-bottom':
+      return pickIfValid(
+        dy < 0
+          ? dx < 0
+            ? 'slope-t-l'
+            : 'slope-t-r'
+          : dx < 0
+            ? 'slope-b-l'
+            : 'slope-b-r',
+      );
+    case 'slant-left-right':
+      if (openSide === 'left') return pickIfValid(dy < 0 ? 'slope-l-t' : 'slope-l-b');
+      if (openSide === 'right') return pickIfValid(dy < 0 ? 'slope-r-t' : 'slope-r-b');
+      return pickIfValid(
+        dx < 0
+          ? dy < 0
+            ? 'slope-l-t'
+            : 'slope-l-b'
+          : dy < 0
+            ? 'slope-r-t'
+            : 'slope-r-b',
+      );
+    case 'trapezoid-taper':
+      if (openSide === 'left') return pickIfValid('trapezoid-l');
+      if (openSide === 'right') return pickIfValid('trapezoid-r');
+      return pickIfValid('trapezoid');
+    case 'stepped-corner':
+      return pickIfValid(
+        dx < 0 && dy < 0
+          ? 'step-tl'
+          : dx >= 0 && dy < 0
+            ? 'step-tr'
+            : dx < 0 && dy >= 0
+              ? 'step-bl'
+              : 'step-br',
+      );
+    case 'wing-courtyard':
+      return pickIfValid(
+        Math.abs(dx) >= Math.abs(dy)
+          ? dx < 0
+            ? 'wing-bend-l'
+            : 'wing-bend-r'
+          : dy < 0
+            ? 'u-court-t'
+            : 'u-court-b',
+      );
+    default:
+      return famVariants[0];
+  }
 }
 
 export function isTrapezoidUnitMode(
@@ -805,6 +895,152 @@ export function getTrapezoidUnitGeometry(
     );
   }
 
+  // ── 1b. Slanted Left / Right Side Wall with Horizontal Top & Bottom Edges ──
+  if (mode === 'slope-l-t' || mode === 'slope-l-b' || mode === 'slope-r-t' || mode === 'slope-r-b') {
+    const cutPx = Math.min(wPx * 0.45, hPx * 0.75);
+    const sx = Math.max(0.24, Math.min(0.48, cutPx / Math.max(1, wPx)));
+    if (mode === 'slope-l-t') {
+      return buildPolygonUnitGeometryFromNormPoints(
+        [
+          { x: sx, y: 0 },
+          { x: 1, y: 0 },
+          { x: 1, y: 1 },
+          { x: 0, y: 1 },
+        ],
+        wPx,
+        hPx,
+        cellPx,
+        merge,
+        Math.round(wPx * sx * 0.25),
+        0,
+        'left',
+      );
+    }
+    if (mode === 'slope-l-b') {
+      return buildPolygonUnitGeometryFromNormPoints(
+        [
+          { x: 0, y: 0 },
+          { x: 1, y: 0 },
+          { x: 1, y: 1 },
+          { x: sx, y: 1 },
+        ],
+        wPx,
+        hPx,
+        cellPx,
+        merge,
+        Math.round(wPx * sx * 0.25),
+        0,
+        'left',
+      );
+    }
+    if (mode === 'slope-r-t') {
+      return buildPolygonUnitGeometryFromNormPoints(
+        [
+          { x: 0, y: 0 },
+          { x: 1 - sx, y: 0 },
+          { x: 1, y: 1 },
+          { x: 0, y: 1 },
+        ],
+        wPx,
+        hPx,
+        cellPx,
+        merge,
+        -Math.round(wPx * sx * 0.25),
+        0,
+        'right',
+      );
+    }
+    // slope-r-b
+    return buildPolygonUnitGeometryFromNormPoints(
+      [
+        { x: 0, y: 0 },
+        { x: 1, y: 0 },
+        { x: 1 - sx, y: 1 },
+        { x: 0, y: 1 },
+      ],
+      wPx,
+      hPx,
+      cellPx,
+      merge,
+      -Math.round(wPx * sx * 0.25),
+      0,
+      'right',
+    );
+  }
+
+  // ── 1c. Pointed / Double-Chamfered Island Ends (Bevel Left / Right / Top / Bottom) ──
+  if (mode === 'bevel-l' || mode === 'bevel-r' || mode === 'bevel-t' || mode === 'bevel-b') {
+    const bx = Math.max(0.24, Math.min(0.46, (hPx * 0.5) / Math.max(1, wPx)));
+    const by = Math.max(0.24, Math.min(0.46, (wPx * 0.5) / Math.max(1, hPx)));
+    if (mode === 'bevel-l') {
+      return buildPolygonUnitGeometryFromNormPoints(
+        [
+          { x: bx, y: 0 },
+          { x: 1, y: 0 },
+          { x: 1, y: 1 },
+          { x: bx, y: 1 },
+          { x: 0, y: 0.5 },
+        ],
+        wPx,
+        hPx,
+        cellPx,
+        merge,
+        Math.round(wPx * bx * 0.22),
+        0,
+      );
+    }
+    if (mode === 'bevel-r') {
+      return buildPolygonUnitGeometryFromNormPoints(
+        [
+          { x: 0, y: 0 },
+          { x: 1 - bx, y: 0 },
+          { x: 1, y: 0.5 },
+          { x: 1 - bx, y: 1 },
+          { x: 0, y: 1 },
+        ],
+        wPx,
+        hPx,
+        cellPx,
+        merge,
+        -Math.round(wPx * bx * 0.22),
+        0,
+      );
+    }
+    if (mode === 'bevel-t') {
+      return buildPolygonUnitGeometryFromNormPoints(
+        [
+          { x: 0.5, y: 0 },
+          { x: 1, y: by },
+          { x: 1, y: 1 },
+          { x: 0, y: 1 },
+          { x: 0, y: by },
+        ],
+        wPx,
+        hPx,
+        cellPx,
+        merge,
+        0,
+        Math.round(hPx * by * 0.22),
+      );
+    }
+    // bevel-b
+    return buildPolygonUnitGeometryFromNormPoints(
+      [
+        { x: 0, y: 0 },
+        { x: 1, y: 0 },
+        { x: 1, y: 1 - by },
+        { x: 0.5, y: 1 },
+        { x: 0, y: 1 - by },
+      ],
+      wPx,
+      hPx,
+      cellPx,
+      merge,
+      0,
+      -Math.round(hPx * by * 0.22),
+    );
+  }
+
   // ── 2. 45° Cut Corner (Chamfer) ──
   if (mode === 'chamfer-tr' || mode === 'chamfer-tl' || mode === 'chamfer-br' || mode === 'chamfer-bl') {
     const cutPx = Math.min(wPx, hPx) * 0.42;
@@ -910,52 +1146,35 @@ export function getTrapezoidUnitGeometry(
     return buildPolygonUnitGeometryFromNormPoints(pts, wPx, hPx, cellPx, merge);
   }
 
-  // ── 4. Concave Circular Cutout (Notch) ──
-  if (mode === 'notch-tl' || mode === 'notch-tr' || mode === 'notch-bl' || mode === 'notch-br') {
-    const rPx = Math.min(wPx, hPx) * 0.46;
-    const rx = Math.max(0.22, Math.min(0.54, rPx / Math.max(1, wPx)));
-    const ry = Math.max(0.22, Math.min(0.54, rPx / Math.max(1, hPx)));
-    const K = 14;
+  // ── 4. Concave Circular Cutout (Notch) & Kiosk Notch + Outer Chamfer Combos ──
+  if (
+    mode === 'notch-tl' ||
+    mode === 'notch-tr' ||
+    mode === 'notch-bl' ||
+    mode === 'notch-br' ||
+    mode === 'notch-br-chamfer-tl' ||
+    mode === 'notch-tr-chamfer-bl' ||
+    mode === 'notch-bl-chamfer-tr' ||
+    mode === 'notch-tl-chamfer-br'
+  ) {
+    const rx = 0.62;
+    const ry = 0.62;
+    const cutPx = Math.min(wPx, hPx) * 0.42;
+    const cx = Math.max(0.22, Math.min(0.46, cutPx / Math.max(1, wPx)));
+    const cy = Math.max(0.22, Math.min(0.46, cutPx / Math.max(1, hPx)));
+    const K = 18;
     const pts: Array<{ x: number; y: number }> = [];
 
-    if (mode === 'notch-tl') {
+    if (mode === 'notch-tl' || mode === 'notch-tl-chamfer-br') {
       for (let k = 0; k <= K; k++) {
         const th = (Math.PI * 0.5) * (1 - k / K);
         pts.push({ x: rx * Math.cos(th), y: ry * Math.sin(th) });
       }
-      pts.push({ x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: 1 });
-      return buildPolygonUnitGeometryFromNormPoints(
-        pts,
-        wPx,
-        hPx,
-        cellPx,
-        merge,
-        Math.round(wPx * 0.05),
-        Math.round(hPx * 0.05),
-      );
-    }
-    if (mode === 'notch-tr') {
-      pts.push({ x: 0, y: 0 });
-      for (let k = 0; k <= K; k++) {
-        const th = (k / K) * (Math.PI * 0.5);
-        pts.push({ x: 1 - rx * Math.cos(th), y: ry * Math.sin(th) });
-      }
-      pts.push({ x: 1, y: 1 }, { x: 0, y: 1 });
-      return buildPolygonUnitGeometryFromNormPoints(
-        pts,
-        wPx,
-        hPx,
-        cellPx,
-        merge,
-        -Math.round(wPx * 0.05),
-        Math.round(hPx * 0.05),
-      );
-    }
-    if (mode === 'notch-br') {
-      pts.push({ x: 0, y: 0 }, { x: 1, y: 0 });
-      for (let k = 0; k <= K; k++) {
-        const th = (Math.PI * 0.5) * (1 - k / K);
-        pts.push({ x: 1 - rx * Math.cos(th), y: 1 - ry * Math.sin(th) });
+      pts.push({ x: 1, y: 0 });
+      if (mode === 'notch-tl-chamfer-br') {
+        pts.push({ x: 1, y: 1 - cy }, { x: 1 - cx, y: 1 });
+      } else {
+        pts.push({ x: 1, y: 1 });
       }
       pts.push({ x: 0, y: 1 });
       return buildPolygonUnitGeometryFromNormPoints(
@@ -964,12 +1183,63 @@ export function getTrapezoidUnitGeometry(
         hPx,
         cellPx,
         merge,
-        -Math.round(wPx * 0.05),
-        -Math.round(hPx * 0.05),
+        Math.round(wPx * 0.06),
+        Math.round(hPx * 0.06),
       );
     }
-    // notch-bl
-    pts.push({ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 });
+    if (mode === 'notch-tr' || mode === 'notch-tr-chamfer-bl') {
+      pts.push({ x: 0, y: 0 });
+      for (let k = 0; k <= K; k++) {
+        const th = (k / K) * (Math.PI * 0.5);
+        pts.push({ x: 1 - rx * Math.cos(th), y: ry * Math.sin(th) });
+      }
+      pts.push({ x: 1, y: 1 });
+      if (mode === 'notch-tr-chamfer-bl') {
+        pts.push({ x: cx, y: 1 }, { x: 0, y: 1 - cy });
+      } else {
+        pts.push({ x: 0, y: 1 });
+      }
+      return buildPolygonUnitGeometryFromNormPoints(
+        pts,
+        wPx,
+        hPx,
+        cellPx,
+        merge,
+        -Math.round(wPx * 0.06),
+        Math.round(hPx * 0.06),
+      );
+    }
+    if (mode === 'notch-br' || mode === 'notch-br-chamfer-tl') {
+      if (mode === 'notch-br-chamfer-tl') {
+        pts.push({ x: cx, y: 0 }, { x: 1, y: 0 });
+      } else {
+        pts.push({ x: 0, y: 0 }, { x: 1, y: 0 });
+      }
+      for (let k = 0; k <= K; k++) {
+        const th = (Math.PI * 0.5) * (1 - k / K);
+        pts.push({ x: 1 - rx * Math.cos(th), y: 1 - ry * Math.sin(th) });
+      }
+      pts.push({ x: 0, y: 1 });
+      if (mode === 'notch-br-chamfer-tl') {
+        pts.push({ x: 0, y: cy });
+      }
+      return buildPolygonUnitGeometryFromNormPoints(
+        pts,
+        wPx,
+        hPx,
+        cellPx,
+        merge,
+        -Math.round(wPx * 0.06),
+        -Math.round(hPx * 0.06),
+      );
+    }
+    // notch-bl or notch-bl-chamfer-tr
+    pts.push({ x: 0, y: 0 });
+    if (mode === 'notch-bl-chamfer-tr') {
+      pts.push({ x: 1 - cx, y: 0 }, { x: 1, y: cy }, { x: 1, y: 1 });
+    } else {
+      pts.push({ x: 1, y: 0 }, { x: 1, y: 1 });
+    }
     for (let k = 0; k <= K; k++) {
       const th = (k / K) * (Math.PI * 0.5);
       pts.push({ x: rx * Math.cos(th), y: 1 - ry * Math.sin(th) });
@@ -980,8 +1250,8 @@ export function getTrapezoidUnitGeometry(
       hPx,
       cellPx,
       merge,
-      Math.round(wPx * 0.05),
-      -Math.round(hPx * 0.05),
+      Math.round(wPx * 0.06),
+      -Math.round(hPx * 0.06),
     );
   }
 
@@ -1425,39 +1695,6 @@ export function getTrapezoidUnitGeometry(
     const angleDeg = (it as { angle?: number }).angle ?? 0;
     const match = allItems ? findNearestCircleCorridorForUnit(it, allItems) : null;
 
-    // Standalone Fan / Pie-Slice Sector when `mode === 'ring-curve'` and not near a Circle Ring Walkway
-    if (mode === 'ring-curve' && (!match || !match.isNear) && !isSiblingMerged) {
-      const archDrop = 0.18;
-      const inTaper = 0.18;
-      const innerArchRise = 0.16;
-      const N = 20;
-      const outerPts: Array<{ x: number; y: number }> = [];
-      for (let k = 0; k <= N; k++) {
-        const t = k / N;
-        const u = 2 * t - 1;
-        outerPts.push({ x: t, y: archDrop * u * u });
-      }
-      const innerPts: Array<{ x: number; y: number }> = [];
-      for (let k = N; k >= 0; k--) {
-        const t = k / N;
-        const u = 2 * t - 1;
-        innerPts.push({
-          x: inTaper + t * (1 - 2 * inTaper),
-          y: 1 - innerArchRise * (1 - u * u),
-        });
-      }
-      return buildPolygonUnitGeometryFromNormPoints(
-        [...outerPts, ...innerPts],
-        wPx,
-        hPx,
-        cellPx,
-        merge,
-        0,
-        -Math.round(hPx * 0.04),
-        'bottom',
-      );
-    }
-
     const ux = it.x + it.w * 0.5;
     const uy = it.y + it.h * 0.5;
 
@@ -1465,9 +1702,6 @@ export function getTrapezoidUnitGeometry(
     const cy = match && match.isNear ? match.cy : it.y + it.h + Math.max(3, it.w * 0.75);
     const rxOut = match && match.isNear ? match.rxOut : Math.max(4, it.w * 0.85);
     const ryOut = match && match.isNear ? match.ryOut : rxOut;
-    const rxIn = match && match.isNear ? match.rxIn : Math.max(2, rxOut - 1.65);
-    const ryIn = match && match.isNear ? match.ryIn : Math.max(2, ryOut - 1.65);
-    const insideHole = match && match.isNear ? match.insideHole : false;
 
     const rad = (angleDeg * Math.PI) / 180;
     const cosA = Math.cos(rad);
@@ -1480,7 +1714,9 @@ export function getTrapezoidUnitGeometry(
     const ndy = dy / Math.max(1, ryOut);
 
     let facingEdge: 'top' | 'right' | 'bottom' | 'left';
-    if (Math.abs(ndy) >= Math.abs(ndx)) {
+    if (!match || !match.isNear) {
+      facingEdge = 'bottom';
+    } else if (Math.abs(ndy) >= Math.abs(ndx)) {
       facingEdge = dy >= 0 ? 'bottom' : 'top';
       if (facingEdge === 'bottom' && sBottom && !sTop) facingEdge = 'top';
       else if (facingEdge === 'top' && sTop && !sBottom) facingEdge = 'bottom';
@@ -1490,10 +1726,61 @@ export function getTrapezoidUnitGeometry(
       else if (facingEdge === 'left' && sLeft && !sRight) facingEdge = 'right';
     }
 
+    // True Fan / Ring Sector (convex outer arc + radial slanted sides + concave inner arc)
+    // whether touching the Atrium border, separated by a walkway gap, or standalone
+    if (mode === 'ring-curve' && !isSiblingMerged) {
+      const archDrop = 0.20;
+      const inTaper = 0.20;
+      const innerArchRise = 0.18;
+      const N = 20;
+      const canonicalPts: Array<{ x: number; y: number }> = [];
+      for (let k = 0; k <= N; k++) {
+        const t = k / N;
+        const u = 2 * t - 1;
+        canonicalPts.push({ x: t, y: archDrop * u * u });
+      }
+      for (let k = N; k >= 0; k--) {
+        const t = k / N;
+        const u = 2 * t - 1;
+        canonicalPts.push({
+          x: inTaper + t * (1 - 2 * inTaper),
+          y: 1 - innerArchRise * (1 - u * u),
+        });
+      }
+      const orientedPts = canonicalPts.map((p) => {
+        if (facingEdge === 'top') return { x: 1 - p.x, y: 1 - p.y };
+        if (facingEdge === 'left') return { x: 1 - p.y, y: p.x };
+        if (facingEdge === 'right') return { x: p.y, y: 1 - p.x };
+        return p;
+      });
+      const labelOffX =
+        facingEdge === 'left'
+          ? Math.round(wPx * 0.04)
+          : facingEdge === 'right'
+            ? -Math.round(wPx * 0.04)
+            : 0;
+      const labelOffY =
+        facingEdge === 'top'
+          ? Math.round(hPx * 0.04)
+          : facingEdge === 'bottom'
+            ? -Math.round(hPx * 0.04)
+            : 0;
+      return buildPolygonUnitGeometryFromNormPoints(
+        orientedPts,
+        wPx,
+        hPx,
+        cellPx,
+        merge,
+        labelOffX,
+        labelOffY,
+        facingEdge,
+      );
+    }
+
     const taper = mode === 'trapezoid-ring' ? 0.18 : 0;
     const N = 18;
-    const targetRx = insideHole ? rxIn : rxOut;
-    const targetRy = insideHole ? ryIn : ryOut;
+    const targetRx = rxOut;
+    const targetRy = ryOut;
     const effWCells = cellPx > 0 ? wPx / cellPx : it.w;
     const effHCells = cellPx > 0 ? hPx / cellPx : it.h;
 
@@ -1539,7 +1826,7 @@ export function getTrapezoidUnitGeometry(
 
     const indentAt = (t: number): number => {
       const a = computeArchNorm(t);
-      return (insideHole ? 1 - a : a) * maxDepthFrac;
+      return a * maxDepthFrac;
     };
 
     const normPts: Array<{ x: number; y: number }> = [];
@@ -1816,7 +2103,7 @@ interface LandmarkVariantDef {
   isEmergency?: boolean;
 }
 
-export const LANDMARK_VARIANTS: Record<Exclude<TileKind, 'unit' | 'corridor'>, ReadonlyArray<LandmarkVariantDef>> = {
+export const LANDMARK_VARIANTS: Record<Exclude<TileKind, 'unit'>, ReadonlyArray<LandmarkVariantDef>> = {
   marker: [
     { id: 'default', label: 'You Are Here', badgeText: 'HERE' },
   ],
@@ -1962,10 +2249,10 @@ export function getPolygonAtriumGeometry(
 }
 
 export function parseLandmarkMeta(
-  kind: Exclude<TileKind, 'unit' | 'corridor'> | string,
+  kind: Exclude<TileKind, 'unit'> | string,
   label?: string | null,
 ): LandmarkMeta {
-  const safeKind = (kind in LANDMARK_VARIANTS ? kind : 'atrium') as Exclude<TileKind, 'unit' | 'corridor'>;
+  const safeKind = (kind in LANDMARK_VARIANTS ? kind : 'atrium') as Exclude<TileKind, 'unit'>;
   const defs = LANDMARK_VARIANTS[safeKind] || LANDMARK_VARIANTS.atrium;
   const defaultBaseLabel = DECORATION_LABELS[safeKind] || safeKind;
   let rawVariant = defs[0].id;
@@ -2017,7 +2304,7 @@ export function parseLandmarkMeta(
 }
 
 export function encodeLandmarkMeta(
-  kind: Exclude<TileKind, 'unit' | 'corridor'>,
+  kind: Exclude<TileKind, 'unit'>,
   variant: string,
   customName?: string | null,
   showLabel?: boolean,
@@ -2039,7 +2326,7 @@ export function encodeLandmarkMeta(
 }
 
 export function nextLandmarkVariant(
-  kind: Exclude<TileKind, 'unit' | 'corridor'>,
+  kind: Exclude<TileKind, 'unit'>,
   currentVariant: string,
 ): string {
   const defs = LANDMARK_VARIANTS[kind] || [];
@@ -2048,29 +2335,15 @@ export function nextLandmarkVariant(
   return defs[(idx + 1) % defs.length].id;
 }
 
-function isCircleTile(
-  it: { kind: TileKind | string; label?: string | null; x?: number; y?: number; w?: number; h?: number },
-  allItems?: ReadonlyArray<{ kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number }>,
+export function isCircleTile(
+  it: { kind: TileKind | string; label?: string | null },
   isMergedUnit?: boolean,
 ): boolean {
-  if (it.kind !== 'unit' && it.kind !== 'corridor') {
+  if (it.kind !== 'unit') {
     return parseLandmarkMeta(it.kind, it.label).isCircle;
   }
-  if (it.kind === 'unit') {
-    if (isMergedUnit) return false;
-    if (it.label === 'unit:circle') return true;
-    if (it.label?.startsWith('unit:')) return false;
-    if (
-      allItems &&
-      typeof it.x === 'number' &&
-      typeof it.y === 'number' &&
-      typeof it.w === 'number' &&
-      typeof it.h === 'number'
-    ) {
-      return parseUnitShapeMode(it as any, allItems, isMergedUnit) === 'circle';
-    }
-  }
-  return false;
+  if (isMergedUnit) return false;
+  return it.label === 'unit:circle';
 }
 
 export const SHOP_CATEGORIES = [
@@ -2089,7 +2362,6 @@ export const SHOP_CATEGORIES = [
 
 export const DECORATION_LABELS: Record<Exclude<TileKind, 'unit'>, string> = {
   marker: 'You Are Here',
-  corridor: 'Walkway',
   entrance: 'Entrance',
   exit: 'Exit',
   escalator: 'Elevator / Escalator',
@@ -2103,22 +2375,21 @@ export const DECORATION_LABELS: Record<Exclude<TileKind, 'unit'>, string> = {
 };
 
 export const DECORATION_DEFAULT_SIZES: Record<Exclude<TileKind, 'unit'>, { w: number; h: number }> = {
-  atrium: { w: 6, h: 6 },
-  stairs: { w: 4, h: 3 },
-  escalator: { w: 4, h: 3 },
-  corridor: { w: 14, h: 2 },
-  toilet: { w: 4, h: 3 },
-  marker: { w: 3, h: 3 },
-  entrance: { w: 4, h: 2 },
-  exit: { w: 4, h: 2 },
-  info: { w: 4, h: 3 },
-  parking: { w: 4, h: 3 },
-  atm: { w: 3, h: 2 },
-  medical: { w: 4, h: 3 },
+  atrium: { w: 12, h: 12 },
+  stairs: { w: 8, h: 6 },
+  escalator: { w: 8, h: 6 },
+  toilet: { w: 8, h: 6 },
+  marker: { w: 6, h: 6 },
+  entrance: { w: 8, h: 4 },
+  exit: { w: 8, h: 4 },
+  info: { w: 8, h: 6 },
+  parking: { w: 8, h: 6 },
+  atm: { w: 6, h: 4 },
+  medical: { w: 8, h: 6 },
 };
 
-export const DEFAULT_COLUMNS = 60;
-export const DEFAULT_SQFT_PER_CELL = 30;
+export const DEFAULT_COLUMNS = 120;
+export const DEFAULT_SQFT_PER_CELL = 8;
 
 /** The floor a shop belongs to, used as the map's per-floor key. */
 export function floorKeyOf(shop: any): string {
@@ -2207,7 +2478,7 @@ export function scoreShopSearchMatch(shop: any, query: string): number {
 
 /**
  * Tile size in grid cells for a unit: area ∝ sqft, slightly landscape (1.4:1)
- * with a larger default minimum (5×3) so unit cards are easy to see and click.
+ * with a default minimum (10×6 on the 120-col fine grid) so unit cards are easy to see, click, and fine-tune by 1-cell steps.
  */
 export function tileSizeFromSqft(
   areaSqft: number | string | null | undefined,
@@ -2217,9 +2488,9 @@ export function tileSizeFromSqft(
   const rawSqft = Number(areaSqft);
   const sqft = rawSqft > 0 ? rawSqft : 450;
   const spc = sqftPerCell > 0 ? sqftPerCell : DEFAULT_SQFT_PER_CELL;
-  const cells = Math.max(15, sqft / spc);
-  const w = Math.min(columns, Math.max(5, Math.round(Math.sqrt(cells * 1.4))));
-  const h = Math.max(3, Math.round(cells / w));
+  const cells = Math.max(60, sqft / spc);
+  const w = Math.min(columns, Math.max(10, Math.round(Math.sqrt(cells * 1.4))));
+  const h = Math.max(6, Math.round(cells / w));
   return { w, h };
 }
 
@@ -2231,7 +2502,7 @@ function rectsOverlap(
 }
 
 export function isTransitLandmark(kind: TileKind | string): boolean {
-  return kind === 'stairs' || kind === 'escalator';
+  return kind === 'stairs' || kind === 'escalator' || kind === 'info' || kind === 'marker';
 }
 
 function isAtriumTransitOverlap(
@@ -2247,159 +2518,72 @@ function isAtriumTransitOverlap(
   return false;
 }
 
-function getCustomUnitPolygonVerticesAndAxes(
+export function getCustomUnitConvexPolygons(
   t: { kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
   f: { ux: number; uy: number; vx: number; vy: number },
-): { corners: Array<{ x: number; y: number }>; extraAxes: Array<{ x: number; y: number }> } | null {
-  let uv: Array<[number, number]> | null = null;
+): Array<{ corners: Array<{ x: number; y: number }>; extraAxes: Array<{ x: number; y: number }> }> | null {
+  let uvParts: ReadonlyArray<ReadonlyArray<readonly [number, number]>> | null = null;
 
-  if (t.kind !== 'unit' && t.kind !== 'corridor') {
+  if (t.kind !== 'unit') {
     const meta = parseLandmarkMeta(t.kind, t.label);
     if (meta.polygonFaces && meta.polygonFaces >= 6) {
       const faces = meta.polygonFaces;
       const cosStep = Math.cos(Math.PI / faces);
-      uv = [];
+      const poly: Array<[number, number]> = [];
       for (let i = 0; i < faces; i++) {
         const theta = -Math.PI / 2 + ((i + 0.5) * 2 * Math.PI) / faces;
-        const u = 0.5 * Math.max(-1, Math.min(1, Math.cos(theta) / cosStep));
-        const v = 0.5 * Math.max(-1, Math.min(1, Math.sin(theta) / cosStep));
-        uv.push([u, v]);
+        const u = 0.485 * Math.max(-1, Math.min(1, Math.cos(theta) / cosStep));
+        const v = 0.485 * Math.max(-1, Math.min(1, Math.sin(theta) / cosStep));
+        poly.push([u, v]);
       }
+      uvParts = [poly];
     } else if (meta.isCircle) {
       const K = 24;
-      uv = [];
+      const poly: Array<[number, number]> = [];
       for (let i = 0; i < K; i++) {
         const theta = (i * 2 * Math.PI) / K;
-        uv.push([0.5 * Math.cos(theta), 0.5 * Math.sin(theta)]);
+        poly.push([0.485 * Math.cos(theta), 0.485 * Math.sin(theta)]);
       }
+      uvParts = [poly];
     }
   } else if (t.kind === 'unit') {
     const mode = parseUnitShapeMode(t);
     if (!mode || mode === 'rect') {
       return null;
     }
-    switch (mode) {
-      case 'circle': {
-        const K = 24;
-        uv = [];
-        for (let i = 0; i < K; i++) {
-          const theta = (i * 2 * Math.PI) / K;
-          uv.push([0.5 * Math.cos(theta), 0.5 * Math.sin(theta)]);
-        }
-        break;
-      }
-      case 'ring-curve':
-        uv = [[-0.5, -0.32], [0, -0.5], [0.5, -0.32], [0.32, 0.5], [-0.32, 0.5]];
-        break;
-      case 'trapezoid-ring':
-        uv = [[-0.5, -0.5], [0.5, -0.5], [0.32, 0.5], [-0.32, 0.5]];
-        break;
-      case 'slope-b-l':
-        uv = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.16]];
-        break;
-      case 'slope-b-r':
-        uv = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.16], [-0.5, 0.5]];
-        break;
-      case 'slope-t-l':
-        uv = [[-0.5, -0.16], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]];
-        break;
-      case 'slope-t-r':
-        uv = [[-0.5, -0.5], [0.5, -0.16], [0.5, 0.5], [-0.5, 0.5]];
-        break;
-      case 'chamfer-tr':
-      case 'curve-tr':
-      case 'notch-tr':
-      case 'step-tr':
-        uv = [[-0.5, -0.5], [0.06, -0.5], [0.5, -0.06], [0.5, 0.5], [-0.5, 0.5]];
-        break;
-      case 'chamfer-tl':
-      case 'curve-tl':
-      case 'notch-tl':
-      case 'step-tl':
-        uv = [[-0.06, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5], [-0.5, -0.06]];
-        break;
-      case 'chamfer-br':
-      case 'curve-br':
-      case 'notch-br':
-      case 'step-br':
-        uv = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.06], [0.06, 0.5], [-0.5, 0.5]];
-        break;
-      case 'chamfer-bl':
-      case 'curve-bl':
-      case 'notch-bl':
-      case 'step-bl':
-        uv = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.06, 0.5], [-0.5, 0.06]];
-        break;
-      case 'crescent-l':
-        uv = [[-0.18, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.18, 0.5]];
-        break;
-      case 'crescent-r':
-        uv = [[-0.5, -0.5], [0.18, -0.5], [0.18, 0.5], [-0.5, 0.5]];
-        break;
-      case 'crescent-t':
-      case 'step-t-mid':
-      case 'u-court-t':
-        uv = [[-0.5, -0.18], [0.5, -0.18], [0.5, 0.5], [-0.5, 0.5]];
-        break;
-      case 'crescent-b':
-      case 'step-b-mid':
-      case 'u-court-b':
-        uv = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.18], [-0.5, 0.18]];
-        break;
-      case 'pie-wedge':
-        uv = [[-0.5, -0.5], [0.5, -0.5], [0.14, 0.5], [-0.14, 0.5]];
-        break;
-      case 'wedge-tl':
-        uv = [[-0.5, -0.5], [0.5, -0.5], [0.5, -0.32], [-0.32, 0.5], [-0.5, 0.5]];
-        break;
-      case 'wedge-tr':
-        uv = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [0.32, 0.5], [-0.5, -0.32]];
-        break;
-      case 'wedge-bl':
-        uv = [[-0.5, -0.5], [-0.32, -0.5], [0.5, 0.32], [0.5, 0.5], [-0.5, 0.5]];
-        break;
-      case 'wedge-br':
-        uv = [[0.32, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5], [-0.5, 0.32]];
-        break;
-      case 'wing-bend-l':
-        uv = [[-0.22, -0.5], [0.5, -0.5], [0.5, 0.04], [-0.12, 0.5], [-0.5, 0.5], [-0.5, -0.14]];
-        break;
-      case 'wing-bend-r':
-        uv = [[-0.5, -0.5], [0.22, -0.5], [0.5, -0.14], [0.5, 0.5], [0.12, 0.5], [-0.5, 0.04]];
-        break;
-      case 'trapezoid':
-        uv = [[-0.36, -0.5], [0.36, -0.5], [0.5, 0.5], [-0.5, 0.5]];
-        break;
-      case 'trapezoid-l':
-        uv = [[-0.28, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]];
-        break;
-      case 'trapezoid-r':
-        uv = [[-0.5, -0.5], [0.28, -0.5], [0.5, 0.5], [-0.5, 0.5]];
-        break;
-      default:
-        return null;
-    }
+    uvParts = UNIT_SHAPE_CONVEX_UV_PARTS[mode] ?? null;
   }
 
-  if (!uv) return null;
+  if (!uvParts || uvParts.length === 0) return null;
   const cx = t.x + t.w * 0.5;
   const cy = t.y + t.h * 0.5;
-  const corners = uv.map(([u, v]) => ({
-    x: cx + f.ux * (u * t.w) + f.vx * (v * t.h),
-    y: cy + f.uy * (u * t.w) + f.vy * (v * t.h),
-  }));
-  const extraAxes: Array<{ x: number; y: number }> = [];
-  for (let i = 0; i < corners.length; i++) {
-    const p0 = corners[i];
-    const p1 = corners[(i + 1) % corners.length];
-    const ex = p1.x - p0.x;
-    const ey = p1.y - p0.y;
-    const len = Math.hypot(ex, ey);
-    if (len > 1e-3) {
-      extraAxes.push({ x: -ey / len, y: ex / len });
+  return uvParts.map((uv) => {
+    const corners = uv.map(([u, v]) => ({
+      x: cx + f.ux * (u * t.w) + f.vx * (v * t.h),
+      y: cy + f.uy * (u * t.w) + f.vy * (v * t.h),
+    }));
+    const extraAxes: Array<{ x: number; y: number }> = [];
+    for (let i = 0; i < corners.length; i++) {
+      const p0 = corners[i];
+      const p1 = corners[(i + 1) % corners.length];
+      const ex = p1.x - p0.x;
+      const ey = p1.y - p0.y;
+      const len = Math.hypot(ex, ey);
+      if (len > 1e-3) {
+        extraAxes.push({ x: -ey / len, y: ex / len });
+      }
     }
-  }
-  return { corners, extraAxes };
+    return { corners, extraAxes };
+  });
+}
+
+export function getCustomUnitPolygonVerticesAndAxes(
+  t: { kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
+  f: { ux: number; uy: number; vx: number; vy: number },
+): { corners: Array<{ x: number; y: number }>; extraAxes: Array<{ x: number; y: number }> } | null {
+  const parts = getCustomUnitConvexPolygons(t, f);
+  if (!parts || parts.length === 0) return null;
+  return parts[0];
 }
 
 function getRotatedWorldAABB(t: { x: number; y: number; w: number; h: number; angle?: number }): {
@@ -2437,29 +2621,11 @@ function rotatedWorldBoundsOverlap(
   );
 }
 
-function areRotatedRectsSeparated(
-  a: { kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
-  b: { kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
+function areConvexPartsSeparated(
+  cornersA: ReadonlyArray<{ x: number; y: number }>,
+  cornersB: ReadonlyArray<{ x: number; y: number }>,
+  axes: ReadonlyArray<{ x: number; y: number }>,
 ): boolean {
-  const angleA = a.angle ?? 0;
-  const angleB = b.angle ?? 0;
-  const fa = getLocalTileFrame(a);
-  const fb = getLocalTileFrame(b);
-  const polyA = getCustomUnitPolygonVerticesAndAxes(a, fa);
-  const polyB = getCustomUnitPolygonVerticesAndAxes(b, fb);
-  if (angleA === 0 && angleB === 0 && !polyA && !polyB) return false;
-  if (!polyA && !polyB && rectsOverlap(a, b)) return false;
-
-  const cornersA = polyA ? polyA.corners : getTileWorldCorners(a, fa);
-  const cornersB = polyB ? polyB.corners : getTileWorldCorners(b, fb);
-  const axes = [
-    { x: fa.ux, y: fa.uy },
-    { x: fa.vx, y: fa.vy },
-    { x: fb.ux, y: fb.uy },
-    { x: fb.vx, y: fb.vy },
-    ...(polyA ? polyA.extraAxes : []),
-    ...(polyB ? polyB.extraAxes : []),
-  ];
   const eps = 1e-4;
   for (const ax of axes) {
     let minA = Infinity;
@@ -2479,6 +2645,39 @@ function areRotatedRectsSeparated(
     if (maxA <= minB + eps || maxB <= minA + eps) return true;
   }
   return false;
+}
+
+function areRotatedRectsSeparated(
+  a: { kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
+  b: { kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
+): boolean {
+  const angleA = a.angle ?? 0;
+  const angleB = b.angle ?? 0;
+  const fa = getLocalTileFrame(a);
+  const fb = getLocalTileFrame(b);
+  const partsA = getCustomUnitConvexPolygons(a, fa);
+  const partsB = getCustomUnitConvexPolygons(b, fb);
+  if (angleA === 0 && angleB === 0 && !partsA && !partsB) return false;
+  if (!partsA && !partsB && rectsOverlap(a, b)) return false;
+
+  const listA = partsA ?? [{ corners: getTileWorldCorners(a, fa), extraAxes: [] }];
+  const listB = partsB ?? [{ corners: getTileWorldCorners(b, fb), extraAxes: [] }];
+  const baseAxes = [
+    { x: fa.ux, y: fa.uy },
+    { x: fa.vx, y: fa.vy },
+    { x: fb.ux, y: fb.uy },
+    { x: fb.vx, y: fb.vy },
+  ];
+
+  for (const pa of listA) {
+    for (const pb of listB) {
+      const axes = [...baseAxes, ...pa.extraAxes, ...pb.extraAxes];
+      if (!areConvexPartsSeparated(pa.corners, pb.corners, axes)) {
+        return false;
+      }
+    }
+  }
+  return true;
 }
 
 export function tilesConflict(a: MapItem, b: MapItem): boolean {
@@ -2815,15 +3014,6 @@ function getMatchedNeighborDimensions(
     return { w: baseW, h: baseH };
   }
 
-  if (moved.kind === 'corridor' && sib.kind === 'corridor' && !moved.angle && !sib.angle) {
-    const sibThick = Math.min(sib.w, sib.h);
-    if (sibThick >= 1 && sibThick <= 4) {
-      if (baseW > baseH && Math.abs(baseH - sibThick) <= 1) return { w: baseW, h: sibThick };
-      if (baseH > baseW && Math.abs(baseW - sibThick) <= 1) return { w: Math.min(sibThick, columns), h: baseH };
-    }
-    return { w: baseW, h: baseH };
-  }
-
   if (isCircleTile(moved)) {
     const targetSide = side === 'left' || side === 'right' ? sib.h : sib.w;
     if (targetSide >= 2 && targetSide <= 6 && (moved.kind === sib.kind || Math.abs(baseW - targetSide) <= 2)) {
@@ -2996,7 +3186,7 @@ function findPolygonAtriumMagneticCandidate(
   const mcx = moved.x + w / 2;
   const mcy = moved.y + h / 2;
 
-  // Allow transit landmarks (Escalator / Stairs) dragged inside the Atrium interior (`normDist < 0.68`) to stay inside
+  // Allow transit landmarks (Escalator / Stairs / Info / Marker) dragged inside the Atrium interior (`normDist < 0.68`) to stay inside
   if (isAtriumTransitOverlap(atr, moved)) {
     const normDist = Math.hypot((mcx - acx) / Math.max(1, atr.w * 0.5), (mcy - acy) / Math.max(1, atr.h * 0.5));
     if (normDist < 0.68) return null;
@@ -3004,14 +3194,7 @@ function findPolygonAtriumMagneticCandidate(
 
   const gapX = Math.max(0, atr.x - (moved.x + w), moved.x - (atr.x + atr.w));
   const gapY = Math.max(0, atr.y - (moved.y + h), moved.y - (atr.y + atr.h));
-  const overlapsAttached = others.some(
-    (o) =>
-      o.kind !== 'atrium' &&
-      rectsOverlap(moved, o) &&
-      matchSinglePolygonAtriumFaceForItem(o, atr) !== null,
-  );
-  const maxGap = overlapsAttached ? MAGNET_SNAP_GAP + 2 : MAGNET_SNAP_GAP + 1;
-  if (gapX > maxGap || gapY > maxGap) return null;
+  if (gapX > 10.0 || gapY > 10.0) return null;
 
   const vx = mcx - acx;
   const vy = mcy - acy;
@@ -3019,17 +3202,9 @@ function findPolygonAtriumMagneticCandidate(
   const dirX = vx / vLen;
   const dirY = vy / vLen;
 
-  const occupiedFaces = new Set<number>();
-  for (const o of others) {
-    if (o.kind === 'atrium' || o.kind === 'marker') continue;
-    const m = matchSinglePolygonAtriumFaceForItem(o, atr);
-    if (m) occupiedFaces.add(m.faceIndex);
-  }
-
   const rankedFaces = polyFaces
-    .filter((f) => !occupiedFaces.has(f.index))
     .map((f) => ({ face: f, dot: dirX * f.nx + dirY * f.ny }))
-    .filter((entry) => entry.dot > -0.35)
+    .filter((entry) => entry.dot > -0.25)
     .sort((a, b) => b.dot - a.dot);
 
   if (rankedFaces.length === 0) return null;
@@ -3045,7 +3220,6 @@ function findPolygonAtriumMagneticCandidate(
     !isTrap &&
     isAutoAtriumSideCurveLabel(moved.label);
   const nextUnitLabel = resetUnitShapeToRect ? 'unit:rect' : moved.label;
-  const isLongCorridor = moved.kind === 'corridor' && Math.max(w, h) >= atr.w;
 
   for (const { face: bestFace } of rankedFaces) {
     const fmx = (bestFace.x0 + bestFace.x1) * 0.5;
@@ -3053,24 +3227,23 @@ function findPolygonAtriumMagneticCandidate(
 
     // Cardinal face (Top / Bottom, or Left / Right for non-trapezoid tiles) when Atrium itself is unrotated
     if (bestFace.isCardinal && !atr.angle && (!isTrap || Math.abs(bestFace.ny) > 0.9)) {
+      if (gapX > 3.0 || gapY > 3.0) continue;
       const alignedAngle = undefined;
       if (Math.abs(bestFace.ny) > 0.9) {
         const touchEdge: 'top' | 'bottom' = bestFace.ny < 0 ? 'bottom' : 'top';
         const taperFrac = getEdgeTaperFraction({ ...moved, label: nextUnitLabel }, touchEdge);
         const candW =
-          activeSnapAutoResize && !isLongCorridor && bestFace.len >= 1.5
+          activeSnapAutoResize && bestFace.len >= 1.5
             ? Math.max(2, Math.min(columns, Math.round(bestFace.len / taperFrac)))
             : w;
         const candH = h;
         const cy = bestFace.ny < 0 ? atr.y - candH : atr.y + atr.h;
         if (cy >= 0) {
           const idealCx = Math.max(0, Math.min(columns - candW, Math.round(fmx - candW / 2)));
-          const xCandidates = isLongCorridor
-            ? computeFullBorderAlignedPositions(moved.x, candW, atr.x, atr.w, columns - candW)
-            : [
-                idealCx,
-                ...computeFullBorderAlignedPositions(moved.x, candW, atr.x, atr.w, columns - candW),
-              ];
+          const xCandidates = [
+            idealCx,
+            ...computeFullBorderAlignedPositions(moved.x, candW, atr.x, atr.w, columns - candW),
+          ];
           for (const cx of xCandidates) {
             if (cx < 0 || cx + candW > columns) continue;
             const cand: MapItem = {
@@ -3099,14 +3272,14 @@ function findPolygonAtriumMagneticCandidate(
       } else {
         const candW = w;
         const candH =
-          activeSnapAutoResize && !isLongCorridor && bestFace.len >= 1.5
+          activeSnapAutoResize && bestFace.len >= 1.5
             ? Math.max(2, Math.round(bestFace.len))
             : h;
         const cx = bestFace.nx < 0 ? atr.x - candW : atr.x + atr.w;
         if (cx >= 0 && cx + candW <= columns) {
           const idealCy = Math.max(0, Math.round(fmy - candH / 2));
           const yCandidates =
-            !isLongCorridor && bestFace.len >= 1.5
+            bestFace.len >= 1.5
               ? [idealCy, ...computeFullBorderAlignedPositions(moved.y, candH, atr.y, atr.h, 5000)]
               : computeFullBorderAlignedPositions(moved.y, candH, atr.y, atr.h, 5000);
           for (const cy of yCandidates) {
@@ -3137,7 +3310,16 @@ function findPolygonAtriumMagneticCandidate(
       }
     }
 
-    // Slanted / diagonal face (or Trapezoid on Left/Right face): auto-adjust degree (`alignedAngle`) and line length (`candW`, `candH`)
+    // Slanted / diagonal face (or Trapezoid on Left/Right face):
+    // If an upright unit (`!moved.angle`) is placed across a walkway gap (`rawPerpGap > 2.0`),
+    // do not force it to rotate to 45° unless it is already tilted or dragged close to the diagonal face (`<= 2.0` cells),
+    // so upright corner units across a walkway can use 45° Cut Corner (`chamfer-*`) as in Photo 3.
+    const rawPerpCenterDist = (mcx - fmx) * bestFace.nx + (mcy - fmy) * bestFace.ny;
+    const rawPerpGap = Math.max(0, rawPerpCenterDist - h * 0.5);
+    if (!moved.angle && rawPerpGap > 2.0 && !tilesConflict(moved, atr)) {
+      continue;
+    }
+
     const candidateEdges: Array<'bottom' | 'top'> = ['bottom', 'top'];
     let bestEdge: 'bottom' | 'top' = 'bottom';
     let bestExactDeg = getExactEdgeFaceAngleDeg('bottom', bestFace);
@@ -3173,40 +3355,61 @@ function findPolygonAtriumMagneticCandidate(
       sizePairs.push([w, h]);
     }
 
+    const rawAlong = (mcx - fmx) * bestFace.tx + (mcy - fmy) * bestFace.ty;
+    const maxAlong = Math.max(0, bestFace.len * 0.65);
+    const clampedAlong = Math.max(-maxAlong, Math.min(maxAlong, rawAlong));
+    const perpWalkwayOffset = rawPerpGap > 1.8 ? Math.round(rawPerpGap * 2) / 2 : 0;
+
     for (const [candW, candH] of sizePairs) {
-      const idealCenterX = fmx + bestFace.nx * (candH * 0.5);
-      const idealCenterY = fmy + bestFace.ny * (candH * 0.5);
-      const baseX = Math.round(idealCenterX - candW * 0.5);
-      const baseY = Math.round(idealCenterY - candH * 0.5);
+      const alongSlots: number[] = [clampedAlong, 0];
+      for (const o of others) {
+        if (o.key === moved.key || o.kind === 'atrium' || o.kind === 'marker') continue;
+        if (angularDiffDeg(o.angle ?? 0, alignedAngle ?? 0) <= 6) {
+          const ocx = o.x + o.w * 0.5;
+          const ocy = o.y + o.h * 0.5;
+          const oAlong = (ocx - fmx) * bestFace.tx + (ocy - fmy) * bestFace.ty;
+          const touchStep = (o.w + candW) * 0.5;
+          alongSlots.push(oAlong + touchStep, oAlong - touchStep);
+        }
+      }
 
       let bestDiag: { x: number; y: number; dist: number; score: number } | null = null;
-      for (let dy = -4; dy <= 4; dy++) {
-        for (let dx = -4; dx <= 4; dx++) {
-          const cx = baseX + dx;
-          const cy = baseY + dy;
-          if (cx < 0 || cy < 0 || cx + candW > columns) continue;
-          const cand: MapItem = {
-            ...moved,
-            x: cx,
-            y: cy,
-            w: candW,
-            h: candH,
-            angle: alignedAngle,
-            label: nextUnitLabel,
-          };
-          if (others.some((o) => tilesConflict(cand, o))) continue;
-          const match = matchSinglePolygonAtriumFaceForItem(cand, atr);
-          if (!match || match.faceIndex !== bestFace.index) continue;
-          const centerDist = Math.hypot(cx + candW / 2 - idealCenterX, cy + candH / 2 - idealCenterY);
-          const moveDist = Math.hypot(cx + candW / 2 - mcx, cy + candH / 2 - mcy);
-          const score = centerDist * 3.5 + moveDist * 0.15;
-          if (!bestDiag || score < bestDiag.score) {
-            bestDiag = {
+      for (const slotAlong of alongSlots) {
+        const idealCenterX = fmx + bestFace.tx * slotAlong + bestFace.nx * (perpWalkwayOffset + candH * 0.5);
+        const idealCenterY = fmy + bestFace.ty * slotAlong + bestFace.ny * (perpWalkwayOffset + candH * 0.5);
+        const baseX = Math.round(idealCenterX - candW * 0.5);
+        const baseY = Math.round(idealCenterY - candH * 0.5);
+
+        for (let dy = -4; dy <= 4; dy++) {
+          for (let dx = -4; dx <= 4; dx++) {
+            const cx = baseX + dx;
+            const cy = baseY + dy;
+            if (cx < 0 || cy < 0 || cx + candW > columns) continue;
+            const cand: MapItem = {
+              ...moved,
               x: cx,
               y: cy,
-              dist: Math.min(gapX + gapY, moveDist),
-              score,
+              w: candW,
+              h: candH,
+              angle: alignedAngle,
+              label: nextUnitLabel,
             };
+            if (others.some((o) => tilesConflict(cand, o))) continue;
+            if (perpWalkwayOffset <= 0.1) {
+              const match = matchSinglePolygonAtriumFaceForItem(cand, atr);
+              if (!match || match.faceIndex !== bestFace.index) continue;
+            }
+            const centerDist = Math.hypot(cx + candW / 2 - idealCenterX, cy + candH / 2 - idealCenterY);
+            const moveDist = Math.hypot(cx + candW / 2 - mcx, cy + candH / 2 - mcy);
+            const score = centerDist * 3.0 + moveDist * 0.25;
+            if (!bestDiag || score < bestDiag.score) {
+              bestDiag = {
+                x: cx,
+                y: cy,
+                dist: Math.min(gapX + gapY, moveDist),
+                score,
+              };
+            }
           }
         }
       }
@@ -3240,7 +3443,7 @@ function findCircleCorridorMagneticCandidate(
   const h = moved.h;
   const gapX = Math.max(0, ring.x - (moved.x + w), moved.x - (ring.x + ring.w));
   const gapY = Math.max(0, ring.y - (moved.y + h), moved.y - (ring.y + ring.h));
-  if (gapX > 6.0 || gapY > 6.0) return null;
+  if (gapX > 12.0 || gapY > 12.0) return null;
 
   const rcx = ring.x + ring.w * 0.5;
   const rcy = ring.y + ring.h * 0.5;
@@ -3256,7 +3459,7 @@ function findCircleCorridorMagneticCandidate(
   );
 
   const normCenterDist = Math.hypot(vx / rxOut, vy / ryOut);
-  // Allow transit landmarks (Escalator / Stairs) dragged inside a Circle Atrium to stay inside its interior
+  // Allow transit landmarks (Escalator / Stairs / Info) dragged inside a Circle Atrium to stay inside its interior
   if (isAtriumTransitOverlap(ring, moved) && normCenterDist < 0.65) {
     return null;
   }
@@ -3267,13 +3470,13 @@ function findCircleCorridorMagneticCandidate(
   const normClosest = Math.hypot((closestPt.x - rcx) / rxOut, (closestPt.y - rcy) / ryOut);
   const avgR = (rxOut + ryOut) * 0.5;
   const radialGap = (normClosest - 1) * avgR;
-  if (radialGap > 5.5) return null;
+  if (radialGap > 12.0) return null;
 
   // Upright units (not explicitly set to fan-sector ring-curve / trapezoid-ring) keep straight outer walls (0°)
   // and hug the Circle Atrium perimeter using Side-Curve (crescent-* / notch-*) when Auto-Shape is ON.
   if (moved.kind === 'unit' && !isRingCurveUnitLabel(moved.label) && moved.label !== 'unit:trapezoid-ring') {
     const conflictsWithRing = tilesConflict(moved, ring);
-    if (!conflictsWithRing && radialGap > 0.85) {
+    if (!conflictsWithRing && radialGap > 1.5) {
       return null;
     }
     const rawThetaUpright = Math.atan2(vy / ryOut, vx / rxOut);
@@ -3285,7 +3488,7 @@ function findCircleCorridorMagneticCandidate(
     const baseY = Math.max(0, Math.round(moved.y + shiftY));
 
     let bestUpright: { x: number; y: number; label: string | null; dist: number; score: number } | null = null;
-    const searchRange = conflictsWithRing ? 3 : 1;
+    const searchRange = conflictsWithRing ? 5 : 2;
     for (let dy = -searchRange; dy <= searchRange; dy++) {
       for (let dx = -searchRange; dx <= searchRange; dx++) {
         const cx = baseX + dx;
@@ -3294,7 +3497,7 @@ function findCircleCorridorMagneticCandidate(
         const testRect = { ...moved, x: cx, y: cy, w, h, angle: undefined };
         const cp = getClosestPointOnTileToPoint(testRect, rcx, rcy);
         const normCp = Math.hypot((cp.x - rcx) / rxOut, (cp.y - rcy) / ryOut);
-        if (normCp > 1.22) continue;
+        if (normCp > 1.35) continue;
 
         let nextLabel: string | null = moved.label ?? null;
         if (!activeAutoShape) {
@@ -3359,22 +3562,21 @@ function findCircleCorridorMagneticCandidate(
   }
 
   const rawTheta = Math.atan2(vy / ryOut, vx / rxOut);
-  const parSpan = Math.max(w, h);
-  const perpDepth = Math.min(w, h);
-  const candW = !activeSnapAutoResize || isMultiBlockUnit || isCircleTile(moved) ? w : Math.min(columns, parSpan);
-  const candH = !activeSnapAutoResize || isMultiBlockUnit || isCircleTile(moved) ? h : perpDepth;
+  const candW = !activeSnapAutoResize || isMultiBlockUnit || isCircleTile(moved) ? w : Math.min(columns, Math.max(w, h));
+  const candH = !activeSnapAutoResize || isMultiBlockUnit || isCircleTile(moved) ? h : Math.min(w, h);
+  const parSpan = candW;
 
   const movedRawOffset = computeUnitNaturalRadialOffset(
     { x: moved.x, y: moved.y, w: candW, h: candH },
     { cx: rcx, cy: rcy, rxOut, ryOut },
   );
 
-  // Determine direct radial offset: 0 when dragged close to the Circle Atrium rim (<= 1.35 cells),
-  // or preserve the walkway space from the Circle Atrium when placed further out (> 1.35 cells).
-  let directRadialOffset = moved.kind === 'unit' && movedRawOffset > 1.35 ? Math.round(movedRawOffset * 4) / 4 : 0;
+  // Determine direct radial offset: 0 when dragged close to the Circle Atrium rim (<= 2.0 cells),
+  // or preserve the walkway space from the Circle Atrium when placed further out (> 2.0 cells).
+  let directRadialOffset = moved.kind === 'unit' && movedRawOffset > 2.0 ? Math.round(movedRawOffset * 2) / 2 : 0;
 
   const candidateSlots: Array<{ theta: number; radialOffset: number; isNeighborSlot: boolean }> = [];
-  const mPerp = moved.kind === 'unit' ? Math.max(2, Math.min(2.6, perpDepth)) : candH;
+  const mPerp = moved.kind === 'unit' ? Math.max(2, candH * 0.84) : candH;
 
   for (const o of others) {
     if (o.key === moved.key || o.kind === 'atrium' || o.kind === 'marker') continue;
@@ -3382,25 +3584,25 @@ function findCircleCorridorMagneticCandidate(
     if (!m || !m.isNear) continue;
 
     const oRadialOffset = resolveUnitCircleRadialOffset(o, m);
-    if (directRadialOffset > 0 && oRadialOffset > 0.15 && Math.abs(oRadialOffset - movedRawOffset) <= 1.25) {
+    if (directRadialOffset > 0 && oRadialOffset > 0.15 && Math.abs(oRadialOffset - movedRawOffset) <= 2.0) {
       directRadialOffset = oRadialOffset;
     }
-    if (Math.abs(movedRawOffset - oRadialOffset) > 2.2) continue;
+    if (Math.abs(movedRawOffset - oRadialOffset) > 4.0) continue;
 
     const ocx = o.x + o.w * 0.5;
     const ocy = o.y + o.h * 0.5;
     const oTheta = Math.atan2((ocy - rcy) / ryOut, (ocx - rcx) / rxOut);
-    const oPar = Math.max(o.w, o.h);
-    const oPerp = Math.max(2, Math.min(2.6, Math.min(o.w, o.h)));
+    const oPar = o.w;
+    const oPerp = Math.max(2, o.h * 0.84);
     const oRxIn = rxOut + oRadialOffset;
     const oRyIn = ryOut + oRadialOffset;
     const oRIn = Math.hypot(oRxIn * Math.cos(oTheta), oRyIn * Math.sin(oTheta)) || oRxIn;
     const oSpan = Math.max(
-      (18 * Math.PI) / 180,
+      (12 * Math.PI) / 180,
       Math.min((95 * Math.PI) / 180, oPar / Math.max(2, oRIn + oPerp * 0.5)),
     );
     const dThetaMovedAtO = Math.max(
-      (18 * Math.PI) / 180,
+      (12 * Math.PI) / 180,
       Math.min((95 * Math.PI) / 180, parSpan / Math.max(2, oRIn + mPerp * 0.5)),
     );
     const touchDelta = 0.5 * (oSpan + dThetaMovedAtO);
@@ -3468,17 +3670,17 @@ function findCircleCorridorMagneticCandidate(
 
     const rInAtTheta = Math.hypot(bx - rcx, by - rcy) || (avgR + slot.radialOffset);
     const dThetaSlot = Math.max(
-      (18 * Math.PI) / 180,
+      (12 * Math.PI) / 180,
       Math.min((95 * Math.PI) / 180, parSpan / Math.max(2, rInAtTheta + mPerp * 0.5)),
     );
-    const cHalf = moved.kind === 'unit' ? Math.max(0.7, 0.5 + 0.5 * Math.cos(dThetaSlot * 0.5)) : 1;
+    const cHalf = moved.kind === 'unit' ? Math.max(0.75, 0.5 + 0.5 * Math.cos(dThetaSlot * 0.5)) : 1;
     const idealCenterX = rcx + rxSlot * Math.cos(theta) * cHalf + nx * (0.5 * mPerp);
     const idealCenterY = rcy + rySlot * Math.sin(theta) * cHalf + ny * (0.5 * mPerp);
     const baseX = Math.round(idealCenterX - candW * 0.5);
     const baseY = Math.round(idealCenterY - candH * 0.5);
 
-    for (let dy = -3; dy <= 3; dy++) {
-      for (let dx = -3; dx <= 3; dx++) {
+    for (let dy = -4; dy <= 4; dy++) {
+      for (let dx = -4; dx <= 4; dx++) {
         const cx = baseX + dx;
         const cy = baseY + dy;
         if (cx < 0 || cy < 0 || cx + candW > columns) continue;
@@ -3498,7 +3700,7 @@ function findCircleCorridorMagneticCandidate(
         }
         const centerDist = Math.hypot(cx + candW * 0.5 - idealCenterX, cy + candH * 0.5 - idealCenterY);
         const moveDist = Math.hypot(cx + candW * 0.5 - mcx, cy + candH * 0.5 - mcy);
-        const slotBonus = slot.isNeighborSlot && moveDist <= MAGNET_SNAP_GAP + 2.2 ? -1.15 : slot.isNeighborSlot ? 0.35 : 0;
+        const slotBonus = slot.isNeighborSlot && moveDist <= MAGNET_SNAP_GAP + 2.5 ? -1.15 : slot.isNeighborSlot ? 0.35 : 0;
         const score = centerDist * 3.0 + moveDist * 0.35 + slotBonus;
         if (!bestCand || score < bestCand.score) {
           bestCand = {
@@ -3639,7 +3841,7 @@ function findRotatedNeighborMagneticCandidate(
         for (const tu of uList) targetCoords.push([tu, targetV]);
       }
 
-      let bestMatch: { x: number; y: number; dist: number; score: number } | null = null;
+      let bestMatch = null as { x: number; y: number; dist: number; score: number } | null;
       for (let tIdx = 0; tIdx < targetCoords.length; tIdx++) {
         const [tu, tv] = targetCoords[tIdx];
         const idealCx = scx + tu * fs.ux + tv * fs.vx;
@@ -3873,14 +4075,6 @@ function snapBlockToSiblingsBorder(
       }
     }
 
-    const isStraightCorridorSnapForUnit =
-      activeAutoShape &&
-      moved.kind === 'unit' &&
-      isAutoAtriumSideCurveLabel(moved.label) &&
-      sib.kind === 'corridor' &&
-      !sib.angle &&
-      !isCircleRingCorridor(sib);
-
     for (const side of ['right', 'left'] as const) {
       const matched = getMatchedNeighborDimensions(moved, sib, side, others, columns);
       const sizePairs: Array<[number, number]> = [[matched.w, matched.h]];
@@ -3900,8 +4094,8 @@ function snapBlockToSiblingsBorder(
         );
         const resetRingShape =
           activeAutoShape && !inheritedLabel && moved.kind === 'unit' && isAutoAtriumSideCurveLabel(moved.label);
-        const nextLabel = isStraightCorridorSnapForUnit || resetRingShape ? 'unit:rect' : inheritedLabel;
-        const hasShapeOverride = isStraightCorridorSnapForUnit || resetRingShape || Boolean(inheritedLabel);
+        const nextLabel = resetRingShape ? 'unit:rect' : inheritedLabel;
+        const hasShapeOverride = resetRingShape || Boolean(inheritedLabel);
         const hasAngleReset = activeSnapAutoResize && !sib.angle && Boolean(moved.angle);
 
         for (let idx = 0; idx < yPositions.length; idx++) {
@@ -3916,13 +4110,7 @@ function snapBlockToSiblingsBorder(
             ...(hasAngleReset || hasShapeOverride ? { angle: undefined } : {}),
             ...(hasShapeOverride ? { label: nextLabel } : {}),
           };
-          if (
-            !others.some(
-              (o) =>
-                tilesConflict(cand, o) ||
-                (cand.kind === 'corridor' && o.kind === 'corridor' && rectsOverlap(cand, o)),
-            )
-          ) {
+          if (!others.some((o) => tilesConflict(cand, o))) {
             candidates.push({
               x: cx,
               y: cy,
@@ -3950,8 +4138,8 @@ function snapBlockToSiblingsBorder(
         if (cy < 0) continue;
         const xPositions = computeFullBorderAlignedPositions(moved.x, candW, sib.x, sib.w, columns - candW);
         const vCompLabel = getVerticalComplementaryUnitLabel(moved, sib, side);
-        const nextLabel = isStraightCorridorSnapForUnit ? 'unit:rect' : vCompLabel;
-        const hasShapeOverride = isStraightCorridorSnapForUnit || Boolean(vCompLabel);
+        const nextLabel = vCompLabel;
+        const hasShapeOverride = Boolean(vCompLabel);
         const hasAngleReset = activeSnapAutoResize && !sib.angle && Boolean(moved.angle);
 
         for (let idx = 0; idx < xPositions.length; idx++) {
@@ -3966,13 +4154,7 @@ function snapBlockToSiblingsBorder(
             ...(hasAngleReset || hasShapeOverride ? { angle: undefined } : {}),
             ...(hasShapeOverride ? { label: nextLabel } : {}),
           };
-          if (
-            !others.some(
-              (o) =>
-                tilesConflict(cand, o) ||
-                (cand.kind === 'corridor' && o.kind === 'corridor' && rectsOverlap(cand, o)),
-            )
-          ) {
+          if (!others.some((o) => tilesConflict(cand, o))) {
             candidates.push({
               x: cx,
               y: cy,
@@ -4042,7 +4224,6 @@ function snapTileByMagneticProximity(
     gap: number;
     w: number;
     h: number;
-    straightCorridorTouch?: boolean;
     inheritedLabel?: string | null;
     resetAngle?: boolean;
   }> = [];
@@ -4052,7 +4233,6 @@ function snapTileByMagneticProximity(
     gap: number;
     w: number;
     h: number;
-    straightCorridorTouch?: boolean;
     inheritedLabel?: string | null;
     resetAngle?: boolean;
   }> = [];
@@ -4135,16 +4315,9 @@ function snapTileByMagneticProximity(
 
     if (hasConflict || rectsOverlap(moved, sib)) continue;
 
-    const isStraightCorridorTouchForUnit =
-      activeAutoShape &&
-      moved.kind === 'unit' &&
-      isAutoAtriumSideCurveLabel(moved.label) &&
-      sib.kind === 'corridor' &&
-      !sib.angle &&
-      !isCircleRingCorridor(sib);
     const resetAngle = activeSnapAutoResize && !sib.angle && Boolean(moved.angle);
 
-    // 1e. Contiguous Unit-Row / Unit-Column Auto-Span when dragging a larger tile (Atrium, Unit, or Corridor) alongside 2+ contiguous Units
+    // 1e. Contiguous Unit-Row / Unit-Column Auto-Span when dragging a larger tile (Atrium or Unit) alongside 2+ contiguous Units
     if (activeSnapAutoResize && !moved.angle && sib.kind === 'unit' && !sib.angle) {
       const vOvRaw = Math.min(moved.y + h, sib.y + sib.h) - Math.max(moved.y, sib.y);
       const hOvRaw = Math.min(moved.x + w, sib.x + sib.w) - Math.max(moved.x, sib.x);
@@ -4249,8 +4422,7 @@ function snapTileByMagneticProximity(
         const resetRing = activeAutoShape && !inheritedLabel && moved.kind === 'unit' && isAutoAtriumSideCurveLabel(moved.label);
         const effLabel = resetRing ? 'unit:rect' : inheritedLabel;
         const bestY = yPositions[0];
-        const needsShapeReset =
-          (isStraightCorridorTouchForUnit || resetRing) && (moved.label !== 'unit:rect' || Boolean(moved.angle));
+        const needsShapeReset = resetRing && (moved.label !== 'unit:rect' || Boolean(moved.angle));
         const shapeWillChange = Boolean(effLabel && moved.label !== effLabel);
         const cx = sib.x - candW;
         if (
@@ -4263,7 +4435,6 @@ function snapTileByMagneticProximity(
             gap: gapLeft,
             w: candW,
             h: candH,
-            straightCorridorTouch: isStraightCorridorTouchForUnit,
             inheritedLabel: effLabel,
             resetAngle,
           });
@@ -4288,8 +4459,7 @@ function snapTileByMagneticProximity(
         const resetRing = activeAutoShape && !inheritedLabel && moved.kind === 'unit' && isAutoAtriumSideCurveLabel(moved.label);
         const effLabel = resetRing ? 'unit:rect' : inheritedLabel;
         const bestY = yPositions[0];
-        const needsShapeReset =
-          (isStraightCorridorTouchForUnit || resetRing) && (moved.label !== 'unit:rect' || Boolean(moved.angle));
+        const needsShapeReset = resetRing && (moved.label !== 'unit:rect' || Boolean(moved.angle));
         const shapeWillChange = Boolean(effLabel && moved.label !== effLabel);
         const cx = sib.x + sib.w;
         if (
@@ -4302,7 +4472,6 @@ function snapTileByMagneticProximity(
             gap: gapRight,
             w: candW,
             h: candH,
-            straightCorridorTouch: isStraightCorridorTouchForUnit,
             inheritedLabel: effLabel,
             resetAngle,
           });
@@ -4321,7 +4490,7 @@ function snapTileByMagneticProximity(
         const bestX = xPositions[0];
         const vCompLabel = getVerticalComplementaryUnitLabel(moved, sib, 'top');
         const needsShapeReset =
-          (isStraightCorridorTouchForUnit || Boolean(vCompLabel)) &&
+          Boolean(vCompLabel) &&
           (moved.label !== (vCompLabel ?? 'unit:rect') || Boolean(moved.angle));
         const cy = sib.y - candH;
         if (cy >= 0 && (gapTop > 0 || bestX !== moved.x || sizeChanged || needsShapeReset || resetAngle)) {
@@ -4331,7 +4500,6 @@ function snapTileByMagneticProximity(
             gap: gapTop,
             w: candW,
             h: candH,
-            straightCorridorTouch: isStraightCorridorTouchForUnit,
             inheritedLabel: vCompLabel,
             resetAngle,
           });
@@ -4349,7 +4517,7 @@ function snapTileByMagneticProximity(
         const bestX = xPositions[0];
         const vCompLabel = getVerticalComplementaryUnitLabel(moved, sib, 'bottom');
         const needsShapeReset =
-          (isStraightCorridorTouchForUnit || Boolean(vCompLabel)) &&
+          Boolean(vCompLabel) &&
           (moved.label !== (vCompLabel ?? 'unit:rect') || Boolean(moved.angle));
         const cy = sib.y + sib.h;
         if (gapBottom > 0 || bestX !== moved.x || sizeChanged || needsShapeReset || resetAngle) {
@@ -4359,7 +4527,6 @@ function snapTileByMagneticProximity(
             gap: gapBottom,
             w: candW,
             h: candH,
-            straightCorridorTouch: isStraightCorridorTouchForUnit,
             inheritedLabel: vCompLabel,
             resetAngle,
           });
@@ -4374,9 +4541,8 @@ function snapTileByMagneticProximity(
       if (xs.inheritedLabel && ys.y !== xs.yPositions[0]) continue;
       const cw = xs.w !== w ? xs.w : ys.w;
       const ch = ys.h !== h ? ys.h : xs.h;
-      const straightTouch = Boolean(xs.straightCorridorTouch || ys.straightCorridorTouch);
-      const nextLabel = straightTouch ? 'unit:rect' : xs.inheritedLabel ?? ys.inheritedLabel ?? null;
-      const hasShapeOverride = straightTouch || Boolean(xs.inheritedLabel || ys.inheritedLabel);
+      const nextLabel = xs.inheritedLabel ?? ys.inheritedLabel ?? null;
+      const hasShapeOverride = Boolean(xs.inheritedLabel || ys.inheritedLabel);
       const hasAngleOverride = hasShapeOverride || Boolean(xs.resetAngle || ys.resetAngle);
       const cand: MapItem = {
         ...moved,
@@ -4410,9 +4576,8 @@ function snapTileByMagneticProximity(
       const [cw, ch] = sizePairs[sIdx];
       for (let idx = 0; idx < xs.yPositions.length; idx++) {
         const cy = xs.yPositions[idx];
-        const straightTouch = Boolean(xs.straightCorridorTouch);
-        const nextLabel = straightTouch ? 'unit:rect' : xs.inheritedLabel ?? null;
-        const hasShapeOverride = straightTouch || Boolean(xs.inheritedLabel);
+        const nextLabel = xs.inheritedLabel ?? null;
+        const hasShapeOverride = Boolean(xs.inheritedLabel);
         const hasAngleOverride = hasShapeOverride || Boolean(xs.resetAngle);
         const cand: MapItem = {
           ...moved,
@@ -4448,9 +4613,8 @@ function snapTileByMagneticProximity(
       const [cw, ch] = sizePairs[sIdx];
       for (let idx = 0; idx < ys.xPositions.length; idx++) {
         const cx = ys.xPositions[idx];
-        const straightTouch = Boolean(ys.straightCorridorTouch);
-        const nextLabel = straightTouch ? 'unit:rect' : ys.inheritedLabel ?? null;
-        const hasShapeOverride = straightTouch || Boolean(ys.inheritedLabel);
+        const nextLabel = ys.inheritedLabel ?? null;
+        const hasShapeOverride = Boolean(ys.inheritedLabel);
         const hasAngleOverride = hasShapeOverride || Boolean(ys.resetAngle);
         const cand: MapItem = {
           ...moved,
@@ -4493,93 +4657,291 @@ function snapTileByMagneticProximity(
 }
 
 /**
- * Magnetically snaps a resized tile's moving edges (`x`, `y`, `w`, `h`) within `MAGNET_SNAP_GAP`
- * so resized edges automatically touch adjacent borders or equalize width/height and edge lines with neighbors.
+ * Validates a resized tile step-by-step (`x`, `y`, `w`, `h`) without jumping across multiple steps,
+ * so the user can resize any unit or landmark smoothly 1 step at a time with full detail control.
+ * If expanding width/height slightly grazes a curved Atrium border or slanted neighbor, nudges by 1–2 cells
+ * to preserve the new width/height without resetting the unit's curved shape.
  */
 function snapTileResizeMagnetically(
   moved: MapItem,
-  orig: MapItem,
+  _orig: MapItem,
   items: ReadonlyArray<MapItem>,
   columns: number,
 ): MapItem | null {
   const others = items.filter((i) => i.key !== moved.key);
-  if (moved.angle || isCircleRingCorridor(moved)) {
-    const cand: MapItem = { ...moved, w: Math.min(moved.w, columns - moved.x) };
-    return !others.some((o) => tilesConflict(cand, o)) ? cand : null;
-  }
-  const origRight = orig.x + orig.w;
-  const origBottom = orig.y + orig.h;
-  const movedRight = moved.x + moved.w;
-  const movedBottom = moved.y + moved.h;
-
-  const resizingLeft = moved.x !== orig.x;
-  const resizingRight = movedRight !== origRight && !resizingLeft;
-  const resizingTop = moved.y !== orig.y;
-  const resizingBottom = movedBottom !== origBottom && !resizingTop;
-
-  const xTargets: number[] = [];
-  const rightTargets: number[] = [];
-  const yTargets: number[] = [];
-  const bottomTargets: number[] = [];
-
-  for (const sib of others) {
-    const sibB = getRotatedWorldAABB(sib);
-    const sibMinX = Math.round(sibB.minX);
-    const sibMaxX = Math.round(sibB.maxX);
-    const sibMinY = Math.round(sibB.minY);
-    const sibMaxY = Math.round(sibB.maxY);
-    const vNear = Math.min(movedBottom, sibMaxY) - Math.max(moved.y, sibMinY) >= -(MAGNET_SNAP_GAP + 4);
-    const hNear = Math.min(movedRight, sibMaxX) - Math.max(moved.x, sibMinX) >= -(MAGNET_SNAP_GAP + 4);
-
-    if (vNear) {
-      xTargets.push(sibMaxX, sibMinX, movedRight - sib.w);
-      rightTargets.push(sibMinX, sibMaxX, moved.x + sib.w);
-    }
-    if (hNear) {
-      yTargets.push(sibMaxY, sibMinY, movedBottom - sib.h);
-      bottomTargets.push(sibMinY, sibMaxY, moved.y + sib.h);
-    }
-  }
-
-  let nextX = moved.x;
-  let nextW = Math.min(moved.w, columns - moved.x);
-  let nextY = moved.y;
-  let nextH = moved.h;
-
-  if (resizingRight) {
-    const validRightTargets = rightTargets.filter((t) => t !== origRight);
-    const snappedRight = alignCoordToLines(movedRight, validRightTargets, moved.x + 1, columns, MAGNET_SNAP_GAP);
-    nextW = Math.max(1, snappedRight - moved.x);
-  } else if (resizingLeft) {
-    const validXTargets = xTargets.filter((t) => t !== orig.x);
-    const snappedLeft = alignCoordToLines(moved.x, validXTargets, 0, origRight - 1, MAGNET_SNAP_GAP);
-    nextX = snappedLeft;
-    nextW = Math.max(1, origRight - snappedLeft);
-  }
-
-  if (resizingBottom) {
-    const validBottomTargets = bottomTargets.filter((t) => t !== origBottom);
-    const snappedBottom = alignCoordToLines(movedBottom, validBottomTargets, moved.y + 1, 5000, MAGNET_SNAP_GAP);
-    nextH = Math.max(1, snappedBottom - moved.y);
-  } else if (resizingTop) {
-    const validYTargets = yTargets.filter((t) => t !== orig.y);
-    const snappedTop = alignCoordToLines(moved.y, validYTargets, 0, origBottom - 1, MAGNET_SNAP_GAP);
-    nextY = snappedTop;
-    nextH = Math.max(1, origBottom - snappedTop);
-  }
+  const nextX = Math.max(0, moved.x);
+  const nextY = Math.max(0, moved.y);
+  const nextW = Math.max(1, Math.min(moved.w, columns - nextX));
+  const nextH = Math.max(1, moved.h);
 
   const rawCand: MapItem = { ...moved, x: nextX, y: nextY, w: nextW, h: nextH };
-  const cand = activeAutoShape ? applyAtriumAutoShapeToUnit(rawCand, items, orig, true) : rawCand;
-  if (!others.some((o) => tilesConflict(cand, o))) {
-    return cand;
+  if (!others.some((o) => tilesConflict(rawCand, o))) {
+    return rawCand;
   }
+
+  const offsets: Array<{ dx: number; dy: number; dist: number }> = [];
+  for (let dy = -2; dy <= 2; dy++) {
+    for (let dx = -2; dx <= 2; dx++) {
+      if (dx === 0 && dy === 0) continue;
+      offsets.push({ dx, dy, dist: Math.hypot(dx, dy) });
+    }
+  }
+  offsets.sort((a, b) => a.dist - b.dist);
+
+  for (const { dx, dy } of offsets) {
+    const cx = nextX + dx;
+    const cy = nextY + dy;
+    if (cx < 0 || cy < 0 || cx + nextW > columns) continue;
+    const nudgedCand: MapItem = { ...moved, x: cx, y: cy, w: nextW, h: nextH };
+    if (!others.some((o) => tilesConflict(nudgedCand, o))) {
+      return nudgedCand;
+    }
+  }
+
   return null;
+}
+
+function isUnitWithinWalkwayOfCircleAtrium(
+  _u: { x: number; y: number; w: number; h: number },
+  match: CircleCorridorUnitMatch,
+): boolean {
+  const avgR = (match.rxOut + match.ryOut) * 0.5;
+  const radialGap = (match.normClosest - 1) * avgR;
+  return match.boxGap <= 8.5 && match.normClosest >= 0.48 && radialGap <= 8.0;
+}
+
+type ShapeDetectTile = {
+  key?: string;
+  kind: TileKind | string;
+  unitId?: string | null;
+  label?: string | null;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  angle?: number;
+};
+
+function findNearbyCircleKioskForUnit(
+  u: { key?: string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
+  items: ReadonlyArray<ShapeDetectTile>,
+): { notchCorner: 'tl' | 'tr' | 'bl' | 'br'; boxGap: number } | null {
+  if (u.angle || u.label === 'unit:circle') return null;
+  const ucx = u.x + u.w * 0.5;
+  const ucy = u.y + u.h * 0.5;
+  let best: { notchCorner: 'tl' | 'tr' | 'bl' | 'br'; boxGap: number } | null = null;
+
+  for (const k of items) {
+    if (k === u || (u.key && k.key === u.key)) continue;
+    if (k.kind !== 'unit' || k.label !== 'unit:circle') continue;
+    const gapX = Math.max(0, u.x - (k.x + k.w), k.x - (u.x + u.w));
+    const gapY = Math.max(0, u.y - (k.y + k.h), k.y - (u.y + u.h));
+    const boxGap = Math.hypot(gapX, gapY);
+    if (boxGap > 5.5) continue;
+    const ovX = Math.min(u.x + u.w, k.x + k.w) - Math.max(u.x, k.x);
+    const ovY = Math.min(u.y + u.h, k.y + k.h) - Math.max(u.y, k.y);
+    if (ovX > u.w * 0.75 || ovY > u.h * 0.75) continue;
+    const kcx = k.x + k.w * 0.5;
+    const kcy = k.y + k.h * 0.5;
+    const notchCorner: 'tl' | 'tr' | 'bl' | 'br' =
+      kcx < ucx && kcy < ucy
+        ? 'tl'
+        : kcx >= ucx && kcy < ucy
+          ? 'tr'
+          : kcx < ucx && kcy >= ucy
+            ? 'bl'
+            : 'br';
+    if (!best || boxGap < best.boxGap) {
+      best = { notchCorner, boxGap };
+    }
+  }
+  return best;
+}
+
+function isNearAnyPolygonAtrium(
+  u: { key?: string; x: number; y: number; w: number; h: number },
+  items: ReadonlyArray<ShapeDetectTile>,
+  maxGap = 9.0,
+): boolean {
+  for (const a of items) {
+    if (a === u || (u.key && a.key === u.key) || a.kind !== 'atrium') continue;
+    if (!parseLandmarkMeta('atrium', a.label).polygonFaces) continue;
+    const gapX = Math.max(0, u.x - (a.x + a.w), a.x - (u.x + u.w));
+    const gapY = Math.max(0, u.y - (a.y + a.h), a.y - (u.y + u.h));
+    if (Math.hypot(gapX, gapY) <= maxGap) return true;
+  }
+  return false;
+}
+
+function findPolygonAtriumCornerChamferForUnit(
+  u: { key?: string; x: number; y: number; w: number; h: number; angle?: number },
+  items: ReadonlyArray<ShapeDetectTile>,
+): { chamferMode: UnitShapeMode; boxGap: number } | null {
+  if (u.angle) return null;
+  const ucx = u.x + u.w * 0.5;
+  const ucy = u.y + u.h * 0.5;
+  let best: { chamferMode: UnitShapeMode; boxGap: number } | null = null;
+
+  for (const a of items) {
+    if (a === u || (u.key && a.key === u.key) || a.kind !== 'atrium') continue;
+    const polyFaces = parseLandmarkMeta('atrium', a.label).polygonFaces;
+    if (!polyFaces) continue;
+    const acx = a.x + a.w * 0.5;
+    const acy = a.y + a.h * 0.5;
+    const rx = Math.max(1, a.w * 0.5);
+    const ry = Math.max(1, a.h * 0.5);
+    const gapX = Math.max(0, u.x - (a.x + a.w), a.x - (u.x + u.w));
+    const gapY = Math.max(0, u.y - (a.y + a.h), a.y - (u.y + u.h));
+    const boxGap = Math.hypot(gapX, gapY);
+    if (boxGap > 8.0) continue;
+    const ovX = Math.min(u.x + u.w, a.x + a.w) - Math.max(u.x, a.x);
+    const ovY = Math.min(u.y + u.h, a.y + a.h) - Math.max(u.y, a.y);
+    const nx = (ucx - acx) / rx;
+    const ny = (ucy - acy) / ry;
+    if (ovX <= u.w * 0.8 && ovY <= u.h * 0.8 && Math.abs(nx) >= 0.36 && Math.abs(ny) >= 0.36) {
+      const chamferMode: UnitShapeMode =
+        nx >= 0 && ny >= 0
+          ? 'chamfer-tl'
+          : nx < 0 && ny >= 0
+            ? 'chamfer-tr'
+            : nx >= 0 && ny < 0
+              ? 'chamfer-bl'
+              : 'chamfer-br';
+      if (!best || boxGap < best.boxGap) {
+        best = { chamferMode, boxGap };
+      }
+    }
+  }
+  return best;
+}
+
+function findIslandEndBevelForUnit(
+  u: { key?: string; x: number; y: number; w: number; h: number; angle?: number },
+  items: ReadonlyArray<ShapeDetectTile>,
+): { bevelMode: UnitShapeMode; boxGap: number } | null {
+  if (u.angle) return null;
+  let hasLeft = false;
+  let hasRight = false;
+  let hasTop = false;
+  let hasBottom = false;
+
+  for (const o of items) {
+    if (o === u || (u.key && o.key === u.key) || o.kind !== 'unit' || o.angle) continue;
+    const ovX = Math.min(u.x + u.w, o.x + o.w) - Math.max(u.x, o.x);
+    const ovY = Math.min(u.y + u.h, o.y + o.h) - Math.max(u.y, o.y);
+    if (ovY >= u.h * 0.55 && Math.abs(u.x - (o.x + o.w)) <= 0.6) hasLeft = true;
+    if (ovY >= u.h * 0.55 && Math.abs(o.x - (u.x + u.w)) <= 0.6) hasRight = true;
+    if (ovX >= u.w * 0.55 && Math.abs(u.y - (o.y + o.h)) <= 0.6) hasTop = true;
+    if (ovX >= u.w * 0.55 && Math.abs(o.y - (u.y + u.h)) <= 0.6) hasBottom = true;
+  }
+
+  // Only bevel an island row end when it is touching a row neighbor on one side and open on the opposite side
+  const openSide: 'left' | 'right' | 'top' | 'bottom' | null =
+    hasRight && !hasLeft && !hasTop && !hasBottom
+      ? 'left'
+      : hasLeft && !hasRight && !hasTop && !hasBottom
+        ? 'right'
+        : hasBottom && !hasTop && !hasLeft && !hasRight
+          ? 'top'
+          : hasTop && !hasBottom && !hasLeft && !hasRight
+            ? 'bottom'
+            : null;
+  if (!openSide) return null;
+
+  const ucx = u.x + u.w * 0.5;
+  const ucy = u.y + u.h * 0.5;
+  let bestGap = Infinity;
+
+  // Check if there is an angled wing unit or a Polygon Atrium near that open end
+  for (const o of items) {
+    if (o === u || (u.key && o.key === u.key)) continue;
+    const isAngledUnit = o.kind === 'unit' && Boolean(o.angle && o.angle % 90 !== 0);
+    const isPolyAtrium = o.kind === 'atrium' && Boolean(parseLandmarkMeta('atrium', o.label).polygonFaces);
+    if (!isAngledUnit && !isPolyAtrium) continue;
+
+    const ocx = o.x + o.w * 0.5;
+    const ocy = o.y + o.h * 0.5;
+    if (openSide === 'left' && ocx >= ucx) continue;
+    if (openSide === 'right' && ocx <= ucx) continue;
+    if (openSide === 'top' && ocy >= ucy) continue;
+    if (openSide === 'bottom' && ocy <= ucy) continue;
+
+    const gapX = Math.max(0, u.x - (o.x + o.w), o.x - (u.x + u.w));
+    const gapY = Math.max(0, u.y - (o.y + o.h), o.y - (u.y + u.h));
+    const boxGap = Math.hypot(gapX, gapY);
+    if (boxGap < bestGap) {
+      bestGap = boxGap;
+    }
+  }
+
+  if (bestGap > 7.5) return null;
+  const bevelMode: UnitShapeMode =
+    openSide === 'left'
+      ? 'bevel-l'
+      : openSide === 'right'
+        ? 'bevel-r'
+        : openSide === 'top'
+          ? 'bevel-t'
+          : 'bevel-b';
+  return { bevelMode, boxGap: bestGap };
+}
+
+export function resolveAutoUnitShapeMode(
+  u: ShapeDetectTile,
+  items: ReadonlyArray<ShapeDetectTile>,
+): UnitShapeMode {
+  if (u.label === 'unit:circle') return 'circle';
+  const alreadyAutoCurved = isAutoAtriumSideCurveLabel(u.label);
+
+  // 1. Check nearby circular Kiosk (unit:circle) -> Concave Notch or Notch + Outer 45° Chamfer combo
+  const kioskMatch = findNearbyCircleKioskForUnit(u, items);
+  if (kioskMatch && (kioskMatch.boxGap <= 3.2 || (alreadyAutoCurved && kioskMatch.boxGap <= 5.5))) {
+    if (isNearAnyPolygonAtrium(u, items, 9.0)) {
+      return kioskMatch.notchCorner === 'tl'
+        ? 'notch-tl-chamfer-br'
+        : kioskMatch.notchCorner === 'tr'
+          ? 'notch-tr-chamfer-bl'
+          : kioskMatch.notchCorner === 'bl'
+            ? 'notch-bl-chamfer-tr'
+            : 'notch-br-chamfer-tl';
+    }
+    return kioskMatch.notchCorner === 'tl'
+      ? 'notch-tl'
+      : kioskMatch.notchCorner === 'tr'
+        ? 'notch-tr'
+        : kioskMatch.notchCorner === 'bl'
+          ? 'notch-bl'
+          : 'notch-br';
+  }
+
+  // 2. Check nearby Circle / Oval Atrium or Circle Ring Walkway -> Crescent or Corner Notch
+  const match = findNearestCircleCorridorForUnit(u, items);
+  const shouldAutoCurve =
+    match &&
+    (isUnitCloseToCircleAtriumRim(u, match) ||
+      (alreadyAutoCurved && isUnitWithinWalkwayOfCircleAtrium(u, match)));
+  if (match && shouldAutoCurve) {
+    return resolveAtriumFacingSideCurveMode(u, match);
+  }
+
+  // 3. Check nearby Octagonal / Polygon Atrium corner -> 45° Cut Corner (Chamfer)
+  const polyChamfer = findPolygonAtriumCornerChamferForUnit(u, items);
+  if (polyChamfer && (polyChamfer.boxGap <= 4.8 || (alreadyAutoCurved && polyChamfer.boxGap <= 8.0))) {
+    return polyChamfer.chamferMode;
+  }
+
+  // 4. Check middle island row end facing angled wings or Polygon Atrium -> Pointed Bevel End
+  const islandBevel = findIslandEndBevelForUnit(u, items);
+  if (islandBevel && (islandBevel.boxGap <= 5.5 || (alreadyAutoCurved && islandBevel.boxGap <= 7.5))) {
+    return islandBevel.bevelMode;
+  }
+
+  return 'rect';
 }
 
 function applyAtriumAutoShapeToUnit(
   u: MapItem,
   items: ReadonlyArray<MapItem>,
-  _orig: MapItem | undefined,
   autoShape: boolean,
 ): MapItem {
   if (u.kind !== 'unit' || !u.unitId) return u;
@@ -4590,28 +4952,28 @@ function applyAtriumAutoShapeToUnit(
   const isMultiBlockUnit = items.some((o) => o.key !== u.key && o.kind === 'unit' && o.unitId === u.unitId);
   if (isMultiBlockUnit) return u;
 
-  const match = findNearestCircleCorridorForUnit(u, items);
-  if (match && isUnitCloseToCircleAtriumRim(u, match)) {
-    if (!u.label || u.label === 'unit:rect' || isAutoAtriumSideCurveLabel(u.label)) {
-      const sideCurveMode = resolveAtriumFacingSideCurveMode(u, match);
-      return {
-        ...u,
-        label: `unit:${sideCurveMode}:auto`,
-        angle: undefined,
-      };
-    }
-    return u;
+  const alreadyAutoCurved = isAutoAtriumSideCurveLabel(u.label);
+  const canAutoShape = !u.label || u.label === 'unit:rect' || alreadyAutoCurved;
+  if (!canAutoShape) return u;
+
+  const autoMode = resolveAutoUnitShapeMode(u, items);
+  if (autoMode !== 'rect') {
+    return {
+      ...u,
+      label: `unit:${autoMode}:auto`,
+      angle: undefined,
+    };
   }
 
-  if (isAutoAtriumSideCurveLabel(u.label)) {
-    return { ...u, label: 'unit:rect', angle: undefined };
+  if (alreadyAutoCurved) {
+    return { ...u, label: null, angle: undefined };
   }
   return u;
 }
 
 /**
  * Snaps any dragged or resized tile (`moved` — Unit, Atrium, or Landmark):
- * - When resizing (`orig` has different `w` or `h`), snaps the resized edge to nearby borders and equalizes width/height.
+ * - When resizing (`orig` has different `w` or `h`), steps strictly 1 grid cell at a time without magnetic jumps.
  * - When overlapping ANY tile (`Unit`, `Atrium`, or `Landmark`), snaps flush to the nearest border with full border alignment, degree matching, and size/length matching.
  * - When dragged within `MAGNET_SNAP_GAP` of any tile, magnetically pulls to touch border-by-border
  *   (and on Polygon Atriums / Circle Atriums / Rotated Neighbors / Slanted Neighbor Units, auto-adjusts degree, length/size & shape).
@@ -4625,24 +4987,29 @@ export function snapTileToBorder(
   autoShape = true,
 ): MapItem | null {
   if (moved.kind === 'unit' && !moved.unitId) return null;
-  if (orig && (moved.w !== orig.w || moved.h !== orig.h)) {
-    const resized = snapTileResizeMagnetically(moved, orig, items, columns);
-    if (resized) return resized;
-    if (moved.angle) return null;
-  }
   activeSnapAutoResize = allowAutoResize;
   activeAutoShape = autoShape;
+  if (orig && (moved.w !== orig.w || moved.h !== orig.h)) {
+    return snapTileResizeMagnetically(moved, orig, items, columns);
+  }
   try {
     let baseMoved = !autoShape && moved.kind === 'unit' && !moved.label ? { ...moved, label: 'unit:rect' } : moved;
     let detachedFromRing = false;
     if (autoShape && baseMoved.kind === 'unit' && (!orig || (baseMoved.w === orig.w && baseMoved.h === orig.h))) {
       const nowMatch = findNearestCircleCorridorForUnit(baseMoved, items);
-      const nearRingNow = Boolean(nowMatch && isUnitCloseToCircleAtriumRim(baseMoved, nowMatch));
-      if (!nearRingNow && isAutoAtriumSideCurveLabel(baseMoved.label)) {
+      const polyChamfer = findPolygonAtriumCornerChamferForUnit(baseMoved, items);
+      const alreadyAutoCurved = isAutoAtriumSideCurveLabel(baseMoved.label);
+      const nearRingNow = Boolean(
+        (nowMatch &&
+          (isUnitCloseToCircleAtriumRim(baseMoved, nowMatch) ||
+            (alreadyAutoCurved && isUnitWithinWalkwayOfCircleAtrium(baseMoved, nowMatch)))) ||
+          (polyChamfer && (polyChamfer.boxGap <= 4.5 || (alreadyAutoCurved && polyChamfer.boxGap <= 8.0))),
+      );
+      if (!nearRingNow && alreadyAutoCurved) {
         baseMoved = { ...baseMoved, label: 'unit:rect', angle: undefined };
         detachedFromRing = true;
       } else if (nearRingNow) {
-        baseMoved = applyAtriumAutoShapeToUnit(baseMoved, items, orig, autoShape);
+        baseMoved = applyAtriumAutoShapeToUnit(baseMoved, items, autoShape);
       }
     }
     const siblings = items.filter((i) => {
@@ -4661,13 +5028,13 @@ export function snapTileToBorder(
     });
     const overlapSnapped = snapBlockToSiblingsBorder(baseMoved, siblings, items, columns);
     if (overlapSnapped) {
-      return applyAtriumAutoShapeToUnit(overlapSnapped, items, orig, autoShape);
+      return applyAtriumAutoShapeToUnit(overlapSnapped, items, autoShape);
     }
     const proximitySnapped = snapTileByMagneticProximity(baseMoved, items, columns);
     if (proximitySnapped) {
-      return applyAtriumAutoShapeToUnit(proximitySnapped, items, orig, autoShape);
+      return applyAtriumAutoShapeToUnit(proximitySnapped, items, autoShape);
     }
-    const shaped = applyAtriumAutoShapeToUnit(baseMoved, items, orig, autoShape);
+    const shaped = applyAtriumAutoShapeToUnit(baseMoved, items, autoShape);
     if (detachedFromRing || shaped.label !== moved.label || shaped.angle !== moved.angle) {
       return shaped;
     }
@@ -4685,10 +5052,9 @@ export function snapTileToBorder(
 export function curveUnitAroundCircleWithoutSnap(
   moved: MapItem,
   items: ReadonlyArray<MapItem>,
-  orig?: MapItem,
   autoShape = true,
 ): MapItem {
-  return applyAtriumAutoShapeToUnit(moved, items, orig, autoShape);
+  return applyAtriumAutoShapeToUnit(moved, items, autoShape);
 }
 
 /**
@@ -4786,7 +5152,6 @@ export function alignUnitsRadiallyAroundAtrium(
               label: snapped.label ?? u.label,
             },
             current,
-            undefined,
             true,
           );
           if (!others.some((o) => tilesConflict(nextUnit, o))) {
@@ -4863,7 +5228,7 @@ export function computeMagneticSnapGuide(
   }
 
   // 1b. Check Circle Atrium / Ring curve snap for any Unit or Landmark
-  if (snapped.kind !== 'atrium' && snapped.kind !== 'corridor') {
+  if (snapped.kind !== 'atrium') {
     const ringMatch = findNearestCircleCorridorForUnit(snapped, allItems);
     if (ringMatch && ringMatch.isNear) {
       const deg = Math.round(snapped.angle ?? 0) % 360;
@@ -4911,7 +5276,7 @@ export function computeMagneticSnapGuide(
       (unitMode.startsWith('slope-') || unitMode.startsWith('chamfer-'))
     ) {
       for (const c of others) {
-        if ((c.kind !== 'corridor' && c.kind !== 'unit') || isCircleRingCorridor(c)) continue;
+        if (c.kind !== 'unit' || isCircleRingCorridor(c)) continue;
         const gapX = Math.max(0, c.x - (snapped.x + snapped.w), snapped.x - (c.x + c.w));
         const gapY = Math.max(0, c.y - (snapped.y + snapped.h), snapped.y - (c.y + c.h));
         if (gapX <= 1.5 && gapY <= 1.5) {
@@ -5126,13 +5491,13 @@ export function computeMagneticSnapGuide(
 }
 
 /**
- * Places a new `escalator` (Elevator / Lift / Escalator) or `stairs` tile directly inside `atriumKey`
+ * Places a new `escalator` (Elevator / Lift / Escalator), `stairs`, or `info` tile directly inside `atriumKey`
  * (and adjacent to any existing transit tile inside that Atrium so they auto-merge side-by-side).
  */
 export function addTransitIntoAtrium(
   items: MapItem[],
   atriumKey: string,
-  kind: 'escalator' | 'stairs',
+  kind: 'escalator' | 'stairs' | 'info',
   variant: string,
   columns: number,
   newKey: string = `d:${kind}-${items.length + 1}`,
@@ -5140,8 +5505,8 @@ export function addTransitIntoAtrium(
   const atrium = items.find((i) => i.key === atriumKey && i.kind === 'atrium');
   if (!atrium) return items;
 
-  const w = Math.max(1, Math.min(2, atrium.w, columns));
-  const h = Math.max(1, Math.min(2, atrium.h));
+  const w = Math.max(1, Math.min(atrium.w >= 8 ? 5 : 2, atrium.w, columns));
+  const h = Math.max(1, Math.min(atrium.h >= 8 ? 4 : 2, atrium.h));
   const label = encodeLandmarkMeta(kind, variant);
 
   const fitsInsideAtrium = (x: number, y: number, tw: number, th: number) =>
@@ -5353,1039 +5718,15 @@ export function rotateMapLayout(
   };
 }
 
-/**
- * Resolve the default starting point ("You Are Here") on a floor plan.
- * Priority: 'marker' (You Are Here) -> 'entrance' -> 'escalator' -> 'stairs' -> 'atrium'.
- */
-export function findDefaultStartItem(items: MapItem[]): MapItem | null {
-  if (!items || items.length === 0) return null;
-  const priorities: TileKind[] = ['marker', 'entrance', 'info', 'escalator', 'stairs', 'atrium'];
-  for (const kind of priorities) {
-    const found = items.find((i) => i.kind === kind);
-    if (found) return found;
-  }
-  return items[0] || null;
-}
-
-/**
- * Find the nearest tile matching any of the given kinds from `fromItem` (by Euclidean center distance).
- */
-export function findNearestFacilityItem(
-  items: MapItem[],
-  fromItem: MapItem | null,
-  kinds: TileKind[],
-): MapItem | null {
-  const candidates = items.filter((i) => kinds.includes(i.kind) && (!fromItem || i.key !== fromItem.key));
-  if (candidates.length === 0) return null;
-  if (!fromItem) return candidates[0];
-  const fx = fromItem.x + fromItem.w / 2;
-  const fy = fromItem.y + fromItem.h / 2;
-  let best = candidates[0];
-  let bestDist = Infinity;
-  for (const c of candidates) {
-    const cx = c.x + c.w / 2;
-    const cy = c.y + c.h / 2;
-    const d = Math.hypot(cx - fx, cy - fy);
-    if (d < bestDist) {
-      bestDist = d;
-      best = c;
-    }
-  }
-  return best;
-}
-
-interface WalkwayRouteStep {
-  instruction: string;
-  distanceMeters: number;
-  direction: 'start' | 'straight' | 'left' | 'right' | 'arrive';
-}
-
-interface WalkwayRouteResult {
-  /** Waypoints in grid coordinates (0..columns, 0..rows). Multiply by cellPx for SVG pixels. */
-  points: Array<{ x: number; y: number }>;
-  /** Estimated walking distance in feet */
-  distanceFeet: number;
-  /** Estimated walking distance in meters */
-  distanceMeters: number;
-  /** Estimated walking time in minutes */
-  estimatedMinutes: number;
-  /** Turn-by-turn navigation steps (Mappedin-style) */
-  steps: WalkwayRouteStep[];
-}
-
-/**
- * Builds a smooth SVG path string (`M ... L ... Q ...`) with rounded corners (`cornerRadiusPx`)
- * from pixel-space route waypoints so wayfinding paths render with Mappedin-style fluid turns
- * and seamless tangent transitions onto/off circular ring walkways.
- */
-export function buildSmoothRouteSvgPath(
-  pxPoints: ReadonlyArray<{ x: number; y: number }>,
-  cornerRadiusPx = 12,
-): string {
-  if (pxPoints.length === 0) return '';
-  if (pxPoints.length === 1) return `M ${pxPoints[0].x.toFixed(1)} ${pxPoints[0].y.toFixed(1)}`;
-  if (pxPoints.length === 2) {
-    return `M ${pxPoints[0].x.toFixed(1)} ${pxPoints[0].y.toFixed(1)} L ${pxPoints[1].x.toFixed(1)} ${pxPoints[1].y.toFixed(1)}`;
-  }
-
-  const n = pxPoints.length;
-  const turnAngles = new Float32Array(n);
-  for (let i = 1; i < n - 1; i++) {
-    const prev = pxPoints[i - 1];
-    const curr = pxPoints[i];
-    const next = pxPoints[i + 1];
-    const d1x = curr.x - prev.x;
-    const d1y = curr.y - prev.y;
-    const d2x = next.x - curr.x;
-    const d2y = next.y - curr.y;
-    const len1 = Math.hypot(d1x, d1y);
-    const len2 = Math.hypot(d2x, d2y);
-    if (len1 < 1e-3 || len2 < 1e-3) continue;
-    const cross = d1x * d2y - d1y * d2x;
-    const dot = d1x * d2x + d1y * d2y;
-    turnAngles[i] = Math.abs((Math.atan2(cross, dot) * 180) / Math.PI);
-  }
-
-  const SMOOTH_ARC_ANGLE_THRESHOLD_DEG = 11;
-  const parts: string[] = [`M ${pxPoints[0].x.toFixed(1)} ${pxPoints[0].y.toFixed(1)}`];
-  for (let i = 1; i < n - 1; i++) {
-    const prev = pxPoints[i - 1];
-    const curr = pxPoints[i];
-    const next = pxPoints[i + 1];
-    const d1x = curr.x - prev.x;
-    const d1y = curr.y - prev.y;
-    const d2x = next.x - curr.x;
-    const d2y = next.y - curr.y;
-    const len1 = Math.hypot(d1x, d1y);
-    const len2 = Math.hypot(d2x, d2y);
-    if (len1 < 1e-3 || len2 < 1e-3) continue;
-
-    // Interior sample along a finely subdivided circular ring arc
-    if (turnAngles[i] < SMOOTH_ARC_ANGLE_THRESHOLD_DEG) {
-      parts.push(`L ${curr.x.toFixed(1)} ${curr.y.toFixed(1)}`);
-      continue;
-    }
-
-    const prevIsSmoothArc = i > 1 && turnAngles[i - 1] < SMOOTH_ARC_ANGLE_THRESHOLD_DEG;
-    const nextIsSmoothArc = i < n - 2 && turnAngles[i + 1] < SMOOTH_ARC_ANGLE_THRESHOLD_DEG;
-    const maxBack = len1 * (prevIsSmoothArc ? 0.92 : 0.45);
-    const maxFwd = len2 * (nextIsSmoothArc ? 0.92 : 0.45);
-    const r = Math.min(cornerRadiusPx, maxBack, maxFwd);
-    if (r < 1.5) {
-      parts.push(`L ${curr.x.toFixed(1)} ${curr.y.toFixed(1)}`);
-      continue;
-    }
-    const pEnterX = curr.x - (d1x / len1) * r;
-    const pEnterY = curr.y - (d1y / len1) * r;
-    const pExitX = curr.x + (d2x / len2) * r;
-    const pExitY = curr.y + (d2y / len2) * r;
-    parts.push(
-      `L ${pEnterX.toFixed(1)} ${pEnterY.toFixed(1)} Q ${curr.x.toFixed(1)} ${curr.y.toFixed(1)} ${pExitX.toFixed(1)} ${pExitY.toFixed(1)}`,
-    );
-  }
-  const last = pxPoints[n - 1];
-  parts.push(`L ${last.x.toFixed(1)} ${last.y.toFixed(1)}`);
-  return parts.join(' ');
-}
-
-/**
- * Computes evenly spaced directional arrow markers (`{ x, y, angleDeg }`) along a pixel-space route
- * by cumulative arc-length so chevrons flow smoothly along both straight corridors and circular ring arcs.
- */
-export function computeRouteDirectionArrows(
-  pxPoints: ReadonlyArray<{ x: number; y: number }>,
-  spacingPx = 46,
-): Array<{ x: number; y: number; angleDeg: number; progress: number }> {
-  const arrows: Array<{ x: number; y: number; angleDeg: number; progress: number }> = [];
-  const n = pxPoints.length;
-  if (n < 2) return arrows;
-
-  const cumLen = new Float64Array(n);
-  for (let i = 1; i < n; i++) {
-    const dx = pxPoints[i].x - pxPoints[i - 1].x;
-    const dy = pxPoints[i].y - pxPoints[i - 1].y;
-    cumLen[i] = cumLen[i - 1] + Math.hypot(dx, dy);
-  }
-  const totalLen = cumLen[n - 1];
-  if (totalLen < 20) return arrows;
-
-  const endMargin = 12;
-  let targetDist = Math.max(12, Math.min(spacingPx * 0.55, totalLen * 0.5));
-  let segIdx = 1;
-
-  while (targetDist <= totalLen - endMargin) {
-    while (segIdx < n - 1 && cumLen[segIdx] < targetDist) {
-      segIdx++;
-    }
-    const segStart = cumLen[segIdx - 1];
-    const segLen = cumLen[segIdx] - segStart;
-    if (segLen > 1e-4) {
-      const p0 = pxPoints[segIdx - 1];
-      const p1 = pxPoints[segIdx];
-      const dx = p1.x - p0.x;
-      const dy = p1.y - p0.y;
-      const t = Math.max(0, Math.min(1, (targetDist - segStart) / segLen));
-      arrows.push({
-        x: p0.x + dx * t,
-        y: p0.y + dy * t,
-        angleDeg: (Math.atan2(dy, dx) * 180) / Math.PI,
-        progress: Math.max(0, Math.min(1, targetDist / totalLen)),
-      });
-    }
-    targetDist += spacingPx;
-  }
-  return arrows;
-}
-
-/**
- * Computes the padded architectural floorplate bounding box (in grid cells) enclosing all placed items.
- */
-export function computeFloorplateBounds(
-  items: ReadonlyArray<{ x: number; y: number; w: number; h: number }>,
-  columns: number,
-): { x: number; y: number; w: number; h: number } | null {
-  if (!items || items.length === 0) return null;
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-  for (const it of items) {
-    if (it.x < minX) minX = it.x;
-    if (it.y < minY) minY = it.y;
-    if (it.x + it.w > maxX) maxX = it.x + it.w;
-    if (it.y + it.h > maxY) maxY = it.y + it.h;
-  }
-  const pad = 0.45;
-  const x = Math.max(0, minX - pad);
-  const y = Math.max(0, minY - pad);
-  const right = Math.min(columns, maxX + pad);
-  const bottom = maxY + pad;
-  return {
-    x,
-    y,
-    w: Math.max(1, right - x),
-    h: Math.max(1, bottom - y),
-  };
-}
-
-function simplifyCollinearWaypoints(pts: ReadonlyArray<{ x: number; y: number }>): Array<{ x: number; y: number }> {
-  const simplified: Array<{ x: number; y: number }> = [];
-  for (const pt of pts) {
-    if (simplified.length === 0) {
-      simplified.push(pt);
-      continue;
-    }
-    const prev = simplified[simplified.length - 1];
-    if (Math.hypot(prev.x - pt.x, prev.y - pt.y) < 0.015) continue;
-    if (simplified.length >= 2) {
-      const prev2 = simplified[simplified.length - 2];
-      const v1x = prev.x - prev2.x;
-      const v1y = prev.y - prev2.y;
-      const v2x = pt.x - prev.x;
-      const v2y = pt.y - prev.y;
-      const len1 = Math.hypot(v1x, v1y);
-      const len2 = Math.hypot(v2x, v2y);
-      if (len1 > 1e-4 && len2 > 1e-4) {
-        const cross = Math.abs(v1x * v2y - v1y * v2x) / (len1 * len2);
-        const dot = v1x * v2x + v1y * v2y;
-        if (cross < 0.015 && dot > 0) {
-          simplified[simplified.length - 1] = pt;
-          continue;
-        }
-      }
-    }
-    simplified.push(pt);
-  }
-  return simplified;
-}
-
-/**
- * Computes an indoor walking path from `fromItem` to `toItem` that follows
- * `corridor` (Walkway) centerlines — including tilted straight walkways
- * and hollow circular ring roundabouts — while avoiding shop units.
- */
-export function computeWalkwayPath(
-  items: MapItem[],
-  fromItem: MapItem,
-  toItem: MapItem,
-  columns: number,
-  sqftPerCell: number = DEFAULT_SQFT_PER_CELL,
-  describeItem?: (it: MapItem) => string,
-): WalkwayRouteResult {
-  const cols = Math.max(columns, ...items.map((i) => i.x + i.w), 12) + 2;
-  const rows = Math.max(12, ...items.map((i) => i.y + i.h)) + 3;
-  const SUB = 2;
-  const gCols = cols * SUB;
-  const gRows = rows * SUB;
-  const gxToWorld = (gx: number): number => (gx <= 0 ? 0.22 : gx * 0.5);
-  const gyToWorld = (gy: number): number => (gy <= 0 ? 0.22 : gy * 0.5);
-  const worldToGx = (wx: number): number => Math.max(0, Math.min(gCols - 1, Math.round(wx * 2)));
-  const worldToGy = (wy: number): number => Math.max(0, Math.min(gRows - 1, Math.round(wy * 2)));
-
-  const nonCorridors = items.filter((i) => i.kind !== 'corridor');
-
-  const exactStart = { x: fromItem.x + fromItem.w * 0.5, y: fromItem.y + fromItem.h * 0.5 };
-  const exactEnd = { x: toItem.x + toItem.w * 0.5, y: toItem.y + toItem.h * 0.5 };
-
-  const startGx = worldToGx(exactStart.x);
-  const startGy = worldToGy(exactStart.y);
-  const endGx = worldToGx(exactEnd.x);
-  const endGy = worldToGy(exactEnd.y);
-
-  const isStartOrDestTile = (it: MapItem) =>
-    it.key === fromItem.key ||
-    it.key === toItem.key ||
-    (Boolean(fromItem.unitId) && it.unitId === fromItem.unitId) ||
-    (Boolean(toItem.unitId) && it.unitId === toItem.unitId);
-
-  const isPointInPolygon = (wx: number, wy: number, corners: ReadonlyArray<{ x: number; y: number }>): boolean => {
-    let inside = false;
-    for (let i = 0, j = corners.length - 1; i < corners.length; j = i++) {
-      const xi = corners[i].x;
-      const yi = corners[i].y;
-      const xj = corners[j].x;
-      const yj = corners[j].y;
-      const intersect = yi > wy !== yj > wy && wx < ((xj - xi) * (wy - yi)) / (yj - yi + 1e-12) + xi;
-      if (intersect) inside = !inside;
-    }
-    return inside;
-  };
-
-  const minDistToPolygonEdges = (
-    wx: number,
-    wy: number,
-    corners: ReadonlyArray<{ x: number; y: number }>,
-  ): number => {
-    let minD2 = Infinity;
-    for (let i = 0, n = corners.length; i < n; i++) {
-      const p0 = corners[i];
-      const p1 = corners[(i + 1) % n];
-      const dx = p1.x - p0.x;
-      const dy = p1.y - p0.y;
-      const len2 = dx * dx + dy * dy;
-      const t = len2 > 1e-8 ? Math.max(0, Math.min(1, ((wx - p0.x) * dx + (wy - p0.y) * dy) / len2)) : 0;
-      const ex = wx - (p0.x + dx * t);
-      const ey = wy - (p0.y + dy * t);
-      const d2 = ex * ex + ey * ey;
-      if (d2 < minD2) minD2 = d2;
-    }
-    return Math.sqrt(minD2);
-  };
-
-  type TileCollisionShape = {
-    item: MapItem;
-    vcx: number;
-    vcy: number;
-    hw: number;
-    hh: number;
-    ux: number;
-    uy: number;
-    vx: number;
-    vy: number;
-    minX: number;
-    maxX: number;
-    minY: number;
-    maxY: number;
-    isRotatedOrCurved: boolean;
-    mode: 'rect' | 'ellipse' | 'poly';
-    corners?: Array<{ x: number; y: number }>;
-  };
-
-  const buildTileCollisionShape = (it: MapItem): TileCollisionShape => {
-    if (it.kind === 'atrium') {
-      const polyFaces = getPolygonAtriumWorldFaces(it);
-      if (polyFaces && polyFaces.length >= 3) {
-        const corners = polyFaces.map((f) => ({ x: f.x0, y: f.y0 }));
-        let minX = Infinity;
-        let maxX = -Infinity;
-        let minY = Infinity;
-        let maxY = -Infinity;
-        for (const c of corners) {
-          if (c.x < minX) minX = c.x;
-          if (c.x > maxX) maxX = c.x;
-          if (c.y < minY) minY = c.y;
-          if (c.y > maxY) maxY = c.y;
-        }
-        return {
-          item: it,
-          vcx: it.x + it.w * 0.5,
-          vcy: it.y + it.h * 0.5,
-          hw: it.w * 0.5,
-          hh: it.h * 0.5,
-          ux: 1,
-          uy: 0,
-          vx: 0,
-          vy: 1,
-          minX,
-          maxX,
-          minY,
-          maxY,
-          isRotatedOrCurved: true,
-          mode: 'poly',
-          corners,
-        };
-      }
-    }
-
-    const vcx = it.x + it.w * 0.5;
-    const vcy = it.y + it.h * 0.5;
-    const vw = Math.max(0.5, it.w);
-    const vh = Math.max(0.5, it.h);
-    const hw = vw * 0.5;
-    const hh = vh * 0.5;
-    const rad = ((it.angle ?? 0) * Math.PI) / 180;
-    const ux = Math.cos(rad);
-    const uy = Math.sin(rad);
-    const vx = -uy;
-    const vy = ux;
-    const aabbHalfW = hw * Math.abs(ux) + hh * Math.abs(vx);
-    const aabbHalfH = hw * Math.abs(uy) + hh * Math.abs(vy);
-    const minX = vcx - aabbHalfW;
-    const maxX = vcx + aabbHalfW;
-    const minY = vcy - aabbHalfH;
-    const maxY = vcy + aabbHalfH;
-
-    if (isCircleTile(it, items) || (it.kind === 'unit' && parseUnitShapeMode(it) === 'circle')) {
-      return {
-        item: it,
-        vcx,
-        vcy,
-        hw,
-        hh,
-        ux,
-        uy,
-        vx,
-        vy,
-        minX,
-        maxX,
-        minY,
-        maxY,
-        isRotatedOrCurved: true,
-        mode: 'ellipse',
-      };
-    }
-
-    if (it.kind === 'unit') {
-      const customPoly = getCustomUnitPolygonVerticesAndAxes(it, { ux, uy, vx, vy });
-      if (customPoly && customPoly.corners.length >= 3) {
-        return {
-          item: it,
-          vcx,
-          vcy,
-          hw,
-          hh,
-          ux,
-          uy,
-          vx,
-          vy,
-          minX,
-          maxX,
-          minY,
-          maxY,
-          isRotatedOrCurved: true,
-          mode: 'poly',
-          corners: customPoly.corners,
-        };
-      }
-    }
-
-    return {
-      item: it,
-      vcx,
-      vcy,
-      hw,
-      hh,
-      ux,
-      uy,
-      vx,
-      vy,
-      minX,
-      maxX,
-      minY,
-      maxY,
-      isRotatedOrCurved: Boolean(it.angle),
-      mode: 'rect',
-    };
-  };
-
-  const signedDistanceToShape = (wx: number, wy: number, s: TileCollisionShape): number => {
-    if (s.mode === 'poly' && s.corners) {
-      const edgeDist = minDistToPolygonEdges(wx, wy, s.corners);
-      return isPointInPolygon(wx, wy, s.corners) ? -edgeDist : edgeDist;
-    }
-    const du = (wx - s.vcx) * s.ux + (wy - s.vcy) * s.uy;
-    const dv = (wx - s.vcx) * s.vx + (wy - s.vcy) * s.vy;
-    if (s.mode === 'ellipse') {
-      const norm = Math.hypot(du / Math.max(0.4, s.hw), dv / Math.max(0.4, s.hh));
-      return (norm - 1) * Math.min(s.hw, s.hh);
-    }
-    const qx = Math.abs(du) - s.hw;
-    const qy = Math.abs(dv) - s.hh;
-    return Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0);
-  };
-
-  const startDestShapes: TileCollisionShape[] = [];
-  const obstacleShapes: TileCollisionShape[] = [];
-  const containerAtriumShapes: TileCollisionShape[] = [];
-
-  for (const it of nonCorridors) {
-    const shape = buildTileCollisionShape(it);
-    if (isStartOrDestTile(it)) {
-      startDestShapes.push(shape);
-    } else if (
-      it.kind === 'atrium' &&
-      (signedDistanceToShape(exactStart.x, exactStart.y, shape) < -0.1 ||
-        signedDistanceToShape(exactEnd.x, exactEnd.y, shape) < -0.1)
-    ) {
-      containerAtriumShapes.push(shape);
-    } else {
-      obstacleShapes.push(shape);
-    }
-  }
-
-  const minObstacleDistanceAt = (wx: number, wy: number): number => {
-    let minD = Infinity;
-    for (const obs of obstacleShapes) {
-      if (
-        wx < obs.minX - minD ||
-        wx > obs.maxX + minD ||
-        wy < obs.minY - minD ||
-        wy > obs.maxY + minD
-      ) {
-        continue;
-      }
-      const d = signedDistanceToShape(wx, wy, obs);
-      if (d < minD) minD = d;
-    }
-    return minD;
-  };
-
-  const findStartDestShapeAt = (wx: number, wy: number, pad = 0.04): TileCollisionShape | null => {
-    for (const s of startDestShapes) {
-      if (wx < s.minX - pad || wx > s.maxX + pad || wy < s.minY - pad || wy > s.maxY + pad) continue;
-      if (signedDistanceToShape(wx, wy, s) <= pad) return s;
-    }
-    return null;
-  };
-
-  const floorplate = computeFloorplateBounds(items, cols);
-  const fpMinX = floorplate ? floorplate.x + 0.12 : 0.15;
-  const fpMaxX = floorplate ? floorplate.x + floorplate.w - 0.12 : cols - 0.15;
-  const fpMinY = floorplate ? floorplate.y + 0.12 : 0.15;
-  const fpMaxY = floorplate ? floorplate.y + floorplate.h - 0.12 : rows - 0.15;
-  const isInsideFloorplate = (wx: number, wy: number): boolean =>
-    wx >= fpMinX && wx <= fpMaxX && wy >= fpMinY && wy <= fpMaxY;
-
-  // Precompute sub-cell traversal cost & whether diagonal (8-dir) steps are enabled on the node
-  const totalNodes = gCols * gRows;
-  const cellCost = new Float32Array(totalNodes);
-  cellCost.fill(6.5);
-  const allowDiag = new Uint8Array(totalNodes);
-  const isOpenFloorCell = new Uint8Array(totalNodes);
-
-  for (let gy = 0; gy < gRows; gy++) {
-    const wy = gyToWorld(gy);
-    for (let gx = 0; gx < gCols; gx++) {
-      const idx = gy * gCols + gx;
-      const wx = gxToWorld(gx);
-
-      // 0. Never route outside the architectural floorplate border
-      if (!isInsideFloorplate(wx, wy)) {
-        cellCost[idx] = 25000.0;
-        allowDiag[idx] = 0;
-        continue;
-      }
-
-      const obsDist = minObstacleDistanceAt(wx, wy);
-
-      // 1. Strict obstacle interior & wall boundary block (units, atriums, restrooms, stairs, escalators, etc.)
-      if (obsDist <= 0.04) {
-        cellCost[idx] = 50000.0;
-        allowDiag[idx] = 0;
-        continue;
-      }
-
-      // 2. Start or Destination tile interior: prefer perpendicular exit/entry along center axes, away from neighbor walls
-      const startDestHit = findStartDestShapeAt(wx, wy, 0.04);
-      if (startDestHit) {
-        // Standalone "You Are Here" location pin sits on open floor — allow smooth 360-degree departure
-        if (startDestHit.item.kind === 'marker' && obsDist >= 0.22) {
-          cellCost[idx] = 1.0;
-          allowDiag[idx] = 1;
-          isOpenFloorCell[idx] = 1;
-          continue;
-        }
-        const distToEndpoints = Math.min(
-          Math.hypot(wx - exactStart.x, wy - exactStart.y),
-          Math.hypot(wx - exactEnd.x, wy - exactEnd.y),
-        );
-        if (obsDist < 0.28 && distToEndpoints > 0.65) {
-          cellCost[idx] = 450.0;
-          allowDiag[idx] = 0;
-          continue;
-        }
-        const du = (wx - startDestHit.vcx) * startDestHit.ux + (wy - startDestHit.vcy) * startDestHit.uy;
-        const dv = (wx - startDestHit.vcx) * startDestHit.vx + (wy - startDestHit.vcy) * startDestHit.vy;
-        const axisOffset = Math.min(Math.abs(du), Math.abs(dv));
-        cellCost[idx] = 16.0 + axisOffset * 3.5;
-        allowDiag[idx] = startDestHit.isRotatedOrCurved ? 1 : 0;
-        continue;
-      }
-
-      // 3. Very tight wall-grazing margin outside obstacles
-      if (obsDist < 0.18) {
-        cellCost[idx] = 36.0;
-        allowDiag[idx] = 0;
-        continue;
-      }
-
-      // 4. Open floor concourse cost & obstacle clearance
-      const inContainerAtrium =
-        containerAtriumShapes.length > 0 &&
-        containerAtriumShapes.some((s) => signedDistanceToShape(wx, wy, s) <= 0.04);
-
-      if (inContainerAtrium) {
-        cellCost[idx] = 24.0;
-        allowDiag[idx] = 1;
-        continue;
-      }
-
-      let clearancePenalty = 0;
-      if (obsDist < 1.8) {
-        clearancePenalty += (1.8 - obsDist) * 0.55;
-      }
-      if (obsDist < 0.55) {
-        clearancePenalty += (0.55 - obsDist) * 7.5;
-      }
-      cellCost[idx] = 6.5 + clearancePenalty;
-      allowDiag[idx] = obsDist >= 0.22 ? 1 : 0;
-      isOpenFloorCell[idx] = 1;
-    }
-  }
-
-  // Ensure start and end nodes are reachable
-  const startCellIdx = startGy * gCols + startGx;
-  const endCellIdx = endGy * gCols + endGx;
-  cellCost[startCellIdx] = 1.0;
-  cellCost[endCellIdx] = 1.0;
-  allowDiag[startCellIdx] = fromItem.kind === 'marker' || fromItem.angle ? 1 : 0;
-  allowDiag[endCellIdx] = toItem.kind === 'marker' || toItem.angle ? 1 : 0;
-
-  // Hybrid 4-dir / 8-dir Dijkstra on 0.5-cell subgrid
-  const DIRS = [
-    [1, 0, 0.5],
-    [-1, 0, 0.5],
-    [0, 1, 0.5],
-    [0, -1, 0.5],
-    [1, 1, 0.5 * Math.SQRT2],
-    [1, -1, 0.5 * Math.SQRT2],
-    [-1, 1, 0.5 * Math.SQRT2],
-    [-1, -1, 0.5 * Math.SQRT2],
-  ] as const;
-  const STATE_STRIDE = 9;
-  const INIT_DIR = 8;
-  const decodeState = (s: number) => {
-    const dir = s % STATE_STRIDE;
-    const cellIdx = (s - dir) / STATE_STRIDE;
-    const gx = cellIdx % gCols;
-    return { dir, cellIdx, gx, gy: (cellIdx - gx) / gCols };
-  };
-  const stateCount = totalNodes * STATE_STRIDE;
-  const dist = new Float32Array(stateCount);
-  dist.fill(Infinity);
-  const parent = new Int32Array(stateCount);
-  parent.fill(-1);
-
-  const startState = startCellIdx * STATE_STRIDE + INIT_DIR;
-  dist[startState] = 0;
-
-  const heap: number[] = [startState];
-  const pushHeap = (s: number) => {
-    heap.push(s);
-    let i = heap.length - 1;
-    while (i > 0) {
-      const p = (i - 1) >> 1;
-      if (dist[heap[p]] <= dist[heap[i]]) break;
-      const tmp = heap[p];
-      heap[p] = heap[i];
-      heap[i] = tmp;
-      i = p;
-    }
-  };
-  const popHeap = (): number => {
-    const top = heap[0];
-    const last = heap.pop()!;
-    if (heap.length > 0) {
-      heap[0] = last;
-      let i = 0;
-      const n = heap.length;
-      while (true) {
-        let smallest = i;
-        const l = i * 2 + 1;
-        const r = i * 2 + 2;
-        if (l < n && dist[heap[l]] < dist[heap[smallest]]) smallest = l;
-        if (r < n && dist[heap[r]] < dist[heap[smallest]]) smallest = r;
-        if (smallest === i) break;
-        const tmp = heap[i];
-        heap[i] = heap[smallest];
-        heap[smallest] = tmp;
-        i = smallest;
-      }
-    }
-    return top;
-  };
-
-  let goalState = -1;
-  while (heap.length > 0) {
-    const cur = popHeap();
-    const curCost = dist[cur];
-    const { dir, cellIdx, gx, gy } = decodeState(cur);
-
-    if (gx === endGx && gy === endGy) {
-      goalState = cur;
-      break;
-    }
-
-    for (let nd = 0; nd < 8; nd++) {
-      const [dx, dy, stepLen] = DIRS[nd];
-      const ngx = gx + dx;
-      const ngy = gy + dy;
-      if (ngx < 0 || ngx >= gCols || ngy < 0 || ngy >= gRows) continue;
-      const nCellIdx = ngy * gCols + ngx;
-
-      if (nd >= 4) {
-        if (!allowDiag[cellIdx] || !allowDiag[nCellIdx]) continue;
-        // Verify diagonal segment midpoint & quarter points stay clear of all obstacle walls/corners
-        const wx0 = gxToWorld(gx);
-        const wy0 = gyToWorld(gy);
-        const wx1 = gxToWorld(ngx);
-        const wy1 = gyToWorld(ngy);
-        if (
-          minObstacleDistanceAt((wx0 + wx1) * 0.5, (wy0 + wy1) * 0.5) < 0.18 ||
-          minObstacleDistanceAt(wx0 * 0.75 + wx1 * 0.25, wy0 * 0.75 + wy1 * 0.25) < 0.16 ||
-          minObstacleDistanceAt(wx0 * 0.25 + wx1 * 0.75, wy0 * 0.25 + wy1 * 0.75) < 0.16
-        ) {
-          continue;
-        }
-      }
-
-      let turnPenalty = 0;
-      if (dir !== INIT_DIR && dir !== nd) {
-        const [prevDx, prevDy] = DIRS[dir];
-        const prevLen = Math.hypot(prevDx, prevDy);
-        const curLen = Math.hypot(dx, dy);
-        const cosTurn = (prevDx * dx + prevDy * dy) / (prevLen * curLen);
-        turnPenalty = cosTurn > 0.5 ? 0.14 : 0.35;
-      }
-
-      const nextCost = curCost + cellCost[nCellIdx] * stepLen + turnPenalty;
-      const nextState = nCellIdx * STATE_STRIDE + nd;
-      if (nextCost < dist[nextState]) {
-        dist[nextState] = nextCost;
-        parent[nextState] = cur;
-        pushHeap(nextState);
-      }
-    }
-  }
-
-  // Reconstruct sub-cell nodes
-  const rawNodes: Array<{ gx: number; gy: number }> = [];
-  if (goalState !== -1) {
-    let cur = goalState;
-    while (cur !== -1) {
-      const { gx, gy } = decodeState(cur);
-      rawNodes.push({ gx, gy });
-      cur = parent[cur];
-    }
-    rawNodes.reverse();
-  } else {
-    rawNodes.push({ gx: startGx, gy: startGy }, { gx: endGx, gy: endGy });
-  }
-
-  const isSegmentClearOfObstacles = (
-    a: { x: number; y: number },
-    b: { x: number; y: number },
-    minClearance = 0.24,
-  ): boolean => {
-    const distAB = Math.hypot(b.x - a.x, b.y - a.y);
-    const steps = Math.max(4, Math.ceil(distAB / 0.12));
-    for (let s = 0; s <= steps; s++) {
-      const t = s / steps;
-      const sx = a.x + (b.x - a.x) * t;
-      const sy = a.y + (b.y - a.y) * t;
-      if (!isInsideFloorplate(sx, sy) || minObstacleDistanceAt(sx, sy) < minClearance) {
-        return false;
-      }
-    }
-    return true;
-  };
-
-  const rawPoints = rawNodes.map(({ gx, gy }) => ({ x: gxToWorld(gx), y: gyToWorld(gy) }));
-  if (rawPoints.length > 0) {
-    rawPoints[0] = exactStart;
-    rawPoints[rawPoints.length - 1] = exactEnd;
-  }
-
-  // For rotated start/destination tiles, straighten interior sub-cell steps into a clean perpendicular line along the open face normal
-  if ((fromItem.angle || toItem.angle) && rawPoints.length >= 4) {
-    if (fromItem.angle) {
-      let exitIdx = 1;
-      while (
-        exitIdx < rawPoints.length - 2 &&
-        findStartDestShapeAt(rawPoints[exitIdx].x, rawPoints[exitIdx].y, 0.08) !== null
-      ) {
-        exitIdx++;
-      }
-      if (exitIdx > 1 && isSegmentClearOfObstacles(exactStart, rawPoints[exitIdx], 0.26)) {
-        rawPoints.splice(1, exitIdx - 1);
-      }
-    }
-    if (toItem.angle && rawPoints.length >= 4) {
-      let enterIdx = rawPoints.length - 2;
-      while (
-        enterIdx > 1 &&
-        findStartDestShapeAt(rawPoints[enterIdx].x, rawPoints[enterIdx].y, 0.08) !== null
-      ) {
-        enterIdx--;
-      }
-      if (
-        enterIdx < rawPoints.length - 2 &&
-        isSegmentClearOfObstacles(rawPoints[enterIdx], exactEnd, 0.26)
-      ) {
-        rawPoints.splice(enterIdx + 1, rawPoints.length - 2 - enterIdx);
-      }
-    }
-  }
-
-  const isInWalledStartDestAt = (wx: number, wy: number, pad = 0.08): boolean => {
-    const hit = findStartDestShapeAt(wx, wy, pad);
-    return Boolean(hit && hit.item.kind !== 'marker');
-  };
-
-  const smoothOpenFloorWaypoints = (pts: Array<{ x: number; y: number }>): Array<{ x: number; y: number }> => {
-    if (pts.length <= 2) return simplifyCollinearWaypoints(pts);
-    const nodeIdxAt = (pt: { x: number; y: number }) => {
-      const gx = worldToGx(pt.x);
-      const gy = worldToGy(pt.y);
-      return gy * gCols + gx;
-    };
-    const pointToSegmentDist = (
-      p: { x: number; y: number },
-      a: { x: number; y: number },
-      b: { x: number; y: number },
-    ): number => {
-      const dx = b.x - a.x;
-      const dy = b.y - a.y;
-      const len2 = dx * dx + dy * dy;
-      const t = len2 > 1e-8 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2)) : 0;
-      return Math.hypot(p.x - (a.x + dx * t), p.y - (a.y + dy * t));
-    };
-    const canShortcutOpenChord = (iStart: number, iEnd: number, maxRefCost: number): boolean => {
-      const a = pts[iStart];
-      const b = pts[iEnd];
-      // Do not cut 90-degree corridor turns around unit corners; only smooth grid staircase steps
-      for (let k = iStart + 1; k < iEnd; k++) {
-        if (pointToSegmentDist(pts[k], a, b) > 0.42) {
-          return false;
-        }
-      }
-      if (!isSegmentClearOfObstacles(a, b, 0.30)) return false;
-      const distAB = Math.hypot(b.x - a.x, b.y - a.y);
-      const steps = Math.max(3, Math.ceil(distAB / 0.2));
-      for (let s = 1; s < steps; s++) {
-        const t = s / steps;
-        const sx = a.x + (b.x - a.x) * t;
-        const sy = a.y + (b.y - a.y) * t;
-        if (isInWalledStartDestAt(sx, sy, 0.08)) return false;
-        const idx = nodeIdxAt({ x: sx, y: sy });
-        if (!isOpenFloorCell[idx] && cellCost[idx] >= 6.0) return false;
-        if (cellCost[idx] >= 25 || cellCost[idx] > maxRefCost + 0.85) return false;
-      }
-      return true;
-    };
-
-    const pulled: Array<{ x: number; y: number }> = [pts[0]];
-    let i = 0;
-    while (i < pts.length - 1) {
-      const curIdx = nodeIdxAt(pts[i]);
-      const nextIdx = nodeIdxAt(pts[i + 1]);
-      const curInStartDest = isInWalledStartDestAt(pts[i].x, pts[i].y, 0.08);
-      const nextInStartDest = isInWalledStartDestAt(pts[i + 1].x, pts[i + 1].y, 0.08);
-      if (curInStartDest || nextInStartDest || (!isOpenFloorCell[curIdx] && !isOpenFloorCell[nextIdx])) {
-        pulled.push(pts[i + 1]);
-        i++;
-        continue;
-      }
-      let bestJ = i + 1;
-      let maxCostInRun = Math.max(cellCost[curIdx], cellCost[nextIdx]);
-      const limitJ = Math.min(pts.length - 1, i + 12);
-      for (let j = i + 2; j <= limitJ; j++) {
-        if (isInWalledStartDestAt(pts[j].x, pts[j].y, 0.08)) break;
-        const jCell = nodeIdxAt(pts[j]);
-        if (!isOpenFloorCell[jCell]) break;
-        if (cellCost[jCell] < 25) {
-          maxCostInRun = Math.max(maxCostInRun, cellCost[jCell]);
-        }
-        if (canShortcutOpenChord(i, j, maxCostInRun)) {
-          bestJ = j;
-        }
-      }
-      pulled.push(pts[bestJ]);
-      i = bestJ;
-    }
-    return simplifyCollinearWaypoints(pulled);
-  };
-
-  const smoothedPoints = smoothOpenFloorWaypoints(rawPoints);
-
-  let cellDistance = 0;
-  for (let i = 1; i < smoothedPoints.length; i++) {
-    cellDistance += Math.hypot(
-      smoothedPoints[i].x - smoothedPoints[i - 1].x,
-      smoothedPoints[i].y - smoothedPoints[i - 1].y,
-    );
-  }
-  const cellSideFeet = Math.sqrt(Math.max(10, sqftPerCell || DEFAULT_SQFT_PER_CELL));
-  const distanceFeet = Math.max(10, Math.round(cellDistance * cellSideFeet));
-  const distanceMeters = Math.max(3, Math.round(distanceFeet * 0.3048));
-  const estimatedMinutes = Math.max(1, Math.ceil(distanceFeet / 220));
-
-  // Build concise landmark / shop waypoint steps (no raw meter/feet numbers)
-  const getTileLabel = (it: MapItem): string => {
-    if (describeItem) {
-      const custom = describeItem(it)?.trim();
-      if (custom && custom !== '—') return custom;
-    }
-    if (it.kind !== 'unit' && it.kind !== 'corridor') {
-      return parseLandmarkMeta(it.kind, it.label).displayLabel;
-    }
-    if (it.label && !it.label.startsWith('unit:') && !it.label.startsWith('walkway:')) {
-      return it.label;
-    }
-    return DECORATION_LABELS[it.kind as Exclude<TileKind, 'unit'>] || 'Shop';
-  };
-
-  const findNearbyWaypointName = (
-    samplePts: ReadonlyArray<{ x: number; y: number }>,
-    usedNames: Set<string>,
-    allowReuseForTurn = false,
-  ): string | null => {
-    let bestName: string | null = null;
-    let bestScore = Infinity;
-    for (const it of nonCorridors) {
-      if (it.key === fromItem.key || it.key === toItem.key) continue;
-      if (fromItem.unitId && it.unitId === fromItem.unitId) continue;
-      if (toItem.unitId && it.unitId === toItem.unitId) continue;
-      if (it.kind === 'marker') continue;
-      const name = getTileLabel(it);
-      if (!name || (!allowReuseForTurn && usedNames.has(name))) continue;
-      let minDist = Infinity;
-      for (const pt of samplePts) {
-        const dx = pt.x < it.x ? it.x - pt.x : pt.x > it.x + it.w ? pt.x - (it.x + it.w) : 0;
-        const dy = pt.y < it.y ? it.y - pt.y : pt.y > it.y + it.h ? pt.y - (it.y + it.h) : 0;
-        const d = Math.hypot(dx, dy);
-        if (d < minDist) minDist = d;
-      }
-      const isLandmark = it.kind !== 'unit';
-      const maxReach = isLandmark ? 4.8 : 3.2;
-      if (minDist > maxReach) continue;
-      const score = minDist - (isLandmark ? 0.9 : 0) + (usedNames.has(name) ? 1.5 : 0);
-      if (score < bestScore) {
-        bestScore = score;
-        bestName = name;
-      }
-    }
-    return bestName;
-  };
-
-  const steps: WalkwayRouteStep[] = [];
-  if (smoothedPoints.length >= 2) {
-    type RawSeg = {
-      dir: 'straight' | 'left' | 'right';
-      pts: Array<{ x: number; y: number }>;
-      cells: number;
-    };
-    const rawSegs: RawSeg[] = [];
-    for (let i = 1; i < smoothedPoints.length; i++) {
-      const p0 = smoothedPoints[i - 1];
-      const p1 = smoothedPoints[i];
-      const segCells = Math.hypot(p1.x - p0.x, p1.y - p0.y);
-      if (segCells < 1e-3) continue;
-      if (rawSegs.length === 0) {
-        rawSegs.push({ dir: 'straight', pts: [p0, p1], cells: segCells });
-      } else {
-        const prev = smoothedPoints[i - 2];
-        const v1x = p0.x - prev.x;
-        const v1y = p0.y - prev.y;
-        const v2x = p1.x - p0.x;
-        const v2y = p1.y - p0.y;
-        const cross = v1x * v2y - v1y * v2x;
-        const dot = v1x * v2x + v1y * v2y;
-        const turnAngle = Math.abs(Math.atan2(cross, dot) * (180 / Math.PI));
-        if (turnAngle >= 22) {
-          const dir: 'left' | 'right' = cross < 0 ? 'left' : 'right';
-          rawSegs.push({ dir, pts: [p0, p1], cells: segCells });
-        } else {
-          const last = rawSegs[rawSegs.length - 1];
-          last.pts.push(p1);
-          last.cells += segCells;
-        }
-      }
-    }
-
-    const startName = getTileLabel(fromItem);
-    const destName = getTileLabel(toItem);
-    const usedNames = new Set<string>([startName, destName]);
-
-    for (const seg of rawSegs) {
-      const firstPt = seg.pts[0];
-      const lastPt = seg.pts[seg.pts.length - 1];
-      const midPt = { x: (firstPt.x + lastPt.x) * 0.5, y: (firstPt.y + lastPt.y) * 0.5 };
-      const segMeters = Math.max(1, Math.round(seg.cells * cellSideFeet * 0.3048));
-
-      if (seg.dir === 'straight') {
-        const nearName = findNearbyWaypointName([firstPt, midPt, lastPt], usedNames, false);
-        if (nearName) {
-          usedNames.add(nearName);
-          steps.push({
-            instruction: `Pass by ${nearName}`,
-            distanceMeters: segMeters,
-            direction: 'straight',
-          });
-        }
-      } else {
-        const dirText = seg.dir === 'left' ? 'Turn left' : 'Turn right';
-        const turnNear = findNearbyWaypointName([firstPt, midPt], usedNames, true);
-        if (turnNear) {
-          usedNames.add(turnNear);
-        }
-        const instruction = turnNear ? `${dirText} near ${turnNear}` : dirText;
-        const prevStep = steps[steps.length - 1];
-        if (!prevStep || prevStep.instruction !== instruction) {
-          steps.push({
-            instruction,
-            distanceMeters: segMeters,
-            direction: seg.dir,
-          });
-        }
-      }
-    }
-
-    steps.push({
-      instruction: `Arrive at ${destName}`,
-      distanceMeters: 0,
-      direction: 'straight',
-    });
-  }
-
-  return {
-    points: smoothedPoints,
-    distanceFeet,
-    distanceMeters,
-    estimatedMinutes,
-    steps,
-  };
-}
+export {
+  buildSmoothRouteSvgPath,
+  computeFloorplateBounds,
+  computeRouteDirectionArrows,
+  computeWalkwayPath,
+  findDefaultStartItem,
+  findNearestFacilityItem,
+} from './shopMapRouting';
+export type { WalkwayRouteResult, WalkwayRouteStep } from './shopMapRouting';
 
 function subtractIntervals(total: number, removals: ReadonlyArray<[number, number]>): Array<[number, number]> {
   let result: Array<[number, number]> = [[0, total]];
@@ -6533,7 +5874,7 @@ function getTileWorldCorners(
   ];
 }
 
-interface PolygonAtriumWorldFace {
+export interface PolygonAtriumWorldFace {
   index: number;
   x0: number;
   y0: number;
@@ -6547,7 +5888,7 @@ interface PolygonAtriumWorldFace {
   isCardinal: boolean;
 }
 
-function getPolygonAtriumWorldFaces(atrium: {
+export function getPolygonAtriumWorldFaces(atrium: {
   kind?: TileKind | string;
   label?: string | null;
   x: number;
@@ -7013,14 +6354,38 @@ export function computeUnitMergeMap(items: MapItem[]): Map<string, UnitMergeData
 }
 
 function extractSavedPlanBase(planData: any): { spc: number; cols: number; saved: any[] } {
-  const saved = Array.isArray(planData?.items) ? planData.items : [];
+  const rawSaved = Array.isArray(planData?.items) ? planData.items : [];
+  const rawCols = Number(planData?.columns) || 0;
+  const maxRawRight = rawSaved.reduce(
+    (max: number, it: any) => Math.max(max, (Number(it?.x) || 0) + Math.max(1, Number(it?.w) || 1)),
+    0,
+  );
+  const isLegacyCoarseGrid = rawSaved.length > 0 && (rawCols > 0 ? rawCols <= 90 : maxRawRight <= 90);
+  const scale = isLegacyCoarseGrid ? 2 : 1;
+  const saved =
+    scale === 1
+      ? rawSaved
+      : rawSaved.map((it: any) => ({
+          ...it,
+          x: Math.round((Number(it?.x) || 0) * scale),
+          y: Math.round((Number(it?.y) || 0) * scale),
+          w: Math.max(1, Math.round((Number(it?.w) || 1) * scale)),
+          h: Math.max(1, Math.round((Number(it?.h) || 1) * scale)),
+        }));
   const maxSavedRight = saved.reduce(
     (max: number, it: any) => Math.max(max, (Number(it?.x) || 0) + Math.max(1, Number(it?.w) || 1)),
     0,
   );
+  const rawSpc = Number(planData?.sqftPerCell) || 0;
+  const spc =
+    rawSpc > 0
+      ? isLegacyCoarseGrid
+        ? Math.max(4, Math.round((rawSpc / (scale * scale)) * 10) / 10)
+        : rawSpc
+      : DEFAULT_SQFT_PER_CELL;
   return {
-    spc: Number(planData?.sqftPerCell) || DEFAULT_SQFT_PER_CELL,
-    cols: Math.max(Number(planData?.columns) || DEFAULT_COLUMNS, maxSavedRight),
+    spc,
+    cols: Math.max(rawCols * scale || DEFAULT_COLUMNS, DEFAULT_COLUMNS, maxSavedRight),
     saved,
   };
 }
@@ -7250,64 +6615,12 @@ export function buildCopiedFloorLayout(
   };
 }
 
-// ── Offline / Low-Connection Local Storage Cache for Floor Plans & Directory ──
-const FLOOR_PLAN_CACHE_PREFIX = 'pms_mall_fp_v1:';
-const DIRECTORY_CACHE_PREFIX = 'pms_mall_dir_v1:';
-
-function readLocalJson<T>(key: string): T | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeLocalJson(key: string, value: unknown): void {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    // Ignore storage quota errors
-  }
-}
-
-export function saveCachedFloorPlan(propertyId: string | null | undefined, floor: string, planData: any): void {
-  if (!propertyId || !floor || !planData) return;
-  writeLocalJson(`${FLOOR_PLAN_CACHE_PREFIX}${propertyId}:${floor}`, {
-    data: planData,
-    updatedAt: Date.now(),
-  });
-}
-
-export function getCachedFloorPlan(propertyId: string | null | undefined, floor: string): any | null {
-  if (!propertyId || !floor) return null;
-  return readLocalJson<{ data?: any }>(`${FLOOR_PLAN_CACHE_PREFIX}${propertyId}:${floor}`)?.data ?? null;
-}
-
-export function saveCachedDirectory(
-  propertyId: string | null | undefined,
-  payload: { property?: any; shops: any[] },
-): void {
-  if (!propertyId || !Array.isArray(payload?.shops)) return;
-  const existing = getCachedDirectory(propertyId);
-  writeLocalJson(`${DIRECTORY_CACHE_PREFIX}${propertyId}`, {
-    property: payload.property ?? existing?.property ?? null,
-    shops: payload.shops,
-    updatedAt: Date.now(),
-  });
-}
-
-export function getCachedDirectory(
-  propertyId: string | null | undefined,
-): { property?: any; shops: any[]; updatedAt?: number } | null {
-  if (!propertyId) return null;
-  const parsed = readLocalJson<{ property?: any; shops: any[]; updatedAt?: number }>(
-    `${DIRECTORY_CACHE_PREFIX}${propertyId}`,
-  );
-  return parsed && Array.isArray(parsed.shops) ? parsed : null;
-}
+export {
+  getCachedDirectory,
+  getCachedFloorPlan,
+  saveCachedDirectory,
+  saveCachedFloorPlan,
+} from './shopMapRouting';
 
 /* ── Edit Mode Multi-Select / Group Helpers ── */
 
@@ -7568,9 +6881,7 @@ export function rotateTileGroup(
     const rotCy = groupCy + dx * sinA + dy * cosA;
     const nextAngle = normalizeTileAngle((it.angle ?? 0) + normDelta);
     const swapAxes =
-      it.w !== it.h &&
-      ((!it.angle && (normDelta === 90 || normDelta === 270)) ||
-        (it.kind === 'corridor' && (nextAngle === 90 || nextAngle === 270)));
+      it.w !== it.h && !it.angle && (normDelta === 90 || normDelta === 270);
     const newW = swapAxes ? Math.min(columns, it.h) : Math.min(columns, it.w);
     const newH = swapAxes ? it.w : it.h;
     const newAngle = swapAxes ? undefined : nextAngle;

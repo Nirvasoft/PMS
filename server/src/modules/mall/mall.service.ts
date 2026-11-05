@@ -154,10 +154,16 @@ class MallService {
       a: { kind: string; x: number; y: number; w: number; h: number },
       b: { kind: string; x: number; y: number; w: number; h: number },
     ) => {
-      if (a.kind === 'atrium' && (b.kind === 'stairs' || b.kind === 'escalator')) {
+      if (
+        a.kind === 'atrium' &&
+        (b.kind === 'stairs' || b.kind === 'escalator' || b.kind === 'info' || b.kind === 'marker')
+      ) {
         return b.x >= a.x && b.y >= a.y && b.x + b.w <= a.x + a.w && b.y + b.h <= a.y + a.h;
       }
-      if (b.kind === 'atrium' && (a.kind === 'stairs' || a.kind === 'escalator')) {
+      if (
+        b.kind === 'atrium' &&
+        (a.kind === 'stairs' || a.kind === 'escalator' || a.kind === 'info' || a.kind === 'marker')
+      ) {
         return a.x >= b.x && a.y >= b.y && a.x + a.w <= b.x + b.w && a.y + a.h <= b.y + b.h;
       }
       return false;
@@ -168,11 +174,154 @@ class MallService {
       b: { x: number; y: number; w: number; h: number },
     ) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 
-    const getTrueShapePoly = (
+    const CIRCLE_24_UV: Array<[number, number]> = Array.from({ length: 24 }, (_, i) => {
+      const theta = (i * 2 * Math.PI) / 24;
+      return [0.5 * Math.cos(theta), 0.5 * Math.sin(theta)];
+    });
+
+    const UNIT_SHAPE_CONVEX_UV_PARTS: Record<string, Array<Array<[number, number]>>> = {
+      circle: [CIRCLE_24_UV],
+      'ring-curve': [
+        [[-0.48, -0.32], [-0.15, -0.48], [-0.10, 0.34], [-0.31, 0.48]],
+        [[-0.15, -0.48], [0.15, -0.48], [0.10, 0.34], [-0.10, 0.34]],
+        [[0.15, -0.48], [0.48, -0.32], [0.31, 0.48], [0.10, 0.34]],
+      ],
+      'trapezoid-ring': [
+        [[-0.5, -0.5], [-0.15, -0.5], [-0.10, 0.36], [-0.32, 0.5]],
+        [[-0.15, -0.5], [0.15, -0.5], [0.10, 0.36], [-0.10, 0.36]],
+        [[0.15, -0.5], [0.5, -0.5], [0.32, 0.5], [0.10, 0.36]],
+      ],
+      'slope-b-l': [[[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.16]]],
+      'slope-b-r': [[[-0.5, -0.5], [0.5, -0.5], [0.5, 0.16], [-0.5, 0.5]]],
+      'slope-t-l': [[[-0.5, -0.16], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]]],
+      'slope-t-r': [[[-0.5, -0.5], [0.5, -0.16], [0.5, 0.5], [-0.5, 0.5]]],
+      'slope-l-t': [[[-0.14, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]]],
+      'slope-l-b': [[[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.14, 0.5]]],
+      'slope-r-t': [[[-0.5, -0.5], [0.14, -0.5], [0.5, 0.5], [-0.5, 0.5]]],
+      'slope-r-b': [[[-0.5, -0.5], [0.5, -0.5], [0.14, 0.5], [-0.5, 0.5]]],
+      'chamfer-tr': [[[-0.5, -0.5], [0.06, -0.5], [0.5, -0.06], [0.5, 0.5], [-0.5, 0.5]]],
+      'curve-tr': [[[-0.5, -0.5], [0.06, -0.5], [0.5, -0.06], [0.5, 0.5], [-0.5, 0.5]]],
+      'chamfer-tl': [[[-0.06, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5], [-0.5, -0.06]]],
+      'curve-tl': [[[-0.06, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5], [-0.5, -0.06]]],
+      'chamfer-br': [[[-0.5, -0.5], [0.5, -0.5], [0.5, 0.06], [0.06, 0.5], [-0.5, 0.5]]],
+      'curve-br': [[[-0.5, -0.5], [0.5, -0.5], [0.5, 0.06], [0.06, 0.5], [-0.5, 0.5]]],
+      'chamfer-bl': [[[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.06, 0.5], [-0.5, 0.06]]],
+      'curve-bl': [[[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.06, 0.5], [-0.5, 0.06]]],
+      'bevel-l': [[[-0.14, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.14, 0.5], [-0.5, 0.0]]],
+      'bevel-r': [[[-0.5, -0.5], [0.14, -0.5], [0.5, 0.0], [0.14, 0.5], [-0.5, 0.5]]],
+      'bevel-t': [[[0.0, -0.5], [0.5, -0.14], [0.5, 0.5], [-0.5, 0.5], [-0.5, -0.14]]],
+      'bevel-b': [[[-0.5, -0.5], [0.5, -0.5], [0.5, 0.14], [0.0, 0.5], [-0.5, 0.14]]],
+      'notch-tl': [
+        [[0.12, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.06, 0.5], [-0.06, -0.06]],
+        [[-0.5, 0.12], [-0.06, -0.06], [-0.06, 0.5], [-0.5, 0.5]],
+      ],
+      'notch-tr': [
+        [[-0.5, -0.5], [-0.12, -0.5], [0.06, -0.06], [0.06, 0.5], [-0.5, 0.5]],
+        [[0.06, -0.06], [0.5, 0.12], [0.5, 0.5], [0.06, 0.5]],
+      ],
+      'notch-br': [
+        [[-0.5, -0.5], [0.06, -0.5], [0.06, 0.06], [-0.12, 0.5], [-0.5, 0.5]],
+        [[0.06, -0.5], [0.5, -0.5], [0.5, -0.12], [0.06, 0.06]],
+      ],
+      'notch-bl': [
+        [[-0.06, -0.5], [0.5, -0.5], [0.5, 0.5], [0.12, 0.5], [-0.06, 0.06]],
+        [[-0.5, -0.5], [-0.06, -0.5], [-0.06, 0.06], [-0.5, -0.12]],
+      ],
+      'notch-br-chamfer-tl': [
+        [[-0.14, -0.5], [0.06, -0.5], [0.06, 0.06], [-0.12, 0.5], [-0.5, 0.5], [-0.5, -0.14]],
+        [[0.06, -0.5], [0.5, -0.5], [0.5, -0.12], [0.06, 0.06]],
+      ],
+      'notch-tr-chamfer-bl': [
+        [[-0.5, -0.5], [-0.12, -0.5], [0.06, -0.06], [0.06, 0.5], [-0.14, 0.5], [-0.5, 0.14]],
+        [[0.06, -0.06], [0.5, 0.12], [0.5, 0.5], [0.06, 0.5]],
+      ],
+      'notch-bl-chamfer-tr': [
+        [[-0.06, -0.5], [0.14, -0.5], [0.5, -0.14], [0.5, 0.5], [0.12, 0.5], [-0.06, 0.06]],
+        [[-0.5, -0.5], [-0.06, -0.5], [-0.06, 0.06], [-0.5, -0.12]],
+      ],
+      'notch-tl-chamfer-br': [
+        [[0.12, -0.5], [0.5, -0.5], [0.5, 0.14], [0.14, 0.5], [-0.06, 0.5], [-0.06, -0.06]],
+        [[-0.5, 0.12], [-0.06, -0.06], [-0.06, 0.5], [-0.5, 0.5]],
+      ],
+      'step-tl': [
+        [[-0.08, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.08, 0.5]],
+        [[-0.5, -0.08], [-0.08, -0.08], [-0.08, 0.5], [-0.5, 0.5]],
+      ],
+      'step-tr': [
+        [[-0.5, -0.5], [0.08, -0.5], [0.08, 0.5], [-0.5, 0.5]],
+        [[0.08, -0.08], [0.5, -0.08], [0.5, 0.5], [0.08, 0.5]],
+      ],
+      'step-br': [
+        [[-0.5, -0.5], [0.08, -0.5], [0.08, 0.5], [-0.5, 0.5]],
+        [[0.08, -0.5], [0.5, -0.5], [0.5, 0.08], [0.08, 0.08]],
+      ],
+      'step-bl': [
+        [[-0.08, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.08, 0.5]],
+        [[-0.5, -0.5], [-0.08, -0.5], [-0.08, 0.08], [-0.5, 0.08]],
+      ],
+      'crescent-l': [
+        [[-0.48, -0.5], [0.5, -0.5], [0.5, -0.16], [-0.16, -0.16]],
+        [[-0.16, -0.16], [0.5, -0.16], [0.5, 0.16], [-0.16, 0.16]],
+        [[-0.16, 0.16], [0.5, 0.16], [0.5, 0.5], [-0.48, 0.5]],
+      ],
+      'crescent-r': [
+        [[-0.5, -0.5], [0.48, -0.5], [0.16, -0.16], [-0.5, -0.16]],
+        [[-0.5, -0.16], [0.16, -0.16], [0.16, 0.16], [-0.5, 0.16]],
+        [[-0.5, 0.16], [0.16, 0.16], [0.48, 0.5], [-0.5, 0.5]],
+      ],
+      'crescent-t': [
+        [[-0.5, -0.48], [-0.16, -0.16], [-0.16, 0.5], [-0.5, 0.5]],
+        [[-0.16, -0.16], [0.16, -0.16], [0.16, 0.5], [-0.16, 0.5]],
+        [[0.16, -0.16], [0.5, -0.48], [0.5, 0.5], [0.16, 0.5]],
+      ],
+      'crescent-b': [
+        [[-0.5, -0.5], [-0.16, -0.5], [-0.16, 0.16], [-0.5, 0.48]],
+        [[-0.16, -0.5], [0.16, -0.5], [0.16, 0.16], [-0.16, 0.16]],
+        [[0.16, -0.5], [0.5, -0.5], [0.5, 0.48], [0.16, 0.16]],
+      ],
+      'step-t-mid': [
+        [[-0.5, -0.5], [-0.22, -0.5], [-0.22, 0.5], [-0.5, 0.5]],
+        [[-0.22, -0.12], [0.22, -0.12], [0.22, 0.5], [-0.22, 0.5]],
+        [[0.22, -0.5], [0.5, -0.5], [0.5, 0.5], [0.22, 0.5]],
+      ],
+      'u-court-t': [
+        [[-0.5, -0.5], [-0.22, -0.5], [-0.22, 0.5], [-0.5, 0.5]],
+        [[-0.22, -0.12], [0.22, -0.12], [0.22, 0.5], [-0.22, 0.5]],
+        [[0.22, -0.5], [0.5, -0.5], [0.5, 0.5], [0.22, 0.5]],
+      ],
+      'step-b-mid': [
+        [[-0.5, -0.5], [-0.22, -0.5], [-0.22, 0.5], [-0.5, 0.5]],
+        [[-0.22, -0.5], [0.22, -0.5], [0.22, 0.12], [-0.22, 0.12]],
+        [[0.22, -0.5], [0.5, -0.5], [0.5, 0.5], [0.22, 0.5]],
+      ],
+      'u-court-b': [
+        [[-0.5, -0.5], [-0.22, -0.5], [-0.22, 0.5], [-0.5, 0.5]],
+        [[-0.22, -0.5], [0.22, -0.5], [0.22, 0.12], [-0.22, 0.12]],
+        [[0.22, -0.5], [0.5, -0.5], [0.5, 0.5], [0.22, 0.5]],
+      ],
+      'pie-wedge': [[[-0.5, -0.5], [0.5, -0.5], [0.14, 0.5], [-0.14, 0.5]]],
+      'wedge-tl': [[[-0.5, -0.5], [0.5, -0.5], [0.5, -0.32], [-0.32, 0.5], [-0.5, 0.5]]],
+      'wedge-tr': [[[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [0.32, 0.5], [-0.5, -0.32]]],
+      'wedge-bl': [[[-0.5, -0.5], [-0.32, -0.5], [0.5, 0.32], [0.5, 0.5], [-0.5, 0.5]]],
+      'wedge-br': [[[0.32, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5], [-0.5, 0.32]]],
+      'wing-bend-l': [
+        [[-0.22, -0.5], [0.5, -0.5], [0.5, 0.04], [-0.5, 0.04], [-0.5, -0.14]],
+        [[-0.5, 0.04], [0.25, 0.04], [-0.12, 0.5], [-0.5, 0.5]],
+      ],
+      'wing-bend-r': [
+        [[-0.5, -0.5], [0.22, -0.5], [0.5, -0.14], [0.5, 0.04], [-0.5, 0.04]],
+        [[-0.25, 0.04], [0.5, 0.04], [0.5, 0.5], [0.12, 0.5]],
+      ],
+      trapezoid: [[[-0.36, -0.5], [0.36, -0.5], [0.5, 0.5], [-0.5, 0.5]]],
+      'trapezoid-l': [[[-0.28, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]]],
+      'trapezoid-r': [[[-0.5, -0.5], [0.28, -0.5], [0.5, 0.5], [-0.5, 0.5]]],
+    };
+
+    const getTrueShapePolys = (
       t: { kind: string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
       g: { cx: number; cy: number; ux: number; uy: number; vx: number; vy: number },
-    ) => {
-      let uv: Array<[number, number]> | null = null;
+    ): Array<{ corners: Array<{ x: number; y: number }>; extraAxes: Array<{ x: number; y: number }> }> | null => {
+      let uvParts: Array<Array<[number, number]>> | null = null;
       const trimmed = (t.label ?? '').trim();
 
       if (t.kind !== 'unit' && t.kind !== 'corridor') {
@@ -181,8 +330,7 @@ class MallService {
           const body = trimmed.slice(3).split('|')[0];
           variant = body.endsWith('+L') || body.endsWith('-L') ? body.slice(0, -2) : body;
         } else if (t.kind === 'atrium') {
-          if (trimmed === 'atrium:rect') variant = 'rect';
-          else variant = 'circle';
+          variant = trimmed === 'atrium:rect' ? 'rect' : 'circle';
         } else if (t.kind === 'marker' || t.kind === 'info') {
           variant = 'circle';
         }
@@ -190,165 +338,49 @@ class MallService {
         if (polyMatch) {
           const faces = Number(polyMatch[1]);
           const cosStep = Math.cos(Math.PI / faces);
-          uv = [];
+          const uv: Array<[number, number]> = [];
           for (let i = 0; i < faces; i++) {
             const theta = -Math.PI / 2 + ((i + 0.5) * 2 * Math.PI) / faces;
             const u = 0.5 * Math.max(-1, Math.min(1, Math.cos(theta) / cosStep));
             const v = 0.5 * Math.max(-1, Math.min(1, Math.sin(theta) / cosStep));
             uv.push([u, v]);
           }
+          uvParts = [uv];
         } else if (variant === 'circle' || variant.endsWith('-circle') || variant === 'spiral-circle') {
-          const K = 24;
-          uv = [];
-          for (let i = 0; i < K; i++) {
-            const theta = (i * 2 * Math.PI) / K;
-            uv.push([0.5 * Math.cos(theta), 0.5 * Math.sin(theta)]);
-          }
+          uvParts = [CIRCLE_24_UV];
         }
       } else if (t.kind === 'unit' && trimmed.startsWith('unit:')) {
         const mode = trimmed.slice(5).split(':')[0];
-        switch (mode) {
-          case 'circle': {
-            const K = 24;
-            uv = [];
-            for (let i = 0; i < K; i++) {
-              const theta = (i * 2 * Math.PI) / K;
-              uv.push([0.5 * Math.cos(theta), 0.5 * Math.sin(theta)]);
-            }
-            break;
-          }
-          case 'ring-curve':
-            uv = [[-0.5, -0.32], [0, -0.5], [0.5, -0.32], [0.32, 0.5], [-0.32, 0.5]];
-            break;
-          case 'trapezoid-ring':
-            uv = [[-0.5, -0.5], [0.5, -0.5], [0.32, 0.5], [-0.32, 0.5]];
-            break;
-          case 'slope-b-l':
-            uv = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.16]];
-            break;
-          case 'slope-b-r':
-            uv = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.16], [-0.5, 0.5]];
-            break;
-          case 'slope-t-l':
-            uv = [[-0.5, -0.16], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]];
-            break;
-          case 'slope-t-r':
-            uv = [[-0.5, -0.5], [0.5, -0.16], [0.5, 0.5], [-0.5, 0.5]];
-            break;
-          case 'chamfer-tr':
-          case 'curve-tr':
-          case 'notch-tr':
-          case 'step-tr':
-            uv = [[-0.5, -0.5], [0.06, -0.5], [0.5, -0.06], [0.5, 0.5], [-0.5, 0.5]];
-            break;
-          case 'chamfer-tl':
-          case 'curve-tl':
-          case 'notch-tl':
-          case 'step-tl':
-            uv = [[-0.06, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5], [-0.5, -0.06]];
-            break;
-          case 'chamfer-br':
-          case 'curve-br':
-          case 'notch-br':
-          case 'step-br':
-            uv = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.06], [0.06, 0.5], [-0.5, 0.5]];
-            break;
-          case 'chamfer-bl':
-          case 'curve-bl':
-          case 'notch-bl':
-          case 'step-bl':
-            uv = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.06, 0.5], [-0.5, 0.06]];
-            break;
-          case 'crescent-l':
-            uv = [[-0.18, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.18, 0.5]];
-            break;
-          case 'crescent-r':
-            uv = [[-0.5, -0.5], [0.18, -0.5], [0.18, 0.5], [-0.5, 0.5]];
-            break;
-          case 'crescent-t':
-          case 'step-t-mid':
-          case 'u-court-t':
-            uv = [[-0.5, -0.18], [0.5, -0.18], [0.5, 0.5], [-0.5, 0.5]];
-            break;
-          case 'crescent-b':
-          case 'step-b-mid':
-          case 'u-court-b':
-            uv = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.18], [-0.5, 0.18]];
-            break;
-          case 'pie-wedge':
-            uv = [[-0.5, -0.5], [0.5, -0.5], [0.14, 0.5], [-0.14, 0.5]];
-            break;
-          case 'wedge-tl':
-            uv = [[-0.5, -0.5], [0.5, -0.5], [0.5, -0.32], [-0.32, 0.5], [-0.5, 0.5]];
-            break;
-          case 'wedge-tr':
-            uv = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [0.32, 0.5], [-0.5, -0.32]];
-            break;
-          case 'wedge-bl':
-            uv = [[-0.5, -0.5], [-0.32, -0.5], [0.5, 0.32], [0.5, 0.5], [-0.5, 0.5]];
-            break;
-          case 'wedge-br':
-            uv = [[0.32, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5], [-0.5, 0.32]];
-            break;
-          case 'wing-bend-l':
-            uv = [[-0.22, -0.5], [0.5, -0.5], [0.5, 0.04], [-0.12, 0.5], [-0.5, 0.5], [-0.5, -0.14]];
-            break;
-          case 'wing-bend-r':
-            uv = [[-0.5, -0.5], [0.22, -0.5], [0.5, -0.14], [0.5, 0.5], [0.12, 0.5], [-0.5, 0.04]];
-            break;
-          case 'trapezoid':
-            uv = [[-0.36, -0.5], [0.36, -0.5], [0.5, 0.5], [-0.5, 0.5]];
-            break;
-          case 'trapezoid-l':
-            uv = [[-0.28, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]];
-            break;
-          case 'trapezoid-r':
-            uv = [[-0.5, -0.5], [0.28, -0.5], [0.5, 0.5], [-0.5, 0.5]];
-            break;
-        }
+        uvParts = UNIT_SHAPE_CONVEX_UV_PARTS[mode] ?? null;
       }
 
-      if (!uv) return null;
-      const corners = uv.map(([u, v]) => ({
-        x: g.cx + g.ux * (u * t.w) + g.vx * (v * t.h),
-        y: g.cy + g.uy * (u * t.w) + g.vy * (v * t.h),
-      }));
-      const extraAxes: Array<{ x: number; y: number }> = [];
-      for (let i = 0; i < corners.length; i++) {
-        const p0 = corners[i];
-        const p1 = corners[(i + 1) % corners.length];
-        const ex = p1.x - p0.x;
-        const ey = p1.y - p0.y;
-        const len = Math.hypot(ex, ey);
-        if (len > 1e-3) {
-          extraAxes.push({ x: -ey / len, y: ex / len });
+      if (!uvParts || uvParts.length === 0) return null;
+      return uvParts.map((uv) => {
+        const corners = uv.map(([u, v]) => ({
+          x: g.cx + g.ux * (u * t.w) + g.vx * (v * t.h),
+          y: g.cy + g.uy * (u * t.w) + g.vy * (v * t.h),
+        }));
+        const extraAxes: Array<{ x: number; y: number }> = [];
+        for (let i = 0; i < corners.length; i++) {
+          const p0 = corners[i];
+          const p1 = corners[(i + 1) % corners.length];
+          const ex = p1.x - p0.x;
+          const ey = p1.y - p0.y;
+          const len = Math.hypot(ex, ey);
+          if (len > 1e-3) {
+            extraAxes.push({ x: -ey / len, y: ex / len });
+          }
         }
-      }
-      return { corners, extraAxes };
+        return { corners, extraAxes };
+      });
     };
 
-    const areRotatedRectsSeparated = (
-      a: { kind: string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
-      b: { kind: string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
+    const areConvexPartsSeparated = (
+      cornersA: ReadonlyArray<{ x: number; y: number }>,
+      cornersB: ReadonlyArray<{ x: number; y: number }>,
+      axes: ReadonlyArray<{ x: number; y: number }>,
+      eps = 1e-4,
     ) => {
-      const angleA = a.angle ?? 0;
-      const angleB = b.angle ?? 0;
-      const ga = getRotatedTileBox(a);
-      const gb = getRotatedTileBox(b);
-      const polyA = getTrueShapePoly(a, ga);
-      const polyB = getTrueShapePoly(b, gb);
-      if (angleA === 0 && angleB === 0 && !polyA && !polyB) return false;
-      if (!polyA && !polyB && rectsOverlap(a, b)) return false;
-
-      const cornersA = polyA ? polyA.corners : ga.corners;
-      const cornersB = polyB ? polyB.corners : gb.corners;
-      const axes = [
-        ...ga.axes,
-        ...gb.axes,
-        ...(polyA ? polyA.extraAxes : []),
-        ...(polyB ? polyB.extraAxes : []),
-      ];
-      const eps = 1e-4;
       for (const ax of axes) {
         let minA = Infinity;
         let maxA = -Infinity;
@@ -367,6 +399,33 @@ class MallService {
         if (maxA <= minB + eps || maxB <= minA + eps) return true;
       }
       return false;
+    };
+
+    const areRotatedRectsSeparated = (
+      a: { kind: string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
+      b: { kind: string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
+    ) => {
+      const angleA = a.angle ?? 0;
+      const angleB = b.angle ?? 0;
+      const ga = getRotatedTileBox(a);
+      const gb = getRotatedTileBox(b);
+      const polysA = getTrueShapePolys(a, ga);
+      const polysB = getTrueShapePolys(b, gb);
+      if (angleA === 0 && angleB === 0 && !polysA && !polysB) return false;
+      if (!polysA && !polysB && rectsOverlap(a, b)) return false;
+
+      const partsA = polysA ?? [{ corners: ga.corners, extraAxes: [] }];
+      const partsB = polysB ?? [{ corners: gb.corners, extraAxes: [] }];
+
+      for (const partA of partsA) {
+        for (const partB of partsB) {
+          const axes = [...ga.axes, ...gb.axes, ...partA.extraAxes, ...partB.extraAxes];
+          if (!areConvexPartsSeparated(partA.corners, partB.corners, axes)) {
+            return false;
+          }
+        }
+      }
+      return true;
     };
 
     const getRotatedWorldAABB = (t: { x: number; y: number; w: number; h: number; angle?: number }) => {
