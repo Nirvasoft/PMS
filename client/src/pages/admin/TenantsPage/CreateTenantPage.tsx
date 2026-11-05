@@ -9,7 +9,6 @@ import { useSyncV6CustomersMutation } from '../../../store/api/integrationsApi';
 import { ArrowLeft, User, Building2, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
-import GlAccountLookupField from '../../../components/GlAccountLookupField';
 import './CreateTenantPage.css';
 
 type TenantType = 'individual' | 'company';
@@ -46,7 +45,7 @@ export default function CreateTenantPage() {
     // common
     email: '', phone: '', mobile: '',
     addressLine1: '', addressLine2: '', city: '', state: '', postalCode: '', country: '',
-    source: '', currency: '', glAccountCode: '',
+    source: '', currency: '',
     tags: [] as string[],
     notes: '',
   });
@@ -121,7 +120,6 @@ export default function CreateTenantPage() {
       postalCode: form.postalCode || null, country: form.country || null,
       source: form.source || null, tags: form.tags,
       currency: form.currency,
-      glAccountCode: form.glAccountCode || null,
       notes: form.notes || null,
       // Stamp the home property so the tenant appears in the correct property's list immediately
       propertyId: activePropertyId || null,
@@ -218,7 +216,7 @@ export default function CreateTenantPage() {
                 onChange={(v) => set('lastName', v)}
                 error={isNameMissing ? 'Name is required' : undefined}
               />
-              <Field label="Father Name" value={form.fatherName} onChange={(v) => set('fatherName', v)} />
+              <Field label="Father's Name" value={form.fatherName} onChange={(v) => set('fatherName', v)} />
               <Field label="Father's NRC" value={form.fatherNrc} onChange={(v) => set('fatherNrc', v)} />
               <Field label="Date of Birth" value={form.dateOfBirth} onChange={(v) => set('dateOfBirth', v)} type="date" />
               <SelectField label="Gender" value={form.gender} onChange={(v) => set('gender', v)}
@@ -282,12 +280,6 @@ export default function CreateTenantPage() {
               onChange={(v) => set('currency', v)}
               options={[['','Select currency…'], ...currencyOptions.map((c) => [c.currency, c.currency] as [string, string])]}
               error={isCurrencyMissing ? 'Currency is required' : undefined}
-            />
-            <GlAccountLookupField
-              label="GL Account Code"
-              value={form.glAccountCode}
-              onChange={(v) => set('glAccountCode', v)}
-              wrapperClassName="form-field"
             />
           </div>
         </div>

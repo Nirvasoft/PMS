@@ -28,7 +28,6 @@ import {
   formatCompactAmount as formatCompactRent,
 } from '../../../utils/formatCurrency';
 import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
-import GlAccountLookupField from '../../../components/GlAccountLookupField';
 import toast from 'react-hot-toast';
 import './TenantDetailPage.css';
 
@@ -312,7 +311,6 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
     f.city = tenant.city || ''; f.state = tenant.state || ''; f.postalCode = tenant.postalCode || '';
     f.country = tenant.country || ''; f.source = tenant.source || ''; f.notes = tenant.notes || '';
     f.currency = tenant.currency || '';
-    f.glAccountCode = tenant.glAccountCode || '';
     setForm(f);
     setTags([...(tenant.tags || [])]);
     setEditing(true);
@@ -391,7 +389,7 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
                   disabled={isV6Active}
                   title={isV6Active ? 'Name is managed by V6 ERP' : ''}
                 />
-                <EditField label="Father Name" value={form.fatherName} onChange={(v) => set('fatherName', v)} />
+                <EditField label="Father's Name" value={form.fatherName} onChange={(v) => set('fatherName', v)} />
                 <EditField label="Father's NRC" value={form.fatherNrc} onChange={(v) => set('fatherNrc', v)} />
                 <EditField label="Date of Birth" value={form.dateOfBirth} onChange={(v) => set('dateOfBirth', v)} type="date" />
                 <EditSelect label="Gender" value={form.gender} onChange={(v) => set('gender', v)}
@@ -447,18 +445,6 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
               disabled={!!tenant.currency}
               title={tenant.currency ? 'Currency is locked once saved and cannot be changed' : ''}
               options={[['','— Select —'], ...currencyOptions.map((c) => [c.currency, c.currency] as [string, string])]} />
-            <GlAccountLookupField
-              label="GL Account Code"
-              value={form.glAccountCode || ''}
-              onChange={(v) => set('glAccountCode', v)}
-              wrapperClassName="edit-field"
-            />
-            {tenant.tenantType === 'individual' && (
-              <>
-                <EditField label="Father Name" value={form.fatherName} onChange={(v) => set('fatherName', v)} />
-                <EditField label="Father's NRC" value={form.fatherNrc} onChange={(v) => set('fatherNrc', v)} />
-              </>
-            )}
           </div>
         </div>
 
@@ -523,7 +509,7 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
             <>
               {tenant.firstName     && <InfoRow label="Code"          value={tenant.firstName} />}
               {tenant.lastName      && <InfoRow label="Name"          value={tenant.lastName} />}
-              {tenant.fatherName    && <InfoRow label="Father Name"   value={tenant.fatherName} />}
+              {tenant.fatherName    && <InfoRow label="Father's Name" value={tenant.fatherName} />}
               {tenant.fatherNrc     && <InfoRow label="Father's NRC"  value={tenant.fatherNrc} />}
               {tenant.dateOfBirth   && <InfoRow label="Date of Birth" value={tenant.dateOfBirth.split('T')[0]} />}
               {tenant.gender        && <InfoRow label="Gender"        value={tenant.gender} />}
@@ -548,7 +534,7 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
       </div>
 
       {/* Contact details */}
-      {(tenant.email || tenant.phone || tenant.mobile || tenant.source || tenant.currency || tenant.glAccountCode) && (
+      {(tenant.email || tenant.phone || tenant.mobile || tenant.source || tenant.currency) && (
         <div className="info-card">
           <h4>Contact Details</h4>
           <div className="info-rows">
@@ -557,7 +543,6 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
             {tenant.mobile        && <InfoRow label="Mobile"          value={tenant.mobile} />}
             {tenant.source        && <InfoRow label="Source"          value={tenant.source.replace(/_/g, ' ')} />}
             {tenant.currency      && <InfoRow label="Currency"        value={tenant.currency} />}
-            {tenant.glAccountCode && <InfoRow label="GL Account Code" value={tenant.glAccountCode} noTransform />}
           </div>
         </div>
       )}
