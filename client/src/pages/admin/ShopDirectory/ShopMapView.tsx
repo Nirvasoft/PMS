@@ -349,28 +349,28 @@ function AtriumShapeIcon({ mode, size }: { mode: UnitShapeMode | string; size: n
   if (mode === 'arch-tl') {
     return (
       <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
-        <path d="M 2.2 2.6 L 11.2 2.6 L 13.8 5.2 Q 5.8 5.8 5.4 13.4 L 2.2 13.4 Z" />
+        <path d="M 2.2 2.6 L 13.8 2.6 A 8.4 10.8 0 0 0 5.4 13.4 L 2.2 13.4 Z" />
       </svg>
     );
   }
   if (mode === 'arch-tr') {
     return (
       <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
-        <path d="M 4.8 2.6 L 13.8 2.6 L 13.8 13.4 L 10.6 13.4 Q 10.2 5.8 2.2 5.2 Z" />
+        <path d="M 2.2 2.6 L 13.8 2.6 L 13.8 13.4 L 10.6 13.4 A 8.4 10.8 0 0 0 2.2 2.6 Z" />
       </svg>
     );
   }
   if (mode === 'arch-bl') {
     return (
       <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
-        <path d="M 2.2 2.6 L 5.4 2.6 Q 5.8 10.2 13.8 10.8 L 11.2 13.4 L 2.2 13.4 Z" />
+        <path d="M 2.2 2.6 L 5.4 2.6 A 8.4 10.8 0 0 0 13.8 13.4 L 2.2 13.4 Z" />
       </svg>
     );
   }
   if (mode === 'arch-br') {
     return (
       <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
-        <path d="M 10.6 2.6 L 13.8 2.6 L 13.8 13.4 L 4.8 13.4 L 2.2 10.8 Q 10.2 10.2 10.6 2.6 Z" />
+        <path d="M 10.6 2.6 L 13.8 2.6 L 13.8 13.4 L 2.2 13.4 A 8.4 10.8 0 0 0 10.6 2.6 Z" />
       </svg>
     );
   }

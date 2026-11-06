@@ -2505,6 +2505,30 @@
   cursor: pointer;
   padding: 2px;
 }
+.public-mall-footer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  padding: 6px 0;
+  text-align: center;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  background: var(--bg-primary, var(--bg));
+  border-top: 1px solid var(--border-color, var(--border));
+}
+.shop-map-fullscreen-page:has(.public-mall-footer) {
+  padding-bottom: 40px;
+}
+.public-mall-footer a {
+  color: var(--accent, #10b981);
+  font-weight: 600;
+  text-decoration: none;
+}
+.public-mall-footer a:hover {
+  text-decoration: underline;
+}
 /* ── Tablet & Mobile Responsive Breakpoints ── */
 @media (max-width: 1024px) {
   .shop-map-directory-marker-badge {

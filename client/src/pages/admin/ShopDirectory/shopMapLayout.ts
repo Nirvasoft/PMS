@@ -499,7 +499,7 @@ export function resolveSmartFamilyShapeMode(
     const gapY = Math.max(0, u.y - (o.y + o.h), o.y - (u.y + u.h));
     const boxGap = Math.hypot(gapX, gapY);
 
-    if (o.kind === 'unit' && o.label === 'unit:circle') {
+    if (o.kind === 'unit' && parseUnitShapeMode(o) === 'circle') {
       if (!nearestKiosk || boxGap < nearestKiosk.gap) {
         nearestKiosk = { cx: ocx, cy: ocy, gap: boxGap };
       }
@@ -603,7 +603,9 @@ export function resolveSmartFamilyShapeMode(
               ? 'curve-bl'
               : 'curve-br',
       );
-    case 'concave-notch':
+    case 'concave-notch': {
+      const wingNotch = findAdjacentOuterWingNotchForUnit(u, items);
+      if (wingNotch) return pickIfValid(wingNotch);
       return pickIfValid(
         dx < 0 && dy < 0
           ? 'notch-tl'
@@ -613,7 +615,20 @@ export function resolveSmartFamilyShapeMode(
               ? 'notch-bl'
               : 'notch-br',
       );
+    }
     case 'notch-chamfer-combo': {
+      const wingNotch = findAdjacentOuterWingNotchForUnit(u, items);
+      if (wingNotch) {
+        return pickIfValid(
+          wingNotch === 'notch-tl'
+            ? 'notch-tl-chamfer-br'
+            : wingNotch === 'notch-tr'
+              ? 'notch-tr-chamfer-bl'
+              : wingNotch === 'notch-bl'
+                ? 'notch-bl-chamfer-tr'
+                : 'notch-br-chamfer-tl',
+        );
+      }
       if (nearestKiosk && nearestKiosk.gap <= 8) {
         const kdx = nearestKiosk.cx - ucx;
         const kdy = nearestKiosk.cy - ucy;
@@ -1304,12 +1319,12 @@ export function getTrapezoidUnitGeometry(
     mode === 'notch-bl-chamfer-tr' ||
     mode === 'notch-tl-chamfer-br'
   ) {
-    const rx = 0.62;
-    const ry = 0.62;
+    const rx = 0.68;
+    const ry = 0.68;
     const cutPx = Math.min(wPx, hPx) * 0.42;
     const cx = Math.max(0.22, Math.min(0.46, cutPx / Math.max(1, wPx)));
     const cy = Math.max(0.22, Math.min(0.46, cutPx / Math.max(1, hPx)));
-    const K = 18;
+    const K = 24;
     const pts: Array<{ x: number; y: number }> = [];
 
     if (mode === 'notch-tl' || mode === 'notch-tl-chamfer-br') {
@@ -1330,8 +1345,8 @@ export function getTrapezoidUnitGeometry(
         hPx,
         cellPx,
         merge,
-        Math.round(wPx * 0.06),
-        Math.round(hPx * 0.06),
+        Math.round(wPx * 0.08),
+        Math.round(hPx * 0.08),
       );
     }
     if (mode === 'notch-tr' || mode === 'notch-tr-chamfer-bl') {
@@ -1352,8 +1367,8 @@ export function getTrapezoidUnitGeometry(
         hPx,
         cellPx,
         merge,
-        -Math.round(wPx * 0.06),
-        Math.round(hPx * 0.06),
+        -Math.round(wPx * 0.08),
+        Math.round(hPx * 0.08),
       );
     }
     if (mode === 'notch-br' || mode === 'notch-br-chamfer-tl') {
@@ -1376,8 +1391,8 @@ export function getTrapezoidUnitGeometry(
         hPx,
         cellPx,
         merge,
-        -Math.round(wPx * 0.06),
-        -Math.round(hPx * 0.06),
+        -Math.round(wPx * 0.08),
+        -Math.round(hPx * 0.08),
       );
     }
     // notch-bl or notch-bl-chamfer-tr
@@ -1397,8 +1412,8 @@ export function getTrapezoidUnitGeometry(
       hPx,
       cellPx,
       merge,
-      Math.round(wPx * 0.06),
-      -Math.round(hPx * 0.06),
+      Math.round(wPx * 0.08),
+      -Math.round(hPx * 0.08),
     );
   }
 
@@ -1838,28 +1853,55 @@ export function getTrapezoidUnitGeometry(
 
   // ── 9. Outer Ring Concave Wing (arch-tl / arch-tr / arch-bl / arch-br) ──
   if (mode === 'arch-tl' || mode === 'arch-tr' || mode === 'arch-bl' || mode === 'arch-br') {
-    const K = 18;
-    const sampleQuadBezier = (
-      p0: { x: number; y: number },
-      p1: { x: number; y: number },
-      p2: { x: number; y: number },
-    ): Array<{ x: number; y: number }> => {
-      const pts: Array<{ x: number; y: number }> = [];
-      for (let k = 0; k <= K; k++) {
-        const t = k / K;
-        const mt = 1 - t;
-        pts.push({
-          x: mt * mt * p0.x + 2 * mt * t * p1.x + t * t * p2.x,
-          y: mt * mt * p0.y + 2 * mt * t * p1.y + t * t * p2.y,
-        });
+    const K = 24;
+    const match = tile && allItems ? findNearestCircleCorridorForUnit(tile, allItems) : null;
+    let maxRingH = 0;
+    if (match && allItems) {
+      for (const o of allItems) {
+        if (o.kind !== 'unit' || !isRingSectorUnitLabel(o.label)) continue;
+        const m = findNearestCircleCorridorForUnit(o, [match.ring]);
+        if (m && m.isNear) {
+          maxRingH = Math.max(maxRingH, o.h);
+        }
       }
-      return pts;
+    }
+    const rxCut = match ? match.rxOut + maxRingH + 0.24 : 0;
+    const ryCut = match ? match.ryOut + maxRingH + 0.24 : 0;
+
+    const clampArcPt = (
+      u0: number,
+      v0: number,
+      minU: number,
+      maxU: number,
+      isRightWing: boolean,
+    ): { x: number; y: number } => {
+      let u = u0;
+      if (tile && match && maxRingH > 0 && rxCut > 1 && ryCut > 1) {
+        const wy = tile.y + v0 * tile.h;
+        const dyNorm = (wy - match.cy) / ryCut;
+        if (Math.abs(dyNorm) < 1.0) {
+          const dxCut = rxCut * Math.sqrt(Math.max(0, 1 - dyNorm * dyNorm));
+          const wxCircle = isRightWing ? match.cx + dxCut : match.cx - dxCut;
+          const uCircle = (wxCircle - tile.x) / Math.max(1, tile.w);
+          u = isRightWing ? Math.max(u0, uCircle) : Math.min(u0, uCircle);
+        }
+      }
+      return {
+        x: Math.max(minU, Math.min(maxU, u)),
+        y: Math.max(0, Math.min(1, v0)),
+      };
     };
 
     if (mode === 'arch-tl') {
-      const arc = sampleQuadBezier({ x: 1, y: 0.22 }, { x: 0.30, y: 0.30 }, { x: 0.28, y: 1 });
+      const arc: Array<{ x: number; y: number }> = [];
+      for (let k = 0; k <= K; k++) {
+        const th = (k / K) * (Math.PI * 0.5);
+        const u0 = 0.32 + 0.68 * Math.cos(th);
+        const v0 = Math.sin(th);
+        arc.push(clampArcPt(u0, v0, 0.22, 1, false));
+      }
       return buildPolygonUnitGeometryFromNormPoints(
-        [{ x: 0, y: 0 }, { x: 0.78, y: 0 }, ...arc, { x: 0, y: 1 }],
+        [{ x: 0, y: 0 }, ...arc, { x: 0, y: 1 }],
         wPx,
         hPx,
         cellPx,
@@ -1869,9 +1911,15 @@ export function getTrapezoidUnitGeometry(
       );
     }
     if (mode === 'arch-tr') {
-      const arc = sampleQuadBezier({ x: 0.72, y: 1 }, { x: 0.70, y: 0.30 }, { x: 0, y: 0.22 });
+      const arc: Array<{ x: number; y: number }> = [];
+      for (let k = 0; k <= K; k++) {
+        const th = (k / K) * (Math.PI * 0.5);
+        const u0 = 0.68 * Math.cos(th);
+        const v0 = 1 - Math.sin(th);
+        arc.push(clampArcPt(u0, v0, 0, 0.78, true));
+      }
       return buildPolygonUnitGeometryFromNormPoints(
-        [{ x: 0.22, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, ...arc],
+        [{ x: 1, y: 0 }, { x: 1, y: 1 }, ...arc],
         wPx,
         hPx,
         cellPx,
@@ -1881,9 +1929,15 @@ export function getTrapezoidUnitGeometry(
       );
     }
     if (mode === 'arch-bl') {
-      const arc = sampleQuadBezier({ x: 0.28, y: 0 }, { x: 0.30, y: 0.70 }, { x: 1, y: 0.78 });
+      const arc: Array<{ x: number; y: number }> = [];
+      for (let k = 0; k <= K; k++) {
+        const th = (k / K) * (Math.PI * 0.5);
+        const u0 = 0.32 + 0.68 * Math.sin(th);
+        const v0 = 1 - Math.cos(th);
+        arc.push(clampArcPt(u0, v0, 0.22, 1, false));
+      }
       return buildPolygonUnitGeometryFromNormPoints(
-        [{ x: 0, y: 0 }, ...arc, { x: 0.78, y: 1 }, { x: 0, y: 1 }],
+        [{ x: 0, y: 0 }, ...arc, { x: 0, y: 1 }],
         wPx,
         hPx,
         cellPx,
@@ -1893,9 +1947,15 @@ export function getTrapezoidUnitGeometry(
       );
     }
     // arch-br
-    const arc = sampleQuadBezier({ x: 0, y: 0.78 }, { x: 0.70, y: 0.70 }, { x: 0.72, y: 0 });
+    const arc: Array<{ x: number; y: number }> = [];
+    for (let k = 0; k <= K; k++) {
+      const th = (k / K) * (Math.PI * 0.5);
+      const u0 = 0.68 * Math.sin(th);
+      const v0 = Math.cos(th);
+      arc.push(clampArcPt(u0, v0, 0, 0.78, true));
+    }
     return buildPolygonUnitGeometryFromNormPoints(
-      [{ x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0.22, y: 1 }, ...arc],
+      [...arc, { x: 1, y: 0 }, { x: 1, y: 1 }],
       wPx,
       hPx,
       cellPx,
@@ -3342,8 +3402,16 @@ function getMatchedNeighborDimensions(
     sib.kind !== 'unit' &&
     sib.kind !== 'atrium';
   const bothTransits = isTransitLandmark(moved.kind) && isTransitLandmark(sib.kind);
+  const isArchWingPair =
+    moved.kind === 'unit' &&
+    sib.kind === 'unit' &&
+    (side === 'left' || side === 'right') &&
+    Boolean(
+      parseUnitShapeMode(sib)?.startsWith('arch-') ||
+        parseUnitShapeMode(moved)?.startsWith('arch-'),
+    );
 
-  if ((!activeSnapAutoResize && !bothTransits) || moved.kind === 'marker') {
+  if ((!activeSnapAutoResize && !bothTransits && !isArchWingPair) || moved.kind === 'marker') {
     return { w: baseW, h: baseH };
   }
 
@@ -3869,11 +3937,28 @@ function findCircleCorridorMagneticCandidate(
     return Boolean(m && m.isNear && m.ring.key === ring.key);
   });
 
+  const rawThetaCheck = Math.atan2(vy / ryOut, vx / rxOut);
+  const mDistCheck = Math.hypot(vx, vy);
+  const isArchWingMoved = Boolean(moved.label?.startsWith('unit:arch-'));
+  const rimOccupiedAtTheta = others.some((o) => {
+    if (o.key === moved.key || o.kind !== 'unit' || !isRingSectorUnitLabel(o.label)) return false;
+    const m = findNearestCircleCorridorForUnit(o, [ring]);
+    if (!m || !m.isNear || m.ring.key !== ring.key) return false;
+    const oTheta = resolveUnitCircleSectorTheta(o, rcx, rcy, rxOut, ryOut);
+    const oRIn = Math.hypot(rxOut * Math.cos(oTheta), ryOut * Math.sin(oTheta)) || avgR;
+    const oMetrics = computeRingSectorArcMetrics(o.w, o.h, oRIn);
+    const angDiff = Math.abs(Math.atan2(Math.sin(rawThetaCheck - oTheta), Math.cos(rawThetaCheck - oTheta)));
+    const oDist = Math.hypot(o.x + o.w * 0.5 - rcx, o.y + o.h * 0.5 - rcy);
+    return angDiff <= oMetrics.halfAngle * 1.15 && mDistCheck > oDist + 1.0 && radialGap >= 1.5;
+  });
+
   // Detect if there is an existing `ring-curve` or `trapezoid-ring` neighbor on this Circle Atrium
   // so dragging a default/auto unit next to it automatically chains it as a continuous Fan Sector (`ring-curve`).
   const nearbyRingSectorNeighbor =
     moved.kind === 'unit' &&
     !isMultiBlockUnit &&
+    !isArchWingMoved &&
+    !rimOccupiedAtTheta &&
     activeAutoShape &&
     (!moved.label || moved.label === 'unit:rect' || isAutoAtriumSideCurveLabel(moved.label)) &&
     radialGap <= 8.5
@@ -4425,11 +4510,142 @@ function findRotatedNeighborMagneticCandidate(
   return null;
 }
 
+function findOuterRingWingMagneticCandidate(
+  moved: MapItem,
+  others: ReadonlyArray<MapItem>,
+  columns: number,
+): { x: number; y: number; w: number; h: number; angle: number | undefined; label: string | null; dist: number } | null {
+  if (moved.kind !== 'unit' || isRingSectorUnitLabel(moved.label) || parseUnitShapeMode(moved) === 'circle') {
+    return null;
+  }
+  const w = Math.min(moved.w, columns);
+  const h = moved.h;
+  if (w < 3 || h < 4) return null;
+
+  const isExplicitArch = Boolean(moved.label?.startsWith('unit:arch-'));
+  const canAutoAdjustShape =
+    isExplicitArch ||
+    (activeAutoShape && (!moved.label || moved.label === 'unit:rect' || isAutoAtriumSideCurveLabel(moved.label)));
+  if (!canAutoAdjustShape) return null;
+
+  const match = findNearestCircleCorridorForUnit(moved, others);
+  if (!match || match.boxGap > 11.0) return null;
+
+  const mcx = moved.x + w * 0.5;
+  const mcy = moved.y + h * 0.5;
+  const mDist = Math.hypot(mcx - match.cx, mcy - match.cy);
+
+  const explicitMode = parseUnitShapeMode(moved);
+  const archMode: 'arch-tl' | 'arch-tr' | 'arch-bl' | 'arch-br' =
+    explicitMode === 'arch-tl' ||
+    explicitMode === 'arch-tr' ||
+    explicitMode === 'arch-bl' ||
+    explicitMode === 'arch-br'
+      ? explicitMode
+      : mcx < match.cx && mcy < match.cy
+        ? 'arch-tl'
+        : mcx >= match.cx && mcy < match.cy
+          ? 'arch-tr'
+          : mcx < match.cx && mcy >= match.cy
+            ? 'arch-bl'
+            : 'arch-br';
+
+  const existingArchInQuadrant = others.some((o) => {
+    if (o.key === moved.key || o.kind !== 'unit') return false;
+    if (parseUnitShapeMode(o) !== archMode) return false;
+    const ocx = o.x + o.w * 0.5;
+    const ocy = o.y + o.h * 0.5;
+    return Math.hypot(ocx - match.cx, ocy - match.cy) < mDist + 0.5;
+  });
+  if (existingArchInQuadrant) return null;
+
+  const isRightWing = archMode === 'arch-tr' || archMode === 'arch-br';
+  const isTopWing = archMode === 'arch-tl' || archMode === 'arch-tr';
+
+  const quadRingUnits: MapItem[] = [];
+  let nearAnyQuadRing = false;
+  let maxRingH = 0;
+
+  for (const o of others) {
+    if (o.key === moved.key || o.kind !== 'unit' || !isRingSectorUnitLabel(o.label)) continue;
+    const m = findNearestCircleCorridorForUnit(o, [match.ring]);
+    if (!m || !m.isNear) continue;
+    maxRingH = Math.max(maxRingH, o.h);
+    const ocx = o.x + o.w * 0.5;
+    const ocy = o.y + o.h * 0.5;
+    const inHorizHalf = isRightWing ? ocx >= match.cx - 0.5 : ocx <= match.cx + 0.5;
+    const inVertHalf = isTopWing ? ocy <= match.cy + 0.5 : ocy >= match.cy - 0.5;
+    if (!inHorizHalf || !inVertHalf) continue;
+    quadRingUnits.push(o);
+    const gx = Math.max(0, moved.x - (o.x + o.w), o.x - (moved.x + w));
+    const gy = Math.max(0, moved.y - (o.y + o.h), o.y - (moved.y + h));
+    const oDist = Math.hypot(ocx - match.cx, ocy - match.cy);
+    if (Math.hypot(gx, gy) <= MAGNET_SNAP_GAP + 3.5 && (isExplicitArch || mDist > oDist + 0.8)) {
+      nearAnyQuadRing = true;
+    }
+  }
+
+  if (quadRingUnits.length === 0 || !nearAnyQuadRing) return null;
+
+  const quadMinY = Math.min(...quadRingUnits.map((o) => o.y));
+  const quadMaxY = Math.max(...quadRingUnits.map((o) => o.y + o.h));
+  const quadSpanH = Math.max(4, quadMaxY - quadMinY);
+  const candW = w;
+  const candH = activeSnapAutoResize || Math.abs(h - quadSpanH) <= 2 ? quadSpanH : h;
+  const targetY = isTopWing ? Math.max(0, quadMinY) : Math.max(0, quadMaxY - candH);
+
+  const rxCut = match.rxOut + maxRingH + 0.24;
+  const ryCut = match.ryOut + maxRingH + 0.24;
+  const wyFoot = isTopWing ? targetY + candH : targetY;
+  const dyNorm = Math.min(0.95, Math.abs(wyFoot - match.cy) / Math.max(1, ryCut));
+  const dxCut = rxCut * Math.sqrt(Math.max(0, 1 - dyNorm * dyNorm));
+  const xFoot = isRightWing ? match.cx + dxCut : match.cx - dxCut;
+  const idealX = isRightWing ? Math.round(xFoot - 0.68 * candW) : Math.round(xFoot - 0.32 * candW);
+
+  const nextLabel =
+    isExplicitArch && !moved.label?.endsWith(':auto')
+      ? moved.label!
+      : `unit:${archMode}:auto`;
+
+  const xOffsets = [0, 1, -1, 2, -2, 3];
+  const yOffsets = [0, 1, -1];
+  for (const dy of yOffsets) {
+    const cy = targetY + dy;
+    if (cy < 0) continue;
+    for (const dx of xOffsets) {
+      const cx = idealX + dx;
+      if (cx < 0 || cx + candW > columns) continue;
+      const cand: MapItem = {
+        ...moved,
+        x: cx,
+        y: cy,
+        w: candW,
+        h: candH,
+        angle: undefined,
+        label: nextLabel,
+      };
+      if (others.some((o) => tilesConflict(cand, o))) continue;
+      return {
+        x: cx,
+        y: cy,
+        w: candW,
+        h: candH,
+        angle: undefined,
+        label: nextLabel,
+        dist: Math.hypot(cx - moved.x, cy - moved.y) * 0.5,
+      };
+    }
+  }
+
+  return null;
+}
+
 function getSlantedUnitNeighborSnapMeta(
   moved: MapItem,
   sib: MapItem,
   candH: number,
   baseYPositions: number[],
+  side?: 'left' | 'right',
 ): { yPositions: number[]; inheritedLabel: string | null } {
   if (!activeAutoShape || moved.kind !== 'unit' || sib.kind !== 'unit') {
     return { yPositions: baseYPositions, inheritedLabel: null };
@@ -4438,6 +4654,36 @@ function getSlantedUnitNeighborSnapMeta(
     !moved.label || moved.label === 'unit:rect' || isAutoAtriumSideCurveLabel(moved.label);
   const sibMode = parseUnitShapeMode(sib);
   const movedMode = parseUnitShapeMode(moved);
+
+  // Pair Outer Ring Concave Wing (`arch-*`, e.g. GFL-A3) with its adjacent Kiosk Concave Notch partner (`notch-*`, e.g. GFL-A30)
+  const isSibArch =
+    sibMode === 'arch-tl' || sibMode === 'arch-tr' || sibMode === 'arch-bl' || sibMode === 'arch-br';
+  const isMovedArch =
+    movedMode === 'arch-tl' || movedMode === 'arch-tr' || movedMode === 'arch-bl' || movedMode === 'arch-br';
+  if (isSibArch || isMovedArch) {
+    const archMode = isSibArch ? sibMode : movedMode!;
+    const isTopWing = archMode === 'arch-tl' || archMode === 'arch-tr';
+    const flatAlignedY = isTopWing ? sib.y : Math.max(0, sib.y + sib.h - candH);
+    const extraY = [flatAlignedY, sib.y, Math.max(0, sib.y + sib.h - candH)].filter((y) => y >= 0);
+    const mergedY: number[] = [];
+    for (const y of [...extraY, ...baseYPositions]) {
+      if (y >= 0 && !mergedY.includes(y)) mergedY.push(y);
+    }
+
+    let partnerNotchMode: UnitShapeMode | null = null;
+    if (isSibArch) {
+      if (sibMode === 'arch-tr' && (!side || side === 'right')) partnerNotchMode = 'notch-br';
+      else if (sibMode === 'arch-tl' && (!side || side === 'left')) partnerNotchMode = 'notch-bl';
+      else if (sibMode === 'arch-br' && (!side || side === 'right')) partnerNotchMode = 'notch-tr';
+      else if (sibMode === 'arch-bl' && (!side || side === 'left')) partnerNotchMode = 'notch-tl';
+    }
+    const canAutoNotch = canAutoAdjustShape || Boolean(movedMode?.startsWith('notch-'));
+    return {
+      yPositions: mergedY,
+      inheritedLabel: partnerNotchMode && canAutoNotch ? `unit:${partnerNotchMode}:auto` : null,
+    };
+  }
+
   const isSibSlope =
     sibMode === 'slope-b-l' ||
     sibMode === 'slope-b-r' ||
@@ -4522,6 +4768,22 @@ function snapBlockToSiblingsBorder(
     dist: number;
     priority: number;
   }> = [];
+
+  const outerWingOverlapCand = findOuterRingWingMagneticCandidate(moved, others, columns);
+  if (outerWingOverlapCand) {
+    candidates.push({
+      x: outerWingOverlapCand.x,
+      y: outerWingOverlapCand.y,
+      w: outerWingOverlapCand.w,
+      h: outerWingOverlapCand.h,
+      angle: outerWingOverlapCand.angle,
+      hasAngle: true,
+      label: outerWingOverlapCand.label,
+      hasLabel: true,
+      dist: outerWingOverlapCand.dist,
+      priority: -2,
+    });
+  }
 
   for (const sib of overlappingSiblings) {
     if (sib.kind === 'atrium' && getPolygonAtriumWorldFaces(sib)) {
@@ -4619,6 +4881,7 @@ function snapBlockToSiblingsBorder(
           sib,
           candH,
           baseYPositions,
+          side,
         );
         const resetRingShape =
           activeAutoShape && !inheritedLabel && moved.kind === 'unit' && isAutoAtriumSideCurveLabel(moved.label);
@@ -4745,6 +5008,22 @@ function snapTileByMagneticProximity(
     dist: number;
     priority: number;
   }> = [];
+
+  const outerWingProxCand = findOuterRingWingMagneticCandidate(moved, others, columns);
+  if (outerWingProxCand) {
+    candidates.push({
+      x: outerWingProxCand.x,
+      y: outerWingProxCand.y,
+      w: outerWingProxCand.w,
+      h: outerWingProxCand.h,
+      angle: outerWingProxCand.angle,
+      hasAngle: true,
+      label: outerWingProxCand.label,
+      hasLabel: true,
+      dist: outerWingProxCand.dist,
+      priority: -2,
+    });
+  }
 
   const xSnaps: Array<{
     x: number;
@@ -4944,9 +5223,11 @@ function snapTileByMagneticProximity(
       sib.kind === 'unit' &&
       Boolean(
         parseUnitShapeMode(sib)?.startsWith('slope-') ||
-          parseUnitShapeMode(moved)?.startsWith('slope-'),
+          parseUnitShapeMode(moved)?.startsWith('slope-') ||
+          parseUnitShapeMode(sib)?.startsWith('arch-') ||
+          parseUnitShapeMode(moved)?.startsWith('arch-'),
       );
-    const horizSnapGap = isSlantedPair ? MAGNET_SNAP_GAP + 1 : MAGNET_SNAP_GAP;
+    const horizSnapGap = isSlantedPair ? MAGNET_SNAP_GAP + 2 : MAGNET_SNAP_GAP;
 
     // 2. Horizontal border magnetic pull (Left or Right of `sib`)
     const gapLeft = sib.x - (moved.x + w);
@@ -4961,6 +5242,7 @@ function snapTileByMagneticProximity(
           sib,
           candH,
           baseYPositions,
+          'left',
         );
         const resetRing = activeAutoShape && !inheritedLabel && moved.kind === 'unit' && isAutoAtriumSideCurveLabel(moved.label);
         const effLabel = resetRing ? 'unit:rect' : inheritedLabel;
@@ -4997,6 +5279,7 @@ function snapTileByMagneticProximity(
           sib,
           candH,
           baseYPositions,
+          'right',
         );
         const resetRing = activeAutoShape && !inheritedLabel && moved.kind === 'unit' && isAutoAtriumSideCurveLabel(moved.label);
         const effLabel = resetRing ? 'unit:rect' : inheritedLabel;
@@ -5262,23 +5545,23 @@ type ShapeDetectTile = {
 };
 
 function findNearbyCircleKioskForUnit(
-  u: { key?: string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
+  u: ShapeDetectTile,
   items: ReadonlyArray<ShapeDetectTile>,
 ): { notchCorner: 'tl' | 'tr' | 'bl' | 'br'; boxGap: number } | null {
-  if (u.angle || u.label === 'unit:circle') return null;
+  if (u.angle || parseUnitShapeMode(u) === 'circle') return null;
   const ucx = u.x + u.w * 0.5;
   const ucy = u.y + u.h * 0.5;
   let best: { notchCorner: 'tl' | 'tr' | 'bl' | 'br'; boxGap: number } | null = null;
 
   for (const k of items) {
     if (k === u || (u.key && k.key === u.key)) continue;
-    if (k.kind !== 'unit' || k.label !== 'unit:circle') continue;
+    if (k.kind !== 'unit' || parseUnitShapeMode(k) !== 'circle') continue;
     const gapX = Math.max(0, u.x - (k.x + k.w), k.x - (u.x + u.w));
     const gapY = Math.max(0, u.y - (k.y + k.h), k.y - (u.y + u.h));
     const boxGap = Math.hypot(gapX, gapY);
     if (boxGap > 5.5) continue;
     const ovX = Math.min(u.x + u.w, k.x + k.w) - Math.max(u.x, k.x);
-    const ovY = Math.min(u.y + u.h, k.y + k.h) - Math.max(u.y, k.y);
+    const ovY = Math.min(u.y + u.h, k.y + k.h) - Math.max(u.y, u.y);
     if (ovX > u.w * 0.75 || ovY > u.h * 0.75) continue;
     const kcx = k.x + k.w * 0.5;
     const kcy = k.y + k.h * 0.5;
@@ -5295,6 +5578,32 @@ function findNearbyCircleKioskForUnit(
     }
   }
   return best;
+}
+
+function findAdjacentOuterWingNotchForUnit(
+  u: { key?: string; x: number; y: number; w: number; h: number; angle?: number },
+  items: ReadonlyArray<ShapeDetectTile>,
+): 'notch-tl' | 'notch-tr' | 'notch-bl' | 'notch-br' | null {
+  if (u.angle) return null;
+  for (const o of items) {
+    if (o === u || (u.key && o.key === u.key) || o.kind !== 'unit' || o.angle) continue;
+    const oMode = parseUnitShapeMode(o);
+    if (
+      oMode !== 'arch-tl' &&
+      oMode !== 'arch-tr' &&
+      oMode !== 'arch-bl' &&
+      oMode !== 'arch-br'
+    ) {
+      continue;
+    }
+    const ovY = Math.min(u.y + u.h, o.y + o.h) - Math.max(u.y, o.y);
+    if (ovY < Math.min(u.h, o.h) * 0.45) continue;
+    if (oMode === 'arch-tr' && Math.abs(u.x - (o.x + o.w)) <= 1.2) return 'notch-br';
+    if (oMode === 'arch-tl' && Math.abs(o.x - (u.x + u.w)) <= 1.2) return 'notch-bl';
+    if (oMode === 'arch-br' && Math.abs(u.x - (o.x + o.w)) <= 1.2) return 'notch-tr';
+    if (oMode === 'arch-bl' && Math.abs(o.x - (u.x + u.w)) <= 1.2) return 'notch-tl';
+  }
+  return null;
 }
 
 function isNearAnyPolygonAtrium(
@@ -5429,10 +5738,11 @@ function findOuterRingWingForUnit(
   u: ShapeDetectTile,
   items: ReadonlyArray<ShapeDetectTile>,
 ): UnitShapeMode | null {
-  if (u.angle || u.label === 'unit:circle' || isRingSectorUnitLabel(u.label)) {
+  if (u.angle || parseUnitShapeMode(u) === 'circle' || isRingSectorUnitLabel(u.label)) {
     return null;
   }
-  if (u.w < 5 || u.h < 5) return null;
+  if (u.w < 3 || u.h < 4) return null;
+  if (findAdjacentOuterWingNotchForUnit(u, items)) return null;
   const match = findNearestCircleCorridorForUnit(u, items);
   if (!match) return null;
 
@@ -5441,6 +5751,26 @@ function findOuterRingWingForUnit(
   const uDist = Math.hypot(ucx - match.cx, ucy - match.cy);
   const alreadyAutoCurved = isAutoAtriumSideCurveLabel(u.label);
   const maxGap = alreadyAutoCurved ? 5.0 : 3.8;
+
+  const dx = match.cx - ucx;
+  const dy = match.cy - ucy;
+  const archMode: 'arch-tl' | 'arch-tr' | 'arch-bl' | 'arch-br' =
+    dx >= 0 && dy >= 0
+      ? 'arch-tl'
+      : dx < 0 && dy >= 0
+        ? 'arch-tr'
+        : dx >= 0 && dy < 0
+          ? 'arch-bl'
+          : 'arch-br';
+
+  const existingArchInQuadrant = items.some((o) => {
+    if (o === u || (u.key && o.key === u.key) || o.kind !== 'unit') return false;
+    if (parseUnitShapeMode(o) !== archMode) return false;
+    const ocx = o.x + o.w * 0.5;
+    const ocy = o.y + o.h * 0.5;
+    return Math.hypot(ocx - match.cx, ocy - match.cy) < uDist + 0.5;
+  });
+  if (existingArchInQuadrant) return null;
 
   let hasInnerRingSectorNeighbor = false;
   for (const o of items) {
@@ -5459,23 +5789,30 @@ function findOuterRingWingForUnit(
   }
   if (!hasInnerRingSectorNeighbor) return null;
 
-  const dx = match.cx - ucx;
-  const dy = match.cy - ucy;
-  return dx < 0 && dy < 0
-    ? 'arch-tl'
-    : dx >= 0 && dy < 0
-      ? 'arch-tr'
-      : dx < 0 && dy >= 0
-        ? 'arch-bl'
-        : 'arch-br';
+  return archMode;
 }
 
 export function resolveAutoUnitShapeMode(
   u: ShapeDetectTile,
   items: ReadonlyArray<ShapeDetectTile>,
 ): UnitShapeMode {
-  if (u.label === 'unit:circle') return 'circle';
+  if (parseUnitShapeMode(u) === 'circle') return 'circle';
   const alreadyAutoCurved = isAutoAtriumSideCurveLabel(u.label);
+
+  // 0. Check if touching the outer vertical wall of an Outer Ring Concave Wing (`arch-*`, e.g. GFL-A30 beside GFL-A3)
+  const wingNotch = findAdjacentOuterWingNotchForUnit(u, items);
+  if (wingNotch) {
+    if (isNearAnyPolygonAtrium(u, items, 9.0)) {
+      return wingNotch === 'notch-tl'
+        ? 'notch-tl-chamfer-br'
+        : wingNotch === 'notch-tr'
+          ? 'notch-tr-chamfer-bl'
+          : wingNotch === 'notch-bl'
+            ? 'notch-bl-chamfer-tr'
+            : 'notch-br-chamfer-tl';
+    }
+    return wingNotch;
+  }
 
   // 1. Check nearby circular Kiosk (unit:circle) -> Concave Notch or Notch + Outer 45° Chamfer combo
   const kioskMatch = findNearbyCircleKioskForUnit(u, items);
@@ -5498,7 +5835,7 @@ export function resolveAutoUnitShapeMode(
           : 'notch-br';
   }
 
-  // 1b. Check large outer corner unit wrapping around `ring-curve` / `trapezoid-ring` sectors -> Outer Ring Concave Wing (`arch-*`)
+  // 1b. Check outer corner unit wrapping around `ring-curve` / `trapezoid-ring` sectors -> Outer Ring Concave Wing (`arch-*`)
   const outerWingMode = findOuterRingWingForUnit(u, items);
   if (outerWingMode) {
     return outerWingMode;
@@ -5543,7 +5880,12 @@ function applyAtriumAutoShapeToUnit(
   if (isMultiBlockUnit) return u;
 
   const alreadyAutoCurved = isAutoAtriumSideCurveLabel(u.label);
-  const canAutoShape = !u.label || u.label === 'unit:rect' || alreadyAutoCurved;
+  const wingNotch = findAdjacentOuterWingNotchForUnit(u, items);
+  const canAutoShape =
+    !u.label ||
+    u.label === 'unit:rect' ||
+    alreadyAutoCurved ||
+    Boolean(wingNotch && parseUnitShapeMode(u)?.startsWith('notch-'));
   if (!canAutoShape) return u;
 
   const autoMode = resolveAutoUnitShapeMode(u, items);
@@ -5676,9 +6018,11 @@ export function snapTileToBorder(
       const nowMatch = findNearestCircleCorridorForUnit(baseMoved, items);
       const polyChamfer = findPolygonAtriumCornerChamferForUnit(baseMoved, items);
       const outerWingMode = findOuterRingWingForUnit(baseMoved, items);
+      const wingNotch = findAdjacentOuterWingNotchForUnit(baseMoved, items);
       const alreadyAutoCurved = isAutoAtriumSideCurveLabel(baseMoved.label);
       const nearRingNow = Boolean(
-        outerWingMode ||
+        wingNotch ||
+          outerWingMode ||
           (nowMatch &&
             (isUnitCloseToCircleAtriumRim(nowMatch) ||
               (alreadyAutoCurved && isUnitWithinWalkwayOfCircleAtrium(nowMatch)))) ||
@@ -5819,24 +6163,38 @@ export function alignUnitsRadiallyAroundAtrium(
           const cp = getClosestPointOnTileToPoint(u, acx, acy);
           const normDist = Math.hypot((cp.x - acx) / rx, (cp.y - acy) / ry);
           const isOuterWing =
-            u.w >= 5 &&
-            u.h >= 5 &&
+            u.w >= 3 &&
+            u.h >= 4 &&
             (Boolean(u.label?.startsWith('unit:arch-')) || findOuterRingWingForUnit(u, current) !== null);
           const isTrap = Boolean(u.label?.startsWith('unit:trapezoid-ring'));
-          const uForRing: MapItem =
-            !isOuterWing && normDist <= 2.15 && (u.w <= 7 || u.h <= 6)
-              ? { ...u, label: isTrap ? 'unit:trapezoid-ring' : 'unit:ring-curve' }
-              : u;
-          const ringCand = findCircleCorridorMagneticCandidate(uForRing, atr, others, columns);
-          if (ringCand) {
-            snapped = {
-              x: ringCand.x,
-              y: ringCand.y,
-              w: ringCand.w,
-              h: ringCand.h,
-              angle: ringCand.angle,
-              label: ringCand.label,
-            };
+          if (isOuterWing) {
+            const wingCand = findOuterRingWingMagneticCandidate(u, others, columns);
+            if (wingCand) {
+              snapped = {
+                x: wingCand.x,
+                y: wingCand.y,
+                w: wingCand.w,
+                h: wingCand.h,
+                angle: wingCand.angle,
+                label: wingCand.label,
+              };
+            }
+          } else {
+            const uForRing: MapItem =
+              normDist <= 2.15 && (u.w <= 7 || u.h <= 6)
+                ? { ...u, label: isTrap ? 'unit:trapezoid-ring' : 'unit:ring-curve' }
+                : u;
+            const ringCand = findCircleCorridorMagneticCandidate(uForRing, atr, others, columns);
+            if (ringCand) {
+              snapped = {
+                x: ringCand.x,
+                y: ringCand.y,
+                w: ringCand.w,
+                h: ringCand.h,
+                angle: ringCand.angle,
+                label: ringCand.label,
+              };
+            }
           }
         }
 
@@ -5880,21 +6238,62 @@ export function alignUnitsRadiallyAroundAtrium(
         }
       }
 
-      // Second pass on Circle Atriums: auto-shape any outer corner wing units (`arch-*`) wrapping around the newly aligned ring sectors
+      // Second pass on Circle Atriums: snap & auto-shape outer corner wing units (`arch-*`, e.g. GFL-A3) and their adjacent notch partners (`notch-*`, e.g. GFL-A30)
       if (isCircleAtr) {
-        current = current.map((item) => {
-          if (item.kind !== 'unit' || !item.unitId) return item;
-          if (selectedKeys && selectedKeys.size > 0 && !selectedKeys.has(item.key)) return item;
-          const shaped = applyAtriumAutoShapeToUnit(item, current, true);
-          if (shaped.label !== item.label) {
-            const others = current.filter((o) => o.key !== item.key);
-            if (!others.some((o) => tilesConflict(shaped, o))) {
-              alignedCount++;
-              return shaped;
-            }
+        for (const item of [...current]) {
+          if (item.kind !== 'unit' || !item.unitId) continue;
+          if (selectedKeys && selectedKeys.size > 0 && !selectedKeys.has(item.key)) continue;
+          const others = current.filter((o) => o.key !== item.key);
+          const wingCand = findOuterRingWingMagneticCandidate(item, others, columns);
+          const nextItem = wingCand
+            ? applyAtriumAutoShapeToUnit(
+                {
+                  ...item,
+                  x: wingCand.x,
+                  y: wingCand.y,
+                  w: wingCand.w,
+                  h: wingCand.h,
+                  angle: wingCand.angle,
+                  label: wingCand.label ?? item.label,
+                },
+                current,
+                true,
+              )
+            : applyAtriumAutoShapeToUnit(item, current, true);
+          if (
+            (nextItem.x !== item.x ||
+              nextItem.y !== item.y ||
+              nextItem.w !== item.w ||
+              nextItem.h !== item.h ||
+              nextItem.label !== item.label) &&
+            !others.some((o) => tilesConflict(nextItem, o))
+          ) {
+            alignedCount++;
+            current = current.map((c) => (c.key === item.key ? nextItem : c));
           }
-          return item;
-        });
+        }
+
+        // Third pass: align any partner unit (`GFL-A30`) next to an `arch-*` wing (`GFL-A3`)
+        for (const item of [...current]) {
+          if (item.kind !== 'unit' || !item.unitId) continue;
+          if (selectedKeys && selectedKeys.size > 0 && !selectedKeys.has(item.key)) continue;
+          const wingNotch = findAdjacentOuterWingNotchForUnit(item, current);
+          if (!wingNotch) continue;
+          const others = current.filter((o) => o.key !== item.key);
+          const snappedPartner = snapTileByMagneticProximity(item, current, columns);
+          const nextPartner = applyAtriumAutoShapeToUnit(snappedPartner ?? item, current, true);
+          if (
+            (nextPartner.x !== item.x ||
+              nextPartner.y !== item.y ||
+              nextPartner.w !== item.w ||
+              nextPartner.h !== item.h ||
+              nextPartner.label !== item.label) &&
+            !others.some((o) => tilesConflict(nextPartner, o))
+          ) {
+            alignedCount++;
+            current = current.map((c) => (c.key === item.key ? nextPartner : c));
+          }
+        }
       }
     }
   } finally {

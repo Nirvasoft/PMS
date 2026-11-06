@@ -9,6 +9,8 @@ import {
   saveCachedDirectory,
 } from '../admin/ShopDirectory/shopMapLayout';
 
+const MIT_WEBSITE_URL = 'https://www.mit.com.mm';
+
 export default function PublicMallNavigationPage() {
   useUnitPhotoCache();
   const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
@@ -136,6 +138,13 @@ export default function PublicMallNavigationPage() {
           publicMode
         />
       )}
+
+      <footer className="public-mall-footer">
+        Powered by{' '}
+        <a href={MIT_WEBSITE_URL} target="_blank" rel="noopener noreferrer">
+          MIT
+        </a>
+      </footer>
     </div>
   );
 }
