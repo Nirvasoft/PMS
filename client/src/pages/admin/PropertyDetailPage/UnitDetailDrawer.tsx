@@ -2083,6 +2083,8 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
               ? activeLease.tenant.companyName
               : `${activeLease.tenant.firstName ?? ''} ${activeLease.tenant.lastName ?? ''}`.trim())
           : '';
+        const holdsShop = unit?.status === 'occupied' || unit?.status === 'reserved';
+        const clearsShopIdentity = holdsShop && newStatus !== 'occupied' && newStatus !== 'reserved';
         const canConfirm = (!reasonRequired || statusReason.trim().length > 0) && (!activeLease || confirmLeaseTermination);
 
         return (
@@ -2133,6 +2135,28 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                       />
                       <span>I understand that active lease #{activeLease.leaseNumber} will be automatically terminated.</span>
                     </label>
+                  </div>
+                )}
+
+                {clearsShopIdentity && (
+                  <div style={{
+                    background: 'var(--danger-bg, rgba(185,28,28,0.08))',
+                    border: '1px solid var(--danger-border, rgba(185,28,28,0.35))',
+                    borderRadius: '8px',
+                    padding: '10px 14px',
+                    margin: '12px 0',
+                    display: 'flex',
+                    gap: '8px',
+                    alignItems: 'flex-start',
+                    fontSize: '0.8rem',
+                    lineHeight: 1.5,
+                    color: 'var(--text-primary)',
+                  }}>
+                    <AlertCircle size={17} style={{ flexShrink: 0, color: 'var(--danger, #b91c1c)', marginTop: 1 }} />
+                    <span>
+                      The <strong>shop name, logo and shopfront image</strong> (and trade category) of this unit will be
+                      <strong> permanently deleted</strong> and cannot be restored.
+                    </span>
                   </div>
                 )}
 

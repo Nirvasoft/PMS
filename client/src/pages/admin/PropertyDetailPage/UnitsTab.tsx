@@ -552,6 +552,7 @@ export default function UnitsTab() {
                     count={selectedIds.length}
                     total={totalMatching}
                     isLoading={bulkUpdating}
+                    mayClearShop={eligibleStatuses.includes('reserved')}
                     onClear={() => setSelectedIds([])}
                     onApply={async (status) => {
                       try {
@@ -811,14 +812,25 @@ function EmptyState({ message }: { message: string }) {
 const BULK_STATUS_OPTIONS = STATUSES.filter((s) => s.key === 'available' || s.key === 'reserved');
 
 /* ── Bulk status action bar (List view) ────────── */
-function BulkStatusBar({ count, total, isLoading, onApply, onClear }: {
+function BulkStatusBar({ count, total, isLoading, mayClearShop, onApply, onClear }: {
   count: number;
   total: number;
   isLoading: boolean;
+  /** Selection may include Reserved units, which lose their shop name/images when made Available. */
+  mayClearShop: boolean;
   onApply: (status: string) => void;
   onClear: () => void;
 }) {
   const [status, setStatus] = useState<string>(BULK_STATUS_OPTIONS[0].key);
+
+  const warn = mayClearShop && status === 'available';
+
+  const apply = () => {
+    if (warn && !window.confirm(
+      'Reserved units moved to Available will have their shop name, logo and shopfront image permanently deleted. This cannot be undone.\n\nContinue?',
+    )) return;
+    onApply(status);
+  };
 
   return (
     <div className="ut-bulk-bar" onClick={(e) => e.stopPropagation()}>
@@ -828,10 +840,15 @@ function BulkStatusBar({ count, total, isLoading, onApply, onClear }: {
       <select value={status} onChange={(e) => setStatus(e.target.value)}>
         {BULK_STATUS_OPTIONS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
       </select>
-      <button className="ut-bulk-apply" disabled={isLoading} onClick={() => onApply(status)}>
+      <button className="ut-bulk-apply" disabled={isLoading} onClick={apply}>
         {isLoading ? 'Applying…' : 'Apply'}
       </button>
       <button className="ut-bulk-clear" onClick={onClear}>Clear selection</button>
+      {warn && (
+        <span style={{ color: 'var(--danger, #b91c1c)', fontSize: '0.75rem' }}>
+          Shop name &amp; images of Reserved units will be deleted.
+        </span>
+      )}
     </div>
   );
 }

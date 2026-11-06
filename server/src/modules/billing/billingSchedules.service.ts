@@ -1,6 +1,7 @@
 import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
 import { unitsService } from '../units/units.service';
+import { clearShopIdentityOp } from '../mall/shopProfileReset';
 
 export class BillingSchedulesService {
   // Fields every schedule spawned from an activated lease shares (RENT, SERVICE_CHARGE,
@@ -728,10 +729,11 @@ export class BillingSchedulesService {
     });
     if (activeLease) return;
 
-    await prisma.unit.updateMany({
+    const released = await prisma.unit.updateMany({
       where: { id: unitId, status: 'reserved' },
       data: { status: 'available' },
     });
+    if (released.count > 0) await clearShopIdentityOp([unitId]);
     await unitsService.invalidateStatsCache(propertyId);
   }
 

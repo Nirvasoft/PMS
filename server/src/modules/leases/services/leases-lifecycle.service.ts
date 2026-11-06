@@ -8,6 +8,7 @@ import { billingSchedulesService } from '../../billing/billingSchedules.service'
 import { invoicesService } from '../../billing/invoices.service';
 import { webhookLeaseActivated, webhookLeaseTerminated, webhookLeaseRenewed } from '../../../common/webhookHooks';
 import { unitsService } from '../../units/units.service';
+import { clearShopIdentityOp } from '../../mall/shopProfileReset';
 
 export class LeasesLifecycleService {
   // ── Submit for approval ───────────────────
@@ -190,6 +191,7 @@ export class LeasesLifecycleService {
     await prisma.$transaction([
       prisma.lease.update({ where: { id }, data: { status: 'cancelled', terminationReason: reason ?? null } }),
       prisma.unit.update({ where: { id: lease.unitId }, data: { status: 'available' } }),
+      clearShopIdentityOp([lease.unitId]),
     ]);
     await unitsService.invalidateStatsCache(lease.propertyId);
     return { leaseId: id, status: 'cancelled' };
@@ -216,6 +218,7 @@ export class LeasesLifecycleService {
     await prisma.$transaction([
       prisma.lease.update({ where: { id }, data: { status: 'terminated', terminationDate: termDate, terminationReason: dto.reason, terminationType: isEarly ? 'early' : 'normal', earlyTerminationPenalty: penalty } }),
       prisma.unit.update({ where: { id: lease.unitId }, data: { status: 'available' } }),
+      clearShopIdentityOp([lease.unitId]),
       ...(dto.terminateSchedules
         ? [prisma.billingSchedule.updateMany({
             where: { leaseId: id, status: 'active', billingCycle: { not: 'monthly' } },

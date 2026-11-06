@@ -10,7 +10,7 @@ import {
   Printer, Copy, ExternalLink, Info, ArrowRight, WifiOff, ChevronDown,
   Compass, CornerUpLeft, CornerUpRight, MoveUp,
   Image as ImageIcon, Eye, EyeOff, Lock, Unlock, Wand2,
-  KeyRound, Wrench, Ban,
+  KeyRound, Wrench, Ban, Undo2, Redo2,
 } from 'lucide-react';
 import {
   useGetFloorPlanQuery,
@@ -1535,6 +1535,13 @@ export default function ShopMapView({
   const dragOriginItemsRef = useRef<MapItem[] | null>(null);
   const [layoutResetTick, setLayoutResetTick] = useState(0);
 
+  /* Undo / Redo history (edit mode). Snapshots are whole-layout copies. */
+  const undoStackRef = useRef<MapItem[][]>([]);
+  const redoStackRef = useRef<MapItem[][]>([]);
+  const settledItemsRef = useRef<MapItem[]>([]);
+  const historyApiRef = useRef<{ undo: () => void; redo: () => void }>({ undo: () => {}, redo: () => {} });
+  const [, setHistoryTick] = useState(0);
+
   const hasLayoutConflict = (nextLayout: readonly any[], baseItems: ReadonlyArray<MapItem>): boolean => {
     const byKey = new Map(baseItems.map((i) => [i.key, i]));
     const candidates = nextLayout
@@ -3001,6 +3008,19 @@ export default function ShopMapView({
     const onKeyDown = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+      if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+        const k = e.key.toLowerCase();
+        if (k === 'z' && !e.shiftKey) {
+          e.preventDefault();
+          historyApiRef.current.undo();
+          return;
+        }
+        if (k === 'y' || (k === 'z' && e.shiftKey)) {
+          e.preventDefault();
+          historyApiRef.current.redo();
+          return;
+        }
+      }
       if (e.key === 'Escape' && (selectedGroupSetRef.current.size > 0 || groupSelectMode)) {
         clearGroupSelection();
         return;
@@ -3193,6 +3213,72 @@ export default function ShopMapView({
     saveBlueprintConfig(editOriginBlueprintRef.current, false);
     applyParsedLayout(parseFloorPlanData(activePlanData, shopByUnit));
   };
+
+  /* ── Undo / Redo ──
+     One drag / resize / rotate fires many item updates, so a snapshot is taken only once the
+     layout has been quiet for a moment — each gesture becomes a single undo step. */
+  const UNDO_LIMIT = 50;
+  const cloneItems = (list: MapItem[]) => list.map((i) => ({ ...i }));
+  const sameLayout = (a: MapItem[], b: MapItem[]) =>
+    a.length === b.length &&
+    a.every((x, idx) => {
+      const y = b[idx] as any;
+      const kx = Object.keys(x);
+      return kx.length === Object.keys(y).length && kx.every((k) => (x as any)[k] === y[k]);
+    });
+
+  const commitPendingHistory = () => {
+    const prev = settledItemsRef.current;
+    const cur = itemsRef.current;
+    if (sameLayout(prev, cur)) return;
+    undoStackRef.current.push(prev);
+    if (undoStackRef.current.length > UNDO_LIMIT) undoStackRef.current.shift();
+    redoStackRef.current = [];
+    settledItemsRef.current = cloneItems(cur);
+    setHistoryTick((n) => n + 1);
+  };
+
+  const applyHistorySnapshot = (snap: MapItem[]) => {
+    settledItemsRef.current = cloneItems(snap);
+    const next = cloneItems(snap);
+    itemsRef.current = next;
+    setItems(next);
+    setLayoutResetTick((n) => n + 1);
+    setDirty(true);
+    clearGroupSelection();
+    setHistoryTick((n) => n + 1);
+  };
+
+  const undoLayout = () => {
+    commitPendingHistory();
+    const prev = undoStackRef.current.pop();
+    if (!prev) return;
+    redoStackRef.current.push(cloneItems(itemsRef.current));
+    applyHistorySnapshot(prev);
+  };
+
+  const redoLayout = () => {
+    const next = redoStackRef.current.pop();
+    if (!next) return;
+    undoStackRef.current.push(cloneItems(itemsRef.current));
+    applyHistorySnapshot(next);
+  };
+
+  historyApiRef.current = { undo: undoLayout, redo: redoLayout };
+
+  useEffect(() => {
+    // Fresh history whenever edit mode is entered or left.
+    undoStackRef.current = [];
+    redoStackRef.current = [];
+    settledItemsRef.current = cloneItems(itemsRef.current);
+    setHistoryTick((n) => n + 1);
+  }, [editing]);
+
+  useEffect(() => {
+    if (!editing) return;
+    const t = window.setTimeout(commitPendingHistory, 400);
+    return () => window.clearTimeout(t);
+  }, [items, editing]);
 
   const handleCopyFromFloor = async () => {
     if (!propertyId || !copySourceFloor) return;
@@ -3489,6 +3575,22 @@ export default function ShopMapView({
                 </button>
               ) : (
                 <>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={undoLayout}
+                    disabled={saving || (undoStackRef.current.length === 0 && sameLayout(settledItemsRef.current, items))}
+                    title="Undo (Ctrl+Z)"
+                  >
+                    <Undo2 size={toolbarIconPx} />
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={redoLayout}
+                    disabled={saving || redoStackRef.current.length === 0}
+                    title="Redo (Ctrl+Y)"
+                  >
+                    <Redo2 size={toolbarIconPx} />
+                  </button>
                   <button className="btn btn-secondary" onClick={discard} disabled={saving}>Cancel</button>
                   <button className="btn btn-primary" onClick={save} disabled={saving || !dirty}>
                     <Save size={toolbarIconPx} /> {saving ? 'Saving…' : 'Save'}
@@ -4242,9 +4344,11 @@ export default function ShopMapView({
                     const showUnitLabel = !um || um.showLabel;
                     const unitNumberLabel = unitNumberOf(shop);
                     const statusNote = unitStatusNote(shop);
-                    const publicStatusLabel =
-                      publicMode && !decor && it.kind === 'unit' && mapView !== 'photo' && statusNote ? statusNote.tag : null;
-                    const tileDisplayLabel = publicStatusLabel ?? shopDisplayName(shop);
+                    const statusTileLabel =
+                      (publicMode || !editing) && !decor && it.kind === 'unit' && mapView !== 'photo' && statusNote
+                        ? statusNote.tag
+                        : null;
+                    const tileDisplayLabel = statusTileLabel ?? shopDisplayName(shop);
                     const labelLen = Math.max(2, tileDisplayLabel.length);
                     const minTileFontPx = isMobile ? 7 : 8;
                     const tileFontPx = Math.max(

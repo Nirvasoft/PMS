@@ -8,6 +8,7 @@ import {
 } from './seeds/seedData';
 import { calcLeaseTermMonths, calcEarlyTermPenalty } from '../leases/services/helpers';
 import { webhookLeaseTerminated } from '../../common/webhookHooks';
+import { clearShopIdentityOp, shouldClearShopIdentity } from '../mall/shopProfileReset';
 
 // ══════════════════════════════════════════════
 // SEED
@@ -657,6 +658,7 @@ export class UnitsService {
             data: { unitId, fromStatus: unit.status, toStatus: dto.status, reason: dto.reason, changedBy: userId },
           }),
           prisma.unit.update({ where: { id: unitId }, data: { status: dto.status } }),
+          ...(shouldClearShopIdentity(unit.status, dto.status) ? [clearShopIdentityOp([unitId])] : []),
           prisma.billingSchedule.updateMany({
             where: { leaseId: activeLease.id, status: 'active', billingCycle: { not: 'monthly' } },
             data: { status: 'cancelled' },
@@ -684,6 +686,7 @@ export class UnitsService {
     });
 
     const result = await prisma.unit.update({ where: { id: unitId }, data: { status: dto.status } });
+    if (shouldClearShopIdentity(unit.status, dto.status)) await clearShopIdentityOp([unitId]);
 
     // Invalidate cached stats
     await this.invalidateStatsCache(propertyId);
@@ -741,6 +744,7 @@ export class UnitsService {
         data: { unitId: unit.id, fromStatus: unit.status, toStatus: status, reason, changedBy: userId },
       });
       await prisma.unit.update({ where: { id: unit.id }, data: { status } });
+      if (shouldClearShopIdentity(unit.status, status)) await clearShopIdentityOp([unit.id]);
       updated.push(unit.id);
     }
 
