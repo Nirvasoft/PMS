@@ -12689,10 +12689,17 @@ textarea.form-input {
 }
 
 .shop-unit-picker-list {
-  max-height: 200px; overflow-y: auto; border: 1px solid var(--border-color, var(--border));
+  max-height: 320px; overflow-y: auto; border: 1px solid var(--border-color, var(--border));
   border-radius: 8px; background: var(--bg-body, var(--bg-primary));
 }
+.shop-unit-picker-count {
+  position: sticky; top: 0; z-index: 1;
+  padding: 4px 12px; font-size: 0.72rem; font-weight: 600;
+  color: var(--text-secondary); background: var(--bg-body, var(--bg-primary));
+  border-bottom: 1px solid var(--border-color, var(--border));
+}
 .shop-unit-picker-item {
+  content-visibility: auto; contain-intrinsic-size: auto 42px;
   display: flex; align-items: center; gap: 10px; width: 100%;
   padding: 8px 12px; border: none; background: transparent;
   cursor: pointer; text-align: left; font-size: 0.82rem;
@@ -12707,10 +12714,6 @@ textarea.form-input {
   font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
   padding: 2px 8px; border-radius: 6px; letter-spacing: 0.3px;
 }
-.shop-unit-picker-status.status-available { background: var(--success-bg); color: var(--success); }
-.shop-unit-picker-status.status-occupied { background: var(--accent-subtle); color: var(--accent); }
-.shop-unit-picker-status.status-reserved { background: var(--warning-bg); color: var(--warning); }
-.shop-unit-picker-status.status-maintenance { background: var(--error-bg); color: var(--error); }
 .shop-unit-picker-more {
   padding: 10px 12px; text-align: center; font-size: 0.78rem;
   color: var(--text-muted); font-style: italic;

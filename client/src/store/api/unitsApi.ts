@@ -1,6 +1,7 @@
 import { createApi } from '@reduxjs/toolkit/query/react';
 import { baseQueryWithReauth } from './baseQuery';
 import { propertiesApi } from './propertiesApi';
+import { mallApi } from './mallApi';
 
 // ─── Types ─────────────────────────────────────────
 
@@ -366,6 +367,12 @@ export const unitsApi = createApi({
     updateUnit: builder.mutation<ApiResponse<UnitDetail>, { propertyId: string; unitId: string; data: Partial<CreateUnitDto> }>({
       query: ({ propertyId, unitId, data }) => ({ url: `/properties/${propertyId}/units/${unitId}`, method: 'PUT', body: data }),
       invalidatesTags: (_, __, { unitId }) => [{ type: 'Units', id: unitId }, { type: 'UnitCharges', id: unitId }, 'Units', 'FloorPlan'],
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          dispatch(mallApi.util.invalidateTags(['Shops', 'FloorPlan']));
+        } catch { /* mutation failed — nothing to invalidate */ }
+      },
     }),
     deleteUnit: builder.mutation<void, { propertyId: string; unitId: string }>({
       query: ({ propertyId, unitId }) => ({ url: `/properties/${propertyId}/units/${unitId}`, method: 'DELETE' }),
@@ -374,6 +381,7 @@ export const unitsApi = createApi({
         try {
           await queryFulfilled;
           dispatch(propertiesApi.util.invalidateTags([{ type: 'PropertyStats', id: propertyId }, 'Properties']));
+          dispatch(mallApi.util.invalidateTags(['Shops', 'FloorPlan']));
         } catch { /* mutation failed — nothing to invalidate */ }
       },
     }),
@@ -386,6 +394,7 @@ export const unitsApi = createApi({
         try {
           await queryFulfilled;
           dispatch(propertiesApi.util.invalidateTags([{ type: 'PropertyStats', id: propertyId }]));
+          dispatch(mallApi.util.invalidateTags(['Shops', 'FloorPlan']));
         } catch { /* mutation failed — nothing to invalidate */ }
       },
     }),
@@ -398,6 +407,7 @@ export const unitsApi = createApi({
         try {
           await queryFulfilled;
           dispatch(propertiesApi.util.invalidateTags([{ type: 'PropertyStats', id: propertyId }]));
+          dispatch(mallApi.util.invalidateTags(['Shops', 'FloorPlan']));
         } catch { /* mutation failed — nothing to invalidate */ }
       },
     }),

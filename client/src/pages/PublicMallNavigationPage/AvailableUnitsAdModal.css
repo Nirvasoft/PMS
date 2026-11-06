@@ -1,0 +1,136 @@
+.public-ad-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.55);
+  animation: publicAdFade 0.2s ease-out;
+}
+.public-ad-modal {
+  position: relative;
+  width: 100%;
+  max-width: 360px;
+  padding: 26px 22px 20px;
+  border-radius: 18px;
+  text-align: center;
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 24px 60px rgba(2, 6, 23, 0.45);
+  animation: publicAdPop 0.25s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+.public-ad-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: #f1f5f9;
+  color: #475569;
+  cursor: pointer;
+}
+.public-ad-close:hover { background: #e2e8f0; }
+.public-ad-icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #d1fae5;
+  color: #059669;
+}
+.public-ad-title {
+  margin: 0 0 6px;
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+.public-ad-text {
+  margin: 0 0 16px;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: #475569;
+}
+.public-ad-text strong { color: #059669; font-size: 1.05em; }
+.public-ad-contact {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+.public-ad-contact-name { font-weight: 700; font-size: 0.85rem; color: #0f172a; }
+.public-ad-contact-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #0f172a;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  word-break: break-all;
+}
+.public-ad-contact-link:hover { border-color: #059669; color: #047857; }
+.public-ad-actions { display: flex; flex-direction: column; gap: 8px; }
+.public-ad-btn {
+  padding: 11px 14px;
+  border-radius: 12px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.public-ad-btn:hover { background: #f1f5f9; }
+.public-ad-btn.is-primary {
+  border-color: #059669;
+  background: #059669;
+  color: #ffffff;
+}
+.public-ad-btn.is-primary:hover { background: #047857; }
+.public-ad-btn.is-ghost {
+  border-color: transparent;
+  background: transparent;
+  color: #64748b;
+  font-weight: 600;
+}
+@keyframes publicAdFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes publicAdPop {
+  from { opacity: 0; transform: translateY(14px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+
+.public-available-reset {
+  position: fixed;
+  left: 50%;
+  bottom: 54px;
+  transform: translateX(-50%);
+  z-index: 10040;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 999px;
+  background: #059669;
+  color: #ffffff;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 8px 22px rgba(2, 6, 23, 0.4);
+}
+.public-available-reset:hover { background: #047857; }

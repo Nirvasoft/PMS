@@ -35,6 +35,7 @@ import {
   syncUploadedUnitPhotoCache,
   validateUnitPhotoFile,
 } from '../../utils/unitPhotoCache';
+import { UNIT_STATUSES, UNIT_STATUS_COLOR, UNIT_STATUS_LABEL, UNIT_STATUS_FALLBACK_COLOR } from '../../utils/unitStatus';
 
 const INITIAL_CREATE_FORM = { unitId: '', brandName: '', shopNumber: '', tradeCategory: 'Other' };
 
@@ -169,6 +170,7 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
   const [createForm, setCreateForm] = useState<any>(INITIAL_CREATE_FORM);
   const [unitSearch, setUnitSearch] = useState('');
   const [unitFloorFilter, setUnitFloorFilter] = useState('');
+  const [unitStatusFilter, setUnitStatusFilter] = useState('');
   const [showLeaseEdit, setShowLeaseEdit] = useState(false);
   const [leaseFormData, setLeaseFormData] = useState<any>({});
 
@@ -187,7 +189,10 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
   const [upsertProfile, { isLoading: isSaving }] = useUpsertShopProfileMutation();
   const [uploadFloorPlan, { isLoading: isUploadingPhoto }] = useUploadFloorPlanMutation();
   const [deleteFloorPlan, { isLoading: isDeletingPhoto }] = useDeleteFloorPlanMutation();
-  const { data: availRes } = useGetAvailableUnitsQuery({ propertyId }, { skip: !propertyId || !showCreateShop });
+  const { data: availRes } = useGetAvailableUnitsQuery(
+    { propertyId },
+    { skip: !propertyId || !showCreateShop, refetchOnMountOrArgChange: true },
+  );
 
   useEffect(() => {
     if (propertyId && Array.isArray(shopsData?.data)) {
@@ -227,19 +232,24 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
   const availableUnits = useMemo(() => {
     const raw = availRes?.data || [];
     const takenUnitIds = new Set(allShops.map((s: any) => s.unitId));
-    return raw.filter((u: any) => u.status === 'occupied' && !takenUnitIds.has(u.id));
+    return raw.filter((u: any) => !takenUnitIds.has(u.id));
   }, [availRes?.data, allShops]);
 
   const selectedCreateUnit = useMemo(
     () => availableUnits.find((u: any) => u.id === createForm.unitId) || null,
     [availableUnits, createForm.unitId],
   );
+  // Brand name is not applicable for units that are not leased out (Available / Not for rent).
+  const isCreateBrandHidden = selectedCreateUnit?.status === 'available' || selectedCreateUnit?.status === 'not_for_rent';
 
   const availableFloors = useMemo(() => extractFloors(availableUnits), [availableUnits]);
 
   const filteredAvailableUnits = useMemo(() => {
     return availableUnits.filter((u: any) => {
       if (unitFloorFilter && unitFloorFilterKey(u) !== unitFloorFilter) {
+        return false;
+      }
+      if (unitStatusFilter && u.status !== unitStatusFilter) {
         return false;
       }
       if (!unitSearch.trim()) return true;
@@ -249,7 +259,7 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
         (u.floorLabel || `floor ${u.floorNumber}`).toLowerCase().includes(q)
       );
     });
-  }, [availableUnits, unitFloorFilter, unitSearch]);
+  }, [availableUnits, unitFloorFilter, unitStatusFilter, unitSearch]);
 
   // Commercial lease hooks
   const activeLeaseId = detailShop?.unit?.leases?.[0]?.id;
@@ -414,13 +424,15 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
 
   const handleCreateShop = async () => {
     setCreateSubmitted(true);
-    if (!createForm.unitId || !createForm.brandName?.trim()) return;
+    if (!createForm.unitId || (!isCreateBrandHidden && !createForm.brandName?.trim())) return;
+    const createdBrand = isCreateBrandHidden ? '' : createForm.brandName.trim();
+    const createdUnit = createForm.shopNumber || selectedCreateUnit?.unitNumber || '';
     try {
       await upsertProfile({
         unitId: createForm.unitId,
         data: {
           shopNumber: createForm.shopNumber || undefined,
-          brandName: createForm.brandName || undefined,
+          brandName: isCreateBrandHidden ? undefined : createForm.brandName || undefined,
           tradeCategory: createForm.tradeCategory || 'Other',
           tradeSubcategory: createForm.tradeSubcategory || undefined,
         },
@@ -433,20 +445,26 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
           file: createPhotoFile,
         }).unwrap();
         syncUploadedUnitPhotoCache(previousUrl, updated?.data?.floorPlanUrl, createPhotoFile);
-        dispatch(mallApi.util.invalidateTags(['Shops']));
       } else if (propertyId && removeExistingUnitPhotoOnCreate && selectedCreateUnit?.floorPlanUrl) {
         const previousUrl = selectedCreateUnit.floorPlanUrl;
         await deleteFloorPlan({ propertyId, unitId: createForm.unitId }).unwrap();
         evictUnitPhotoCache(previousUrl);
-        dispatch(mallApi.util.invalidateTags(['Shops']));
       }
-      setShowCreateShop(false);
+      // Refresh the shops list and the available-unit picker; keep the modal open for the next shop.
+      dispatch(mallApi.util.invalidateTags(['Shops']));
+      toast.success(
+        createdBrand
+          ? `Shop "${createdBrand}"${createdUnit ? ` created for ${createdUnit}` : ' created'}`
+          : `Shop profile created${createdUnit ? ` for ${createdUnit}` : ''}`,
+      );
       setCreateSubmitted(false);
-      setUnitFloorFilter('');
       setUnitSearch('');
       setCreateForm(INITIAL_CREATE_FORM);
       resetCreatePhotoState();
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to create shop');
+    }
   };
 
   if (!propertyId) {
@@ -477,7 +495,7 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
             </div>
           </div>
           <PermissionGuard permission="mall-shops.write">
-            <button className="btn btn-primary" onClick={() => { setCreateSubmitted(false); setUnitFloorFilter(''); setUnitSearch(''); setShowCreateShop(true); }}>
+            <button className="btn btn-primary" onClick={() => { setCreateSubmitted(false); setUnitFloorFilter(''); setUnitStatusFilter(''); setUnitSearch(''); setShowCreateShop(true); }}>
               <Plus size={16} /> Add Shop
             </button>
           </PermissionGuard>
@@ -1414,26 +1432,48 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
                 </div>
               ) : (
                 <div className="mall-form-grid">
-                  <label style={{ gridColumn: '1 / -1' }}>
-                    <span>Filter by Floor</span>
-                    <select
-                      value={unitFloorFilter}
-                      onChange={e => {
-                        setUnitFloorFilter(e.target.value);
-                        if (createForm.unitId) {
-                          setCreateForm({ ...createForm, unitId: '', shopNumber: '' });
-                          resetCreatePhotoState();
-                        }
-                      }}
-                    >
-                      <option value="">All Floors</option>
-                      {availableFloors.map(f => (
-                        <option key={f.value} value={f.value}>
-                          {f.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <label>
+                      <span>Filter by Floor</span>
+                      <select
+                        value={unitFloorFilter}
+                        onChange={e => {
+                          setUnitFloorFilter(e.target.value);
+                          if (createForm.unitId) {
+                            setCreateForm({ ...createForm, unitId: '', shopNumber: '' });
+                            resetCreatePhotoState();
+                          }
+                        }}
+                      >
+                        <option value="">All Floors</option>
+                        {availableFloors.map(f => (
+                          <option key={f.value} value={f.value}>
+                            {f.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>Filter by Status</span>
+                      <select
+                        value={unitStatusFilter}
+                        onChange={e => {
+                          setUnitStatusFilter(e.target.value);
+                          if (createForm.unitId) {
+                            setCreateForm({ ...createForm, unitId: '', shopNumber: '' });
+                            resetCreatePhotoState();
+                          }
+                        }}
+                      >
+                        <option value="">All Status</option>
+                        {UNIT_STATUSES.map(s => (
+                          <option key={s.key} value={s.key}>
+                            {s.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
                   <div className="mall-form-field" style={{ gridColumn: '1 / -1' }}>
                     <span className="mall-form-field-label">Search & Select Unit *</span>
                     <div className="shop-unit-picker">
@@ -1463,8 +1503,12 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
                         </div>
                       ) : (
                         <div className="shop-unit-picker-list">
+                          {filteredAvailableUnits.length > 0 && (
+                            <div className="shop-unit-picker-count">
+                              {filteredAvailableUnits.length.toLocaleString()} unit{filteredAvailableUnits.length === 1 ? '' : 's'}
+                            </div>
+                          )}
                           {filteredAvailableUnits
-                            .slice(0, 50)
                             .map((u: any) => (
                               <button
                                 type="button"
@@ -1490,12 +1534,19 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
                                 <span className="shop-unit-picker-meta">
                                   {u.floorLabel || `Floor ${u.floorNumber}`} · {Number(u.areaSqft || 0).toLocaleString()} sqft
                                 </span>
-                                <span className={`shop-unit-picker-status status-${u.status}`}>{u.status}</span>
+                                {(() => {
+                                  const statusColor = UNIT_STATUS_COLOR[u.status] || UNIT_STATUS_FALLBACK_COLOR;
+                                  return (
+                                    <span
+                                      className="shop-unit-picker-status"
+                                      style={{ color: statusColor, background: `${statusColor}18` }}
+                                    >
+                                      {UNIT_STATUS_LABEL[u.status] || u.status}
+                                    </span>
+                                  );
+                                })()}
                               </button>
                             ))}
-                          {filteredAvailableUnits.length > 50 && (
-                            <div className="shop-unit-picker-more">Type to narrow down results...</div>
-                          )}
                           {filteredAvailableUnits.length === 0 && (
                             <div className="shop-unit-picker-more">No matching units found</div>
                           )}
@@ -1507,18 +1558,20 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
                     <span>Shop Number</span>
                     <input value={createForm.shopNumber} onChange={e => setCreateForm({ ...createForm, shopNumber: e.target.value })} placeholder="Auto from unit" />
                   </label>
-                  <label>
-                    <span>Brand Name *</span>
-                    <input
-                      className={createSubmitted && !createForm.brandName?.trim() ? 'mall-input-error' : ''}
-                      value={createForm.brandName}
-                      onChange={e => setCreateForm({ ...createForm, brandName: e.target.value })}
-                      placeholder="e.g. Starbucks"
-                    />
-                    {createSubmitted && !createForm.brandName?.trim() && (
-                      <span className="mall-error-text">Brand name is required</span>
-                    )}
-                  </label>
+                  {!isCreateBrandHidden && (
+                    <label>
+                      <span>Brand Name *</span>
+                      <input
+                        className={createSubmitted && !createForm.brandName?.trim() ? 'mall-input-error' : ''}
+                        value={createForm.brandName}
+                        onChange={e => setCreateForm({ ...createForm, brandName: e.target.value })}
+                        placeholder="e.g. Starbucks"
+                      />
+                      {createSubmitted && !createForm.brandName?.trim() && (
+                        <span className="mall-error-text">Brand name is required</span>
+                      )}
+                    </label>
+                  )}
                   <label>
                     <span>Trade Category</span>
                     <select value={createForm.tradeCategory} onChange={e => setCreateForm({ ...createForm, tradeCategory: e.target.value })}>
@@ -1553,7 +1606,7 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
                               ? 'Will upload & update P-Unit Photo on create'
                               : existingUnitPhotoUrl
                                 ? 'Will automatically show in Shop Directory'
-                                : 'Upload PNG, JPG, WEBP, GIF or PDF (max 10MB)'
+                                : 'Upload Photo'
                           }
                           uploadLabel={createPhotoFile || existingUnitPhotoUrl ? 'Replace' : 'Upload Photo'}
                           canRemove={Boolean(createPhotoFile || existingUnitPhotoUrl)}

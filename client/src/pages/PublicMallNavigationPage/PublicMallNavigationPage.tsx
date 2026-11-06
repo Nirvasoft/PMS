@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Store, Search, X } from 'lucide-react';
 import { useGetPublicDirectoryQuery } from '../../store/api/mallApi';
 import { resolveImageAssetUrl } from '../../utils/unitPhotoCache';
 import { useUnitPhotoCache } from '../../components/common/CachedUnitPhoto';
 import ShopMapView from '../admin/ShopDirectory/ShopMapView';
+import AvailableUnitsAdModal from './AvailableUnitsAdModal';
 import {
   getCachedDirectory,
   saveCachedDirectory,
@@ -37,6 +38,45 @@ export default function PublicMallNavigationPage() {
   const cachedDir = useMemo(() => getCachedDirectory(propertyId), [propertyId, data]);
   const property = data?.data?.property ?? cachedDir?.property;
   const allShops = data?.data?.shops ?? cachedDir?.shops ?? [];
+
+  // "Units available for lease" ad: only when at least one unit is Available.
+  // Shown on every page load/refresh, but only once per load (closing it keeps it closed until refresh).
+  const availableCount = useMemo(
+    () => allShops.filter((s: any) => String(s?.unit?.status ?? '').toLowerCase() === 'available').length,
+    [allShops],
+  );
+  const hasAvailable = availableCount > 0;
+  const [adOpen, setAdOpen] = useState(false);
+  const adShownRef = useRef(false);
+  const [highlightAvailable, setHighlightAvailable] = useState(false);
+
+  useEffect(() => {
+    if (!propertyId || isLoading || !hasAvailable || adShownRef.current) return;
+    const t = window.setTimeout(() => {
+      adShownRef.current = true;
+      setAdOpen(true);
+    }, 1200);
+    return () => window.clearTimeout(t);
+  }, [propertyId, isLoading, hasAvailable]);
+
+  const closeAd = () => setAdOpen(false);
+
+  const highlightTimerRef = useRef<number | null>(null);
+  const stopHighlight = () => {
+    if (highlightTimerRef.current) window.clearTimeout(highlightTimerRef.current);
+    highlightTimerRef.current = null;
+    setHighlightAvailable(false);
+  };
+  useEffect(() => () => {
+    if (highlightTimerRef.current) window.clearTimeout(highlightTimerRef.current);
+  }, []);
+
+  const viewAvailableUnits = () => {
+    closeAd();
+    setHighlightAvailable(true);
+    if (highlightTimerRef.current) window.clearTimeout(highlightTimerRef.current);
+    highlightTimerRef.current = window.setTimeout(stopHighlight, 15000);
+  };
 
   const propertyImageCandidates = useMemo(() => {
     const rawList = [
@@ -136,6 +176,23 @@ export default function PublicMallNavigationPage() {
           fullScreen
           initialFloor={initialFloor}
           publicMode
+          highlightAvailable={highlightAvailable}
+        />
+      )}
+
+      {highlightAvailable && (
+        <button type="button" className="public-available-reset" onClick={stopHighlight}>
+          Show all units
+        </button>
+      )}
+
+      {adOpen && hasAvailable && (
+        <AvailableUnitsAdModal
+          count={availableCount}
+          propertyName={property?.name}
+          contact={property?.leasingContact}
+          onViewUnits={viewAvailableUnits}
+          onClose={closeAd}
         />
       )}
 

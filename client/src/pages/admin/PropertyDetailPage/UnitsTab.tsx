@@ -35,20 +35,12 @@ import { PermissionGuard, usePermission } from '../../../components/guards/Permi
 import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 import { ZONE_OPTIONS } from './zoneOptions';
 import { preloadUnitPhotosBatch } from '../../../utils/unitPhotoCache';
+import { UNIT_STATUSES, UNIT_STATUS_COLOR } from '../../../utils/unitStatus';
 import './UnitsTab.css';
 
-/* ── Status config (single source of truth) ── */
-const STATUSES = [
-  { key: 'available',    label: 'Available',    color: '#10b981' },
-  { key: 'occupied',     label: 'Occupied',     color: '#3b82f6' },
-  { key: 'reserved',     label: 'Reserved',     color: '#f59e0b' },
-  { key: 'maintenance',  label: 'Maintenance',  color: '#ef4444' },
-  { key: 'not_for_rent', label: 'Not for Rent', color: '#6b7280' },
-] as const;
-
-const STATUS_COLOR: Record<string, string> = Object.fromEntries(
-  STATUSES.map((s) => [s.key, s.color])
-);
+/* ── Status config (single source of truth: utils/unitStatus.ts) ── */
+const STATUSES = UNIT_STATUSES;
+const STATUS_COLOR = UNIT_STATUS_COLOR;
 
 const ZOOM_CELL: Record<string, { w: number; h: number }> = {
   compact: { w: 58, h: 36 },

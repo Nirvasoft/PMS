@@ -357,6 +357,22 @@
   --glass-rim: rgba(252, 211, 77, 0.52);
   --glass-lip: rgba(146, 64, 14, 0.68);
 }
+.shop-map-tile.st-maintenance {
+  background: rgba(239, 68, 68, 0.22);
+  --glass-fill-top: rgba(239, 68, 68, 0.24);
+  --glass-fill-bot: rgba(185, 28, 28, 0.10);
+  --glass-rim: rgba(252, 165, 165, 0.52);
+  --glass-lip: rgba(127, 29, 29, 0.68);
+}
+.shop-map-tile.st-notrent {
+  background:
+    repeating-linear-gradient(135deg, rgba(107, 114, 128, 0.28) 0 6px, rgba(107, 114, 128, 0.06) 6px 12px),
+    rgba(107, 114, 128, 0.18);
+  --glass-fill-top: rgba(107, 114, 128, 0.22);
+  --glass-fill-bot: rgba(55, 65, 81, 0.12);
+  --glass-rim: rgba(209, 213, 219, 0.42);
+  --glass-lip: rgba(31, 41, 55, 0.66);
+}
 
 [data-theme="light"] .shop-map-tile.st-occupied {
   --glass-fill-top: rgba(209, 250, 229, 0.62);
@@ -381,6 +397,18 @@
   --glass-fill-bot: rgba(253, 230, 138, 0.38);
   --glass-rim: rgba(251, 191, 36, 0.72);
   --glass-lip: rgba(245, 158, 11, 0.55);
+}
+[data-theme="light"] .shop-map-tile.st-maintenance {
+  --glass-fill-top: rgba(254, 226, 226, 0.66);
+  --glass-fill-bot: rgba(252, 165, 165, 0.38);
+  --glass-rim: rgba(248, 113, 113, 0.70);
+  --glass-lip: rgba(239, 68, 68, 0.52);
+}
+[data-theme="light"] .shop-map-tile.st-notrent {
+  --glass-fill-top: rgba(243, 244, 246, 0.68);
+  --glass-fill-bot: rgba(209, 213, 219, 0.42);
+  --glass-rim: rgba(156, 163, 175, 0.62);
+  --glass-lip: rgba(107, 114, 128, 0.50);
 }
 
 @keyframes shopMapSkeletonShimmer {
@@ -1369,6 +1397,8 @@
 .shop-map-tile.st-vacant .shop-map-unit-bridge { background: rgba(148, 163, 184, 0.22); }
 .shop-map-tile.st-reserved .shop-map-unit-bridge { background: rgba(59, 130, 246, 0.22); }
 .shop-map-tile.st-expiring .shop-map-unit-bridge { background: rgba(245, 158, 11, 0.24); }
+.shop-map-tile.st-maintenance .shop-map-unit-bridge { background: rgba(239, 68, 68, 0.22); }
+.shop-map-tile.st-notrent .shop-map-unit-bridge { background: rgba(107, 114, 128, 0.22); }
 .shop-map-view2 .shop-map-tile .shop-map-unit-bridge {
   background: color-mix(
     in srgb,
@@ -1470,10 +1500,14 @@
 .shop-map-tile.st-vacant .shop-map-trapezoid-svg .shop-map-trapezoid-fill { fill: rgba(148, 163, 184, 0.22); }
 .shop-map-tile.st-reserved .shop-map-trapezoid-svg .shop-map-trapezoid-fill { fill: rgba(59, 130, 246, 0.24); }
 .shop-map-tile.st-expiring .shop-map-trapezoid-svg .shop-map-trapezoid-fill { fill: rgba(245, 158, 11, 0.25); }
+.shop-map-tile.st-maintenance .shop-map-trapezoid-svg .shop-map-trapezoid-fill { fill: rgba(239, 68, 68, 0.24); }
+.shop-map-tile.st-notrent .shop-map-trapezoid-svg .shop-map-trapezoid-fill { fill: rgba(107, 114, 128, 0.26); }
 [data-theme="light"] .shop-map-tile.st-occupied .shop-map-trapezoid-svg .shop-map-trapezoid-fill { fill: rgba(167, 243, 208, 0.56); }
 [data-theme="light"] .shop-map-tile.st-vacant .shop-map-trapezoid-svg .shop-map-trapezoid-fill { fill: rgba(226, 232, 240, 0.58); }
 [data-theme="light"] .shop-map-tile.st-reserved .shop-map-trapezoid-svg .shop-map-trapezoid-fill { fill: rgba(191, 219, 254, 0.56); }
 [data-theme="light"] .shop-map-tile.st-expiring .shop-map-trapezoid-svg .shop-map-trapezoid-fill { fill: rgba(253, 230, 138, 0.58); }
+[data-theme="light"] .shop-map-tile.st-maintenance .shop-map-trapezoid-svg .shop-map-trapezoid-fill { fill: rgba(254, 202, 202, 0.58); }
+[data-theme="light"] .shop-map-tile.st-notrent .shop-map-trapezoid-svg .shop-map-trapezoid-fill { fill: rgba(229, 231, 235, 0.62); }
 .shop-map-tile.active-target .shop-map-trapezoid-svg .shop-map-trapezoid-fill,
 [data-theme="light"] .shop-map-tile.active-target .shop-map-trapezoid-svg .shop-map-trapezoid-fill {
   fill: rgba(16, 185, 129, 0.35) !important;
@@ -2879,6 +2913,68 @@
   opacity: 0.72;
   letter-spacing: 0.02em;
   line-height: 1;
+}
+.shop-map-route-lease {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.shop-map-route-lease.is-maintenance { color: #ef4444; }
+.shop-map-route-lease.is-notrent { color: #6b7280; }
+.shop-map-tile-status-default {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 3;
+}
+.shop-map-tile-status-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid currentColor;
+  box-shadow: 0 2px 6px rgba(2, 6, 23, 0.35);
+}
+.shop-map-tile-status-default.is-available { color: #059669; }
+.shop-map-tile-status-default.is-maintenance { color: #dc2626; }
+.shop-map-tile-status-default.is-notrent { color: #4b5563; }
+/* ── Public "View available units" focus: pulse Available tiles, dim everything else ── */
+@keyframes shopMapAvailablePulse {
+  0%, 100% { box-shadow: 0 0 0 2px #10b981, 0 0 8px rgba(16, 185, 129, 0.45); }
+  50% { box-shadow: 0 0 0 3px #34d399, 0 0 18px rgba(16, 185, 129, 0.85); }
+}
+/* Clip-path / SVG shaped units: box-shadow is clipped, so pulse a drop-shadow on the SVG instead. */
+@keyframes shopMapAvailableSvgPulse {
+  0%, 100% { filter: drop-shadow(0 0 3px rgba(16, 185, 129, 0.75)); }
+  50% { filter: drop-shadow(0 0 11px rgba(52, 211, 153, 1)); }
+}
+.shop-map-tile.is-available-highlight {
+  --glass-rim: #34d399;
+  --glass-lip: #059669;
+  animation: shopMapAvailablePulse 1.2s ease-in-out infinite;
+  z-index: 5;
+}
+.shop-map-tile.is-available-highlight:not(.is-trapezoid-tile):not(.has-unit-photo) {
+  background: rgba(16, 185, 129, 0.30) !important;
+}
+.shop-map-tile.is-available-highlight .shop-map-trapezoid-svg .shop-map-trapezoid-fill {
+  fill: rgba(16, 185, 129, 0.55) !important;
+}
+.shop-map-tile.is-available-highlight :is(.shop-map-merged-border-svg, .shop-map-trapezoid-svg, .shop-map-atrium-poly-svg) {
+  animation: shopMapAvailableSvgPulse 1.2s ease-in-out infinite;
+}
+.shop-map-tile.is-available-highlight :is(.shop-map-merged-border-svg, .shop-map-trapezoid-svg, .shop-map-atrium-poly-svg) :is(.lm-border-rim, .lm-border-lip-r, .lm-border-lip-b) {
+  stroke-width: 2.5;
+}
+.shop-map-tile.is-available-dim {
+  opacity: 0.22;
+  filter: grayscale(0.7) brightness(0.8);
 }
 .shop-map-tile-name.is-smart-upright {
   padding: 1px 5px;

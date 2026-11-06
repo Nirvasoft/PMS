@@ -10,6 +10,7 @@ import {
   Printer, Copy, ExternalLink, Info, ArrowRight, WifiOff, ChevronDown,
   Compass, CornerUpLeft, CornerUpRight, MoveUp,
   Image as ImageIcon, Eye, EyeOff, Lock, Unlock, Wand2,
+  KeyRound, Wrench, Ban,
 } from 'lucide-react';
 import {
   useGetFloorPlanQuery,
@@ -51,6 +52,8 @@ interface Props {
   fullScreen?: boolean;
   initialFloor?: string;
   publicMode?: boolean;
+  /** Public page: pulse Available units on the map (and jump to a floor that has some). */
+  highlightAvailable?: boolean;
 }
 
 const ALL_RESIZE_HANDLES = ['se', 'sw', 'nw', 'ne', 'e', 'w', 's', 'n'] as const;
@@ -1095,7 +1098,19 @@ function statusClass(shop: any): string {
   }
   if (status === 'OCCUPIED') return 'st-occupied';
   if (status === 'RESERVED') return 'st-reserved';
+  if (status === 'MAINTENANCE') return 'st-maintenance';
+  if (status === 'NOT_FOR_RENT') return 'st-notrent';
   return 'st-vacant';
+}
+
+/** Short public-facing tag for units that have no tenant brand to show. */
+function unitStatusNote(shop: any): { kind: 'available' | 'maintenance' | 'notrent'; tag: string; detail: string } | null {
+  if (!shop?.unit) return null;
+  const cls = statusClass(shop);
+  if (cls === 'st-vacant') return { kind: 'available', tag: 'Available', detail: 'Available for lease' };
+  if (cls === 'st-maintenance') return { kind: 'maintenance', tag: 'Maintenance', detail: 'Under maintenance' };
+  if (cls === 'st-notrent') return { kind: 'notrent', tag: 'Not for rent', detail: 'Not available for rent' };
+  return null;
 }
 
 function sharpCornerClasses(c: SharpCorners): string {
@@ -1211,6 +1226,7 @@ export default function ShopMapView({
   fullScreen = false,
   initialFloor,
   publicMode = false,
+  highlightAvailable = false,
 }: Props) {
   useUnitPhotoCache();
   const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
@@ -1237,6 +1253,14 @@ export default function ShopMapView({
   }, [floors, floor, initialFloor]);
 
   const floorShops = useMemo(() => shops.filter((s) => floorKeyOf(s) === floor), [shops, floor]);
+  useEffect(() => {
+    if (!highlightAvailable) return;
+    const hasAvailable = (s: any) => unitStatusNote(s)?.kind === 'available';
+    if (floorShops.some(hasAvailable)) return;
+    const target = floors.find((f) => shops.some((s) => floorKeyOf(s) === f && hasAvailable(s)));
+    if (target) setFloor(target);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlightAvailable]);
   const shopByUnit = useMemo(() => new Map(floorShops.map((s) => [s.unitId, s])), [floorShops]);
   const allShopByUnit = useMemo(() => new Map(shops.map((s) => [s.unitId, s])), [shops]);
 
@@ -2168,6 +2192,10 @@ export default function ShopMapView({
   const selectedShop = useMemo(
     () => (selectedUnitId ? shopByUnit.get(selectedUnitId) || null : null),
     [selectedUnitId, shopByUnit],
+  );
+  const selectedStatusNote = useMemo(
+    () => (publicMode && selectedShop ? unitStatusNote(selectedShop) : null),
+    [publicMode, selectedShop],
   );
 
   const effectiveSqftPerCell = useMemo(
@@ -3612,6 +3640,12 @@ export default function ShopMapView({
                     )}
                   </div>
                 ) : null}
+                {selectedStatusNote && (
+                  <span className={`shop-map-route-lease is-${selectedStatusNote.kind}`}>
+                    {selectedStatusNote.detail}
+                    {selectedStatusNote.kind === 'available' && selectedShop?.unit?.areaSqft ? ` · ${selectedShop.unit.areaSqft} sqft` : ''}
+                  </span>
+                )}
               </div>
 
               <div className="shop-map-route-actions">
@@ -4207,7 +4241,10 @@ export default function ShopMapView({
                     const unitMergeClasses = um?.hasMerge ? edgeMergeClasses('is-merged-unit', um) : '';
                     const showUnitLabel = !um || um.showLabel;
                     const unitNumberLabel = unitNumberOf(shop);
-                    const tileDisplayLabel = shopDisplayName(shop);
+                    const statusNote = unitStatusNote(shop);
+                    const publicStatusLabel =
+                      publicMode && !decor && it.kind === 'unit' && mapView !== 'photo' && statusNote ? statusNote.tag : null;
+                    const tileDisplayLabel = publicStatusLabel ?? shopDisplayName(shop);
                     const labelLen = Math.max(2, tileDisplayLabel.length);
                     const minTileFontPx = isMobile ? 7 : 8;
                     const tileFontPx = Math.max(
@@ -4217,10 +4254,16 @@ export default function ShopMapView({
                         Math.floor(Math.min(shortSidePx * 0.38, (longSidePx - 6) / Math.max(2.4, labelLen * 0.54))),
                       ),
                     );
-                    const rawPhotoUrl = (shop?.unit?.floorPlanUrl || shop?.shopfrontUrl || shop?.logoUrl) as string | undefined;
-                    const hasPhotoImage = isUnitPhotoImage(rawPhotoUrl) && !hasFailedUnitPhoto(rawPhotoUrl);
                     const showPhotoMode = !decor && mapView === 'photo';
+                    const photoStatusNote = showPhotoMode && it.kind === 'unit' ? unitStatusNote(shop) : null;
+                    const rawPhotoUrl = (photoStatusNote
+                      ? undefined
+                      : shop?.unit?.floorPlanUrl || shop?.shopfrontUrl || shop?.logoUrl) as string | undefined;
+                    const hasPhotoImage = isUnitPhotoImage(rawPhotoUrl) && !hasFailedUnitPhoto(rawPhotoUrl);
                     const hasUnitPhoto = showPhotoMode && hasPhotoImage;
+                    const showStatusDefault = Boolean(photoStatusNote && shortSidePx >= 22);
+                    const StatusDefaultIcon =
+                      photoStatusNote?.kind === 'maintenance' ? Wrench : photoStatusNote?.kind === 'notrent' ? Ban : KeyRound;
                     const lmMeta = cachedMeta
                       ? cachedMeta.lmMeta
                       : decor
@@ -4327,6 +4370,7 @@ export default function ShopMapView({
                     const isLabelUpsideDown = !isSmartUprightLabel && worldLabelAngle > 90 && worldLabelAngle < 270;
                     const showUnitSubNumber = Boolean(
                       !showPhotoMode &&
+                        !publicMode &&
                         tileDisplayLabel !== unitNumberLabel &&
                         unitNumberLabel &&
                         shortSidePx >= 34 &&
@@ -4404,7 +4448,7 @@ export default function ShopMapView({
                       >
                         <div
                           style={tileStyle}
-                          className={`shop-map-tile ${decor ? `st-decor st-decor-${it.kind} ${lmMeta ? `st-variant-${lmMeta.variant}` : ''}` : `${statusClass(shop)} ${unitMergeClasses}`} ${isCircleShape ? 'is-circle-tile' : ''} ${polyAtriumGeo ? 'is-polygon-atrium' : ''} ${trapezoidGeo ? 'is-trapezoid-tile' : ''} ${isEmergencyLandmark ? 'is-emergency-landmark' : ''} ${isUnitHovered ? 'is-unit-hovered' : ''} ${hasUnitPhoto ? 'has-unit-photo' : ''} ${isVerticalTile ? 'is-vertical-tile' : ''} ${editing ? 'editing' : ''} ${dim ? 'dim' : ''} ${isSearchMatch ? 'search-match' : ''} ${tiny ? 'tiny' : ''} ${isTarget ? 'active-target' : ''} ${isStart ? 'active-start' : ''} ${isAmenityHighlighted ? 'is-amenity-highlighted' : ''}`}
+                          className={`shop-map-tile ${decor ? `st-decor st-decor-${it.kind} ${lmMeta ? `st-variant-${lmMeta.variant}` : ''}` : `${statusClass(shop)} ${unitMergeClasses}`} ${isCircleShape ? 'is-circle-tile' : ''} ${polyAtriumGeo ? 'is-polygon-atrium' : ''} ${trapezoidGeo ? 'is-trapezoid-tile' : ''} ${isEmergencyLandmark ? 'is-emergency-landmark' : ''} ${isUnitHovered ? 'is-unit-hovered' : ''} ${highlightAvailable && !decor && statusNote?.kind === 'available' ? 'is-available-highlight' : ''} ${highlightAvailable && !(!decor && statusNote?.kind === 'available') ? 'is-available-dim' : ''} ${hasUnitPhoto ? 'has-unit-photo' : ''} ${isVerticalTile ? 'is-vertical-tile' : ''} ${editing ? 'editing' : ''} ${dim ? 'dim' : ''} ${isSearchMatch ? 'search-match' : ''} ${tiny ? 'tiny' : ''} ${isTarget ? 'active-target' : ''} ${isStart ? 'active-start' : ''} ${isAmenityHighlighted ? 'is-amenity-highlighted' : ''}`}
                         >
                         {decor ? (
                           <>
@@ -4556,7 +4600,21 @@ export default function ShopMapView({
                                 />
                               )
                             )}
-                            {showUnitLabel && (
+                            {showStatusDefault && photoStatusNote && (
+                              <span className={`shop-map-tile-status-default is-${photoStatusNote.kind}`} aria-hidden="true">
+                                <span
+                                  className="shop-map-tile-status-badge"
+                                  style={{
+                                    width: Math.max(18, Math.min(44, Math.floor(shortSidePx * 0.72))),
+                                    height: Math.max(18, Math.min(44, Math.floor(shortSidePx * 0.72))),
+                                    ...(effectiveAngle ? ({ rotate: `${-effectiveAngle}deg` } as CSSProperties) : {}),
+                                  }}
+                                >
+                                  <StatusDefaultIcon size={Math.max(11, Math.min(28, Math.floor(shortSidePx * 0.46)))} strokeWidth={2.2} />
+                                </span>
+                              </span>
+                            )}
+                            {showUnitLabel && !photoStatusNote && (
                               <div
                                 className={`shop-map-tile-name ${isSmartUprightLabel ? 'is-smart-upright' : ''}`}
                                 style={{

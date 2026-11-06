@@ -538,6 +538,7 @@ export default function App() {
             </AuthBootstrap>
             <Toaster
               position="top-right"
+              containerStyle={{ zIndex: 100000 }}
               toastOptions={{
                 duration: 3000,
                 style: {

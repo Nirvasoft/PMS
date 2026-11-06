@@ -531,8 +531,7 @@ class MallService {
         companyId,
         propertyId,
         isActive: true,
-        status: 'occupied',
-        shopProfile: { is: null }, // units without a shop profile
+        shopProfile: { is: null }, // units without a shop profile (any status)
       },
       select: {
         id: true,
@@ -1871,6 +1870,12 @@ class MallService {
           take: 1,
           select: { url: true },
         },
+        contacts: {
+          where: { role: { notIn: ['security', 'maintenance', 'emergency'] } },
+          orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }, { createdAt: 'asc' }],
+          take: 5,
+          select: { name: true, role: true, phone: true, mobile: true, email: true },
+        },
       },
     });
     if (!property) {
@@ -1905,6 +1910,26 @@ class MallService {
       },
     });
 
+    // Units that are not occupied/reserved are "Available": never expose stale shop identity publicly.
+    const publicShops = shops.map((s) => {
+      const status = String(s.unit?.status ?? '').toLowerCase();
+      if (status === 'occupied' || status === 'reserved') return s;
+      return {
+        ...s,
+        brandName: null,
+        tradeCategory: null,
+        tradeSubcategory: null,
+        franchiseGroup: null,
+        isAnchor: false,
+        logoUrl: null,
+        shopfrontUrl: null,
+        unit: s.unit ? { ...s.unit, floorPlanUrl: null } : s.unit,
+      };
+    });
+
+    const leasingContact =
+      property.contacts.find((c) => c.mobile || c.phone || c.email) ?? null;
+
     return {
       property: {
         id: property.id,
@@ -1913,8 +1938,17 @@ class MallService {
         address: [property.addressLine1, property.city].filter(Boolean).join(', '),
         coverImageUrl: property.coverImageUrl ?? property.photos[0]?.url ?? property.imageUrl ?? null,
         imageUrl: property.photos[0]?.url ?? property.imageUrl ?? null,
+        leasingContact: leasingContact
+          ? {
+              name: leasingContact.name,
+              phones: Array.from(
+                new Set([leasingContact.mobile, leasingContact.phone].map((p) => p?.trim()).filter(Boolean)),
+              ) as string[],
+              email: leasingContact.email || null,
+            }
+          : null,
       },
-      shops,
+      shops: publicShops,
     };
   }
 
