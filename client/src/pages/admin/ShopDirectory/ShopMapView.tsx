@@ -21,7 +21,7 @@ import {
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import {
   DECORATION_DEFAULT_SIZES, DECORATION_LABELS, DEFAULT_COLUMNS, DEFAULT_SQFT_PER_CELL,
-  SHOP_CATEGORIES, compareShopsByUnitNumber, findFreeSpot, findSpotNextToAnchor, findNextRingSectorPlacement, addConnectedUnitWing, snapTileToBorder, curveUnitAroundCircleWithoutSnap, alignUnitsRadiallyAroundAtrium, alignUnitToNearestCircleAtrium, computeMagneticSnapGuide, addTransitIntoAtrium, isTransitLandmark, floorKeyOf, tilesConflict, hasAnyOverlap,
+  SHOP_CATEGORIES, compareShopsByUnitNumber, findFreeSpot, findSpotNextToAnchor, findNextRingSectorPlacement, addConnectedUnitWing, snapTileToBorder, syncAtriumInnerTransitRow, curveUnitAroundCircleWithoutSnap, alignUnitsRadiallyAroundAtrium, alignUnitToNearestCircleAtrium, computeMagneticSnapGuide, addTransitIntoAtrium, isTransitLandmark, floorKeyOf, tilesConflict, hasAnyOverlap,
   tileSizeFromSqft, calibrateSqftPerCell, syncUnitTilesToSqft,
   unitKey, nextUnitBlockKey, findPrimaryUnitTile, resolveTileByKey,
   unitNumberOf, shopDisplayName, matchesShopQuery, scoreShopSearchMatch,
@@ -1298,7 +1298,7 @@ export default function ShopMapView({
     return Boolean(publicMode);
   });
   const [highlightedAmenityKinds, setHighlightedAmenityKinds] = useState<TileKind[]>([]);
-  const [editSnapMode, setEditSnapMode] = useState<'free' | 'edge' | 'smart'>('edge');
+  const [editSnapMode, setEditSnapMode] = useState<'free' | 'edge' | 'smart'>('smart');
   const magnetEnabled = editSnapMode !== 'free';
   const snapAutoResize = editSnapMode === 'smart';
   const autoShapeEnabled = editSnapMode === 'smart';
@@ -1584,12 +1584,27 @@ export default function ShopMapView({
     // Magnetically snap moved/resized tiles to touching borders, align X/Y edge lines, and adjust rotation degree (`angle`)
     // unless Magnet is toggled OFF or the user holds Alt / Shift during drag/resize.
     if (magnetEnabled && !bypassMagnetKeyRef.current) {
+      let movedTransitKey: string | null = null;
+      let movedTransitItem: MapItem | undefined;
       candidateItems = candidateItems.map((it, idx) => {
         const orig = baseItems[idx];
         const moved = orig && (it.x !== orig.x || it.y !== orig.y || it.w !== orig.w || it.h !== orig.h);
         if (!moved) return it;
-        return snapTileToBorder(it, candidateItems, interactionColumns, orig, snapAutoResize, autoShapeEnabled) ?? it;
+        const snapped = snapTileToBorder(it, candidateItems, interactionColumns, orig, snapAutoResize, autoShapeEnabled) ?? it;
+        if (isTransitLandmark(snapped.kind)) {
+          movedTransitKey = snapped.key;
+          movedTransitItem = snapped;
+        }
+        return snapped;
       });
+      if (movedTransitKey && movedTransitItem) {
+        candidateItems = syncAtriumInnerTransitRow(
+          candidateItems,
+          movedTransitKey,
+          interactionColumns,
+          movedTransitItem,
+        ).items;
+      }
     } else {
       candidateItems = candidateItems.map((it, idx) => {
         const orig = baseItems[idx];
@@ -4404,23 +4419,25 @@ export default function ShopMapView({
                                 {polyAtriumGeo.lipPath && <path d={polyAtriumGeo.lipPath} className="lm-border-lip-b" fill="none" />}
                               </svg>
                             )}
-                            <div
-                              className="shop-map-decor-content"
-                              style={effectiveAngle ? ({ rotate: `${-effectiveAngle}deg` } as CSSProperties) : undefined}
-                            >
-                              <div className="shop-map-decor-badge" style={{ width: effectiveBadgePx, height: effectiveBadgePx }}>
-                                <span className="shop-map-decor-icon">
-                                  <DecorIcon
-                                    kind={decorType}
-                                    variant={lmMeta?.variant}
-                                    size={effectiveIconPx}
-                                  />
-                                </span>
+                            {it.kind !== 'atrium' && (
+                              <div
+                                className="shop-map-decor-content"
+                                style={effectiveAngle ? ({ rotate: `${-effectiveAngle}deg` } as CSSProperties) : undefined}
+                              >
+                                <div className="shop-map-decor-badge" style={{ width: effectiveBadgePx, height: effectiveBadgePx }}>
+                                  <span className="shop-map-decor-icon">
+                                    <DecorIcon
+                                      kind={decorType}
+                                      variant={lmMeta?.variant}
+                                      size={effectiveIconPx}
+                                    />
+                                  </span>
+                                </div>
+                                {showLandmarkSublabel && lmMeta && (
+                                  <span className="shop-map-decor-sublabel">{lmMeta.badgeText}</span>
+                                )}
                               </div>
-                              {showLandmarkSublabel && lmMeta && (
-                                <span className="shop-map-decor-sublabel">{lmMeta.badgeText}</span>
-                              )}
-                            </div>
+                            )}
                           </>
                         ) : (
                           <>

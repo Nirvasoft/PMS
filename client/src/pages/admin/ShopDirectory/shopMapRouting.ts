@@ -6,6 +6,7 @@ import {
   DECORATION_LABELS,
   getCustomUnitPolygonVerticesAndAxes,
   getPolygonAtriumWorldFaces,
+  getRingSectorRoutingPolygon,
   isCircleTile,
   parseLandmarkMeta,
   parseUnitShapeMode,
@@ -274,6 +275,9 @@ interface TileCollisionShape {
   isRotatedOrCurved: boolean;
   mode: 'rect' | 'ellipse' | 'poly';
   corners?: Array<{ x: number; y: number }>;
+  doorX?: number;
+  doorY?: number;
+  isRingSector?: boolean;
 }
 
 interface FloorRoutingCache {
@@ -328,7 +332,7 @@ function minDistToPolygonEdges(
   return Math.sqrt(minD2);
 }
 
-function buildTileCollisionShape(it: MapItem): TileCollisionShape {
+function buildTileCollisionShape(it: MapItem, items: ReadonlyArray<MapItem>): TileCollisionShape {
   if (it.kind === 'atrium') {
     const polyFaces = getPolygonAtriumWorldFaces(it);
     if (polyFaces && polyFaces.length >= 3) {
@@ -360,6 +364,46 @@ function buildTileCollisionShape(it: MapItem): TileCollisionShape {
         isRotatedOrCurved: true,
         mode: 'poly',
         corners,
+      };
+    }
+  }
+
+  if (it.kind === 'unit') {
+    const ringPoly = getRingSectorRoutingPolygon(it, items);
+    if (ringPoly && ringPoly.corners.length >= 3) {
+      let minX = Infinity;
+      let maxX = -Infinity;
+      let minY = Infinity;
+      let maxY = -Infinity;
+      for (const c of ringPoly.corners) {
+        if (c.x < minX) minX = c.x;
+        if (c.x > maxX) maxX = c.x;
+        if (c.y < minY) minY = c.y;
+        if (c.y > maxY) maxY = c.y;
+      }
+      const rad = (ringPoly.exactAngle * Math.PI) / 180;
+      const ux = Math.cos(rad);
+      const uy = Math.sin(rad);
+      return {
+        item: it,
+        vcx: ringPoly.vcx,
+        vcy: ringPoly.vcy,
+        hw: Math.max(0.5, it.w) * 0.5,
+        hh: Math.max(0.5, it.h) * 0.5,
+        ux,
+        uy,
+        vx: -uy,
+        vy: ux,
+        minX,
+        maxX,
+        minY,
+        maxY,
+        isRotatedOrCurved: true,
+        mode: 'poly',
+        corners: ringPoly.corners,
+        doorX: ringPoly.doorX,
+        doorY: ringPoly.doorY,
+        isRingSector: true,
       };
     }
   }
@@ -475,7 +519,7 @@ function getOrBuildFloorRoutingCache(items: MapItem[], cols: number, rows: numbe
   const gCols = cols * SUB;
   const gRows = rows * SUB;
   const totalNodes = gCols * gRows;
-  const shapes = items.map(buildTileCollisionShape);
+  const shapes = items.map((it) => buildTileCollisionShape(it, items));
 
   const min1Dist = new Float32Array(totalNodes);
   min1Dist.fill(MAX_CLEARANCE_RADIUS);
@@ -567,13 +611,17 @@ export function computeWalkwayPath(
   const worldToGx = (wx: number): number => Math.max(0, Math.min(gCols - 1, Math.round(wx * 2)));
   const worldToGy = (wy: number): number => Math.max(0, Math.min(gRows - 1, Math.round(wy * 2)));
 
-  const exactStart = { x: fromItem.x + fromItem.w * 0.5, y: fromItem.y + fromItem.h * 0.5 };
-  const exactEnd = { x: toItem.x + toItem.w * 0.5, y: toItem.y + toItem.h * 0.5 };
+  const fromShape = shapes.find((s) => s.item.key === fromItem.key) ?? null;
+  const toShape = shapes.find((s) => s.item.key === toItem.key) ?? null;
 
-  const startGx = worldToGx(exactStart.x);
-  const startGy = worldToGy(exactStart.y);
-  const endGx = worldToGx(exactEnd.x);
-  const endGy = worldToGy(exactEnd.y);
+  const exactStart = {
+    x: fromShape?.vcx ?? fromItem.x + fromItem.w * 0.5,
+    y: fromShape?.vcy ?? fromItem.y + fromItem.h * 0.5,
+  };
+  const exactEnd = {
+    x: toShape?.vcx ?? toItem.x + toItem.w * 0.5,
+    y: toShape?.vcy ?? toItem.y + toItem.h * 0.5,
+  };
 
   const isStartOrDestTile = (it: MapItem) =>
     it.key === fromItem.key ||
@@ -594,6 +642,8 @@ export function computeWalkwayPath(
       isExcludedTile[tIdx] = 1;
     } else if (
       it.kind === 'atrium' &&
+      !fromShape?.isRingSector &&
+      !toShape?.isRingSector &&
       (signedDistanceToShape(exactStart.x, exactStart.y, shape) < -0.1 ||
         signedDistanceToShape(exactEnd.x, exactEnd.y, shape) < -0.1)
     ) {
@@ -636,6 +686,26 @@ export function computeWalkwayPath(
   const fpMaxY = floorplate ? floorplate.y + floorplate.h - 0.12 : rows - 0.15;
   const isInsideFloorplate = (wx: number, wy: number): boolean =>
     wx >= fpMinX && wx <= fpMaxX && wy >= fpMinY && wy <= fpMaxY;
+
+  const useStartDoor = Boolean(
+    fromShape?.isRingSector &&
+      fromShape.doorX !== undefined &&
+      fromShape.doorY !== undefined &&
+      isInsideFloorplate(fromShape.doorX, fromShape.doorY) &&
+      minObstacleDistanceAt(fromShape.doorX, fromShape.doorY, 0.35) >= 0.12,
+  );
+  const useEndDoor = Boolean(
+    toShape?.isRingSector &&
+      toShape.doorX !== undefined &&
+      toShape.doorY !== undefined &&
+      isInsideFloorplate(toShape.doorX, toShape.doorY) &&
+      minObstacleDistanceAt(toShape.doorX, toShape.doorY, 0.35) >= 0.12,
+  );
+
+  const startGx = worldToGx(useStartDoor ? fromShape!.doorX! : exactStart.x);
+  const startGy = worldToGy(useStartDoor ? fromShape!.doorY! : exactStart.y);
+  const endGx = worldToGx(useEndDoor ? toShape!.doorX! : exactEnd.x);
+  const endGy = worldToGy(useEndDoor ? toShape!.doorY! : exactEnd.y);
 
   const totalNodes = gCols * gRows;
   const cellCost = new Float32Array(totalNodes);
@@ -688,6 +758,14 @@ export function computeWalkwayPath(
       if (min1Dist[idx] <= 0.04) {
         const startDestHit = findStartDestShapeAt(wx, wy, 0.04);
         if (startDestHit) {
+          if (
+            (startDestHit === fromShape && useStartDoor) ||
+            (startDestHit === toShape && useEndDoor)
+          ) {
+            cellCost[idx] = 50000.0;
+            allowDiag[idx] = 0;
+            continue;
+          }
           if (startDestHit.item.kind === 'marker' && obsDist >= 0.22) {
             cellCost[idx] = 1.0;
             allowDiag[idx] = 1;
@@ -745,8 +823,8 @@ export function computeWalkwayPath(
   const endCellIdx = endGy * gCols + endGx;
   cellCost[startCellIdx] = 1.0;
   cellCost[endCellIdx] = 1.0;
-  allowDiag[startCellIdx] = fromItem.kind === 'marker' || fromItem.angle ? 1 : 0;
-  allowDiag[endCellIdx] = toItem.kind === 'marker' || toItem.angle ? 1 : 0;
+  allowDiag[startCellIdx] = fromItem.kind === 'marker' || fromItem.angle || useStartDoor ? 1 : 0;
+  allowDiag[endCellIdx] = toItem.kind === 'marker' || toItem.angle || useEndDoor ? 1 : 0;
 
   const DIRS = [
     [1, 0, 0.5],
@@ -909,12 +987,20 @@ export function computeWalkwayPath(
 
   const rawPoints = rawNodes.map(({ gx, gy }) => ({ x: gxToWorld(gx), y: gyToWorld(gy) }));
   if (rawPoints.length > 0) {
-    rawPoints[0] = exactStart;
-    rawPoints[rawPoints.length - 1] = exactEnd;
+    if (useStartDoor) {
+      rawPoints.unshift(exactStart);
+    } else {
+      rawPoints[0] = exactStart;
+    }
+    if (useEndDoor) {
+      rawPoints.push(exactEnd);
+    } else {
+      rawPoints[rawPoints.length - 1] = exactEnd;
+    }
   }
 
   if ((fromItem.angle || toItem.angle) && rawPoints.length >= 4) {
-    if (fromItem.angle) {
+    if (fromItem.angle && !useStartDoor) {
       let exitIdx = 1;
       while (
         exitIdx < rawPoints.length - 2 &&
@@ -926,7 +1012,7 @@ export function computeWalkwayPath(
         rawPoints.splice(1, exitIdx - 1);
       }
     }
-    if (toItem.angle && rawPoints.length >= 4) {
+    if (toItem.angle && !useEndDoor && rawPoints.length >= 4) {
       let enterIdx = rawPoints.length - 2;
       while (
         enterIdx > 1 &&

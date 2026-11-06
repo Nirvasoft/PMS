@@ -275,15 +275,82 @@ export function getCircleRingSectorAlignment(
 
   const rawDx = idealCenterX - ux;
   const rawDy = idealCenterY - uy;
-  if (Math.hypot(rawDx, rawDy) > 1.45) return null;
+  if (Math.hypot(rawDx, rawDy) > 3.5) return null;
 
   const exactAngle = Math.round(computeCircleTangentUprightAngleDeg(nx, ny) * 100) / 100;
 
   return {
-    dx: Math.max(-0.9, Math.min(0.9, rawDx)),
-    dy: Math.max(-0.9, Math.min(0.9, rawDy)),
+    dx: Math.max(-2.5, Math.min(2.5, rawDx)),
+    dy: Math.max(-2.5, Math.min(2.5, rawDy)),
     exactAngle,
   };
+}
+
+export function getRingSectorRoutingPolygon(
+  it: { key?: string; kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
+  allItems: ReadonlyArray<{ key?: string; kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number }>,
+): {
+  vcx: number;
+  vcy: number;
+  exactAngle: number;
+  doorX: number;
+  doorY: number;
+  corners: Array<{ x: number; y: number }>;
+} | null {
+  if (it.kind !== 'unit' || !isRingSectorUnitLabel(it.label)) return null;
+  const match = findNearestCircleCorridorForUnit(it, allItems);
+  if (!match || !match.isNear) return null;
+
+  const ux = it.x + it.w * 0.5;
+  const uy = it.y + it.h * 0.5;
+  const theta = resolveUnitCircleSectorTheta(it, match.cx, match.cy, match.rxOut, match.ryOut);
+  const bx = match.cx + match.rxOut * Math.cos(theta);
+  const by = match.cy + match.ryOut * Math.sin(theta);
+  const gnx = Math.cos(theta) / match.rxOut;
+  const gny = Math.sin(theta) / match.ryOut;
+  const gLen = Math.hypot(gnx, gny) || 1;
+  const nx = gnx / gLen;
+  const ny = gny / gLen;
+  const rIn = Math.hypot(bx - match.cx, by - match.cy) || (match.rxOut + match.ryOut) * 0.5;
+  const metrics = computeRingSectorArcMetrics(it.w, it.h, rIn);
+  const cosA = Math.cos(metrics.halfAngle);
+  const idealCenterX = match.cx + match.rxOut * Math.cos(theta) * cosA + nx * (0.5 * it.h);
+  const idealCenterY = match.cy + match.ryOut * Math.sin(theta) * cosA + ny * (0.5 * it.h);
+
+  const rawDx = idealCenterX - ux;
+  const rawDy = idealCenterY - uy;
+  const dx = Math.hypot(rawDx, rawDy) <= 3.5 ? Math.max(-2.5, Math.min(2.5, rawDx)) : 0;
+  const dy = Math.hypot(rawDx, rawDy) <= 3.5 ? Math.max(-2.5, Math.min(2.5, rawDy)) : 0;
+  const vcx = ux + dx;
+  const vcy = uy + dy;
+  const exactAngle = Math.round(computeCircleTangentUprightAngleDeg(nx, ny) * 100) / 100;
+
+  const halfSpan = metrics.halfAngle * 1.06;
+  const rxOuter = match.rxOut * cosA + it.h + 0.12;
+  const ryOuter = match.ryOut * cosA + it.h + 0.12;
+  const rxInner = match.rxOut * 0.8;
+  const ryInner = match.ryOut * 0.8;
+  const steps = 6;
+  const corners: Array<{ x: number; y: number }> = [];
+  for (let i = 0; i <= steps; i++) {
+    const a = theta + ((i / steps) * 2 - 1) * halfSpan;
+    corners.push({
+      x: match.cx + rxOuter * Math.cos(a),
+      y: match.cy + ryOuter * Math.sin(a),
+    });
+  }
+  for (let i = steps; i >= 0; i--) {
+    const a = theta + ((i / steps) * 2 - 1) * halfSpan;
+    corners.push({
+      x: match.cx + rxInner * Math.cos(a),
+      y: match.cy + ryInner * Math.sin(a),
+    });
+  }
+
+  const doorX = match.cx + (match.rxOut * cosA + it.h + 0.45) * Math.cos(theta);
+  const doorY = match.cy + (match.ryOut * cosA + it.h + 0.45) * Math.sin(theta);
+
+  return { vcx, vcy, exactAngle, doorX, doorY, corners };
 }
 
 function isAutoAtriumSideCurveLabel(label?: string | null): boolean {
@@ -3269,7 +3336,14 @@ function getMatchedNeighborDimensions(
 ): { w: number; h: number } {
   const baseW = Math.min(moved.w, columns);
   const baseH = moved.h;
-  if (!activeSnapAutoResize || moved.kind === 'marker') {
+  const bothLandmarks =
+    moved.kind !== 'unit' &&
+    moved.kind !== 'atrium' &&
+    sib.kind !== 'unit' &&
+    sib.kind !== 'atrium';
+  const bothTransits = isTransitLandmark(moved.kind) && isTransitLandmark(sib.kind);
+
+  if ((!activeSnapAutoResize && !bothTransits) || moved.kind === 'marker') {
     return { w: baseW, h: baseH };
   }
 
@@ -3284,25 +3358,25 @@ function getMatchedNeighborDimensions(
 
   let candW = baseW;
   let candH = baseH;
-  const bothLandmarks =
-    moved.kind !== 'unit' &&
-    moved.kind !== 'atrium' &&
-    sib.kind !== 'unit' &&
-    sib.kind !== 'atrium';
 
   if (side === 'left' || side === 'right') {
     // 1. Match vertical touching border length (`sib.h`)
     const shouldMatchH =
       moved.kind === sib.kind ||
       bothLandmarks ||
+      bothTransits ||
       (moved.kind === 'unit' && sib.h >= 2 && sib.h <= 10) ||
-      (moved.kind !== 'unit' && moved.kind !== 'atrium' && sib.h >= 2 && sib.h <= 5) ||
+      (moved.kind !== 'unit' && moved.kind !== 'atrium' && sib.h >= 2 && sib.h <= 6) ||
       Math.abs(baseH - sib.h) <= 3;
     if (shouldMatchH) {
       candH = Math.max(1, sib.h);
     }
-    // 2. Equalize width (`sib.w`) if same kind or both landmarks and close in width
-    if ((moved.kind === sib.kind || bothLandmarks) && Math.abs(baseW - sib.w) <= 2) {
+    // 2. Equalize width (`sib.w`) if same kind or both landmarks
+    if (
+      bothTransits ||
+      (bothLandmarks && Math.abs(baseW - sib.w) <= 4) ||
+      (moved.kind === sib.kind && Math.abs(baseW - sib.w) <= 3)
+    ) {
       candW = Math.max(1, Math.min(columns, sib.w));
     }
     // 3. Gap-fill between `sib` and an opposing neighbor on the other horizontal side
@@ -3323,14 +3397,19 @@ function getMatchedNeighborDimensions(
     const shouldMatchW =
       moved.kind === sib.kind ||
       bothLandmarks ||
+      bothTransits ||
       (moved.kind === 'unit' && sib.w >= 2 && sib.w <= 12) ||
       (moved.kind !== 'unit' && moved.kind !== 'atrium' && sib.w >= 2 && sib.w <= 6) ||
       Math.abs(baseW - sib.w) <= 3;
     if (shouldMatchW) {
       candW = Math.max(1, Math.min(columns, sib.w));
     }
-    // 2. Equalize height (`sib.h`) if same kind or both landmarks and close in height
-    if ((moved.kind === sib.kind || bothLandmarks) && Math.abs(baseH - sib.h) <= 2) {
+    // 2. Equalize height (`sib.h`) if same kind or both landmarks
+    if (
+      bothTransits ||
+      (bothLandmarks && Math.abs(baseH - sib.h) <= 4) ||
+      (moved.kind === sib.kind && Math.abs(baseH - sib.h) <= 3)
+    ) {
       candH = Math.max(1, sib.h);
     }
     // 3. Gap-fill between `sib` and an opposing neighbor on the other vertical side
@@ -3349,6 +3428,66 @@ function getMatchedNeighborDimensions(
   }
 
   return { w: Math.max(1, Math.min(columns, candW)), h: Math.max(1, candH) };
+}
+
+/**
+ * When a transit landmark (`stairs`, `escalator`, `info`) is dragged or placed inside an Atrium,
+ * automatically snaps it flush side-by-side with any sibling transit landmark inside that same Atrium,
+ * matching its exact width & height (`w, h`) and aligning on the exact same row (`y`) or column (`x`).
+ */
+function snapTransitLandmarkInsideAtrium(
+  moved: MapItem,
+  others: ReadonlyArray<MapItem>,
+  columns: number,
+): MapItem | null {
+  if (!isTransitLandmark(moved.kind) || moved.kind === 'marker') return null;
+  const parentAtrium = others.find((o) => o.kind === 'atrium' && rectsOverlap(moved, o));
+  if (!parentAtrium) return null;
+
+  const innerSibs = others.filter(
+    (o) =>
+      o.key !== moved.key &&
+      isTransitLandmark(o.kind) &&
+      o.kind !== 'marker' &&
+      rectsOverlap(o, parentAtrium),
+  );
+  if (innerSibs.length === 0) return null;
+
+  let best: { cand: MapItem; score: number } | null = null;
+  for (const sib of innerSibs) {
+    const gx = Math.max(0, moved.x - (sib.x + sib.w), sib.x - (moved.x + moved.w));
+    const gy = Math.max(0, moved.y - (sib.y + sib.h), sib.y - (moved.y + moved.h));
+    if (Math.hypot(gx, gy) > MAGNET_SNAP_GAP + 4.5) continue;
+
+    const candW = Math.max(1, Math.min(columns, sib.w));
+    const candH = Math.max(1, sib.h);
+    const spots: Array<{ x: number; y: number; rowPriority: number }> = [
+      { x: sib.x + sib.w, y: sib.y, rowPriority: 0 },
+      { x: sib.x - candW, y: sib.y, rowPriority: 0 },
+      { x: sib.x, y: sib.y + sib.h, rowPriority: 1.5 },
+      { x: sib.x, y: sib.y - candH, rowPriority: 1.5 },
+    ];
+
+    for (const sp of spots) {
+      if (sp.x < 0 || sp.y < 0 || sp.x + candW > columns) continue;
+      const cand: MapItem = {
+        ...moved,
+        x: sp.x,
+        y: sp.y,
+        w: candW,
+        h: candH,
+        angle: undefined,
+      };
+      if (others.some((o) => tilesConflict(cand, o))) continue;
+      const dist = Math.hypot(sp.x - moved.x, sp.y - moved.y);
+      const score = dist + sp.rowPriority;
+      if (!best || score < best.score) {
+        best = { cand, score };
+      }
+    }
+  }
+
+  return best ? best.cand : null;
 }
 
 /**
@@ -3724,6 +3863,12 @@ function findCircleCorridorMagneticCandidate(
   const radialGap = (normClosest - 1) * avgR;
   if (radialGap > 12.0) return null;
 
+  const ringPeer = others.find((o) => {
+    if (o.key === moved.key || o.kind !== 'unit' || !isRingSectorUnitLabel(o.label)) return false;
+    const m = findNearestCircleCorridorForUnit(o, [ring]);
+    return Boolean(m && m.isNear && m.ring.key === ring.key);
+  });
+
   // Detect if there is an existing `ring-curve` or `trapezoid-ring` neighbor on this Circle Atrium
   // so dragging a default/auto unit next to it automatically chains it as a continuous Fan Sector (`ring-curve`).
   const nearbyRingSectorNeighbor =
@@ -3738,8 +3883,7 @@ function findCircleCorridorMagneticCandidate(
           if (!m || !m.isNear || m.ring.key !== ring.key) return false;
           const gx = Math.max(0, moved.x - (o.x + o.w), o.x - (moved.x + w));
           const gy = Math.max(0, moved.y - (o.y + o.h), o.y - (moved.y + h));
-          if (Math.hypot(gx, gy) > 7.5) return false;
-          return Math.abs(w - o.w) <= 3 && Math.abs(h - o.h) <= 3;
+          return Math.hypot(gx, gy) <= 8.5;
         })
       : undefined;
 
@@ -3837,25 +3981,30 @@ function findCircleCorridorMagneticCandidate(
   }
 
   const rawTheta = Math.atan2(vy / ryOut, vx / rxOut);
+  const sizeRef = nearbyRingSectorNeighbor ?? ringPeer;
   const candW =
-    !activeSnapAutoResize || isMultiBlockUnit || isCircleTile(moved)
+    isMultiBlockUnit || isCircleTile(moved)
       ? w
-      : nearbyRingSectorNeighbor
-        ? Math.min(columns, nearbyRingSectorNeighbor.w)
-        : Math.min(columns, Math.max(w, h));
+      : sizeRef
+        ? Math.min(columns, sizeRef.w)
+        : activeSnapAutoResize
+          ? Math.min(columns, Math.max(w, h))
+          : w;
   const candH =
-    !activeSnapAutoResize || isMultiBlockUnit || isCircleTile(moved)
+    isMultiBlockUnit || isCircleTile(moved)
       ? h
-      : nearbyRingSectorNeighbor
-        ? nearbyRingSectorNeighbor.h
-        : Math.min(w, h);
+      : sizeRef
+        ? sizeRef.h
+        : activeSnapAutoResize
+          ? Math.min(w, h)
+          : h;
 
   const candidateSlots: Array<{ theta: number; isNeighborSlot: boolean }> = [];
   const ringNeighbors: Array<{ oTheta: number; touchDelta: number }> = [];
   let nearAnyRingNeighbor = false;
 
   for (const o of others) {
-    if (o.key === moved.key || o.kind === 'atrium' || o.kind === 'marker') continue;
+    if (o.key === moved.key || o.kind !== 'unit' || !isRingSectorUnitLabel(o.label)) continue;
     const m = findNearestCircleCorridorForUnit(o, [ring]);
     if (!m || !m.isNear || m.ring.key !== ring.key) continue;
 
@@ -3867,8 +4016,8 @@ function findCircleCorridorMagneticCandidate(
     ringNeighbors.push({ oTheta, touchDelta });
 
     const diff = Math.atan2(Math.sin(rawTheta - oTheta), Math.cos(rawTheta - oTheta));
-    if (Math.abs(diff) <= touchDelta + (65 * Math.PI) / 180) {
-      if (Math.abs(diff) <= touchDelta + (45 * Math.PI) / 180) {
+    if (Math.abs(diff) <= touchDelta + (75 * Math.PI) / 180) {
+      if (Math.abs(diff) <= touchDelta + (55 * Math.PI) / 180) {
         nearAnyRingNeighbor = true;
       }
       candidateSlots.push({
@@ -3912,7 +4061,7 @@ function findCircleCorridorMagneticCandidate(
     const thetaDeg = (theta * 180) / Math.PI;
     const isTrapRing =
       Boolean(moved.label?.startsWith('unit:trapezoid-ring')) ||
-      Boolean(nearbyRingSectorNeighbor?.label?.startsWith('unit:trapezoid-ring'));
+      Boolean(sizeRef?.label?.startsWith('unit:trapezoid-ring'));
 
     const slotLabel =
       moved.kind === 'unit'
@@ -3943,14 +4092,21 @@ function findCircleCorridorMagneticCandidate(
           angle: alignedAngle,
           label: slotLabel,
         };
-        if (others.some((o) => tilesConflict(cand, o))) continue;
+        if (
+          others.some((o) => {
+            if (isTransitLandmark(o.kind) && rectsOverlap(o, ring)) return false;
+            return tilesConflict(cand, o);
+          })
+        ) {
+          continue;
+        }
         if (moved.kind === 'unit') {
           const m = findNearestCircleCorridorForUnit(cand, [ring]);
           if (!m || !m.isNear) continue;
         }
         const centerDist = Math.hypot(cx + candW * 0.5 - idealCenterX, cy + candH * 0.5 - idealCenterY);
         const moveDist = Math.hypot(cx + candW * 0.5 - mcx, cy + candH * 0.5 - mcy);
-        const slotBonus = slot.isNeighborSlot ? -5.0 : 0;
+        const slotBonus = slot.isNeighborSlot ? -7.5 : 0;
         const score = centerDist * 4.5 + moveDist * 0.35 + slotBonus;
         if (!bestCand || score < bestCand.score) {
           bestCand = {
@@ -5412,6 +5568,87 @@ function applyAtriumAutoShapeToUnit(
  * - When dragged within `MAGNET_SNAP_GAP` of any tile, magnetically pulls to touch border-by-border
  *   (and on Polygon Atriums / Circle Atriums / Rotated Neighbors / Slanted Neighbor Units, auto-adjusts degree, length/size & shape).
  */
+export function syncAtriumInnerTransitRow(
+  items: ReadonlyArray<MapItem>,
+  atriumKeyOrMovedKey: string,
+  columns: number,
+  referenceTile?: MapItem,
+): { items: MapItem[]; changedCount: number } {
+  const triggerItem = items.find((i) => i.key === atriumKeyOrMovedKey);
+  if (!triggerItem) return { items: [...items], changedCount: 0 };
+
+  const atr =
+    triggerItem.kind === 'atrium'
+      ? triggerItem
+      : items.find((o) => o.kind === 'atrium' && rectsOverlap(triggerItem, o));
+  if (!atr) return { items: [...items], changedCount: 0 };
+
+  const innerTransits = items
+    .filter(
+      (i) =>
+        (i.kind === 'stairs' || i.kind === 'escalator') &&
+        rectsOverlap(i, atr),
+    )
+    .sort((a, b) => a.x - b.x || a.y - b.y);
+  if (innerTransits.length < 2) return { items: [...items], changedCount: 0 };
+
+  const ref =
+    referenceTile && (referenceTile.kind === 'stairs' || referenceTile.kind === 'escalator')
+      ? referenceTile
+      : triggerItem.kind === 'stairs' || triggerItem.kind === 'escalator'
+        ? triggerItem
+        : innerTransits[0];
+  const n = innerTransits.length;
+  const maxAllowedTotalW = Math.max(n, atr.w - 2);
+  const tw = Math.max(1, Math.min(ref.w, Math.floor(maxAllowedTotalW / n), columns));
+  const th = Math.max(1, Math.min(ref.h, Math.max(1, atr.h - 2)));
+  const totalW = tw * n;
+  const startX = Math.max(0, Math.min(columns - totalW, Math.round(atr.x + (atr.w - totalW) * 0.5)));
+  const rowY =
+    triggerItem.kind === 'stairs' || triggerItem.kind === 'escalator'
+      ? Math.max(atr.y, Math.min(atr.y + atr.h - th, triggerItem.y))
+      : Math.max(0, Math.round(atr.y + (atr.h - th) * 0.5));
+
+  const nextByKey = new Map<string, MapItem>();
+  for (let k = 0; k < n; k++) {
+    const t = innerTransits[k];
+    nextByKey.set(t.key, {
+      ...t,
+      x: startX + k * tw,
+      y: rowY,
+      w: tw,
+      h: th,
+      angle: undefined,
+    });
+  }
+
+  const innerKeySet = new Set(innerTransits.map((t) => t.key));
+  const others = items.filter((o) => !innerKeySet.has(o.key));
+  for (const cand of nextByKey.values()) {
+    if (others.some((o) => tilesConflict(cand, o))) {
+      return { items: [...items], changedCount: 0 };
+    }
+  }
+
+  let changedCount = 0;
+  const nextItems = items.map((it) => {
+    const updated = nextByKey.get(it.key);
+    if (!updated) return it;
+    if (
+      updated.x !== it.x ||
+      updated.y !== it.y ||
+      updated.w !== it.w ||
+      updated.h !== it.h ||
+      updated.angle !== it.angle
+    ) {
+      changedCount++;
+    }
+    return updated;
+  });
+
+  return { items: nextItems, changedCount };
+}
+
 export function snapTileToBorder(
   moved: MapItem,
   items: ReadonlyArray<MapItem>,
@@ -5428,6 +5665,12 @@ export function snapTileToBorder(
   }
   try {
     let baseMoved = !autoShape && moved.kind === 'unit' && !moved.label ? { ...moved, label: 'unit:rect' } : moved;
+    const others = items.filter((i) => i.key !== baseMoved.key);
+    const transitInsideSnap = snapTransitLandmarkInsideAtrium(baseMoved, others, columns);
+    if (transitInsideSnap) {
+      return transitInsideSnap;
+    }
+
     let detachedFromRing = false;
     if (autoShape && baseMoved.kind === 'unit' && (!orig || (baseMoved.w === orig.w && baseMoved.h === orig.h))) {
       const nowMatch = findNearestCircleCorridorForUnit(baseMoved, items);
@@ -5492,7 +5735,8 @@ export function curveUnitAroundCircleWithoutSnap(
 /**
  * Smart Radial Ring Aligner (#23):
  * Automatically arranges and snaps units surrounding Circle Atriums or Polygon Atriums
- * along the perimeter with even angular spacing, tangent degree alignment, and Atrium-facing shapes.
+ * along the perimeter with even angular spacing, tangent degree alignment, and Atrium-facing shapes,
+ * and aligns interior transit landmarks (`stairs`, `escalator`) into a centered, equal-sized row.
  */
 export function alignUnitsRadiallyAroundAtrium(
   items: ReadonlyArray<MapItem>,
@@ -5510,10 +5754,18 @@ export function alignUnitsRadiallyAroundAtrium(
   const prevAutoShape = activeAutoShape;
   const prevAutoResize = activeSnapAutoResize;
   activeAutoShape = true;
-  activeSnapAutoResize = false;
+  activeSnapAutoResize = true;
 
   try {
     for (const atr of atriums) {
+      if (!selectedKeys || selectedKeys.size === 0) {
+        const innerSync = syncAtriumInnerTransitRow(current, atr.key, columns);
+        if (innerSync.changedCount > 0) {
+          current = innerSync.items;
+          alignedCount += innerSync.changedCount;
+        }
+      }
+
       const acx = atr.x + atr.w * 0.5;
       const acy = atr.y + atr.h * 0.5;
       const rx = Math.max(2, atr.w * 0.5);
@@ -5602,10 +5854,17 @@ export function alignUnitsRadiallyAroundAtrium(
             current,
             true,
           );
-          if (!others.some((o) => tilesConflict(nextUnit, o))) {
+          if (
+            !others.some((o) => {
+              if (isTransitLandmark(o.kind) && rectsOverlap(o, atr)) return false;
+              return tilesConflict(nextUnit, o);
+            })
+          ) {
             if (
               nextUnit.x !== u.x ||
               nextUnit.y !== u.y ||
+              nextUnit.w !== u.w ||
+              nextUnit.h !== u.h ||
               nextUnit.angle !== u.angle ||
               nextUnit.label !== u.label
             ) {
@@ -5985,11 +6244,13 @@ export function addTransitIntoAtrium(
     y + th <= atrium.y + atrium.h &&
     !items.some((o) => tilesConflict({ key: newKey, kind, unitId: null, label, x, y, w: tw, h: th }, o));
 
-  // 1. If there are already transit tiles inside this Atrium, try to attach right next to one so they merge
+  // 1. If there are already transit tiles inside this Atrium, match their dimensions and attach right next to one so they merge
   const innerTransits = items.filter(
     (i) => isTransitLandmark(i.kind) && rectsOverlap(i, atrium),
   );
-  for (const [tw, th] of [[w, h], [1, 1]] as Array<[number, number]>) {
+  const peerW = isTransitLandmark(kind) && innerTransits[0] ? innerTransits[0].w : w;
+  const peerH = isTransitLandmark(kind) && innerTransits[0] ? innerTransits[0].h : h;
+  for (const [tw, th] of [[peerW, peerH], [w, h], [2, 2], [1, 1]] as Array<[number, number]>) {
     for (const host of innerTransits) {
       const adjSpots: Array<[number, number]> = [
         [host.x + host.w, host.y],
@@ -5999,7 +6260,10 @@ export function addTransitIntoAtrium(
       ];
       for (const [cx, cy] of adjSpots) {
         if (fitsInsideAtrium(cx, cy, tw, th)) {
-          return [...items, { key: newKey, kind, unitId: null, label, x: cx, y: cy, w: tw, h: th }];
+          const placed = [...items, { key: newKey, kind, unitId: null, label, x: cx, y: cy, w: tw, h: th }];
+          return isTransitLandmark(kind)
+            ? syncAtriumInnerTransitRow(placed, newKey, columns).items
+            : placed;
         }
       }
     }
@@ -6008,12 +6272,18 @@ export function addTransitIntoAtrium(
     const centerX = atrium.x + Math.floor((atrium.w - tw) / 2);
     const centerY = atrium.y + Math.floor((atrium.h - th) / 2);
     if (fitsInsideAtrium(centerX, centerY, tw, th)) {
-      return [...items, { key: newKey, kind, unitId: null, label, x: centerX, y: centerY, w: tw, h: th }];
+      const placed = [...items, { key: newKey, kind, unitId: null, label, x: centerX, y: centerY, w: tw, h: th }];
+      return isTransitLandmark(kind)
+        ? syncAtriumInnerTransitRow(placed, newKey, columns).items
+        : placed;
     }
     for (let y = atrium.y; y + th <= atrium.y + atrium.h; y++) {
       for (let x = atrium.x; x + tw <= Math.min(columns, atrium.x + atrium.w); x++) {
         if (fitsInsideAtrium(x, y, tw, th)) {
-          return [...items, { key: newKey, kind, unitId: null, label, x, y, w: tw, h: th }];
+          const placed = [...items, { key: newKey, kind, unitId: null, label, x, y, w: tw, h: th }];
+          return isTransitLandmark(kind)
+            ? syncAtriumInnerTransitRow(placed, newKey, columns).items
+            : placed;
         }
       }
     }
