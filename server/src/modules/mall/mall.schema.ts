@@ -11,7 +11,7 @@ export const saveFloorPlanSchema = z.object({
         'marker', 'entrance', 'exit', 'info', 'parking', 'atm', 'medical',
       ]),
       unitId: z.string().uuid().nullable().optional(),
-      label: z.string().max(100).nullable().optional(),
+      label: z.string().max(1000).nullable().optional(),
       x: z.number().int().min(0),
       y: z.number().int().min(0),
       w: z.number().int().min(1).max(1000),

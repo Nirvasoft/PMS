@@ -10,7 +10,7 @@ import {
   Printer, Copy, ExternalLink, Info, ArrowRight, WifiOff, ChevronDown,
   Compass, CornerUpLeft, CornerUpRight, MoveUp,
   Image as ImageIcon, Eye, EyeOff, Lock, Unlock, Wand2,
-  KeyRound, Wrench, Ban, Undo2, Redo2,
+  KeyRound, Wrench, Ban, Undo2, Redo2, Shapes,
 } from 'lucide-react';
 import {
   useGetFloorPlanQuery,
@@ -41,6 +41,13 @@ import {
   preloadUnitPhotosBatch,
 } from '../../../utils/unitPhotoCache';
 import { CachedUnitPhoto, useUnitPhotoCache } from '../../../components/common/CachedUnitPhoto';
+import { CustomShapeEditor } from './CustomShapeEditor';
+import {
+  customShapeFromMode,
+  decodeCustomShape,
+  encodeCustomShape,
+  type CustomShapePoint,
+} from './shopMapShapeCatalog';
 import './ShopMapView.css';
 
 interface Props {
@@ -1344,6 +1351,7 @@ export default function ShopMapView({
   const [showRouteQrModal, setShowRouteQrModal] = useState(false);
   const [editingLandmarkKey, setEditingLandmarkKey] = useState<string | null>(null);
   const [editingUnitShapeKey, setEditingUnitShapeKey] = useState<string | null>(null);
+  const [customShapeKey, setCustomShapeKey] = useState<string | null>(null);
   const [unitShapeCatTab, setUnitShapeCatTab] = useState<UnitShapeCategoryId>('all');
   const [showFloorToolsMenu, setShowFloorToolsMenu] = useState(false);
   const [focusedLayerKey, setFocusedLayerKey] = useState<string | null>(null);
@@ -1542,7 +1550,11 @@ export default function ShopMapView({
   const historyApiRef = useRef<{ undo: () => void; redo: () => void }>({ undo: () => {}, redo: () => {} });
   const [, setHistoryTick] = useState(0);
 
+  /** While on, tiles may overlap during editing (they are outlined in red instead of being reverted). */
+  const [allowOverlap, setAllowOverlap] = useState(false);
+
   const hasLayoutConflict = (nextLayout: readonly any[], baseItems: ReadonlyArray<MapItem>): boolean => {
+    if (allowOverlap) return false;
     const byKey = new Map(baseItems.map((i) => [i.key, i]));
     const candidates = nextLayout
       .map((l) => {
@@ -2271,7 +2283,7 @@ export default function ShopMapView({
     maxNudge = 4,
   ): MapItem => {
     const others = allItems.filter((o) => o.key !== candidate.key);
-    if (!others.some((o) => tilesConflict(candidate, o))) {
+    if (allowOverlap || !others.some((o) => tilesConflict(candidate, o))) {
       return candidate;
     }
     let best: { cand: MapItem; dist: number } | null = null;
@@ -2609,7 +2621,7 @@ export default function ShopMapView({
     maxNudge = 4,
   ): MapItem | null => {
     const inPlace: MapItem = { ...tile, angle: nextAngle };
-    if (!others.some((o) => tilesConflict(inPlace, o))) {
+    if (allowOverlap || !others.some((o) => tilesConflict(inPlace, o))) {
       return inPlace;
     }
     let best: { cand: MapItem; dist: number } | null = null;
@@ -2753,6 +2765,22 @@ export default function ShopMapView({
         const resetItem: MapItem = { ...i, label: null };
         const curved = curveUnitAroundCircleWithoutSnap(resetItem, prev, true);
         return resolveConflictFreeTileShapeChange(curved, prev, 4);
+      }),
+    );
+  };
+
+  const applyCustomUnitShape = (key: string, points: CustomShapePoint[]) => {
+    update((prev) =>
+      prev.map((i) => {
+        if (i.key !== key || i.kind !== 'unit') return i;
+        const wasRingSector =
+          Boolean(i.label?.startsWith('unit:ring-curve')) || i.label === 'unit:trapezoid-ring';
+        const next: MapItem = {
+          ...i,
+          label: encodeCustomShape(points),
+          ...(wasRingSector ? { angle: undefined } : {}),
+        };
+        return resolveConflictFreeTileShapeChange(next, prev, 4);
       }),
     );
   };
@@ -3272,6 +3300,7 @@ export default function ShopMapView({
     redoStackRef.current = [];
     settledItemsRef.current = cloneItems(itemsRef.current);
     setHistoryTick((n) => n + 1);
+    setInspectKey(null);
   }, [editing]);
 
   useEffect(() => {
@@ -3279,6 +3308,114 @@ export default function ShopMapView({
     const t = window.setTimeout(commitPendingHistory, 400);
     return () => window.clearTimeout(t);
   }, [items, editing]);
+
+  /* ── Tile inspector: exact x / y / size / angle for the clicked tile ── */
+  const [inspectKey, setInspectKey] = useState<string | null>(null);
+  const [inspectDraft, setInspectDraft] = useState({ x: '', y: '', w: '', h: '', angle: '' });
+  const inspectItem = editing && inspectKey ? items.find((i) => i.key === inspectKey) ?? null : null;
+
+  useEffect(() => {
+    if (!inspectItem) return;
+    setInspectDraft({
+      x: String(inspectItem.x),
+      y: String(inspectItem.y),
+      w: String(inspectItem.w),
+      h: String(inspectItem.h),
+      angle: String(inspectItem.angle ?? 0),
+    });
+  }, [inspectItem?.key, inspectItem?.x, inspectItem?.y, inspectItem?.w, inspectItem?.h, inspectItem?.angle]);
+
+  const applyInspector = () => {
+    if (!inspectItem) return;
+    const parsed = {
+      x: Number(inspectDraft.x),
+      y: Number(inspectDraft.y),
+      w: Number(inspectDraft.w),
+      h: Number(inspectDraft.h),
+      angle: Number(inspectDraft.angle),
+    };
+    if (Object.values(parsed).some((n) => !Number.isFinite(n))) {
+      toast.error('Enter numbers only');
+      return;
+    }
+    const w = Math.max(1, Math.min(effectiveColumns, Math.round(parsed.w)));
+    const h = Math.max(1, Math.round(parsed.h));
+    const x = Math.max(0, Math.min(effectiveColumns - w, Math.round(parsed.x)));
+    const y = Math.max(0, Math.round(parsed.y));
+    const angle = normalizeTileAngle(parsed.angle);
+    const key = inspectItem.key;
+    update((prev) =>
+      prev.map((i) => (i.key === key ? resolveConflictFreeTileShapeChange({ ...i, x, y, w, h, angle }, prev, 4) : i)),
+    );
+  };
+
+  /* ── Group tools: align edges / match size for the Ctrl+click selection ── */
+  const alignSelectedTiles = (mode: 'left' | 'right' | 'top' | 'bottom' | 'centerX' | 'centerY') => {
+    const keys = new Set(selectedGroupSet);
+    if (keys.size < 2) return;
+    update((prev) => {
+      const sel = prev.filter((i) => keys.has(i.key));
+      const minX = Math.min(...sel.map((i) => i.x));
+      const maxR = Math.max(...sel.map((i) => i.x + i.w));
+      const minY = Math.min(...sel.map((i) => i.y));
+      const maxB = Math.max(...sel.map((i) => i.y + i.h));
+      let next = prev;
+      for (const t of sel) {
+        let x = t.x;
+        let y = t.y;
+        if (mode === 'left') x = minX;
+        else if (mode === 'right') x = maxR - t.w;
+        else if (mode === 'centerX') x = Math.round((minX + maxR) / 2 - t.w / 2);
+        else if (mode === 'top') y = minY;
+        else if (mode === 'bottom') y = maxB - t.h;
+        else y = Math.round((minY + maxB) / 2 - t.h / 2);
+        x = Math.max(0, Math.min(effectiveColumns - t.w, x));
+        y = Math.max(0, y);
+        const moved = resolveConflictFreeTileShapeChange({ ...t, x, y }, next, 2);
+        next = next.map((i) => (i.key === t.key ? moved : i));
+      }
+      return next;
+    });
+  };
+
+  const matchSelectedSize = (dim: 'w' | 'h' | 'both') => {
+    const keys = new Set(selectedGroupSet);
+    const refKey =
+      lastActiveTileKeyRef.current && keys.has(lastActiveTileKeyRef.current)
+        ? lastActiveTileKeyRef.current
+        : Array.from(keys)[0];
+    const ref = items.find((i) => i.key === refKey);
+    if (!ref || keys.size < 2) return;
+    const isRingSector = (t: MapItem) =>
+      Boolean(t.label?.startsWith('unit:ring-curve')) || t.label === 'unit:trapezoid-ring';
+    update((prev) => {
+      let next = prev;
+      for (const t of prev) {
+        if (!keys.has(t.key) || t.key === ref.key || isRingSector(t)) continue;
+        const w = dim === 'h' ? t.w : ref.w;
+        const h = dim === 'w' ? t.h : ref.h;
+        const x = Math.max(0, Math.min(effectiveColumns - w, t.x));
+        const resized = resolveConflictFreeTileShapeChange({ ...t, x, w, h }, next, 3);
+        next = next.map((i) => (i.key === t.key ? resized : i));
+      }
+      return next;
+    });
+  };
+
+  /** Tiles that currently overlap another tile (outlined red in edit mode). */
+  const overlapKeys = useMemo(() => {
+    const set = new Set<string>();
+    if (!editing) return set;
+    for (let a = 0; a < items.length; a++) {
+      for (let b = a + 1; b < items.length; b++) {
+        if (tilesConflict(items[a], items[b])) {
+          set.add(items[a].key);
+          set.add(items[b].key);
+        }
+      }
+    }
+    return set;
+  }, [editing, items]);
 
   const handleCopyFromFloor = async () => {
     if (!propertyId || !copySourceFloor) return;
@@ -3310,8 +3447,12 @@ export default function ShopMapView({
   };
 
   const save = async () => {
-    if (hasAnyOverlap(items)) {
-      toast.error('Some tiles overlap. Please separate them before saving.');
+    if (
+      hasAnyOverlap(items) &&
+      !window.confirm(
+        `${overlapKeys.size} tiles overlap (outlined in red). Save anyway?`,
+      )
+    ) {
       return;
     }
     const cleanItems = items.map((i) => ({
@@ -3833,6 +3974,43 @@ export default function ShopMapView({
         </div>
       )}
 
+      {inspectItem && (
+        <div className="shop-map-inspector">
+          <strong className="shop-map-inspector-title">
+            {inspectItem.kind === 'unit'
+              ? unitNumberOf(inspectItem.unitId ? shopByUnit.get(inspectItem.unitId) : null) || 'Unit'
+              : DECORATION_LABELS[inspectItem.kind as Exclude<TileKind, 'unit'>] || inspectItem.kind}
+          </strong>
+          {([
+            ['x', 'X'],
+            ['y', 'Y'],
+            ['w', 'Width'],
+            ['h', 'Height'],
+            ['angle', 'Angle°'],
+          ] as const).map(([field, label]) => (
+            <label key={field} className="shop-map-inspector-field">
+              <span>{label}</span>
+              <input
+                type="number"
+                step={1}
+                value={inspectDraft[field]}
+                onChange={(e) => setInspectDraft((d) => ({ ...d, [field]: e.target.value }))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') applyInspector();
+                }}
+              />
+            </label>
+          ))}
+          <span className="shop-map-inspector-area" title="Width × Height × sqft per cell (rectangle estimate)">
+            ≈ {Math.round(Number(inspectDraft.w) * Number(inspectDraft.h) * effectiveSqftPerCell) || 0} sqft
+          </span>
+          <button type="button" className="btn btn-primary btn-sm" onClick={applyInspector}>Apply</button>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setInspectKey(null)} title="Close">
+            <X size={12} />
+          </button>
+        </div>
+      )}
+
       {editing && (
         <div className="shop-map-edit-bar">
           <select value={decorKind} onChange={(e) => setDecorKind(e.target.value as any)}>
@@ -3873,6 +4051,14 @@ export default function ShopMapView({
               <Wand2 size={12} /> Smart Fit{editSnapMode === 'smart' && magnetBypassActive ? ' (Bypass)' : ''}
             </button>
           </div>
+          <button
+            type="button"
+            className={`btn btn-secondary btn-sm shop-map-group-btn ${allowOverlap ? 'active' : ''}`}
+            onClick={() => setAllowOverlap((p) => !p)}
+            title="Allow Overlap: tiles are never pushed back or blocked while you drag, resize or rotate — overlapping tiles are outlined in red. Turn off when done."
+          >
+            <Layers size={12} /> Allow Overlap{allowOverlap ? ' (ON)' : ''}
+          </button>
           <div className="shop-map-group-toolbar">
             <button
               type="button"
@@ -3911,6 +4097,43 @@ export default function ShopMapView({
                   >
                     <X size={12} /> Ungroup
                   </button>
+                )}
+                {selectedGroupKeys.length > 1 && (
+                  <>
+                    {([
+                      ['left', 'Left', 'Align left edges'],
+                      ['centerX', 'Center', 'Center horizontally'],
+                      ['right', 'Right', 'Align right edges'],
+                      ['top', 'Top', 'Align top edges'],
+                      ['centerY', 'Middle', 'Center vertically'],
+                      ['bottom', 'Bottom', 'Align bottom edges'],
+                    ] as const).map(([mode, label, tip]) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => alignSelectedTiles(mode)}
+                        title={`${tip} of the selected tiles`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                    {([
+                      ['w', 'Same W', 'Same width as the tile you clicked last'],
+                      ['h', 'Same H', 'Same height as the tile you clicked last'],
+                      ['both', 'Same Size', 'Same width and height as the tile you clicked last'],
+                    ] as const).map(([dim, label, tip]) => (
+                      <button
+                        key={dim}
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => matchSelectedSize(dim)}
+                        title={tip}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </>
                 )}
               </>
             )}
@@ -4501,7 +4724,7 @@ export default function ShopMapView({
                         data-tile-key={it.key}
                         title={title}
                         style={gridItemCssVars}
-                        className={`shop-map-grid-item ${it.kind === 'atrium' ? 'is-atrium-item' : ''} ${isTransitLandmark(it.kind) ? 'is-transit-item' : ''} ${hasInnerItems ? 'has-inner-items' : ''} ${isLayerFocused ? 'is-layer-focused' : ''} ${isGroupSelected ? 'is-group-selected' : ''} ${newlyPlacedKey === it.key ? 'is-newly-placed' : ''} ${effectiveAngle ? 'is-rotated-item' : ''} ${isRotatingThisTile ? 'is-rotating-item' : ''} ${editing ? 'editing' : ''} ${isTarget ? 'active-target' : ''} ${isStart ? 'active-start' : ''} ${isAmenityHighlighted ? 'is-amenity-highlighted' : ''}`}
+                        className={`shop-map-grid-item ${it.kind === 'atrium' ? 'is-atrium-item' : ''} ${isTransitLandmark(it.kind) ? 'is-transit-item' : ''} ${hasInnerItems ? 'has-inner-items' : ''} ${isLayerFocused ? 'is-layer-focused' : ''} ${isGroupSelected ? 'is-group-selected' : ''} ${overlapKeys.has(it.key) ? 'is-overlap-warning' : ''} ${newlyPlacedKey === it.key ? 'is-newly-placed' : ''} ${effectiveAngle ? 'is-rotated-item' : ''} ${isRotatingThisTile ? 'is-rotating-item' : ''} ${editing ? 'editing' : ''} ${isTarget ? 'active-target' : ''} ${isStart ? 'active-start' : ''} ${isAmenityHighlighted ? 'is-amenity-highlighted' : ''}`}
                         onMouseEnter={() => {
                           if (!editing && it.unitId) setHoveredUnitId(it.unitId);
                         }}
@@ -4511,6 +4734,7 @@ export default function ShopMapView({
                         onClick={(e) => {
                           if (editing) {
                             lastActiveTileKeyRef.current = it.key;
+                            setInspectKey(it.key);
                             if (groupSelectMode || e.ctrlKey || e.metaKey) {
                               e.stopPropagation();
                               toggleGroupSelection(it.key);
@@ -5327,7 +5551,7 @@ export default function ShopMapView({
         return (
           <QrModalDialog
             title={`Unit Shape — ${unitTitle}`}
-            subtitle="Click any shape family to auto-match direction (click the active card again to flip direction)"
+            subtitle="Pick a direction under each shape (the dashed one is the best fit for this tile's position)"
             onClose={() => setEditingUnitShapeKey(null)}
             footer={
               <button
@@ -5356,6 +5580,17 @@ export default function ShopMapView({
                   <Wand2 size={13} /> Auto (Smart Detect)
                 </button>
               </div>
+              <button
+                type="button"
+                className={`btn btn-sm ${currentMode === 'custom' ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ width: '100%', marginBottom: 10, padding: '8px 10px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                onClick={() => {
+                  setCustomShapeKey(editingUnitItem.key);
+                  setEditingUnitShapeKey(null);
+                }}
+              >
+                <Shapes size={14} /> Custom Shape — draw your own (triangle, L-shape, rounded corners…)
+              </button>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 10 }}>
                 {UNIT_SHAPE_CATEGORY_TABS.map((tab) => {
                   const activeTab = unitShapeCatTab === tab.id;
@@ -5385,21 +5620,50 @@ export default function ShopMapView({
                       ? famVariants[(activeIdx + 1) % famVariants.length]
                       : smartMode;
 
+                  if (famVariants.length > 1) {
+                    return (
+                      <div key={fam.id} className={`shop-map-shape-family ${activeMode ? 'active' : ''}`}>
+                        <div className="shop-map-shape-family-head">
+                          <span className={`shop-map-lm-variant-icon ${previewMode === 'circle' ? 'is-circle' : ''}`}>
+                            <AtriumShapeIcon mode={previewMode} size={18} />
+                          </span>
+                          <span className="shop-map-lm-variant-text">
+                            <strong>{fam.title}</strong>
+                            <small>{fam.subtitle}</small>
+                          </span>
+                        </div>
+                        <div className="shop-map-shape-dir-row">
+                          {famVariants.map((mode) => {
+                            const full = UNIT_SHAPE_LABELS[mode];
+                            const tag = full.match(/\(([^)]+)\)\s*$/)?.[1] ?? full;
+                            const isSmart = mode === smartMode && activeMode !== mode;
+                            return (
+                              <button
+                                key={mode}
+                                type="button"
+                                className={`shop-map-shape-dir ${mode === activeMode ? 'active' : ''} ${isSmart ? 'is-smart' : ''}`}
+                                title={isSmart ? `${full} — best fit for this position` : full}
+                                onClick={() => applyUnitShapeMode(editingUnitItem.key, mode)}
+                              >
+                                <AtriumShapeIcon mode={mode} size={22} />
+                                <span>{tag}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  }
+
                   return (
                     <button
                       key={fam.id}
                       type="button"
                       className={`shop-map-lm-variant-btn ${activeMode ? 'active' : ''}`}
-                      title={
-                        activeMode && famVariants.length > 1
-                          ? `${UNIT_SHAPE_LABELS[activeMode]} — Click again to flip direction`
-                          : UNIT_SHAPE_LABELS[smartMode]
-                      }
+                      title={UNIT_SHAPE_LABELS[smartMode]}
                       onClick={() => {
                         applyUnitShapeMode(editingUnitItem.key, nextMode);
-                        if (famVariants.length <= 1) {
-                          setEditingUnitShapeKey(null);
-                        }
+                        setEditingUnitShapeKey(null);
                       }}
                     >
                       <span className={`shop-map-lm-variant-icon ${previewMode === 'circle' ? 'is-circle' : ''}`}>
@@ -5407,11 +5671,7 @@ export default function ShopMapView({
                       </span>
                       <span className="shop-map-lm-variant-text">
                         <strong>{fam.title}</strong>
-                        <small>
-                          {activeMode && famVariants.length > 1
-                            ? `${UNIT_SHAPE_LABELS[activeMode]} • Click to flip`
-                            : fam.subtitle}
-                        </small>
+                        <small>{fam.subtitle}</small>
                       </span>
                     </button>
                   );
@@ -5419,6 +5679,31 @@ export default function ShopMapView({
               </div>
             </div>
           </QrModalDialog>
+        );
+      })()}
+
+      {/* ── Custom (free-hand polygon) Shape Editor ── */}
+      {customShapeKey && (() => {
+        const csItem = items.find((i) => i.key === customShapeKey && i.kind === 'unit');
+        if (!csItem) return null;
+        const csShop = csItem.unitId ? shopByUnit.get(csItem.unitId) : null;
+        const csMode = parseUnitShapeMode(csItem, autoShapeEnabled ? items : undefined);
+        const existing = decodeCustomShape(csItem.label);
+        const fromMode = customShapeFromMode(csMode);
+        return (
+          <CustomShapeEditor
+            title={csShop ? `${shopDisplayName(csShop)} (${unitNumberOf(csShop)})` : 'Shop Unit'}
+            tileW={csItem.w}
+            tileH={csItem.h}
+            initialPoints={existing ?? fromMode.points}
+            currentPoints={fromMode.points}
+            currentIsApproximate={fromMode.approximate}
+            onClose={() => setCustomShapeKey(null)}
+            onApply={(points) => {
+              applyCustomUnitShape(csItem.key, points);
+              setCustomShapeKey(null);
+            }}
+          />
         );
       })()}
     </div>

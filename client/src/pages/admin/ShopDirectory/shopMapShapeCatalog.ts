@@ -96,7 +96,8 @@ export type UnitShapeMode =
   | 'arch-br'
   | 'trapezoid'
   | 'trapezoid-l'
-  | 'trapezoid-r';
+  | 'trapezoid-r'
+  | 'custom';
 
 export const UNIT_SHAPE_LABELS: Record<UnitShapeMode, string> = {
   rect: 'Rectangle (Standard)',
@@ -157,6 +158,7 @@ export const UNIT_SHAPE_LABELS: Record<UnitShapeMode, string> = {
   trapezoid: 'Trapezoid (Symmetric)',
   'trapezoid-l': 'Trapezoid (Left Slant)',
   'trapezoid-r': 'Trapezoid (Right Slant)',
+  custom: 'Custom Shape',
 };
 
 export const VALID_UNIT_SHAPE_MODES = new Set<UnitShapeMode>(
@@ -458,3 +460,211 @@ export const UNIT_SHAPE_CONVEX_UV_PARTS: Partial<
   'trapezoid-l': [[[-0.24, -0.48], [0.48, -0.48], [0.48, 0.48], [-0.48, 0.48]]],
   'trapezoid-r': [[[-0.48, -0.48], [0.24, -0.48], [0.48, 0.48], [-0.48, 0.48]]],
 };
+
+// ─── Custom (free-hand polygon) shapes ───────────────────────────────────────
+// Stored in the tile label as `unit:custom:x,y;x,y;...` where x/y are 0..100 (% of the tile box).
+
+export type CustomShapePoint = [number, number];
+
+export const CUSTOM_SHAPE_MAX_POINTS = 64;
+export const CUSTOM_SHAPE_MIN_POINTS = 3;
+const CUSTOM_SHAPE_PREFIX = 'unit:custom:';
+
+const roundPct = (n: number) => Math.round(Math.min(100, Math.max(0, n)) * 10) / 10;
+
+export function encodeCustomShape(points: ReadonlyArray<CustomShapePoint>): string {
+  return (
+    CUSTOM_SHAPE_PREFIX +
+    points.map(([x, y]) => `${roundPct(x)},${roundPct(y)}`).join(';')
+  );
+}
+
+/** Returns the polygon (0..100 %) stored in a label, or null when it is not a valid custom shape. */
+export function decodeCustomShape(label: string | null | undefined): CustomShapePoint[] | null {
+  if (!label || !label.startsWith(CUSTOM_SHAPE_PREFIX)) return null;
+  const out: CustomShapePoint[] = [];
+  for (const part of label.slice(CUSTOM_SHAPE_PREFIX.length).split(';')) {
+    const [xs, ys] = part.split(',');
+    const x = Number(xs);
+    const y = Number(ys);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    out.push([roundPct(x), roundPct(y)]);
+    if (out.length > CUSTOM_SHAPE_MAX_POINTS) return null;
+  }
+  return out.length >= CUSTOM_SHAPE_MIN_POINTS ? out : null;
+}
+
+function signedArea(pts: ReadonlyArray<ReadonlyArray<number>>): number {
+  let a = 0;
+  for (let i = 0; i < pts.length; i += 1) {
+    const p = pts[i];
+    const q = pts[(i + 1) % pts.length];
+    a += p[0] * q[1] - q[0] * p[1];
+  }
+  return a / 2;
+}
+
+const crossOf = (o: ReadonlyArray<number>, a: ReadonlyArray<number>, b: ReadonlyArray<number>) =>
+  (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+
+function pointInTriangle(
+  p: ReadonlyArray<number>,
+  a: ReadonlyArray<number>,
+  b: ReadonlyArray<number>,
+  c: ReadonlyArray<number>,
+): boolean {
+  const d1 = crossOf(a, b, p);
+  const d2 = crossOf(b, c, p);
+  const d3 = crossOf(c, a, p);
+  const hasNeg = d1 < -1e-9 || d2 < -1e-9 || d3 < -1e-9;
+  const hasPos = d1 > 1e-9 || d2 > 1e-9 || d3 > 1e-9;
+  return !(hasNeg && hasPos);
+}
+
+/** Ear-clipping triangulation (any simple polygon, convex or concave). */
+function triangulatePolygon(
+  pts: ReadonlyArray<CustomShapePoint>,
+): Array<Array<CustomShapePoint>> {
+  if (pts.length < 3) return [];
+  const idx = pts.map((_, i) => i);
+  if (signedArea(pts) < 0) idx.reverse();
+  const tris: Array<Array<CustomShapePoint>> = [];
+  let guard = 0;
+  while (idx.length > 3 && guard < 500) {
+    guard += 1;
+    let clipped = false;
+    for (let i = 0; i < idx.length; i += 1) {
+      const a = idx[(i + idx.length - 1) % idx.length];
+      const b = idx[i];
+      const c = idx[(i + 1) % idx.length];
+      if (crossOf(pts[a], pts[b], pts[c]) <= 1e-9) continue;
+      let ok = true;
+      for (const j of idx) {
+        if (j === a || j === b || j === c) continue;
+        if (pointInTriangle(pts[j], pts[a], pts[b], pts[c])) {
+          ok = false;
+          break;
+        }
+      }
+      if (!ok) continue;
+      tris.push([pts[a], pts[b], pts[c]]);
+      idx.splice(i, 1);
+      clipped = true;
+      break;
+    }
+    if (!clipped) break;
+  }
+  if (idx.length >= 3) {
+    // Remaining polygon (or degenerate leftovers): fan from the first vertex.
+    for (let k = 1; k < idx.length - 1; k += 1) {
+      tris.push([pts[idx[0]], pts[idx[k]], pts[idx[k + 1]]]);
+    }
+  }
+  return tris;
+}
+
+/** Convex collision parts (UV space, same inset as `UNIT_SHAPE_CONVEX_UV_PARTS`) for a custom polygon. */
+export function customShapeConvexUvParts(
+  pts: ReadonlyArray<CustomShapePoint> | null | undefined,
+): ReadonlyArray<ReadonlyArray<[number, number]>> | undefined {
+  if (!pts || pts.length < 3) return undefined;
+  return triangulatePolygon(pts).map((tri) =>
+    tri.map(([x, y]) => [(x / 100 - 0.5) * 0.96, (y / 100 - 0.5) * 0.96] as [number, number]),
+  );
+}
+
+function segmentsCross(
+  a: ReadonlyArray<number>,
+  b: ReadonlyArray<number>,
+  c: ReadonlyArray<number>,
+  d: ReadonlyArray<number>,
+): boolean {
+  const d1 = crossOf(a, b, c);
+  const d2 = crossOf(a, b, d);
+  const d3 = crossOf(c, d, a);
+  const d4 = crossOf(c, d, b);
+  return ((d1 > 1e-9 && d2 < -1e-9) || (d1 < -1e-9 && d2 > 1e-9)) &&
+    ((d3 > 1e-9 && d4 < -1e-9) || (d3 < -1e-9 && d4 > 1e-9));
+}
+
+/** True when no edges cross each other and the polygon has real area. */
+export function isSimpleCustomPolygon(pts: ReadonlyArray<CustomShapePoint>): boolean {
+  const n = pts.length;
+  if (n < CUSTOM_SHAPE_MIN_POINTS) return false;
+  if (Math.abs(signedArea(pts)) < 1) return false;
+  for (let i = 0; i < n; i += 1) {
+    const a = pts[i];
+    const b = pts[(i + 1) % n];
+    if (Math.abs(a[0] - b[0]) < 0.05 && Math.abs(a[1] - b[1]) < 0.05) return false;
+    for (let j = i + 1; j < n; j += 1) {
+      if (j === i || (j + 1) % n === i || (i + 1) % n === j) continue;
+      if (segmentsCross(a, b, pts[j], pts[(j + 1) % n])) return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Replaces vertex `index` with a smooth quadratic-Bezier arc (polyline). Returns the new polygon and the
+ * index range of the inserted points, or null when the cap would be exceeded / vertex is too short.
+ */
+export function roundCustomCorner(
+  pts: ReadonlyArray<CustomShapePoint>,
+  index: number,
+  steps = 6,
+  fraction = 0.4,
+): { points: CustomShapePoint[]; from: number; to: number } | null {
+  const n = pts.length;
+  if (index < 0 || index >= n) return null;
+  if (n - 1 + steps + 1 > CUSTOM_SHAPE_MAX_POINTS) return null;
+  const p = pts[index];
+  const a = pts[(index + n - 1) % n];
+  const c = pts[(index + 1) % n];
+  const la = Math.hypot(a[0] - p[0], a[1] - p[1]);
+  const lc = Math.hypot(c[0] - p[0], c[1] - p[1]);
+  if (la < 1 || lc < 1) return null;
+  const d = fraction * Math.min(la, lc);
+  const p1: CustomShapePoint = [p[0] + ((a[0] - p[0]) * d) / la, p[1] + ((a[1] - p[1]) * d) / la];
+  const p2: CustomShapePoint = [p[0] + ((c[0] - p[0]) * d) / lc, p[1] + ((c[1] - p[1]) * d) / lc];
+  const arc: CustomShapePoint[] = [];
+  for (let s = 0; s <= steps; s += 1) {
+    const t = s / steps;
+    const u = 1 - t;
+    arc.push([
+      roundPct(u * u * p1[0] + 2 * u * t * p[0] + t * t * p2[0]),
+      roundPct(u * u * p1[1] + 2 * u * t * p[1] + t * t * p2[1]),
+    ]);
+  }
+  const points = [...pts.slice(0, index), ...arc, ...pts.slice(index + 1)];
+  return { points, from: index, to: index + arc.length - 1 };
+}
+
+export const CUSTOM_SHAPE_PRESETS: ReadonlyArray<{
+  id: string;
+  label: string;
+  points: ReadonlyArray<CustomShapePoint>;
+}> = [
+  { id: 'rect', label: 'Rectangle', points: [[0, 0], [100, 0], [100, 100], [0, 100]] },
+  { id: 'triangle', label: 'Triangle', points: [[50, 0], [100, 100], [0, 100]] },
+  { id: 'trapezoid', label: 'Trapezoid', points: [[25, 0], [75, 0], [100, 100], [0, 100]] },
+  { id: 'parallelogram', label: 'Parallelogram', points: [[25, 0], [100, 0], [75, 100], [0, 100]] },
+  { id: 'l-shape', label: 'L-shape', points: [[0, 0], [50, 0], [50, 50], [100, 50], [100, 100], [0, 100]] },
+  { id: 'pentagon', label: 'Pentagon', points: [[50, 0], [100, 38], [81, 100], [19, 100], [0, 38]] },
+  { id: 'hexagon', label: 'Hexagon', points: [[25, 0], [75, 0], [100, 50], [75, 100], [25, 100], [0, 50]] },
+  { id: 'arrow', label: 'Arrow', points: [[0, 30], [60, 30], [60, 0], [100, 50], [60, 100], [60, 70], [0, 70]] },
+];
+
+/** Best-effort polygon (0..100 %) for an existing preset shape mode, used as the editor starting point. */
+export function customShapeFromMode(mode: UnitShapeMode): { points: CustomShapePoint[]; approximate: boolean } {
+  const rect: CustomShapePoint[] = [[0, 0], [100, 0], [100, 100], [0, 100]];
+  if (mode === 'custom' || mode === 'rect') return { points: rect, approximate: false };
+  const parts = UNIT_SHAPE_CONVEX_UV_PARTS[mode];
+  if (!parts || parts.length !== 1 || mode === 'ring-curve' || mode === 'trapezoid-ring') {
+    return { points: rect, approximate: true };
+  }
+  const points = parts[0].map(
+    ([u, v]) => [roundPct((u / 0.96 + 0.5) * 100), roundPct((v / 0.96 + 0.5) * 100)] as CustomShapePoint,
+  );
+  const curved = /curve|crescent|arch|pie|circle|ring/.test(mode);
+  return { points, approximate: curved };
+}

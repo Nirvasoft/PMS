@@ -2,6 +2,8 @@
 // Kept free of React so the logic is easy to reason about and test.
 
 import {
+  customShapeConvexUvParts,
+  decodeCustomShape,
   normalizeTileAngle,
   UNIT_SHAPE_CATEGORY_TABS,
   UNIT_SHAPE_COMPACT_FAMILIES,
@@ -446,8 +448,8 @@ export function nextUnitShapeMode(mode: UnitShapeMode, isMergedUnit = false): Un
       return famVars[(fIdx + 1) % famVars.length];
     }
   }
-  const allModes = Object.keys(UNIT_SHAPE_LABELS) as UnitShapeMode[];
-  const list = isMergedUnit ? allModes.filter((id) => id !== 'circle') : allModes;
+  const allModes = (Object.keys(UNIT_SHAPE_LABELS) as UnitShapeMode[]).filter((id) => id !== 'custom');
+  const list: UnitShapeMode[] = isMergedUnit ? allModes.filter((id) => id !== 'circle') : allModes;
   const idx = list.indexOf(mode);
   if (idx === -1) return 'rect';
   return list[(idx + 1) % list.length];
@@ -891,6 +893,20 @@ export function getTrapezoidUnitGeometry(
   const sRight = merge?.siblingRightMerged ?? false;
   const sBottom = merge?.siblingBottomMerged ?? false;
   const sLeft = merge?.siblingLeftMerged ?? false;
+
+  // ── 0. Free-hand custom polygon (points stored in the tile label) ──
+  if (mode === 'custom') {
+    const customPts = decodeCustomShape(tile?.label);
+    if (customPts) {
+      return buildPolygonUnitGeometryFromNormPoints(
+        customPts.map(([x, y]) => ({ x: x / 100, y: y / 100 })),
+        wPx,
+        hPx,
+        cellPx,
+        merge,
+      );
+    }
+  }
 
   // ── 1. Slanted Top / Bottom Edge with Vertical Left & Right Walls (Right Trapezoids) ──
   if (mode === 'slope-b-l' || mode === 'slope-b-r' || mode === 'slope-t-l' || mode === 'slope-t-r') {
@@ -2842,7 +2858,10 @@ export function getCustomUnitConvexPolygons(
     if (!mode || mode === 'rect') {
       return null;
     }
-    uvParts = UNIT_SHAPE_CONVEX_UV_PARTS[mode] ?? null;
+    uvParts =
+      mode === 'custom'
+        ? customShapeConvexUvParts(decodeCustomShape(t.label)) ?? null
+        : UNIT_SHAPE_CONVEX_UV_PARTS[mode] ?? null;
   }
 
   if (!uvParts || uvParts.length === 0) return null;

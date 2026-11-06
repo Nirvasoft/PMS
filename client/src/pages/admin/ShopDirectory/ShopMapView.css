@@ -2379,6 +2379,102 @@
   font-size: 0.68rem;
   color: var(--text-secondary);
 }
+.shop-map-shape-family {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 11px;
+  border-radius: 9px;
+  border: 1px solid var(--border-color, var(--border));
+  background: var(--bg-body, var(--bg));
+}
+.shop-map-inspector {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 9px;
+  border: 1px solid var(--border-color, var(--border));
+  background: var(--card-bg, var(--surface));
+}
+.shop-map-inspector-title {
+  font-size: 0.8rem;
+  color: var(--text-primary);
+  margin-right: 4px;
+}
+.shop-map-inspector-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+.shop-map-inspector-field input {
+  width: 58px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color, var(--border));
+  background: var(--bg-body, var(--bg));
+  color: var(--text-primary);
+  font-size: 0.78rem;
+}
+.shop-map-inspector-area {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+.shop-map-grid-item.is-overlap-warning {
+  filter: drop-shadow(0 0 3px #ef4444) drop-shadow(0 0 1px #ef4444);
+}
+.shop-map-grid-item.is-overlap-warning .shop-map-tile {
+  outline: 2px solid #ef4444;
+  outline-offset: -2px;
+}
+.shop-map-shape-family.active {
+  border-color: var(--accent, #10b981);
+  background: rgba(16, 185, 129, 0.08);
+}
+.shop-map-shape-family-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.shop-map-shape-dir-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.shop-map-shape-dir {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 62px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color, var(--border));
+  background: var(--card-bg, var(--surface));
+  color: var(--text-primary);
+  font-size: 0.66rem;
+  line-height: 1.15;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.14s ease;
+}
+.shop-map-shape-dir:hover {
+  border-color: var(--accent, #10b981);
+  background: rgba(16, 185, 129, 0.1);
+}
+.shop-map-shape-dir.is-smart {
+  border-style: dashed;
+  border-color: var(--accent, #10b981);
+}
+.shop-map-shape-dir.active {
+  border-color: var(--accent, #10b981);
+  background: rgba(16, 185, 129, 0.2);
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+  font-weight: 700;
+}
 .shop-map-lm-custom-input {
   width: 100%;
   box-sizing: border-box;

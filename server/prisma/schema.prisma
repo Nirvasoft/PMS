@@ -5384,7 +5384,7 @@ model MallFloorPlanItem {
   floorKey   String   @map("floor_key") @db.VarChar(80)
   kind       String   @default("unit") @db.VarChar(30) // unit | atrium | stairs | escalator | corridor
   unitId     String?  @map("unit_id") @db.Uuid
-  label      String?  @db.VarChar(100)
+  label      String?  @db.VarChar(1000)
   x          Int
   y          Int
   w          Int

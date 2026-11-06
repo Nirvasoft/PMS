@@ -2,6 +2,7 @@ import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
 import { invoicesService } from '../billing/invoices.service';
 import { logger } from '../../common/logger';
+import { customShapeConvexUvParts } from './customShape';
 
 class MallService {
   // ═══════════════════════════════════════
@@ -356,7 +357,7 @@ class MallService {
         }
       } else if (t.kind === 'unit' && trimmed.startsWith('unit:')) {
         const mode = trimmed.slice(5).split(':')[0];
-        uvParts = UNIT_SHAPE_CONVEX_UV_PARTS[mode] ?? null;
+        uvParts = mode === 'custom' ? customShapeConvexUvParts(trimmed) : UNIT_SHAPE_CONVEX_UV_PARTS[mode] ?? null;
       }
 
       if (!uvParts || uvParts.length === 0) return null;
