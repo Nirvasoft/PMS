@@ -1309,6 +1309,15 @@ class IntegrationsService {
       }
 
       if (v6DeptList.length > 0) {
+        for (const [deptSk, deptId] of deptIdBySyskey.entries()) {
+          if (!deptSk || deptSk === '0') continue;
+          await prisma.$executeRaw`
+            UPDATE "department_centers"
+            SET "external_ref" = ${deptSk}
+            WHERE "id" = ${deptId}::uuid
+              AND ("external_ref" IS DISTINCT FROM ${deptSk})
+          `.catch(() => {});
+        }
         const deptsToHide = allPropertyDepts.filter((d) => d.isActive && !syncedDeptIds.has(d.id));
         const genuinePmsDepts = deptsToHide.filter((d) => {
           const m = deptEntityMapByPmsId.get(d.id);
@@ -1438,6 +1447,15 @@ class IntegrationsService {
       }
 
       if (v6CcList.length > 0) {
+        for (const [ccSk, ccId] of ccIdBySyskey.entries()) {
+          if (!ccSk || ccSk === '0') continue;
+          await prisma.$executeRaw`
+            UPDATE "cost_centers"
+            SET "external_ref" = ${ccSk}
+            WHERE "id" = ${ccId}::uuid
+              AND ("external_ref" IS DISTINCT FROM ${ccSk})
+          `.catch(() => {});
+        }
         const ccsToHide = allPropertyCcs.filter((cc) => cc.isActive && !syncedCcIds.has(cc.id));
         const genuinePmsCcs = ccsToHide.filter((cc) => {
           const m = ccEntityMapByPmsId.get(cc.id);
@@ -1888,6 +1906,29 @@ class IntegrationsService {
           },
           data: { syncedAt: now },
         }).catch(() => {});
+      }
+
+      const glExtRefUpdates = v6Items
+        .map((item) => {
+          const acc = syncedByComboKey.get(item.comboKey);
+          if (!acc || !item.syskey || item.syskey === '0') return null;
+          if ((acc as any).externalRef === item.syskey) return null;
+          return { id: acc.id, syskey: item.syskey };
+        })
+        .filter(Boolean) as Array<{ id: string; syskey: string }>;
+
+      for (let i = 0; i < glExtRefUpdates.length; i += CHUNK) {
+        const batch = glExtRefUpdates.slice(i, i + CHUNK);
+        await Promise.all(
+          batch.map((u) =>
+            prisma.$executeRaw`
+              UPDATE "gl_accounts"
+              SET "external_ref" = ${u.syskey}
+              WHERE "id" = ${u.id}::uuid
+                AND ("external_ref" IS DISTINCT FROM ${u.syskey})
+            `.catch(() => {}),
+          ),
+        );
       }
 
       const durationMs = Date.now() - t0;
@@ -3495,6 +3536,7 @@ class IntegrationsService {
           v6Msg           = v6Json?.message || '';
           isSuccess       = v6Status === 'SUCCESS' || v6Msg === 'SUCCESS';
           isAlreadyExists = v6Msg   === 'ManualRefExist';
+          if (v6Json?.syskey) savedV6Syskey = String(v6Json.syskey);
         }
 
         if (isSuccess || isAlreadyExists) {
@@ -3514,6 +3556,14 @@ class IntegrationsService {
               sentAt: new Date(),
             },
           }).catch(upErr => logger.warn(`Failed to update invoice status for ${inv.invoiceNumber}: ${upErr.message}`));
+
+          if (savedV6Syskey && savedV6Syskey !== '0') {
+            await prisma.$executeRaw`
+              UPDATE "invoices"
+              SET "external_ref" = ${savedV6Syskey}
+              WHERE "id" = ${inv.id}::uuid
+            `.catch(extErr => logger.warn(`Failed to update invoice external_ref for ${inv.invoiceNumber}: ${extErr.message}`));
+          }
 
           const extId = savedV6InvoiceNo || inv.invoiceNumber;
           const extRefParts = [`Customer: ${customerCode}`];

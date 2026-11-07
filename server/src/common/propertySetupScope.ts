@@ -232,6 +232,38 @@ async function runPropertySetupScopeMigration(): Promise<void> {
           AND existing."integration_type" = t."integration_type"
       )
   `);
+
+  for (const extTable of ['gl_accounts', 'invoices', 'department_centers', 'cost_centers']) {
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE "${extTable}" ADD COLUMN IF NOT EXISTS "external_ref" VARCHAR(100) NOT NULL DEFAULT '0'`,
+    );
+    await prisma.$executeRawUnsafe(
+      `UPDATE "${extTable}" SET "external_ref" = '0' WHERE "external_ref" IS NULL OR "external_ref" = ''`,
+    );
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE "${extTable}" ALTER COLUMN "external_ref" SET DEFAULT '0'`,
+    );
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE "${extTable}" ALTER COLUMN "external_ref" SET NOT NULL`,
+    );
+  }
+
+  for (const mapping of [
+    { table: 'gl_accounts', entityType: 'gl_account' },
+    { table: 'invoices', entityType: 'invoice' },
+    { table: 'department_centers', entityType: 'department_center' },
+    { table: 'cost_centers', entityType: 'cost_center' },
+  ]) {
+    await prisma.$executeRawUnsafe(`
+      UPDATE "${mapping.table}" t
+      SET "external_ref" = substring(m."external_ref" FROM 'Syskey:\\s*([0-9]+)')
+      FROM "integration_entity_map" m
+      WHERE m."entity_type" = '${mapping.entityType}'
+        AND m."pms_id" = t."id"
+        AND (t."external_ref" IS NULL OR t."external_ref" = '' OR t."external_ref" = '0')
+        AND m."external_ref" ~ 'Syskey:\\s*[0-9]+'
+    `);
+  }
 }
 
 export async function resolveEffectivePropertyId(

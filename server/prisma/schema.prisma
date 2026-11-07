@@ -3098,6 +3098,7 @@ model Invoice {
   costCenterId       String?   @map("cost_center_id") @db.Uuid
   invoiceNumber      String    @unique @map("invoice_number") @db.VarChar(50)
   secondRef          String?   @map("second_ref") @db.VarChar(100)
+  externalRef        String    @default("0") @map("external_ref") @db.VarChar(100)
   invoiceType        String    @default("invoice") @map("invoice_type") @db.VarChar(50)
   // 'invoice'|'credit_note'|'debit_note'|'proforma'
   status             String    @default("draft") @db.VarChar(50)
@@ -3377,6 +3378,8 @@ model DepartmentCenter {
   @@unique([code, companyId, propertyId])
   @@index([companyId])
   @@index([propertyId])
+  externalRef String   @default("0") @map("external_ref") @db.VarChar(100)
+
   @@map("department_centers")
 }
 
@@ -3407,6 +3410,8 @@ model CostCenter {
   @@index([companyId])
   @@index([propertyId])
   @@index([departmentCenterId])
+  externalRef        String   @default("0") @map("external_ref") @db.VarChar(100)
+
   @@map("cost_centers")
 }
 
@@ -3452,6 +3457,7 @@ model GlAccount {
   normalBalance      String   @map("normal_balance") @db.VarChar(6)
   // 'debit' | 'credit'
   isControl          Boolean  @default(false) @map("is_control")
+  externalRef        String   @default("0") @map("external_ref") @db.VarChar(100)
   isActive           Boolean  @default(true) @map("is_active")
   description        String?  @db.Text
   sortOrder          Int      @default(0) @map("sort_order") @db.SmallInt
