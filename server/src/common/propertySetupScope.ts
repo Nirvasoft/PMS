@@ -233,7 +233,7 @@ async function runPropertySetupScopeMigration(): Promise<void> {
       )
   `);
 
-  for (const extTable of ['gl_accounts', 'invoices', 'department_centers', 'cost_centers']) {
+  for (const extTable of ['gl_accounts', 'invoices', 'department_centers', 'cost_centers', 'payment_methods']) {
     await prisma.$executeRawUnsafe(
       `ALTER TABLE "${extTable}" ADD COLUMN IF NOT EXISTS "external_ref" VARCHAR(100) NOT NULL DEFAULT '0'`,
     );
@@ -253,6 +253,7 @@ async function runPropertySetupScopeMigration(): Promise<void> {
     { table: 'invoices', entityType: 'invoice' },
     { table: 'department_centers', entityType: 'department_center' },
     { table: 'cost_centers', entityType: 'cost_center' },
+    { table: 'payment_methods', entityType: 'payment_method' },
   ]) {
     await prisma.$executeRawUnsafe(`
       UPDATE "${mapping.table}" t

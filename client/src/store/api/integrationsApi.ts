@@ -165,6 +165,21 @@ export const integrationsApi = createApi({
       },
     }),
 
+    syncV6Cashbook: builder.mutation<any, { propertyId?: string } | void>({
+      query: (body) => ({
+        url: '/developer/v6erp/sync-cashbook',
+        method: 'POST',
+        body: body ?? {},
+      }),
+      invalidatesTags: ['Integrations', 'SyncLogs', 'EntityMap'],
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          dispatch(glApi.util.invalidateTags(['PaymentMethods']));
+        } catch { /* ignore */ }
+      },
+    }),
+
     syncV6Customers: builder.mutation<any, { propertyId?: string } | void>({
       query: (body) => ({
         url: '/developer/v6erp/sync-customers',
@@ -276,6 +291,7 @@ export const {
   // V6 ERP
   usePushInvoicesToV6ErpMutation,
   useSyncV6CoaMutation,
+  useSyncV6CashbookMutation,
   useSyncV6CustomersMutation,
   // BMS
   useGetBmsSummaryQuery,

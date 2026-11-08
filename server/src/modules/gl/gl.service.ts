@@ -23,7 +23,7 @@ async function ensurePaymentMethodsTable(companyId: string, propertyId?: string 
   if (companyId && !seededPaymentMethodScopes.has(scopeKey)) {
     try {
       // Seed default payment methods only once for the company's initial property
-      const count = await prisma.paymentMethod.count({ where: { companyId } });
+      const count: number = -1; // Disabled auto-seeding of DEFAULT_PAYMENT_METHODS
       if (count === 0) {
         await prisma.paymentMethod.createMany({
           data: DEFAULT_PAYMENT_METHODS.map((pm) => ({

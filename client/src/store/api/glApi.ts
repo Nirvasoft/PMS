@@ -195,6 +195,7 @@ interface PaymentMethod {
   code: string;
   name: string;
   glAccountCode: string | null;
+  externalRef?: string;
   departmentCenterId?: string | null;
   costCenterId?: string | null;
   departmentCenter?: { id: string; code: string; name: string } | null;

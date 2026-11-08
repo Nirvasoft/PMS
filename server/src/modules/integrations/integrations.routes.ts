@@ -193,6 +193,16 @@ developerRouter.post('/v6erp/sync-coa', asyncHandler(async (req, res) => {
  * Pulls Customers from V6 ERP (/v6IntegrationAPIlogin/getCustomer) and upserts them as PMS tenants
  * for the currently active property when V6 ERP flag is ON.
  */
+developerRouter.post('/v6erp/sync-cashbook', asyncHandler(async (req, res) => {
+  const { propertyId } = (req.body || {}) as { propertyId?: string };
+  const data = await integrationsService.syncV6Cashbook(
+    getCompanyId(req),
+    propertyId,
+    getUserId(req),
+  );
+  res.json({ success: true, data });
+}));
+
 developerRouter.post('/v6erp/sync-customers', asyncHandler(async (req, res) => {
   const { propertyId } = (req.body || {}) as { propertyId?: string };
   const data = await integrationsService.syncV6Customers(

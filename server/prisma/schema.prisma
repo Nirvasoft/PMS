@@ -3439,6 +3439,8 @@ model PaymentMethod {
   @@index([propertyId])
   @@index([departmentCenterId])
   @@index([costCenterId])
+  externalRef        String   @default("0") @map("external_ref") @db.VarChar(100)
+
   @@map("payment_methods")
 }
 

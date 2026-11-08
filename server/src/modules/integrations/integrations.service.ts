@@ -220,6 +220,7 @@ export const API_KEY_SCOPES = [
 
 class IntegrationsService {
   private activeCoaSyncs = new Map<string, Promise<any>>();
+  private activeCashbookSyncs = new Map<string, Promise<any>>();
 
   private resolveV6Config(config: any): { cleanRoot: string; domain: string } {
     const cfg = (config?.config || {}) as Record<string, string>;
@@ -499,6 +500,7 @@ class IntegrationsService {
                   'gl_account_pms_hidden',
                   'department_center_pms_hidden',
                   'cost_center_pms_hidden',
+                  'payment_method_pms_hidden',
                 ],
               },
             }),
@@ -2067,6 +2069,59 @@ class IntegrationsService {
     const v6CcIds = v6CcMaps.map((m) => m.pmsId);
     const hiddenCcIds = hiddenCcMaps.map((m) => m.pmsId);
 
+    const [v6PmMaps, hiddenPmMaps] = await Promise.all([
+      prisma.integrationEntityMap.findMany({
+        where: {
+          companyId,
+          integrationId,
+          entityType: 'payment_method',
+          externalRef: { startsWith: 'V6 |' },
+        },
+        select: { pmsId: true },
+      }),
+      prisma.integrationEntityMap.findMany({
+        where: {
+          companyId,
+          integrationId,
+          entityType: 'payment_method_pms_hidden',
+          ...(propertyId ? { externalRef: propertyId } : {}),
+        },
+        select: { id: true, pmsId: true },
+      }),
+    ]);
+    const v6PmIds = v6PmMaps.map((m) => m.pmsId);
+    const hiddenPmIds = hiddenPmMaps.map((m) => m.pmsId);
+
+    if (v6PmIds.length > 0) {
+      await prisma.paymentMethod.updateMany({
+        where: {
+          companyId,
+          ...(propertyId ? { propertyId } : {}),
+          id: { in: v6PmIds },
+        },
+        data: { isActive: false },
+      });
+    }
+
+    if (hiddenPmIds.length > 0) {
+      await prisma.paymentMethod.updateMany({
+        where: {
+          companyId,
+          ...(propertyId ? { propertyId } : {}),
+          id: { in: hiddenPmIds },
+        },
+        data: { isActive: true },
+      });
+      await prisma.integrationEntityMap.deleteMany({
+        where: {
+          companyId,
+          integrationId,
+          entityType: 'payment_method_pms_hidden',
+          ...(propertyId ? { externalRef: propertyId } : {}),
+        },
+      });
+    }
+
     if (v6CreatedIds.length > 0) {
       await prisma.glAccount.updateMany({
         where: {
@@ -2175,6 +2230,454 @@ class IntegrationsService {
    * - Records the V6 customer code (and syskey) in IntegrationEntityMap.
    * Returns ok=false (without throwing) when V6 answers with a non-2xx HTTP status.
    */
+  /**
+   * Pull Cashbook from V6 ERP (/v6IntegrationAPIlogin/getCashbook) into PMS PaymentMethod setup
+   * for the active property (when V6 ERP flag is ON).
+   * - Triggered manually or when browsing Payment Method Setup (no cron job).
+   * - Saves V6 Cashbook syskey into payment_methods.external_ref.
+   * - Auto-links GL Account (and Dept/CC) if a GL Account with matching name exists for the property.
+   */
+  async syncV6Cashbook(
+    companyId: string,
+    propertyId?: string,
+    userId?: string,
+    skipLog = false,
+    preloadedConfig?: any,
+    initiatedBy: 'user' | 'cron' = 'user',
+  ) {
+    await ensurePropertySetupScope();
+    const targetPropertyId = await resolveEffectivePropertyId(
+      companyId,
+      propertyId || preloadedConfig?.propertyId,
+    );
+
+    const config =
+      preloadedConfig ||
+      (await prisma.integrationConfig.findFirst({
+        where: {
+          companyId,
+          ...(targetPropertyId ? { propertyId: targetPropertyId } : {}),
+          integrationType: 'v6erp',
+          isActive: true,
+          status: { not: 'disabled' },
+        },
+      }));
+
+    if (!config || !config.isActive || config.status === 'disabled') {
+      throw new AppError(
+        400,
+        'V6ERP_NOT_ACTIVE',
+        'V6 ERP integration is not active. Turn ON the V6 ERP flag in Integrations first.',
+      );
+    }
+
+    const lockKey = `${companyId}:${targetPropertyId || 'default'}`;
+    const inflight = this.activeCashbookSyncs.get(lockKey);
+    if (inflight) {
+      return inflight;
+    }
+
+    const runner = (async () => {
+      const { cleanRoot, domain } = this.resolveV6Config(config);
+      const t0 = Date.now();
+      const now = new Date();
+
+      const cbEndpoint = `${cleanRoot}/v6IntegrationAPIlogin/getCashbook`;
+      const resp = await fetch(cbEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain, code: '', date: '' }),
+        signal: AbortSignal.timeout(15000),
+      });
+
+      if (!resp.ok) {
+        const errBody = await resp.text().catch(() => '');
+        throw new AppError(
+          502,
+          'V6ERP_CASHBOOK_FETCH_FAILED',
+          `V6 ERP getCashbook failed with HTTP ${resp.status}: ${errBody.substring(0, 150)}`,
+        );
+      }
+
+      const cbJson = (await resp.json().catch(() => null)) as any;
+      const rawList: any[] | null = Array.isArray(cbJson?.cashbooklist)
+        ? cbJson.cashbooklist
+        : Array.isArray(cbJson?.list)
+          ? cbJson.list
+          : null;
+
+      if (!rawList) {
+        throw new AppError(
+          502,
+          'V6ERP_CASHBOOK_INVALID_RESPONSE',
+          'V6 ERP returned an unexpected payload without Cashbook list.',
+        );
+      }
+
+      const normalizeName = (s: string) =>
+        s
+          .trim()
+          .toLowerCase()
+          .replace(/\s*\(\s*/g, '(')
+          .replace(/\s*\)\s*/g, ')')
+          .replace(/\s+/g, ' ');
+
+      const v6CbMap = new Map<string, { code: string; name: string; syskey: string }>();
+      for (const item of rawList) {
+        const code = String(item?.code || item?.t1 || '').trim();
+        if (!code) continue;
+        const name = String(item?.description || item?.name || item?.t2 || code).trim() || code;
+        const syskey = String(item?.syskey || '0').trim() || '0';
+        const lower = code.toLowerCase();
+        const prev = v6CbMap.get(lower);
+        if (!prev || syskey > prev.syskey) {
+          v6CbMap.set(lower, {
+            code: code.substring(0, 50),
+            name: name.substring(0, 150),
+            syskey,
+          });
+        }
+      }
+
+      const v6CbList = [...v6CbMap.values()].sort((a, b) => a.code.localeCompare(b.code));
+      if (v6CbList.length === 0) {
+        return {
+          success: true,
+          propertyId: targetPropertyId,
+          totalV6Cashbooks: 0,
+          created: 0,
+          updated: 0,
+          deactivated: 0,
+          message: 'V6 ERP returned 0 Cashbook records.',
+        };
+      }
+
+      const [existingPms, existingAccounts, existingMaps] = await Promise.all([
+        prisma.paymentMethod.findMany({
+          where: { companyId, propertyId: targetPropertyId },
+        }),
+        prisma.glAccount.findMany({
+          where: { companyId, propertyId: targetPropertyId, isActive: true, isControl: false },
+          orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
+        }),
+        prisma.integrationEntityMap.findMany({
+          where: {
+            companyId,
+            integrationId: config.id,
+            entityType: { in: ['payment_method', 'payment_method_pms_hidden'] },
+          },
+        }),
+      ]);
+
+      const glByNormalizedName = new Map<
+        string,
+        { code: string; departmentCenterId: string | null; costCenterId: string | null }
+      >();
+      for (const acc of existingAccounts) {
+        const key = normalizeName(acc.name);
+        if (key && !glByNormalizedName.has(key)) {
+          glByNormalizedName.set(key, {
+            code: acc.code,
+            departmentCenterId: acc.departmentCenterId,
+            costCenterId: acc.costCenterId,
+          });
+        }
+      }
+
+      const pmEntityMapByPmsId = new Map<string, (typeof existingMaps)[number]>();
+      for (const m of existingMaps) {
+        if (m.entityType === 'payment_method') {
+          pmEntityMapByPmsId.set(m.pmsId, m);
+        }
+      }
+
+      const existingByLower = new Map<string, (typeof existingPms)[number]>();
+      for (const pm of existingPms) {
+        existingByLower.set(pm.code.trim().toLowerCase(), pm);
+      }
+
+      const toCreate: Array<{
+        companyId: string;
+        propertyId: string | null;
+        code: string;
+        name: string;
+        glAccountCode: string | null;
+        departmentCenterId: string | null;
+        costCenterId: string | null;
+        isActive: boolean;
+        isSystem: boolean;
+      }> = [];
+      const toUpdate: Array<{
+        id: string;
+        data: {
+          name: string;
+          glAccountCode?: string | null;
+          departmentCenterId?: string | null;
+          costCenterId?: string | null;
+          isActive: boolean;
+        };
+      }> = [];
+      const newlyCreatedLowers = new Set<string>();
+
+      for (const cb of v6CbList) {
+        const lower = cb.code.toLowerCase();
+        const existing = existingByLower.get(lower);
+        const matchedGl = glByNormalizedName.get(normalizeName(cb.name)) || null;
+
+        if (!existing) {
+          newlyCreatedLowers.add(lower);
+          toCreate.push({
+            companyId,
+            propertyId: targetPropertyId,
+            code: cb.code,
+            name: cb.name,
+            glAccountCode: matchedGl?.code || null,
+            departmentCenterId: matchedGl?.departmentCenterId || null,
+            costCenterId: matchedGl?.costCenterId || null,
+            isActive: true,
+            isSystem: false,
+          });
+        } else {
+          const nextGlCode = existing.glAccountCode || matchedGl?.code || null;
+          const nextDeptId =
+            existing.departmentCenterId ||
+            (existing.glAccountCode ? null : matchedGl?.departmentCenterId || null);
+          const nextCcId =
+            existing.costCenterId ||
+            (existing.glAccountCode ? null : matchedGl?.costCenterId || null);
+
+          if (
+            existing.name !== cb.name ||
+            !existing.isActive ||
+            existing.glAccountCode !== nextGlCode ||
+            existing.departmentCenterId !== nextDeptId ||
+            existing.costCenterId !== nextCcId
+          ) {
+            toUpdate.push({
+              id: existing.id,
+              data: {
+                name: cb.name,
+                glAccountCode: nextGlCode,
+                departmentCenterId: nextDeptId,
+                costCenterId: nextCcId,
+                isActive: true,
+              },
+            });
+          }
+        }
+      }
+
+      let createdCount = 0;
+      let updatedCount = 0;
+      const CHUNK = 5;
+
+      if (toCreate.length > 0) {
+        const res = await prisma.paymentMethod.createMany({
+          data: toCreate,
+          skipDuplicates: true,
+        });
+        createdCount = res.count;
+      }
+
+      for (let i = 0; i < toUpdate.length; i += CHUNK) {
+        const batch = toUpdate.slice(i, i + CHUNK);
+        await Promise.all(
+          batch.map((u) =>
+            prisma.paymentMethod.update({
+              where: { id: u.id },
+              data: u.data,
+            }),
+          ),
+        );
+        updatedCount += batch.length;
+      }
+
+      const allPropertyPms =
+        toCreate.length > 0 || toUpdate.length > 0
+          ? await prisma.paymentMethod.findMany({
+              where: { companyId, propertyId: targetPropertyId },
+            })
+          : existingPms;
+
+      const pmIdByLower = new Map<string, string>();
+      const syncedPmIds = new Set<string>();
+      for (const pm of allPropertyPms) {
+        const lower = pm.code.trim().toLowerCase();
+        const v6Cb = v6CbMap.get(lower);
+        if (v6Cb) {
+          pmIdByLower.set(lower, pm.id);
+          syncedPmIds.add(pm.id);
+          const sk = v6Cb.syskey && v6Cb.syskey !== '0' ? v6Cb.syskey : '0';
+          await prisma.$executeRaw`
+            UPDATE "payment_methods"
+            SET "external_ref" = ${sk}
+            WHERE "id" = ${pm.id}::uuid
+              AND ("external_ref" IS DISTINCT FROM ${sk})
+          `.catch(() => {});
+        }
+      }
+
+      const pmsToHide = allPropertyPms.filter((pm) => pm.isActive && !syncedPmIds.has(pm.id));
+      const genuinePms = pmsToHide.filter((pm) => {
+        const m = pmEntityMapByPmsId.get(pm.id);
+        return !m || !String(m.externalRef || '').startsWith('V6 |');
+      });
+
+      if (genuinePms.length > 0) {
+        await prisma.integrationEntityMap.createMany({
+          data: genuinePms.map((pm) => ({
+            companyId,
+            integrationId: config.id,
+            entityType: 'payment_method_pms_hidden',
+            pmsId: pm.id,
+            externalId: pm.code,
+            externalRef: targetPropertyId || 'default',
+            syncedAt: now,
+          })),
+          skipDuplicates: true,
+        });
+      }
+
+      let deactivatedCount = 0;
+      if (pmsToHide.length > 0) {
+        const res = await prisma.paymentMethod.updateMany({
+          where: {
+            companyId,
+            propertyId: targetPropertyId,
+            id: { in: pmsToHide.map((pm) => pm.id) },
+            isActive: true,
+          },
+          data: { isActive: false },
+        });
+        deactivatedCount = res.count;
+      }
+
+      const newEntityMaps: Array<{
+        companyId: string;
+        integrationId: string;
+        entityType: string;
+        pmsId: string;
+        externalId: string;
+        externalRef: string;
+        syncedAt: Date;
+      }> = [];
+      const updateEntityMaps: Array<{ id: string; externalId: string; externalRef: string }> = [];
+
+      for (const cb of v6CbList) {
+        const lower = cb.code.toLowerCase();
+        const pmsId = pmIdByLower.get(lower);
+        if (!pmsId) continue;
+
+        const existingMap = pmEntityMapByPmsId.get(pmsId);
+        const existingOrigin = existingMap?.externalRef?.startsWith('V6 |')
+          ? 'V6'
+          : existingMap?.externalRef?.startsWith('PMS |')
+            ? 'PMS'
+            : null;
+        const originPrefix =
+          existingOrigin || (newlyCreatedLowers.has(lower) ? 'V6' : 'PMS');
+        const extRef = `${originPrefix} | ${cb.syskey && cb.syskey !== '0' ? `Syskey: ${cb.syskey}` : cb.name}`.substring(0, 255);
+
+        if (!existingMap) {
+          newEntityMaps.push({
+            companyId,
+            integrationId: config.id,
+            entityType: 'payment_method',
+            pmsId,
+            externalId: cb.code,
+            externalRef: extRef,
+            syncedAt: now,
+          });
+        } else if (existingMap.externalId !== cb.code || existingMap.externalRef !== extRef) {
+          updateEntityMaps.push({
+            id: existingMap.id,
+            externalId: cb.code,
+            externalRef: extRef,
+          });
+        }
+      }
+
+      if (newEntityMaps.length > 0) {
+        await prisma.integrationEntityMap
+          .createMany({
+            data: newEntityMaps,
+            skipDuplicates: true,
+          })
+          .catch(() => {});
+      }
+
+      for (let i = 0; i < updateEntityMaps.length; i += CHUNK) {
+        const batch = updateEntityMaps.slice(i, i + CHUNK);
+        await Promise.all(
+          batch.map((m) =>
+            prisma.integrationEntityMap.update({
+              where: { id: m.id },
+              data: {
+                externalId: m.externalId,
+                externalRef: m.externalRef,
+                syncedAt: now,
+              },
+            }),
+          ),
+        );
+      }
+
+      const durationMs = Date.now() - t0;
+
+      if (!skipLog) {
+        await prisma.integrationSyncLog
+          .create({
+            data: {
+              companyId,
+              integrationId: config.id,
+              syncType: 'cashbook_sync',
+              direction: 'pull',
+              status: 'success',
+              recordsProcessed: v6CbList.length,
+              recordsCreated: createdCount,
+              recordsUpdated: updatedCount,
+              recordsFailed: 0,
+              errorDetails: [],
+              durationMs,
+              initiatedBy,
+              initiatedUserId: userId || null,
+              completedAt: new Date(),
+            },
+          })
+          .catch((err) => logger.warn(`Failed to persist V6 Cashbook sync log: ${err.message}`));
+
+        await prisma.integrationConfig
+          .update({
+            where: { id: config.id },
+            data: { lastSyncAt: new Date(), lastError: null },
+          })
+          .catch(() => {});
+      }
+
+      logger.info(
+        `V6 ERP Cashbook sync completed for property ${targetPropertyId}: cashbooks=${v6CbList.length} (created=${createdCount}, updated=${updatedCount}, hidden=${deactivatedCount})`,
+      );
+
+      return {
+        success: true,
+        propertyId: targetPropertyId,
+        totalV6Cashbooks: v6CbList.length,
+        created: createdCount,
+        updated: updatedCount,
+        deactivated: deactivatedCount,
+        durationMs,
+        message: `Synced ${v6CbList.length} Payment Method(s) from V6 ERP Cashbook.`,
+      };
+    })();
+
+    this.activeCashbookSyncs.set(lockKey, runner);
+    try {
+      return await runner;
+    } finally {
+      this.activeCashbookSyncs.delete(lockKey);
+    }
+  }
+
   private async importV6Customers(config: any, companyId: string, effectivePropertyId?: string) {
     const { cleanRoot, domain } = this.resolveV6Config(config);
     const customerEndpoint = `${cleanRoot}/v6IntegrationAPIlogin/getCustomer`;
