@@ -3,6 +3,7 @@
 
 import {
   customShapeConvexUvParts,
+  customShapeLabelOffsetPx,
   decodeCustomShape,
   normalizeTileAngle,
   UNIT_SHAPE_CATEGORY_TABS,
@@ -898,12 +899,15 @@ export function getTrapezoidUnitGeometry(
   if (mode === 'custom') {
     const customPts = decodeCustomShape(tile?.label);
     if (customPts) {
+      const labelShift = customShapeLabelOffsetPx(customPts, wPx, hPx);
       return buildPolygonUnitGeometryFromNormPoints(
         customPts.map(([x, y]) => ({ x: x / 100, y: y / 100 })),
         wPx,
         hPx,
         cellPx,
         merge,
+        labelShift?.x,
+        labelShift?.y,
       );
     }
   }

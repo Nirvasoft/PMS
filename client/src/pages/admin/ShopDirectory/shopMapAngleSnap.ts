@@ -70,6 +70,53 @@ function worldOutline(t: MapItem, items: ReadonlyArray<MapItem>): P[] | null {
   });
 }
 
+/**
+ * Outlines of tiles near `tile`, converted into `tile`'s own frame (0..100 % of its box, rotation removed) so the
+ * Custom Shape editor can draw them as ghosts and snap to them. Tiles without a readable outline fall back to
+ * their (rotated) box.
+ */
+export function neighborOutlinesInTileFrame(
+  tile: MapItem,
+  items: ReadonlyArray<MapItem>,
+  rangeCells = 6,
+): Array<{ key: string; points: P[] }> {
+  const rad = ((tile.angle ?? 0) * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const cx = tile.x + tile.w * 0.5;
+  const cy = tile.y + tile.h * 0.5;
+  const tileR = Math.hypot(tile.w, tile.h) / 2;
+  const toLocalPct = ([x, y]: P): P => {
+    const dx = x - cx;
+    const dy = y - cy;
+    const lx = dx * cos + dy * sin;
+    const ly = -dx * sin + dy * cos;
+    return [((lx + tile.w / 2) / tile.w) * 100, ((ly + tile.h / 2) / tile.h) * 100];
+  };
+  const out: Array<{ key: string; points: P[] }> = [];
+  for (const o of items) {
+    if (o.key === tile.key) continue;
+    const oR = Math.hypot(o.w, o.h) / 2;
+    if (Math.hypot(o.x + o.w / 2 - cx, o.y + o.h / 2 - cy) > tileR + oR + rangeCells) continue;
+    const world = worldOutline(o, items) ?? boxOutline(o);
+    out.push({ key: o.key, points: world.map(toLocalPct) });
+  }
+  return out;
+}
+
+function boxOutline(t: MapItem): P[] {
+  const rad = ((t.angle ?? 0) * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const cx = t.x + t.w * 0.5;
+  const cy = t.y + t.h * 0.5;
+  return RECT.map(([u, v]) => {
+    const px = t.x + u * t.w - cx;
+    const py = t.y + v * t.h - cy;
+    return [cx + px * cos - py * sin, cy + px * sin + py * cos] as P;
+  });
+}
+
 interface Edge {
   a: P;
   b: P;

@@ -42,7 +42,7 @@ import {
 } from '../../../utils/unitPhotoCache';
 import { CachedUnitPhoto, useUnitPhotoCache } from '../../../components/common/CachedUnitPhoto';
 import { CustomShapeEditor } from './CustomShapeEditor';
-import { alignTileAngleToNeighborEdge } from './shopMapAngleSnap';
+import { alignTileAngleToNeighborEdge, neighborOutlinesInTileFrame } from './shopMapAngleSnap';
 import {
   customShapeFromMode,
   decodeCustomShape,
@@ -5763,6 +5763,7 @@ export default function ShopMapView({
             tileH={csItem.h}
             initialPoints={existing ?? fromCurrent?.points ?? []}
             initialNote={fromCurrent?.note ?? null}
+            neighbors={neighborOutlinesInTileFrame(csItem, items)}
             onClose={() => setCustomShapeKey(null)}
             onApply={(points) => {
               applyCustomUnitShape(csItem.key, points);

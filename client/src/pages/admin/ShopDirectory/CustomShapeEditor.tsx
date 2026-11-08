@@ -18,11 +18,13 @@ interface Props {
   initialPoints: CustomShapePoint[];
   /** Message shown when the editor opens (e.g. the source preset had curves that become straight segments). */
   initialNote: string | null;
+  /** Outlines of nearby tiles in this tile's own 0..100 % frame (can extend outside 0..100). */
+  neighbors: Array<{ key: string; points: CustomShapePoint[] }>;
   onApply: (points: CustomShapePoint[]) => void;
   onClose: () => void;
 }
 
-const PAD = 18;
+const PAD = 36;
 const clampPct = (n: number) => Math.min(100, Math.max(0, n));
 
 export function CustomShapeEditor({
@@ -31,12 +33,14 @@ export function CustomShapeEditor({
   tileH,
   initialPoints,
   initialNote,
+  neighbors,
   onApply,
   onClose,
 }: Props) {
   const [pts, setPts] = useState<CustomShapePoint[]>(initialPoints);
   const [sel, setSel] = useState<number | null>(null);
   const [snap, setSnap] = useState(true);
+  const [snapNb, setSnapNb] = useState(true);
   const [drag, setDrag] = useState<number | null>(null);
   const [note, setNote] = useState<string | null>(initialNote);
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -51,6 +55,41 @@ export function CustomShapeEditor({
 
   const toPx = (p: CustomShapePoint): [number, number] => [(p[0] / 100) * W, (p[1] / 100) * H];
 
+  /** Closest vertex / edge point of any neighbouring tile outline (distance measured in canvas pixels). */
+  const nearestNeighborPoint = (
+    p: CustomShapePoint,
+  ): { pt: CustomShapePoint; distPx: number } | null => {
+    const px = (p[0] / 100) * W;
+    const py = (p[1] / 100) * H;
+    let best: { pt: CustomShapePoint; distPx: number; score: number } | null = null;
+    for (const n of neighbors) {
+      const poly = n.points;
+      for (let i = 0; i < poly.length; i += 1) {
+        const a = poly[i];
+        const b = poly[(i + 1) % poly.length];
+        const ax = (a[0] / 100) * W;
+        const ay = (a[1] / 100) * H;
+        const bx = (b[0] / 100) * W;
+        const by = (b[1] / 100) * H;
+        // Vertices win over edge points when they are about as close.
+        const dv = Math.hypot(px - ax, py - ay);
+        if (!best || dv - 4 < best.score) best = { pt: [a[0], a[1]], distPx: dv, score: dv - 4 };
+        const dx = bx - ax;
+        const dy = by - ay;
+        const len2 = dx * dx + dy * dy;
+        if (len2 === 0) continue;
+        const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len2));
+        const qx = ax + t * dx;
+        const qy = ay + t * dy;
+        const de = Math.hypot(px - qx, py - qy);
+        if (de < best.score) best = { pt: [(qx / W) * 100, (qy / H) * 100], distPx: de, score: de };
+      }
+    }
+    return best ? { pt: best.pt, distPx: best.distPx } : null;
+  };
+
+  const roundOne = (n: number) => Math.round(clampPct(n) * 10) / 10;
+
   const pointerToPct = (e: { clientX: number; clientY: number }): CustomShapePoint | null => {
     const svg = svgRef.current;
     const ctm = svg?.getScreenCTM();
@@ -61,11 +100,27 @@ export function CustomShapeEditor({
     const local = pt.matrixTransform(ctm.inverse());
     let x = clampPct((local.x / W) * 100);
     let y = clampPct((local.y / H) * 100);
+    if (snapNb && neighbors.length > 0) {
+      const near = nearestNeighborPoint([x, y]);
+      if (near && near.distPx <= 9) return [roundOne(near.pt[0]), roundOne(near.pt[1])];
+    }
     if (snap) {
       x = Math.round(x / 5) * 5;
       y = Math.round(y / 5) * 5;
     }
-    return [Math.round(x * 10) / 10, Math.round(y * 10) / 10];
+    return [roundOne(x), roundOne(y)];
+  };
+
+  const matchSelectedToNeighbor = () => {
+    if (sel == null) return;
+    const near = nearestNeighborPoint(pts[sel]);
+    if (!near) {
+      setNote('No neighbouring tile nearby to match.');
+      return;
+    }
+    const target: CustomShapePoint = [roundOne(near.pt[0]), roundOne(near.pt[1])];
+    setPts((prev) => prev.map((q, i) => (i === sel ? target : q)));
+    setNote(null);
   };
 
   const deleteVertex = (idx: number) => {
@@ -226,6 +281,18 @@ export function CustomShapeEditor({
                   <line x1={0} y1={(g / 100) * H} x2={W} y2={(g / 100) * H} />
                 </g>
               ))}
+              {neighbors.map((n) => (
+                <polygon
+                  key={n.key}
+                  points={n.points.map((p) => toPx(p).join(',')).join(' ')}
+                  fill="rgba(100,116,139,0.12)"
+                  stroke="#64748b"
+                  strokeWidth={1.5}
+                  strokeDasharray="5 3"
+                  strokeLinejoin="round"
+                  pointerEvents="none"
+                />
+              ))}
               <polygon
                 points={polyD}
                 fill={valid ? 'rgba(79,70,229,0.22)' : 'rgba(220,38,38,0.18)'}
@@ -297,6 +364,27 @@ export function CustomShapeEditor({
             >
               Delete point
             </button>
+            {neighbors.length > 0 && (
+              <>
+                <button
+                  type="button"
+                  style={btn(snapNb)}
+                  onClick={() => setSnapNb((s) => !s)}
+                  title="Dots jump onto the outline of nearby tiles (grey dashed shapes) so edges line up exactly"
+                >
+                  Snap to neighbors {snapNb ? 'ON' : 'OFF'}
+                </button>
+                <button
+                  type="button"
+                  style={{ ...btn(), opacity: sel == null ? 0.5 : 1 }}
+                  disabled={sel == null}
+                  onClick={matchSelectedToNeighbor}
+                  title="Select a dot, then move it onto the closest neighbour edge"
+                >
+                  Match neighbor edge
+                </button>
+              </>
+            )}
             <button
               type="button"
               style={btn()}

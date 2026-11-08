@@ -742,3 +742,64 @@ export function simplifyCustomPolygon(
   }
   return dedup.filter((_, i) => i % Math.ceil(dedup.length / maxPoints) === 0);
 }
+
+/**
+ * Keeps the shop name inside a custom polygon. The label normally sits at the tile-box centre, which can fall
+ * in a notch of an L/U/C shape. Returns the pixel offset (from the box centre) to the roomiest interior spot,
+ * or `null` when the box centre is already comfortably inside (so existing shapes do not change).
+ */
+export function customShapeLabelOffsetPx(
+  pts: ReadonlyArray<CustomShapePoint>,
+  wPx: number,
+  hPx: number,
+): { x: number; y: number } | null {
+  if (pts.length < 3 || wPx <= 0 || hPx <= 0) return null;
+  const poly = pts.map(([x, y]) => [(x / 100) * wPx, (y / 100) * hPx] as [number, number]);
+  const inside = (px: number, py: number): boolean => {
+    let c = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i, i += 1) {
+      const [xi, yi] = poly[i];
+      const [xj, yj] = poly[j];
+      if (yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) c = !c;
+    }
+    return c;
+  };
+  const clearance = (px: number, py: number): number => {
+    let best = Infinity;
+    for (let i = 0; i < poly.length; i += 1) {
+      const [ax, ay] = poly[i];
+      const [bx, by] = poly[(i + 1) % poly.length];
+      const dx = bx - ax;
+      const dy = by - ay;
+      const len2 = dx * dx + dy * dy;
+      const t = len2 > 0 ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len2)) : 0;
+      best = Math.min(best, Math.hypot(px - (ax + t * dx), py - (ay + t * dy)));
+    }
+    return best;
+  };
+  const cx = wPx / 2;
+  const cy = hPx / 2;
+  const centreClear = inside(cx, cy) ? clearance(cx, cy) : 0;
+  let bestX = cx;
+  let bestY = cy;
+  let bestClear = centreClear;
+  const STEPS = 28;
+  for (let iy = 0; iy <= STEPS; iy += 1) {
+    for (let ix = 0; ix <= STEPS; ix += 1) {
+      const px = (ix / STEPS) * wPx;
+      const py = (iy / STEPS) * hPx;
+      if (!inside(px, py)) continue;
+      const c = clearance(px, py);
+      if (c > bestClear) {
+        bestClear = c;
+        bestX = px;
+        bestY = py;
+      }
+    }
+  }
+  // Centre is fine when it is inside and not much tighter than the best spot.
+  if (centreClear > 0 && centreClear >= bestClear * 0.75) return null;
+  const ox = Math.round(bestX - cx);
+  const oy = Math.round(bestY - cy);
+  return ox === 0 && oy === 0 ? null : { x: ox, y: oy };
+}
