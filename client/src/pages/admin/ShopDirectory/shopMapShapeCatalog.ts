@@ -668,3 +668,77 @@ export function customShapeFromMode(mode: UnitShapeMode): { points: CustomShapeP
   const curved = /curve|crescent|arch|pie|circle|ring/.test(mode);
   return { points, approximate: curved };
 }
+
+/** Distance from point p to the segment a-b. */
+function distToSegment(p: CustomShapePoint, a: CustomShapePoint, b: CustomShapePoint): number {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const len2 = dx * dx + dy * dy;
+  if (len2 === 0) return Math.hypot(p[0] - a[0], p[1] - a[1]);
+  const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2));
+  return Math.hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy));
+}
+
+function douglasPeucker(pts: CustomShapePoint[], tol: number): CustomShapePoint[] {
+  if (pts.length <= 2) return pts;
+  let maxD = 0;
+  let idx = 0;
+  const first = pts[0];
+  const last = pts[pts.length - 1];
+  for (let i = 1; i < pts.length - 1; i += 1) {
+    const d = distToSegment(pts[i], first, last);
+    if (d > maxD) {
+      maxD = d;
+      idx = i;
+    }
+  }
+  if (maxD <= tol) return [first, last];
+  const left = douglasPeucker(pts.slice(0, idx + 1), tol);
+  const right = douglasPeucker(pts.slice(idx), tol);
+  return [...left.slice(0, -1), ...right];
+}
+
+/**
+ * Reduces a closed polygon (0..100 %) to at most `maxPoints` vertices while keeping its overall outline.
+ * Used when a complex preset (many curve samples) is converted into an editable custom shape.
+ */
+export function simplifyCustomPolygon(
+  pts: ReadonlyArray<CustomShapePoint>,
+  maxPoints = 60,
+): CustomShapePoint[] {
+  // Drop consecutive duplicates / near-duplicates first.
+  const dedup: CustomShapePoint[] = [];
+  for (const p of pts) {
+    const q: CustomShapePoint = [roundPct(p[0]), roundPct(p[1])];
+    const prev = dedup[dedup.length - 1];
+    if (!prev || Math.hypot(q[0] - prev[0], q[1] - prev[1]) >= 0.3) dedup.push(q);
+  }
+  if (dedup.length > 1) {
+    const f = dedup[0];
+    const l = dedup[dedup.length - 1];
+    if (Math.hypot(f[0] - l[0], f[1] - l[1]) < 0.3) dedup.pop();
+  }
+  if (dedup.length <= maxPoints) return dedup;
+
+  // Anchor on the vertex farthest from the first one so the ring splits into two open chains.
+  let far = 1;
+  let farD = 0;
+  for (let i = 1; i < dedup.length; i += 1) {
+    const d = Math.hypot(dedup[i][0] - dedup[0][0], dedup[i][1] - dedup[0][1]);
+    if (d > farD) {
+      farD = d;
+      far = i;
+    }
+  }
+  const chainA = dedup.slice(0, far + 1);
+  const chainB = [...dedup.slice(far), dedup[0]];
+  let tol = 0.2;
+  for (let guard = 0; guard < 40; guard += 1) {
+    const a = douglasPeucker(chainA, tol);
+    const b = douglasPeucker(chainB, tol);
+    const ring = [...a.slice(0, -1), ...b.slice(0, -1)];
+    if (ring.length <= maxPoints) return ring;
+    tol *= 1.4;
+  }
+  return dedup.filter((_, i) => i % Math.ceil(dedup.length / maxPoints) === 0);
+}

@@ -16,9 +16,8 @@ interface Props {
   tileW: number;
   tileH: number;
   initialPoints: CustomShapePoint[];
-  /** Polygon built from the tile's current preset shape (offered as "Start from current shape"). */
-  currentPoints: CustomShapePoint[];
-  currentIsApproximate: boolean;
+  /** Message shown when the editor opens (e.g. the source preset had curves that become straight segments). */
+  initialNote: string | null;
   onApply: (points: CustomShapePoint[]) => void;
   onClose: () => void;
 }
@@ -31,8 +30,7 @@ export function CustomShapeEditor({
   tileW,
   tileH,
   initialPoints,
-  currentPoints,
-  currentIsApproximate,
+  initialNote,
   onApply,
   onClose,
 }: Props) {
@@ -40,7 +38,7 @@ export function CustomShapeEditor({
   const [sel, setSel] = useState<number | null>(null);
   const [snap, setSnap] = useState(true);
   const [drag, setDrag] = useState<number | null>(null);
-  const [note, setNote] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(initialNote);
   const svgRef = useRef<SVGSVGElement | null>(null);
 
   const { W, H } = useMemo(() => {
@@ -303,24 +301,9 @@ export function CustomShapeEditor({
               type="button"
               style={btn()}
               onClick={() => {
-                setPts(currentPoints.map((p) => [p[0], p[1]] as CustomShapePoint));
-                setSel(null);
-                setNote(
-                  currentIsApproximate
-                    ? 'The current shape contains curves — they become straight segments here.'
-                    : null,
-                );
-              }}
-            >
-              Start from current shape
-            </button>
-            <button
-              type="button"
-              style={btn()}
-              onClick={() => {
                 setPts(initialPoints.map((p) => [p[0], p[1]] as CustomShapePoint));
                 setSel(null);
-                setNote(null);
+                setNote(initialNote);
               }}
             >
               Reset

@@ -3,6 +3,7 @@ import { AppError } from '../../common/errors';
 import { invoicesService } from '../billing/invoices.service';
 import { logger } from '../../common/logger';
 import { customShapeConvexUvParts } from './customShape';
+import { invalidateMallPublicCache } from './publicCache';
 
 class MallService {
   // ═══════════════════════════════════════
@@ -14,11 +15,13 @@ class MallService {
   }
 
   async upsertMallProperty(propertyId: string, companyId: string, data: any) {
-    return prisma.mallProperty.upsert({
+    const result = await prisma.mallProperty.upsert({
       where: { propertyId },
       create: { propertyId, companyId, ...data },
       update: data,
     });
+    invalidateMallPublicCache(propertyId);
+    return result;
   }
 
   // ═══════════════════════════════════════
@@ -506,6 +509,7 @@ class MallService {
       }),
     ]);
 
+    invalidateMallPublicCache(propertyId);
     return this.getFloorPlan(companyId, propertyId, floorKey);
   }
 
@@ -556,11 +560,13 @@ class MallService {
       await prisma.unit.update({ where: { id: unitId }, data: { zone: data.tradeCategory } });
     }
 
-    return prisma.shopProfile.upsert({
+    const profile = await prisma.shopProfile.upsert({
       where: { unitId },
       create: { unitId, companyId, propertyId: unit.propertyId, tradeCategory: unit.zone || 'Other', ...data },
       update: data,
     });
+    invalidateMallPublicCache(unit.propertyId);
+    return profile;
   }
 
   async getTenantMix(propertyId: string, companyId: string) {

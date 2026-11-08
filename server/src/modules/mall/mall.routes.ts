@@ -3,6 +3,7 @@ import QRCode from 'qrcode';
 import { asyncHandler } from '../../middleware';
 import { validateRequest } from '../../middleware/validateRequest';
 import { mallService } from './mall.service';
+import { cachedPublic } from './publicCache';
 import { requirePermission } from '../auth/guards/roleGuard';
 import {
   upsertMallPropertySchema, upsertShopProfileSchema, saveFloorPlanSchema,
@@ -346,16 +347,25 @@ router.get('/pos/sales-history', asyncHandler(async (req, res) => {
 //  PUBLIC DIRECTORY & INDOOR NAVIGATION (No Auth Required)
 // ═══════════════════════════════════════
 
+const PUBLIC_DATA_TTL_MS = 30_000;
+const PUBLIC_QR_TTL_MS = 60 * 60_000;
+
 publicRouter.get('/properties/:propertyId/directory', asyncHandler(async (req, res) => {
-  const data = await mallService.getPublicDirectory(String(req.params.propertyId));
+  const propertyId = String(req.params.propertyId);
+  const data = await cachedPublic(`mall:${propertyId}:directory`, PUBLIC_DATA_TTL_MS, () =>
+    mallService.getPublicDirectory(propertyId),
+  );
+  res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
   res.json({ success: true, data });
 }));
 
 publicRouter.get('/properties/:propertyId/floor-plan', asyncHandler(async (req, res) => {
-  const data = await mallService.getPublicFloorPlan(
-    String(req.params.propertyId),
-    String(req.query.floor ?? ''),
+  const propertyId = String(req.params.propertyId);
+  const floor = String(req.query.floor ?? '').slice(0, 80);
+  const data = await cachedPublic(`mall:${propertyId}:floor:${floor}`, PUBLIC_DATA_TTL_MS, () =>
+    mallService.getPublicFloorPlan(propertyId, floor),
   );
+  res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
   res.json({ success: true, data });
 }));
 
@@ -365,11 +375,14 @@ publicRouter.get('/qr', asyncHandler(async (req, res) => {
     res.status(400).json({ success: false, message: 'Invalid QR text' });
     return;
   }
-  const dataUrl = await QRCode.toDataURL(text, {
-    width: 360,
-    margin: 2,
-    color: { dark: '#0f172a', light: '#ffffff' },
-  });
+  const dataUrl = await cachedPublic(`qr:${text}`, PUBLIC_QR_TTL_MS, () =>
+    QRCode.toDataURL(text, {
+      width: 360,
+      margin: 2,
+      color: { dark: '#0f172a', light: '#ffffff' },
+    }),
+  );
+  res.set('Cache-Control', 'public, max-age=3600');
   res.json({ success: true, data: { dataUrl } });
 }));
 

@@ -42,10 +42,13 @@ import {
 } from '../../../utils/unitPhotoCache';
 import { CachedUnitPhoto, useUnitPhotoCache } from '../../../components/common/CachedUnitPhoto';
 import { CustomShapeEditor } from './CustomShapeEditor';
+import { alignTileAngleToNeighborEdge } from './shopMapAngleSnap';
 import {
   customShapeFromMode,
   decodeCustomShape,
   encodeCustomShape,
+  isSimpleCustomPolygon,
+  simplifyCustomPolygon,
   type CustomShapePoint,
 } from './shopMapShapeCatalog';
 import './ShopMapView.css';
@@ -1633,7 +1636,12 @@ export default function ShopMapView({
         const orig = baseItems[idx];
         const moved = orig && (it.x !== orig.x || it.y !== orig.y || it.w !== orig.w || it.h !== orig.h);
         if (!moved) return it;
-        const snapped = snapTileToBorder(it, candidateItems, interactionColumns, orig, snapAutoResize, autoShapeEnabled) ?? it;
+        const snappedBase = snapTileToBorder(it, candidateItems, interactionColumns, orig, snapAutoResize, autoShapeEnabled) ?? it;
+        const sizeUnchanged = Boolean(orig) && it.w === orig.w && it.h === orig.h;
+        const snapped =
+          autoShapeEnabled && sizeUnchanged
+            ? alignTileAngleToNeighborEdge(snappedBase, candidateItems) ?? snappedBase
+            : snappedBase;
         if (isTransitLandmark(snapped.kind)) {
           movedTransitKey = snapped.key;
           movedTransitItem = snapped;
@@ -2823,6 +2831,65 @@ export default function ShopMapView({
       return { shape: mode, clipPath: geo.clipPath };
     }
     return { shape: mode, clipPath: 'none' };
+  };
+
+  /**
+   * Real outline of a unit tile (what is drawn on the map, curves included) as 0..100 % polygon points,
+   * so the Custom Shape editor opens on the shape the tile currently has instead of a plain box.
+   */
+  const currentShapeAsCustomPolygon = (
+    t: MapItem,
+    currentItems: ReadonlyArray<MapItem>,
+  ): { points: CustomShapePoint[]; note: string | null } => {
+    const mode = parseUnitShapeMode(t, autoShapeEnabled ? currentItems : undefined);
+    const fallback = customShapeFromMode(mode);
+    const boxNote = fallback.approximate
+      ? 'Could not read the exact outline of this shape — started from a simpler box.'
+      : null;
+    if (mode === 'rect' || mode === 'custom') return { points: fallback.points, note: null };
+    const r1 = (n: number) => Math.round(Math.min(100, Math.max(0, n)) * 10) / 10;
+    if (mode === 'circle') {
+      const ring = Array.from({ length: 24 }, (_, i) => {
+        const a = (i * 2 * Math.PI) / 24;
+        return [r1(50 + 50 * Math.cos(a)), r1(50 + 50 * Math.sin(a))] as CustomShapePoint;
+      });
+      return { points: ring, note: 'Circle / oval is converted to a 24-point polygon.' };
+    }
+    if (!isTrapezoidUnitMode(mode)) return { points: fallback.points, note: boxNote };
+    try {
+      const wPx = Math.max(1, Math.round(t.w * cellPx));
+      const hPx = Math.max(1, Math.round(t.h * cellPx));
+      const geo = getTrapezoidUnitGeometry(
+        mode,
+        wPx,
+        hPx,
+        cellPx,
+        unitMergeMap.get(t.key) ?? null,
+        t,
+        currentItems,
+      );
+      const raw = geo.fillPoints
+        .trim()
+        .split(/\s+/)
+        .map((s) => {
+          const [x, y] = s.split(',').map(Number);
+          return [r1((x / wPx) * 100), r1((y / hPx) * 100)] as CustomShapePoint;
+        });
+      if (raw.length < 3 || raw.some((p) => !Number.isFinite(p[0]) || !Number.isFinite(p[1]))) {
+        return { points: fallback.points, note: boxNote };
+      }
+      const points = simplifyCustomPolygon(raw, 60);
+      if (!isSimpleCustomPolygon(points)) return { points: fallback.points, note: boxNote };
+      return {
+        points,
+        note:
+          raw.length > points.length
+            ? 'Curves are converted to straight segments (simplified to fit the point limit). Use Round corner to smooth them.'
+            : null,
+      };
+    } catch {
+      return { points: fallback.points, note: boxNote };
+    }
   };
 
   const resetGroupRotation = () => {
@@ -5687,17 +5754,15 @@ export default function ShopMapView({
         const csItem = items.find((i) => i.key === customShapeKey && i.kind === 'unit');
         if (!csItem) return null;
         const csShop = csItem.unitId ? shopByUnit.get(csItem.unitId) : null;
-        const csMode = parseUnitShapeMode(csItem, autoShapeEnabled ? items : undefined);
         const existing = decodeCustomShape(csItem.label);
-        const fromMode = customShapeFromMode(csMode);
+        const fromCurrent = existing ? null : currentShapeAsCustomPolygon(csItem, items);
         return (
           <CustomShapeEditor
             title={csShop ? `${shopDisplayName(csShop)} (${unitNumberOf(csShop)})` : 'Shop Unit'}
             tileW={csItem.w}
             tileH={csItem.h}
-            initialPoints={existing ?? fromMode.points}
-            currentPoints={fromMode.points}
-            currentIsApproximate={fromMode.approximate}
+            initialPoints={existing ?? fromCurrent?.points ?? []}
+            initialNote={fromCurrent?.note ?? null}
             onClose={() => setCustomShapeKey(null)}
             onApply={(points) => {
               applyCustomUnitShape(csItem.key, points);

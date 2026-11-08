@@ -9,6 +9,7 @@ import {
 import { calcLeaseTermMonths, calcEarlyTermPenalty } from '../leases/services/helpers';
 import { webhookLeaseTerminated } from '../../common/webhookHooks';
 import { clearShopIdentityOp, shouldClearShopIdentity } from '../mall/shopProfileReset';
+import { invalidateMallPublicCache } from '../mall/publicCache';
 
 // ══════════════════════════════════════════════
 // SEED
@@ -666,6 +667,7 @@ export class UnitsService {
         ]);
 
         await this.invalidateStatsCache(propertyId);
+        invalidateMallPublicCache(propertyId);
 
         const termResult = {
           leaseId: activeLease.id,
@@ -690,6 +692,7 @@ export class UnitsService {
 
     // Invalidate cached stats
     await this.invalidateStatsCache(propertyId);
+    invalidateMallPublicCache(propertyId);
 
     return result;
   }
@@ -748,7 +751,10 @@ export class UnitsService {
       updated.push(unit.id);
     }
 
-    if (updated.length > 0) await this.invalidateStatsCache(propertyId);
+    if (updated.length > 0) {
+      await this.invalidateStatsCache(propertyId);
+      invalidateMallPublicCache(propertyId);
+    }
 
     return { updated, failed };
   }
