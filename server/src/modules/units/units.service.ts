@@ -408,13 +408,13 @@ export class UnitsService {
   // ── Bulk create ────────────────────────────
   async bulkCreate(propertyId: string, companyId: string, dto: {
     towerId?: string;
-    floorRange?: { from: number; to: number; unitsPerFloor: number; unitTypeId: string; areaSqft?: number; areaSqm?: number; prefix?: string; useFloorLabelPrefix?: boolean };
+    floorRange?: { from: number; to: number; unitsPerFloor: number; unitTypeId: string; areaSqft?: number; areaSqm?: number; prefix?: string; useFloorLabelPrefix?: boolean; currency?: string };
     floors?: Array<{ floorNumber: number; units: Array<Record<string, unknown>> }>;
   }, userId: string, floorScope?: number[] | null) {
     const units: Array<Record<string, unknown>> = [];
 
     if (dto.floorRange) {
-      const { from, to, unitsPerFloor, unitTypeId, areaSqft, areaSqm, prefix, useFloorLabelPrefix = true } = dto.floorRange;
+      const { from, to, unitsPerFloor, unitTypeId, areaSqft, areaSqm, prefix, useFloorLabelPrefix = true, currency } = dto.floorRange;
       if (floorScope) {
         for (let floor = from; floor <= to; floor++) this.assertFloorAllowed(floorScope, floor);
       }
@@ -449,6 +449,7 @@ export class UnitsService {
             floorLabel,
             areaSqft: areaSqftCalc,
             areaSqm: areaSqmCalc,
+            currency: currency ? currency.trim().toUpperCase().slice(0, 3) : null,
             status: 'available',
           });
         }

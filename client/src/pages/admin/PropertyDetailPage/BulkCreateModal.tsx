@@ -3,6 +3,7 @@ import { useAppDispatch } from '../../../store';
 import { setBulkCreateOpen } from '../../../store/slices/unitsSlice';
 import { useBulkCreateUnitsMutation, useGetUnitTypesQuery, useCheckBulkConflictsMutation } from '../../../store/api/unitsApi';
 import { useGetFloorSetupsQuery } from '../../../store/api/propertiesApi';
+import { useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
 import type { Tower } from '../../../store/api/unitsApi';
 import { X, AlertCircle, CheckCircle, Layers, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -17,6 +18,7 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
   const dispatch = useAppDispatch();
   const { data: typesData } = useGetUnitTypesQuery();
   const { data: floorSetupsData } = useGetFloorSetupsQuery({ propertyId });
+  const { data: currencyRatesData } = useGetCurrencyRatesQuery({ propertyId });
   const [bulkCreate, { isLoading }] = useBulkCreateUnitsMutation();
   const [checkConflicts] = useCheckBulkConflictsMutation();
 
@@ -27,8 +29,20 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
     unitsPerFloor: 4,
     unitTypeId: '',
     areaSqft: '' as number | '',
+    currency: '',
     useFloorLabelPrefix: true,
   });
+
+  // Currency options come from the property's Currency Rates; default to the base currency
+  const currencyOptions = useMemo(
+    () => (currencyRatesData?.data || []).filter((c) => c.isActive !== false),
+    [currencyRatesData],
+  );
+  useEffect(() => {
+    if (form.currency || currencyOptions.length === 0) return;
+    const base = currencyOptions.find((c) => c.isBaseCurrency) ?? currencyOptions[0];
+    setForm((f) => (f.currency ? f : { ...f, currency: base.currency }));
+  }, [currencyOptions, form.currency]);
 
   // Fixed separator between the floor label and the sequence number (e.g. "8F-01")
   const UNIT_NUMBER_SEPARATOR = '-';
@@ -171,6 +185,7 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
             areaSqft: form.areaSqft ? Number(form.areaSqft) : undefined,
             prefix: UNIT_NUMBER_SEPARATOR,
             useFloorLabelPrefix: form.useFloorLabelPrefix,
+            currency: form.currency || undefined,
           },
         },
       }).unwrap();
@@ -215,6 +230,19 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
                       <option key={t.id} value={t.id}>{t.name}</option>
                     ))}
                   </optgroup>
+                ))}
+              </select>
+            </div>
+
+            {/* Currency */}
+            <div className="form-field">
+              <label>Currency</label>
+              <select value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })}>
+                <option value="">No currency</option>
+                {currencyOptions.map((c) => (
+                  <option key={c.id} value={c.currency}>
+                    {c.currency}{c.isBaseCurrency ? ' (base)' : ''}
+                  </option>
                 ))}
               </select>
             </div>

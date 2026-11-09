@@ -12313,8 +12313,8 @@ textarea.form-input {
 
 /* ── Grid View ── */
 .shop-dir-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 16px; animation: mallSlideUp 0.3s ease;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px; animation: mallSlideUp 0.3s ease;
 }
 
 .shop-dir-card {
@@ -12340,8 +12340,8 @@ textarea.form-input {
   background: rgba(245, 158, 11, 0.15); color: #f59e0b; font-weight: 600;
 }
 
-.shop-dir-card-body { padding: 14px 16px 16px; }
-.shop-dir-card-brand { margin: 0 0 4px; font-size: 1.05rem; font-weight: 700; color: var(--text-primary); }
+.shop-dir-card-body { padding: 10px 12px 12px; }
+.shop-dir-card-brand { margin: 0 0 3px; font-size: 0.95rem; font-weight: 700; color: var(--text-primary); }
 .shop-dir-card-subcat { font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 10px; }
 
 .shop-dir-card-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
@@ -12786,8 +12786,8 @@ textarea.form-input {
 /* ── Shop / Unit Photo Sync Styles (Grid, List, Drawer, Modals) ── */
 .shop-dir-card-banner.has-photo {
   position: relative;
-  height: 145px;
-  padding: 10px 14px;
+  height: 90px;
+  padding: 8px 12px;
   align-items: flex-start;
   overflow: hidden;
   background: var(--bg-body, var(--surface));

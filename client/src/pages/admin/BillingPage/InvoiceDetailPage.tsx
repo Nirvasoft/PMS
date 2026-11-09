@@ -97,10 +97,25 @@ export default function InvoiceDetailPage() {
     { chargeTypeId: '', description: '', quantity: 1, unitPrice: 0, taxRate: 0 },
   ]);
 
-  const handleVoid = async () => {
-    const reason = prompt('Enter void reason:');
+  const [showVoidModal, setShowVoidModal] = useState(false);
+  const [voidReason, setVoidReason] = useState('');
+
+  const handleVoid = () => {
+    setVoidReason('');
+    setShowVoidModal(true);
+  };
+
+  const handleConfirmVoid = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const reason = voidReason.trim();
     if (!reason) return;
-    await voidInvoice({ id: id!, reason }).unwrap();
+    try {
+      await voidInvoice({ id: id!, reason }).unwrap();
+      toast.success('Invoice voided');
+      setShowVoidModal(false);
+    } catch (err: any) {
+      toast.error(err?.data?.errors?.[0]?.message || 'Failed to void invoice');
+    }
   };
 
   const handleViewPdf = () => {
@@ -590,9 +605,14 @@ export default function InvoiceDetailPage() {
 
       {/* Void Info */}
       {inv.status === 'void' && inv.voidReason && (
-        <div className="card" style={{ marginTop: 20, padding: 20, borderColor: '#ef444440' }}>
-          <h3 style={{ fontSize: 14, fontWeight: 600, color: '#ef4444', marginBottom: 8 }}>Voided</h3>
-          <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{inv.voidReason}</p>
+        <div className="card" style={{ marginTop: 20, padding: 16, borderColor: 'rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.05)', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(239,68,68,0.12)', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Ban size={16} />
+          </div>
+          <div>
+            <h3 style={{ fontSize: 13, fontWeight: 700, color: '#ef4444', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Invoice Voided</h3>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0, whiteSpace: 'pre-wrap' }}>{inv.voidReason}</p>
+          </div>
         </div>
       )}
 
@@ -622,6 +642,38 @@ export default function InvoiceDetailPage() {
           };
         })}
       />
+      {/* ═══ Void Modal ═══ */}
+      {showVoidModal && (
+        <div className="modal-overlay" onClick={() => !voiding && setShowVoidModal(false)}>
+          <div className="modal-content" style={{ maxWidth: 480 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 style={{ color: '#ef4444' }}><Ban size={18} /> Void Invoice</h2>
+              <button type="button" className="modal-close" onClick={() => setShowVoidModal(false)}><X size={18} /></button>
+            </div>
+            <form onSubmit={handleConfirmVoid}>
+              <div className="modal-body">
+                <div style={{ marginBottom: 16, padding: 12, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 10, fontSize: 12, color: '#ef4444', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                  <ShieldAlert size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+                  <span>You are about to void <strong>{inv.invoiceNumber}</strong> (Total: {fmtTenant(inv.totalAmount)}). This action cannot be undone.</span>
+                </div>
+                <div className="inv-field">
+                  <label>Void Reason <span className="req">*</span></label>
+                  <textarea required autoFocus rows={3} placeholder="Reason for voiding this invoice..."
+                    value={voidReason} onChange={e => setVoidReason(e.target.value)} />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowVoidModal(false)} disabled={voiding}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={voiding || !voidReason.trim()}
+                  style={{ background: '#ef4444', borderColor: '#ef4444', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Ban size={14} /> {voiding ? 'Voiding…' : 'Confirm Void'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {showCreditModal && (
         <div className="modal-overlay">
           <div className="modal-content modal-lg" onClick={e => e.stopPropagation()}>
