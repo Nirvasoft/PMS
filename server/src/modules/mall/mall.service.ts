@@ -107,7 +107,7 @@ class MallService {
     propertyId: string,
     floorKey: string,
     data: {
-      sqftPerCell: number; columns: number;
+      sqftPerCell: number; columns: number; allowOverlap?: boolean;
       items: Array<{ kind: string; unitId?: string | null; label?: string | null; x: number; y: number; w: number; h: number; angle?: number }>;
     },
   ) {
@@ -465,14 +465,17 @@ class MallService {
       return ba.minX < bb.maxX - 1e-4 && ba.maxX > bb.minX + 1e-4 && ba.minY < bb.maxY - 1e-4 && ba.maxY > bb.minY + 1e-4;
     };
 
-    // Tiles must not overlap each other (except Elevator / Escalator / Lift / Stairs placed strictly inside an Atrium)
-    for (let a = 0; a < items.length; a++) {
-      for (let b = a + 1; b < items.length; b++) {
-        const p = items[a];
-        const q = items[b];
-        if (isAtriumTransitOverlap(p, q)) continue;
-        if (rotatedWorldBoundsOverlap(p, q) && !areRotatedRectsSeparated(p, q)) {
-          throw AppError.validation('Tiles overlap each other — move them apart before saving');
+    // Tiles must not overlap each other (except Elevator / Escalator / Lift / Stairs placed strictly inside an Atrium),
+    // unless the editor explicitly saved with "Allow Overlap" turned on.
+    if (!data.allowOverlap) {
+      for (let a = 0; a < items.length; a++) {
+        for (let b = a + 1; b < items.length; b++) {
+          const p = items[a];
+          const q = items[b];
+          if (isAtriumTransitOverlap(p, q)) continue;
+          if (rotatedWorldBoundsOverlap(p, q) && !areRotatedRectsSeparated(p, q)) {
+            throw AppError.validation('Tiles overlap each other — move them apart before saving');
+          }
         }
       }
     }

@@ -5,6 +5,8 @@ export const saveFloorPlanSchema = z.object({
   body: z.object({
     sqftPerCell: z.number().positive().max(1_000_000),
     columns: z.number().int().min(10).max(2000),
+    /** Set by the editor when "Allow Overlap" is on: overlapping tiles are saved instead of rejected. */
+    allowOverlap: z.boolean().optional(),
     items: z.array(z.object({
       kind: z.enum([
         'unit', 'atrium', 'stairs', 'escalator', 'corridor', 'toilet',
