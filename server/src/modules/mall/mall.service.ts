@@ -4,7 +4,7 @@ import { invoicesService } from '../billing/invoices.service';
 import { logger } from '../../common/logger';
 import { customShapeConvexUvParts } from './customShape';
 import { leadsService } from '../crm/leads.service';
-import { notificationService } from '../notifications/services/notification.service';
+import { emitNotification } from '../../common/socket';
 import { invalidateMallPublicCache } from './publicCache';
 import { hasReachableChannel, parseContactChannels, type ContactChannel } from '../properties/contactChannels';
 
@@ -2081,7 +2081,7 @@ class MallService {
         OR: contactMatch,
         ...(unitTag ? { tags: { has: unitTag } } : {}),
       },
-      select: { id: true },
+      select: { id: true, assignedTo: true },
     });
     if (existing) {
       await prisma.leadActivity.create({
@@ -2091,6 +2091,13 @@ class MallService {
           description: `The visitor sent the enquiry again from the public map${unitText ? ` (${unitText})` : ''}${dto.message ? `: ${dto.message}` : ''}`,
           metadata: activityMeta,
         },
+      });
+      await this.notifyNewEnquiry({
+        companyId,
+        leadId: existing.id,
+        assignedTo: existing.assignedTo,
+        title: unit ? `Repeat enquiry: unit ${unit.unitNumber}` : 'Repeat leasing enquiry',
+        body: `${[dto.name.trim(), phone ?? email].filter(Boolean).join(' - ')} asked again about ${unitText ?? 'a space'} at ${property.name}.`,
       });
       return { received: true };
     }
@@ -2134,40 +2141,65 @@ class MallService {
       },
     });
 
-    // Tell the assigned agent (best effort - the enquiry is already saved).
-    if (lead.assignedTo) {
-      const who = [dto.name.trim(), phone ?? email].filter(Boolean).join(' - ');
-      try {
-        const sent = await notificationService.send({
-          templateCode: 'lead_new_enquiry',
-          companyId,
-          recipientIds: [lead.assignedTo],
-          variables: { leadName: dto.name.trim(), unitInfo: unitText ?? 'a space', propertyName: property.name, contact: phone ?? email ?? '' },
-          entityType: 'lead',
-          entityId: lead.id,
-        });
-        if (sent.queued === 0) throw new Error('no template');
-      } catch {
-        await prisma.notificationLog
-          .create({
-            data: {
-              companyId,
-              recipientId: lead.assignedTo,
-              channel: 'in_app',
-              subject: 'New leasing enquiry',
-              body: `${who} asked about ${unitText ?? 'a space'} at ${property.name}.`,
-              status: 'sent',
-              sentAt: new Date(),
-              entityType: 'lead',
-              entityId: lead.id,
-              metadata: { leadId: lead.id, ...activityMeta },
-            },
-          })
-          .catch((err: unknown) => logger.warn('Could not log the enquiry notification', { err }));
-      }
-    }
+    // Bell notification for the assigned agent and the company admins (best effort - the enquiry is already saved).
+    const who = [dto.name.trim(), phone ?? email].filter(Boolean).join(' - ');
+    await this.notifyNewEnquiry({
+      companyId,
+      leadId: lead.id,
+      assignedTo: lead.assignedTo,
+      title: unit ? `New enquiry: unit ${unit.unitNumber}` : 'New leasing enquiry',
+      body: `${who} asked about ${unitText ?? 'a space'} at ${property.name}.`,
+    });
 
     return { received: true };
+  }
+
+  /** Puts a new-enquiry item in the bell of the lead's agent and every active Super Admin / Admin of the company. */
+  private async notifyNewEnquiry(p: {
+    companyId: string;
+    leadId: string;
+    assignedTo?: string | null;
+    title: string;
+    body: string;
+  }): Promise<void> {
+    try {
+      const admins = await prisma.user.findMany({
+        where: {
+          companyId: p.companyId,
+          isActive: true,
+          deletedAt: null,
+          userRoles: { some: { role: { name: { in: ['Super Admin', 'Admin'] } } } },
+        },
+        select: { id: true },
+      });
+      const recipients = new Set<string>(admins.map((a) => a.id));
+      if (p.assignedTo) recipients.add(p.assignedTo);
+
+      for (const userId of recipients) {
+        const notif = await prisma.inAppNotification.create({
+          data: {
+            companyId: p.companyId,
+            userId,
+            title: p.title,
+            body: p.body,
+            icon: 'bell',
+            actionType: 'navigate',
+            actionUrl: `/admin/crm/leads/${p.leadId}`,
+            entityType: 'lead',
+            entityId: p.leadId,
+          },
+        });
+        emitNotification(userId, {
+          id: notif.id,
+          title: notif.title,
+          body: notif.body,
+          icon: notif.icon,
+          actionUrl: notif.actionUrl,
+        });
+      }
+    } catch (err: unknown) {
+      logger.warn('Could not send the enquiry notification', { err });
+    }
   }
 
   async getPublicFloorPlan(propertyId: string, floorKey: string) {
