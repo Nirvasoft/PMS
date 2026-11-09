@@ -10,7 +10,7 @@ import {
   Printer, Copy, ExternalLink, Info, ArrowRight, WifiOff, ChevronDown,
   Compass, CornerUpLeft, CornerUpRight, MoveUp,
   Image as ImageIcon, Eye, EyeOff, Lock, Unlock, Wand2,
-  KeyRound, Wrench, Ban, Undo2, Redo2, Shapes,
+  KeyRound, Wrench, Ban, Undo2, Redo2, Shapes, ClipboardPaste, FlipHorizontal2, FlipVertical2, Spline,
 } from 'lucide-react';
 import {
   useGetFloorPlanQuery,
@@ -20,6 +20,7 @@ import {
   useGetMallQrCodeQuery,
 } from '../../../store/api/mallApi';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { useConfirm } from '../../../components/DialogProvider';
 import {
   DECORATION_DEFAULT_SIZES, DECORATION_LABELS, DEFAULT_COLUMNS, DEFAULT_SQFT_PER_CELL,
   SHOP_CATEGORIES, compareShopsByUnitNumber, findFreeSpot, findSpotNextToAnchor, findNextRingSectorPlacement, addConnectedUnitWing, snapTileToBorder, syncAtriumInnerTransitRow, curveUnitAroundCircleWithoutSnap, alignUnitsRadiallyAroundAtrium, alignUnitToNearestCircleAtrium, computeMagneticSnapGuide, addTransitIntoAtrium, isTransitLandmark, floorKeyOf, tilesConflict, hasAnyOverlap,
@@ -28,7 +29,7 @@ import {
   unitNumberOf, shopDisplayName, matchesShopQuery, scoreShopSearchMatch,
   computeWalkwayPath, buildSmoothRouteSvgPath, computeRouteDirectionArrows, computeFloorplateBounds, findDefaultStartItem, findNearestFacilityItem,
   rotateMapLayout, parseRotationAngle, computeUnitMergeMap,
-  normalizeTileAngle,
+  normalizeTileAngle, wrapKioskNotches, isKioskCircleTile, KIOSK_AISLE_CELLS, statusClass,
   UNIT_SHAPE_LABELS, UNIT_SHAPE_CATEGORY_TABS, UNIT_SHAPE_COMPACT_FAMILIES, parseUnitShapeMode, encodeUnitShapeMode, isAutoUnitShapeLabel, nextUnitShapeMode, resolveSmartFamilyShapeMode, isTrapezoidUnitMode, getTrapezoidUnitGeometry, getCircleRingSectorAlignment,
   LANDMARK_VARIANTS, parseLandmarkMeta, encodeLandmarkMeta, nextLandmarkVariant, autoSquareCircleLandmark, getPolygonAtriumGeometry,
   parseFloorPlanData, buildCopiedFloorLayout, saveCachedFloorPlan, getCachedFloorPlan,
@@ -44,9 +45,17 @@ import { CachedUnitPhoto, useUnitPhotoCache } from '../../../components/common/C
 import { CustomShapeEditor } from './CustomShapeEditor';
 import { alignTileAngleToNeighborEdge, neighborOutlinesInTileFrame } from './shopMapAngleSnap';
 import {
+  CUSTOM_SHAPE_GROUPS,
+  CUSTOM_SHAPE_PRESETS,
   customShapeFromMode,
   decodeCustomShape,
   encodeCustomShape,
+  mirrorCustomPoints,
+  mirrorUnitShapeMode,
+  parseShapeRadius,
+  encodeShapeRadius,
+  DEFAULT_SHAPE_RADIUS,
+  shapeBadgeSpot,
   isSimpleCustomPolygon,
   simplifyCustomPolygon,
   type CustomShapePoint,
@@ -1098,20 +1107,6 @@ function CategoryIcon({ category, size = 26 }: { category: string; size?: number
   }
 }
 
-function statusClass(shop: any): string {
-  const u = shop?.unit;
-  const status = String(u?.status || '').toUpperCase();
-  const end = u?.leases?.[0]?.endDate;
-  if (status === 'OCCUPIED' && end) {
-    const days = (new Date(end).getTime() - Date.now()) / 86400000;
-    if (days <= 90) return 'st-expiring';
-  }
-  if (status === 'OCCUPIED') return 'st-occupied';
-  if (status === 'RESERVED') return 'st-reserved';
-  if (status === 'MAINTENANCE') return 'st-maintenance';
-  if (status === 'NOT_FOR_RENT') return 'st-notrent';
-  return 'st-vacant';
-}
 
 /** Short public-facing tag for units that have no tenant brand to show. */
 function unitStatusNote(shop: any): { kind: 'available' | 'maintenance' | 'notrent'; tag: string; detail: string } | null {
@@ -1309,6 +1304,7 @@ export default function ShopMapView({
   const isFetching = publicMode ? publicPlanQuery.isFetching : adminPlanQuery.isFetching;
 
   const [savePlan, { isLoading: saving }] = useSaveFloorPlanMutation();
+  const confirmDialog = useConfirm();
 
   const [editing, setEditing] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -2520,6 +2516,21 @@ export default function ShopMapView({
   };
 
   const place = (shop: any) => {
+    const emptySlot = inspectKey
+      ? itemsRef.current.find((i) => i.key === inspectKey && i.kind === 'unit' && !i.unitId)
+      : null;
+    if (emptySlot) {
+      const filledKey = nextUnitBlockKey(itemsRef.current, shop.unitId);
+      update((prev) => {
+        const actualKey = nextUnitBlockKey(prev, shop.unitId);
+        return prev.map((i) => (i.key === emptySlot.key ? { ...i, key: actualKey, unitId: shop.unitId } : i));
+      });
+      setInspectKey(filledKey);
+      lastActiveTileKeyRef.current = filledKey;
+      focusNewlyPlacedTile(filledKey);
+      toast.success('Shop placed into the selected shape');
+      return;
+    }
     const { w, h } = tileSizeFromSqft(shop.unit?.areaSqft, effectiveSqftPerCell, DEFAULT_COLUMNS);
     const vpBounds = getVisibleViewportGridBounds();
     const newKey = nextUnitBlockKey(items, shop.unitId);
@@ -2931,6 +2942,147 @@ export default function ShopMapView({
     setSelectedGroupKeys([]);
     setGroupSelectMode(false);
     setDragGroupDelta(null);
+  };
+
+  /* Copy / Paste shape (edit mode)
+     Copies only the SHAPE of the selected tile (click a tile once to select it - no Group needed).
+     Shop name / unit link are never copied: a pasted unit tile becomes an empty shape (no shop) that
+     lives only in the edit session. Select it and press Place on a shop to fill it. Landmarks and
+     decorations are pasted as new tiles. The single Marker tile cannot be copied. */
+  const PASTE_OFFSET_CELLS = 2;
+  const clipboardRef = useRef<{ item: MapItem; pasteCount: number } | null>(null);
+  const [clipboardCount, setClipboardCount] = useState(0);
+
+  const handleCopySelection = () => {
+    const key = inspectKey ?? (selectedGroupKeys.length === 1 ? selectedGroupKeys[0] : null);
+    const src = key ? itemsRef.current.find((i) => i.key === key) ?? null : null;
+    if (!src) {
+      toast.error('Click a tile once to select it, then press Copy');
+      return;
+    }
+    if (src.kind === 'marker') {
+      toast.error('The Marker tile cannot be copied');
+      return;
+    }
+    clipboardRef.current = { item: { ...src }, pasteCount: 0 };
+    setClipboardCount(1);
+    toast.success('Shape copied');
+  };
+
+  const handlePasteSelection = () => {
+    const clip = clipboardRef.current;
+    if (!clip) {
+      toast.error('Nothing copied yet');
+      return;
+    }
+    const base = itemsRef.current;
+    const src = clip.item;
+    const cols = Math.max(effectiveColumns, 1);
+
+    // Nearest diagonal offset where the pasted shape fits (and, unless overlap is allowed, is free).
+    const fits = (step: number) => {
+      const d = step * PASTE_OFFSET_CELLS;
+      const moved: MapItem = { ...src, x: src.x + d, y: src.y + d };
+      if (moved.x < 0 || moved.x + moved.w > cols) return false;
+      return allowOverlap || !base.some((o) => tilesConflict(moved, o));
+    };
+    let step = allowOverlap ? clip.pasteCount + 1 : 1;
+    while (step < 80 && !fits(step)) step++;
+    if (step >= 80) step = clip.pasteCount + 1;
+    const delta = step * PASTE_OFFSET_CELLS;
+
+    const newKey = `d:${decorSeq}`;
+    let pasted: MapItem;
+    if (src.kind === 'unit') {
+      // Keep the exact shape, drop the shop: pasted unit becomes an empty (unassigned) shape.
+      const label =
+        src.label && src.label.startsWith('unit:') && !isAutoUnitShapeLabel(src.label)
+          ? src.label
+          : encodeUnitShapeMode(parseUnitShapeMode(src, base));
+      pasted = { ...src, key: newKey, unitId: null, label, x: src.x + delta, y: src.y + delta };
+    } else {
+      pasted = { ...src, key: newKey, x: src.x + delta, y: src.y + delta };
+    }
+
+    resetGroupRotation();
+    update((prev) => [...prev, pasted]);
+    setDecorSeq((n) => n + 1);
+    setSelectedGroupKeys([]);
+    setInspectKey(newKey);
+    clip.pasteCount = step;
+    lastActiveTileKeyRef.current = newKey;
+    focusNewlyPlacedTile(newKey);
+    toast.success(
+      src.kind === 'unit'
+        ? 'Shape pasted as an empty shape - press Place on a shop to fill it'
+        : 'Shape pasted',
+    );
+  };
+
+  /* Flip (mirror) the selected tile / group. Positions mirror around the selection's bounding box, shapes
+     become their mirror image (preset mode swap, free-hand polygon mirrored) and tilt angles are negated. */
+  const handleFlipSelection = (axis: 'h' | 'v') => {
+    const base = itemsRef.current;
+    const keys =
+      selectedGroupKeys.length > 0 ? new Set(selectedGroupKeys) : inspectKey ? new Set([inspectKey]) : null;
+    const targets = keys ? base.filter((i) => keys.has(i.key) && i.kind !== 'marker') : [];
+    if (targets.length === 0) {
+      toast.error('Click a tile (or select a group) first, then press Flip');
+      return;
+    }
+    const minX = Math.min(...targets.map((t) => t.x));
+    const maxX = Math.max(...targets.map((t) => t.x + t.w));
+    const minY = Math.min(...targets.map((t) => t.y));
+    const maxY = Math.max(...targets.map((t) => t.y + t.h));
+
+    const flipLabel = (it: MapItem): string | null => {
+      if (it.kind !== 'unit') return it.label;
+      const raw = it.label ?? '';
+      if (raw.startsWith('unit:custom:')) {
+        const pts = decodeCustomShape(raw);
+        return pts ? encodeCustomShape(mirrorCustomPoints(pts, axis)) : raw;
+      }
+      if (raw.startsWith('unit:ring-curve') || raw === 'unit:trapezoid-ring') return raw;
+      const mode = parseUnitShapeMode(it, autoShapeEnabled ? base : undefined);
+      const mirrored = mirrorUnitShapeMode(mode, axis);
+      if (mirrored === mode && (!raw || isAutoUnitShapeLabel(raw))) return it.label;
+      const rest = raw.startsWith('unit:') ? raw.slice(5).split(':').slice(1).filter((p) => p !== 'auto') : [];
+      return ['unit:' + mirrored, ...rest].join(':');
+    };
+
+    const flipped = new Map<string, MapItem>();
+    for (const t of targets) {
+      const next: MapItem = { ...t, label: flipLabel(t) };
+      if (axis === 'h') next.x = minX + maxX - (t.x + t.w);
+      else next.y = minY + maxY - (t.y + t.h);
+      if (t.angle) next.angle = normalizeTileAngle(360 - t.angle);
+      flipped.set(t.key, next);
+    }
+    resetGroupRotation();
+    update((prev) => prev.map((i) => flipped.get(i.key) ?? i));
+    toast.success(`Flipped ${targets.length} tile${targets.length === 1 ? '' : 's'} ${axis === 'h' ? 'horizontally' : 'vertically'}`);
+  };
+
+  /** "Wrap Kiosk": every unit next to the selected Kiosk gets a notch that hugs it with a constant aisle. */
+  const handleWrapKiosk = () => {
+    if (!inspectItem || !isKioskCircleTile(inspectItem)) {
+      toast.error('Click a Kiosk (circle) once to select it, then press Wrap Kiosk');
+      return;
+    }
+    const res = wrapKioskNotches(itemsRef.current, inspectItem.key);
+    if (res.count === 0) {
+      toast('No units close enough to wrap around this Kiosk');
+      return;
+    }
+    update(() => res.items);
+    toast.success(`Wrapped ${res.count} unit${res.count === 1 ? '' : 's'} around the Kiosk`);
+  };
+
+  /** Arc depth of a Notch / Outer Ring Concave Wing tile (stored in the label as `unit:<mode>:r<percent>`). */
+  const applyShapeRadius = (key: string, mode: UnitShapeMode, radiusPct: number | null) => {
+    update((prev) =>
+      prev.map((i) => (i.key === key && i.kind === 'unit' ? { ...i, label: encodeShapeRadius(mode, radiusPct) } : i)),
+    );
   };
 
   const nudgeSelectedGroup = (dx: number, dy: number) => {
@@ -3514,15 +3666,42 @@ export default function ShopMapView({
   };
 
   const save = async () => {
-    if (
-      hasAnyOverlap(items) &&
-      !window.confirm(
-        `${overlapKeys.size} tiles overlap (outlined in red). Save anyway?`,
-      )
-    ) {
-      return;
+    const emptyShapes = items.filter((i) => i.kind === 'unit' && !i.unitId);
+    if (emptyShapes.length > 0) {
+      const removeEmpty = await confirmDialog({
+        title: 'Empty shapes cannot be saved',
+        message: `${emptyShapes.length} empty shape${emptyShapes.length === 1 ? ' has' : 's have'} no shop assigned, so ${emptyShapes.length === 1 ? 'it' : 'they'} can't be saved.\n\nRemove ${emptyShapes.length === 1 ? 'it' : 'them'} and save, or go back and assign a shop (select the shape, then press Place on a shop).`,
+        confirmText: 'Remove & Save',
+        cancelText: 'Go Back',
+        danger: true,
+      });
+      if (!removeEmpty) {
+        setInspectKey(emptyShapes[0].key);
+        return;
+      }
     }
-    const cleanItems = items.map((i) => ({
+    const saveSource = emptyShapes.length > 0 ? items.filter((i) => !(i.kind === 'unit' && !i.unitId)) : items;
+    const hasOverlap = hasAnyOverlap(saveSource);
+    if (hasOverlap) {
+      const ok = await confirmDialog(
+        allowOverlap
+          ? {
+              title: 'Overlapping tiles',
+              message: `${overlapKeys.size} tiles overlap (outlined in red). Save anyway?`,
+              confirmText: 'Save Anyway',
+              cancelText: 'Go Back',
+            }
+          : {
+              title: 'Overlapping tiles',
+              message: `${overlapKeys.size} tiles overlap (outlined in red) and Allow Overlap is off.\n\nTurn Allow Overlap on and save with the overlap, or go back and move the tiles apart.`,
+              confirmText: 'Allow Overlap & Save',
+              cancelText: 'Go Back',
+            },
+      );
+      if (!ok) return;
+      if (!allowOverlap) setAllowOverlap(true);
+    }
+    const cleanItems = saveSource.map((i) => ({
       ...i,
       x: Math.max(0, i.x),
       y: Math.max(0, i.y),
@@ -3533,6 +3712,7 @@ export default function ShopMapView({
     const payloadData = {
       sqftPerCell: effectiveSqftPerCell,
       columns: savedColumns,
+      ...(hasOverlap ? { allowOverlap: true } : {}),
       items: cleanItems.map((i) => ({ kind: i.kind, unitId: i.unitId, label: i.label, x: i.x, y: i.y, w: i.w, h: i.h, ...(i.angle ? { angle: i.angle } : {}) })),
     };
     try {
@@ -3568,9 +3748,20 @@ export default function ShopMapView({
     }
   };
 
-  const switchFloor = (f: string, keepTransit = false) => {
+  const switchFloor = async (f: string, keepTransit = false) => {
     if (f === floor) return;
-    if (dirty && !window.confirm('Discard unsaved map changes?')) return;
+    if (
+      dirty &&
+      !(await confirmDialog({
+        title: 'Discard unsaved changes?',
+        message: 'You have unsaved map changes. Switching floors will discard them.',
+        confirmText: 'Discard',
+        cancelText: 'Keep Editing',
+        danger: true,
+      }))
+    ) {
+      return;
+    }
     clearGroupSelection();
     setDirty(false);
     setEditing(false);
@@ -3798,6 +3989,46 @@ export default function ShopMapView({
                     title="Redo (Ctrl+Y)"
                   >
                     <Redo2 size={toolbarIconPx} />
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={handleCopySelection}
+                    disabled={saving || !inspectItem || inspectItem.kind === 'marker'}
+                    title="Copy the shape of the selected tile (click a tile once to select it). Shop name / unit link is not copied."
+                  >
+                    <Copy size={toolbarIconPx} /> Copy
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={handlePasteSelection}
+                    disabled={saving || clipboardCount === 0}
+                    title="Paste the copied shape next to the original as an empty shape. Select it, then Place a shop to fill it."
+                  >
+                    <ClipboardPaste size={toolbarIconPx} /> Paste
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => handleFlipSelection('h')}
+                    disabled={saving || (!inspectItem && selectedGroupKeys.length === 0)}
+                    title="Flip the selected tile / group left-right (mirror image)"
+                  >
+                    <FlipHorizontal2 size={toolbarIconPx} />
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => handleFlipSelection('v')}
+                    disabled={saving || (!inspectItem && selectedGroupKeys.length === 0)}
+                    title="Flip the selected tile / group top-bottom (mirror image)"
+                  >
+                    <FlipVertical2 size={toolbarIconPx} />
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={handleWrapKiosk}
+                    disabled={saving || !inspectItem || !isKioskCircleTile(inspectItem)}
+                    title="Wrap Kiosk: select a Kiosk (circle) tile, then press to give the units around it hugging notches with a constant aisle"
+                  >
+                    <Spline size={toolbarIconPx} /> Wrap Kiosk
                   </button>
                   <button className="btn btn-secondary" onClick={discard} disabled={saving}>Cancel</button>
                   <button className="btn btn-primary" onClick={save} disabled={saving || !dirty}>
@@ -4843,7 +5074,7 @@ export default function ShopMapView({
                       >
                         <div
                           style={tileStyle}
-                          className={`shop-map-tile ${decor ? `st-decor st-decor-${it.kind} ${lmMeta ? `st-variant-${lmMeta.variant}` : ''}` : `${statusClass(shop)} ${unitMergeClasses}`} ${isCircleShape ? 'is-circle-tile' : ''} ${polyAtriumGeo ? 'is-polygon-atrium' : ''} ${trapezoidGeo ? 'is-trapezoid-tile' : ''} ${isEmergencyLandmark ? 'is-emergency-landmark' : ''} ${isUnitHovered ? 'is-unit-hovered' : ''} ${highlightAvailable && !decor && statusNote?.kind === 'available' ? 'is-available-highlight' : ''} ${highlightAvailable && !(!decor && statusNote?.kind === 'available') ? 'is-available-dim' : ''} ${hasUnitPhoto ? 'has-unit-photo' : ''} ${isVerticalTile ? 'is-vertical-tile' : ''} ${editing ? 'editing' : ''} ${dim ? 'dim' : ''} ${isSearchMatch ? 'search-match' : ''} ${tiny ? 'tiny' : ''} ${isTarget ? 'active-target' : ''} ${isStart ? 'active-start' : ''} ${isAmenityHighlighted ? 'is-amenity-highlighted' : ''}`}
+                          className={`shop-map-tile ${decor ? `st-decor st-decor-${it.kind} ${lmMeta ? `st-variant-${lmMeta.variant}` : ''}` : `${statusClass(shop)} ${unitMergeClasses} ${!it.unitId ? 'is-empty-shape' : ''}`} ${isCircleShape ? 'is-circle-tile' : ''} ${polyAtriumGeo ? 'is-polygon-atrium' : ''} ${trapezoidGeo ? 'is-trapezoid-tile' : ''} ${isEmergencyLandmark ? 'is-emergency-landmark' : ''} ${isUnitHovered ? 'is-unit-hovered' : ''} ${highlightAvailable && !decor && statusNote?.kind === 'available' ? 'is-available-highlight' : ''} ${highlightAvailable && !(!decor && statusNote?.kind === 'available') ? 'is-available-dim' : ''} ${hasUnitPhoto ? 'has-unit-photo' : ''} ${isVerticalTile ? 'is-vertical-tile' : ''} ${editing ? 'editing' : ''} ${dim ? 'dim' : ''} ${isSearchMatch ? 'search-match' : ''} ${tiny ? 'tiny' : ''} ${isTarget ? 'active-target' : ''} ${isStart ? 'active-start' : ''} ${isAmenityHighlighted ? 'is-amenity-highlighted' : ''}`}
                         >
                         {decor ? (
                           <>
@@ -4995,20 +5226,32 @@ export default function ShopMapView({
                                 />
                               )
                             )}
-                            {showStatusDefault && photoStatusNote && (
-                              <span className={`shop-map-tile-status-default is-${photoStatusNote.kind}`} aria-hidden="true">
-                                <span
-                                  className="shop-map-tile-status-badge"
-                                  style={{
-                                    width: Math.max(18, Math.min(44, Math.floor(shortSidePx * 0.72))),
-                                    height: Math.max(18, Math.min(44, Math.floor(shortSidePx * 0.72))),
-                                    ...(effectiveAngle ? ({ rotate: `${-effectiveAngle}deg` } as CSSProperties) : {}),
-                                  }}
-                                >
-                                  <StatusDefaultIcon size={Math.max(11, Math.min(28, Math.floor(shortSidePx * 0.46)))} strokeWidth={2.2} />
+                            {showStatusDefault && photoStatusNote && (() => {
+                              // Non-rectangular shapes: sit the badge where the shape is widest, and shrink it to fit inside.
+                              const baseBadgePx = Math.max(18, Math.min(44, Math.floor(shortSidePx * 0.72)));
+                              const spot = it.kind === 'unit' ? shapeBadgeSpot(unitMode, it.label, wPx, hPx) : null;
+                              const badgePx = spot
+                                ? Math.max(14, Math.min(baseBadgePx, Math.floor(spot.r * 2 * 0.85)))
+                                : baseBadgePx;
+                              const iconPx = spot
+                                ? Math.max(9, Math.min(28, Math.floor(badgePx * 0.64)))
+                                : Math.max(11, Math.min(28, Math.floor(shortSidePx * 0.46)));
+                              return (
+                                <span className={`shop-map-tile-status-default is-${photoStatusNote.kind}`} aria-hidden="true">
+                                  <span
+                                    className="shop-map-tile-status-badge"
+                                    style={{
+                                      width: badgePx,
+                                      height: badgePx,
+                                      ...(spot ? ({ translate: `${spot.cx - wPx / 2}px ${spot.cy - hPx / 2}px` } as CSSProperties) : {}),
+                                      ...(effectiveAngle ? ({ rotate: `${-effectiveAngle}deg` } as CSSProperties) : {}),
+                                    }}
+                                  >
+                                    <StatusDefaultIcon size={iconPx} strokeWidth={2.2} />
+                                  </span>
                                 </span>
-                              </span>
-                            )}
+                              );
+                            })()}
                             {showUnitLabel && !photoStatusNote && (
                               <div
                                 className={`shop-map-tile-name ${isSmartUprightLabel ? 'is-smart-upright' : ''}`}
@@ -5142,6 +5385,26 @@ export default function ShopMapView({
                 </ReactGridLayout>
 
                 {/* ── Live Magnetic Snap Guide Lines & Floating Snap Badge (Edit Mode) ── */}
+                {editing && inspectItem && isKioskCircleTile(inspectItem) && (
+                  <svg className="shop-map-snap-guides-svg" aria-hidden="true">
+                    <ellipse
+                      cx={(inspectItem.x + inspectItem.w / 2) * colStepPx}
+                      cy={(inspectItem.y + inspectItem.h / 2) * rowStepPx}
+                      rx={(inspectItem.w / 2 + KIOSK_AISLE_CELLS) * colStepPx}
+                      ry={(inspectItem.h / 2 + KIOSK_AISLE_CELLS) * rowStepPx}
+                      className="shop-map-aisle-guide-ring"
+                    />
+                    <text
+                      x={(inspectItem.x + inspectItem.w / 2) * colStepPx}
+                      y={(inspectItem.y + inspectItem.h / 2 - inspectItem.h / 2 - KIOSK_AISLE_CELLS) * rowStepPx - 5}
+                      textAnchor="middle"
+                      className="shop-map-aisle-guide-label"
+                    >
+                      aisle {KIOSK_AISLE_CELLS} cell
+                    </text>
+                  </svg>
+                )}
+
                 {editing && dragSnapGuide && (
                   <>
                     <svg className="shop-map-snap-guides-svg" aria-hidden="true">
@@ -5658,6 +5921,42 @@ export default function ShopMapView({
               >
                 <Shapes size={14} /> Custom Shape — draw your own (triangle, L-shape, rounded corners…)
               </button>
+              {!isAutoShape && /^(notch|arch)-/.test(currentMode) && (
+                <div
+                  style={{
+                    marginBottom: 10,
+                    padding: '8px 10px',
+                    border: '1px solid var(--border-color, var(--border, #cbd5e1))',
+                    borderRadius: 8,
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <label className="shop-map-lm-modal-label" style={{ margin: 0 }}>
+                      Arc depth{' '}
+                      <span style={{ fontWeight: 400, opacity: 0.75 }}>
+                        ({Math.round((parseShapeRadius(editingUnitItem.label) ?? DEFAULT_SHAPE_RADIUS) * 100)}%)
+                      </span>
+                    </label>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      style={{ padding: '2px 8px', fontSize: 11 }}
+                      onClick={() => applyShapeRadius(editingUnitItem.key, currentMode, null)}
+                    >
+                      Reset
+                    </button>
+                  </div>
+                  <input
+                    type="range"
+                    min={35}
+                    max={92}
+                    step={1}
+                    style={{ width: '100%' }}
+                    value={Math.round((parseShapeRadius(editingUnitItem.label) ?? DEFAULT_SHAPE_RADIUS) * 100)}
+                    onChange={(e) => applyShapeRadius(editingUnitItem.key, currentMode, Number(e.target.value))}
+                  />
+                </div>
+              )}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 10 }}>
                 {UNIT_SHAPE_CATEGORY_TABS.map((tab) => {
                   const activeTab = unitShapeCatTab === tab.id;
@@ -5744,6 +6043,58 @@ export default function ShopMapView({
                   );
                 })}
               </div>
+              {(unitShapeCatTab === 'all' || unitShapeCatTab === 'basic') && (
+                <div style={{ marginTop: unitShapeCatTab === 'all' ? 14 : 0 }}>
+                  {CUSTOM_SHAPE_GROUPS.map((grp) => {
+                    const presets = CUSTOM_SHAPE_PRESETS.filter((p) => p.group === grp.id && p.id !== 'rect');
+                    if (presets.length === 0) return null;
+                    return (
+                      <div key={grp.id} style={{ marginBottom: 10 }}>
+                        <div style={{ fontSize: 11.5, fontWeight: 600, opacity: 0.75, margin: '4px 0 6px' }}>
+                          {grp.label}
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {presets.map((pr) => (
+                            <button
+                              key={pr.id}
+                              type="button"
+                              className="btn btn-secondary btn-sm"
+                              style={{
+                                display: 'inline-flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                gap: 2,
+                                padding: '6px 8px',
+                                minWidth: 66,
+                              }}
+                              title={pr.label}
+                              onClick={() => {
+                                applyCustomUnitShape(
+                                  editingUnitItem.key,
+                                  pr.points.map((p) => [p[0], p[1]] as CustomShapePoint),
+                                );
+                                setEditingUnitShapeKey(null);
+                              }}
+                            >
+                              <svg width="26" height="26" viewBox="-4 -4 108 108">
+                                <polygon
+                                  points={pr.points.map(([x, y]) => `${x},${y}`).join(' ')}
+                                  fill="currentColor"
+                                  fillOpacity="0.25"
+                                  stroke="currentColor"
+                                  strokeWidth="6"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                              <span style={{ fontSize: 10, textAlign: 'center', lineHeight: 1.15 }}>{pr.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </QrModalDialog>
         );

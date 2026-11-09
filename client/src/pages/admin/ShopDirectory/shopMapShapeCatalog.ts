@@ -165,7 +165,7 @@ export const VALID_UNIT_SHAPE_MODES = new Set<UnitShapeMode>(
   Object.keys(UNIT_SHAPE_LABELS) as UnitShapeMode[],
 );
 
-export type UnitShapeCategoryId = 'all' | 'ring' | 'cut' | 'notch' | 'slant' | 'step';
+export type UnitShapeCategoryId = 'all' | 'ring' | 'cut' | 'notch' | 'slant' | 'step' | 'basic';
 
 export const UNIT_SHAPE_CATEGORY_TABS: ReadonlyArray<{ id: UnitShapeCategoryId; label: string }> = [
   { id: 'all', label: 'All Shapes' },
@@ -174,6 +174,7 @@ export const UNIT_SHAPE_CATEGORY_TABS: ReadonlyArray<{ id: UnitShapeCategoryId; 
   { id: 'notch', label: 'Notch & Kiosk' },
   { id: 'slant', label: 'Slanted & Trapezoid' },
   { id: 'step', label: 'Stepped & Wing' },
+  { id: 'basic', label: 'Basic & Polygon' },
 ];
 
 export interface UnitShapeCompactFamily {
@@ -563,6 +564,99 @@ function triangulatePolygon(
   return tris;
 }
 
+/**
+ * Collision parts are drawn ~4 % inside the tile box so neighbours can hug curved sides. That inset must not
+ * apply to the straight outer edges of the box, otherwise tiles are allowed to overlap them (up to ~0.5 cell on
+ * big tiles) even with Allow Overlap off. Coordinates within 0.03 of the box edge are snapped onto it.
+ */
+export function snapUvPartsToBoxEdges(
+  parts: ReadonlyArray<ReadonlyArray<readonly [number, number]>>,
+): Array<Array<[number, number]>> {
+  const snap = (c: number) => (Math.abs(c) >= 0.47 ? Math.sign(c) * 0.5 : c);
+  return parts.map((part) => part.map(([u, v]) => [snap(u), snap(v)] as [number, number]));
+}
+
+const MIRROR_TOKENS: Record<'h' | 'v', Record<string, string>> = {
+  h: { l: 'r', r: 'l', tl: 'tr', tr: 'tl', bl: 'br', br: 'bl' },
+  v: { t: 'b', b: 't', tl: 'bl', bl: 'tl', tr: 'br', br: 'tr' },
+};
+
+/** Mirror image of a preset shape mode ('h' = left/right flip, 'v' = top/bottom flip). Symmetric modes are returned as-is. */
+export function mirrorUnitShapeMode(mode: UnitShapeMode, axis: 'h' | 'v'): UnitShapeMode {
+  if (mode === 'rect' || mode === 'circle' || mode === 'custom' || mode === 'ring-curve' || mode === 'trapezoid-ring') {
+    return mode;
+  }
+  const map = MIRROR_TOKENS[axis];
+  const next = mode.split('-').map((tok) => map[tok] ?? tok).join('-') as UnitShapeMode;
+  return VALID_UNIT_SHAPE_MODES.has(next) ? next : mode;
+}
+
+/** Mirror a free-hand polygon (0..100 %), keeping the point order so the outline stays a simple polygon. */
+export function mirrorCustomPoints(points: ReadonlyArray<CustomShapePoint>, axis: 'h' | 'v'): CustomShapePoint[] {
+  return points
+    .map(([x, y]) => (axis === 'h' ? [100 - x, y] : [x, 100 - y]) as CustomShapePoint)
+    .reverse();
+}
+
+/** Default radius (fraction of the tile) of the concave arc of Notch / Outer Ring Wing shapes. */
+export const DEFAULT_SHAPE_RADIUS = 0.68;
+
+/** Arc radius stored in a unit label as `unit:<mode>:r<percent>` (30..95), or null for the default. */
+export function parseShapeRadius(label?: string | null): number | null {
+  if (!label || !label.startsWith('unit:')) return null;
+  const m = label.match(/:r(\d{2,3})(?::|$)/);
+  if (!m) return null;
+  const n = Number(m[1]);
+  return n >= 30 && n <= 95 ? n / 100 : null;
+}
+
+export function encodeShapeRadius(mode: UnitShapeMode, radiusPct: number | null): string {
+  if (radiusPct == null || Math.round(radiusPct) === Math.round(DEFAULT_SHAPE_RADIUS * 100)) return `unit:${mode}`;
+  return `unit:${mode}:r${Math.round(radiusPct)}`;
+}
+
+/**
+ * Exact convex decomposition of a simple polygon (0..100 % box) in UV space (box = -0.5..0.5): ear-clip triangles that are
+ * merged back together while their union stays convex (Hertel-Mehlhorn). No inset, so outer edges collide exactly.
+ */
+export function polygonConvexUvParts(pts: ReadonlyArray<CustomShapePoint>): Array<Array<[number, number]>> {
+  const same = (a: CustomShapePoint, b: CustomShapePoint) => a[0] === b[0] && a[1] === b[1];
+  const isConvex = (poly: ReadonlyArray<CustomShapePoint>) =>
+    poly.every((_, i) => crossOf(poly[i], poly[(i + 1) % poly.length], poly[(i + 2) % poly.length]) >= -1e-9);
+
+  const merge = (a: CustomShapePoint[], b: CustomShapePoint[]): CustomShapePoint[] | null => {
+    for (let i = 0; i < a.length; i += 1) {
+      const p = a[i];
+      const q = a[(i + 1) % a.length];
+      for (let j = 0; j < b.length; j += 1) {
+        if (!same(b[j], q) || !same(b[(j + 1) % b.length], p)) continue;
+        const out: CustomShapePoint[] = [];
+        for (let k = 1; k <= a.length; k += 1) out.push(a[(i + k) % a.length]);
+        for (let k = 2; k < b.length; k += 1) out.push(b[(j + k) % b.length]);
+        return isConvex(out) ? out : null;
+      }
+    }
+    return null;
+  };
+
+  const parts: CustomShapePoint[][] = triangulatePolygon(pts).map((t) => [...t]);
+  let merged = true;
+  while (merged) {
+    merged = false;
+    outer: for (let i = 0; i < parts.length; i += 1) {
+      for (let j = i + 1; j < parts.length; j += 1) {
+        const m = merge(parts[i], parts[j]) ?? merge(parts[j], parts[i]);
+        if (!m) continue;
+        parts[i] = m;
+        parts.splice(j, 1);
+        merged = true;
+        break outer;
+      }
+    }
+  }
+  return parts.map((poly) => poly.map(([x, y]) => [x / 100 - 0.5, y / 100 - 0.5] as [number, number]));
+}
+
 /** Convex collision parts (UV space, same inset as `UNIT_SHAPE_CONVEX_UV_PARTS`) for a custom polygon. */
 export function customShapeConvexUvParts(
   pts: ReadonlyArray<CustomShapePoint> | null | undefined,
@@ -639,19 +733,130 @@ export function roundCustomCorner(
   return { points, from: index, to: index + arc.length - 1 };
 }
 
+type CustomShapePresetGroup = 'triangle' | 'polygon' | 'round' | 'letter';
+
+export const CUSTOM_SHAPE_GROUPS: ReadonlyArray<{ id: CustomShapePresetGroup; label: string }> = [
+  { id: 'triangle', label: 'Triangles' },
+  { id: 'polygon', label: 'Polygons' },
+  { id: 'round', label: 'Round & Curved' },
+  { id: 'letter', label: 'Letter & Cross' },
+];
+
+const presetR1 = (n: number) => Math.round(n * 10) / 10;
+
+/** Sample `steps + 1` points of a parametric curve (u = 0..1) into a rounded 0..100 % polygon. */
+function sampleCurve(steps: number, fn: (u: number) => [number, number]): CustomShapePoint[] {
+  const out: CustomShapePoint[] = [];
+  for (let i = 0; i <= steps; i += 1) {
+    const [x, y] = fn(i / steps);
+    out.push([presetR1(x), presetR1(y)]);
+  }
+  return out;
+}
+
+/** Half-ellipse filling the whole box. `flat` is the straight edge. */
+function halfCircle(flat: 'bottom' | 'top' | 'right' | 'left'): CustomShapePoint[] {
+  return sampleCurve(14, (u) => {
+    const a = Math.PI * u;
+    if (flat === 'bottom') return [50 - 50 * Math.cos(a), 100 - 100 * Math.sin(a)];
+    if (flat === 'top') return [50 - 50 * Math.cos(a), 100 * Math.sin(a)];
+    if (flat === 'right') return [100 - 100 * Math.sin(a), 50 - 50 * Math.cos(a)];
+    return [100 * Math.sin(a), 50 - 50 * Math.cos(a)];
+  });
+}
+
+/** Quarter-ellipse with the right angle at box corner (cx, cy) - each 0 or 100. */
+function quarterCircle(cx: 0 | 100, cy: 0 | 100): CustomShapePoint[] {
+  const ax = 100 - cx; // other corner along x
+  const by = 100 - cy; // other corner along y
+  const arc = sampleCurve(10, (u) => {
+    const a = (Math.PI / 2) * u;
+    // u = 0 -> corner (cx, by), u = 1 -> corner (ax, cy)
+    return [cx + (ax - cx) * Math.sin(a), cy + (by - cy) * Math.cos(a)];
+  });
+  return [[cx, cy], ...arc];
+}
+
+/** Rectangle with elliptical corners (rx / ry in % of the box). */
+function roundedRect(rx: number, ry: number, steps = 6): CustomShapePoint[] {
+  const corners: Array<[number, number, number]> = [
+    [rx, ry, Math.PI], // top-left
+    [100 - rx, ry, 1.5 * Math.PI], // top-right
+    [100 - rx, 100 - ry, 0], // bottom-right
+    [rx, 100 - ry, 0.5 * Math.PI], // bottom-left
+  ];
+  const out: CustomShapePoint[] = [];
+  for (const [cx, cy, a0] of corners) {
+    for (let s = 0; s <= steps; s += 1) {
+      const a = a0 + (Math.PI / 2) * (s / steps);
+      out.push([presetR1(cx + rx * Math.cos(a)), presetR1(cy + ry * Math.sin(a))]);
+    }
+  }
+  return out;
+}
+
+/** Ring with an opening on the right (a hollow donut is not a single simple polygon, so it is cut open). */
+function cRing(): CustomShapePoint[] {
+  const out: CustomShapePoint[] = [];
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  for (let d = 30; d <= 330; d += 15) out.push([presetR1(50 + 50 * Math.cos(toRad(d))), presetR1(50 + 50 * Math.sin(toRad(d)))]);
+  for (let d = 330; d >= 30; d -= 15) out.push([presetR1(50 + 27 * Math.cos(toRad(d))), presetR1(50 + 27 * Math.sin(toRad(d)))]);
+  return out;
+}
+
 export const CUSTOM_SHAPE_PRESETS: ReadonlyArray<{
   id: string;
   label: string;
+  group: CustomShapePresetGroup;
   points: ReadonlyArray<CustomShapePoint>;
 }> = [
-  { id: 'rect', label: 'Rectangle', points: [[0, 0], [100, 0], [100, 100], [0, 100]] },
-  { id: 'triangle', label: 'Triangle', points: [[50, 0], [100, 100], [0, 100]] },
-  { id: 'trapezoid', label: 'Trapezoid', points: [[25, 0], [75, 0], [100, 100], [0, 100]] },
-  { id: 'parallelogram', label: 'Parallelogram', points: [[25, 0], [100, 0], [75, 100], [0, 100]] },
-  { id: 'l-shape', label: 'L-shape', points: [[0, 0], [50, 0], [50, 50], [100, 50], [100, 100], [0, 100]] },
-  { id: 'pentagon', label: 'Pentagon', points: [[50, 0], [100, 38], [81, 100], [19, 100], [0, 38]] },
-  { id: 'hexagon', label: 'Hexagon', points: [[25, 0], [75, 0], [100, 50], [75, 100], [25, 100], [0, 50]] },
-  { id: 'arrow', label: 'Arrow', points: [[0, 30], [60, 30], [60, 0], [100, 50], [60, 100], [60, 70], [0, 70]] },
+  { id: 'rect', label: 'Rectangle', group: 'polygon', points: [[0, 0], [100, 0], [100, 100], [0, 100]] },
+  // Triangles
+  { id: 'triangle', label: 'Triangle (Up)', group: 'triangle', points: [[50, 0], [100, 100], [0, 100]] },
+  { id: 'triangle-down', label: 'Triangle (Down)', group: 'triangle', points: [[0, 0], [100, 0], [50, 100]] },
+  { id: 'triangle-left', label: 'Triangle (Left)', group: 'triangle', points: [[100, 0], [100, 100], [0, 50]] },
+  { id: 'triangle-right', label: 'Triangle (Right)', group: 'triangle', points: [[0, 0], [100, 50], [0, 100]] },
+  { id: 'right-tri-tl', label: 'Right Tri (Top-Left)', group: 'triangle', points: [[0, 0], [100, 0], [0, 100]] },
+  { id: 'right-tri-tr', label: 'Right Tri (Top-Right)', group: 'triangle', points: [[0, 0], [100, 0], [100, 100]] },
+  { id: 'right-tri-bl', label: 'Right Tri (Bottom-Left)', group: 'triangle', points: [[0, 0], [0, 100], [100, 100]] },
+  { id: 'right-tri-br', label: 'Right Tri (Bottom-Right)', group: 'triangle', points: [[100, 0], [100, 100], [0, 100]] },
+  // Polygons
+  { id: 'trapezoid', label: 'Trapezoid', group: 'polygon', points: [[25, 0], [75, 0], [100, 100], [0, 100]] },
+  { id: 'parallelogram', label: 'Parallelogram', group: 'polygon', points: [[25, 0], [100, 0], [75, 100], [0, 100]] },
+  { id: 'diamond', label: 'Diamond', group: 'polygon', points: [[50, 0], [100, 50], [50, 100], [0, 50]] },
+  { id: 'pentagon', label: 'Pentagon', group: 'polygon', points: [[50, 0], [100, 38], [81, 100], [19, 100], [0, 38]] },
+  { id: 'hexagon', label: 'Hexagon', group: 'polygon', points: [[25, 0], [75, 0], [100, 50], [75, 100], [25, 100], [0, 50]] },
+  {
+    id: 'octagon',
+    label: 'Octagon',
+    group: 'polygon',
+    points: [[29.3, 0], [70.7, 0], [100, 29.3], [100, 70.7], [70.7, 100], [29.3, 100], [0, 70.7], [0, 29.3]],
+  },
+  { id: 'chevron', label: 'Chevron', group: 'polygon', points: [[0, 0], [60, 0], [100, 50], [60, 100], [0, 100], [40, 50]] },
+  { id: 'arrow', label: 'Arrow', group: 'polygon', points: [[0, 30], [60, 30], [60, 0], [100, 50], [60, 100], [60, 70], [0, 70]] },
+  // Round & curved
+  { id: 'half-circle-top', label: 'Half-circle (Dome)', group: 'round', points: halfCircle('bottom') },
+  { id: 'half-circle-bottom', label: 'Half-circle (Bowl)', group: 'round', points: halfCircle('top') },
+  { id: 'half-circle-left', label: 'Half-circle (Left)', group: 'round', points: halfCircle('right') },
+  { id: 'half-circle-right', label: 'Half-circle (Right)', group: 'round', points: halfCircle('left') },
+  { id: 'quarter-tl', label: 'Quarter-circle (Top-Left)', group: 'round', points: quarterCircle(0, 0) },
+  { id: 'quarter-tr', label: 'Quarter-circle (Top-Right)', group: 'round', points: quarterCircle(100, 0) },
+  { id: 'quarter-bl', label: 'Quarter-circle (Bottom-Left)', group: 'round', points: quarterCircle(0, 100) },
+  { id: 'quarter-br', label: 'Quarter-circle (Bottom-Right)', group: 'round', points: quarterCircle(100, 100) },
+  { id: 'rounded-rect', label: 'Rounded Rectangle', group: 'round', points: roundedRect(18, 18) },
+  { id: 'rounded-rect-lg', label: 'Rounded (Large)', group: 'round', points: roundedRect(35, 35) },
+  { id: 'c-ring', label: 'C-ring (Open Donut)', group: 'round', points: cRing() },
+  // Letters & crosses
+  { id: 'l-shape', label: 'L-shape', group: 'letter', points: [[0, 0], [50, 0], [50, 50], [100, 50], [100, 100], [0, 100]] },
+  { id: 't-shape', label: 'T-shape', group: 'letter', points: [[0, 0], [100, 0], [100, 35], [65, 35], [65, 100], [35, 100], [35, 35], [0, 35]] },
+  {
+    id: 'plus',
+    label: 'Plus / Cross',
+    group: 'letter',
+    points: [[35, 0], [65, 0], [65, 35], [100, 35], [100, 65], [65, 65], [65, 100], [35, 100], [35, 65], [0, 65], [0, 35], [35, 35]],
+  },
+  { id: 's-shape', label: 'S-shape', group: 'letter', points: [[0, 0], [65, 0], [65, 35], [100, 35], [100, 100], [35, 100], [35, 65], [0, 65]] },
+  { id: 'z-shape', label: 'Z-shape', group: 'letter', points: [[35, 0], [100, 0], [100, 65], [65, 65], [65, 100], [0, 100], [0, 35], [35, 35]] },
 ];
 
 /** Best-effort polygon (0..100 %) for an existing preset shape mode, used as the editor starting point. */
@@ -667,6 +872,121 @@ export function customShapeFromMode(mode: UnitShapeMode): { points: CustomShapeP
   );
   const curved = /curve|crescent|arch|pie|circle|ring/.test(mode);
   return { points, approximate: curved };
+}
+
+/** Polygon parts (0..100 % of the tile box) that make up a unit shape, or null when the shape is a plain box/ellipse. */
+function shapePolygonParts(mode: string | null | undefined, label: string | null | undefined): CustomShapePoint[][] | null {
+  if (!mode || mode === 'rect' || mode === 'circle' || mode === 'ring-curve' || mode === 'trapezoid-ring') return null;
+  if (mode === 'custom') {
+    const pts = decodeCustomShape(label);
+    return pts ? [pts.map((p) => [p[0], p[1]] as CustomShapePoint)] : null;
+  }
+  if (mode === 'arch-tl' || mode === 'arch-tr' || mode === 'arch-bl' || mode === 'arch-br') {
+    // Outer Ring Concave Wing: the real outline (same formulas as the renderer, without the ring-hugging clamp).
+    const K = 16;
+    const R = parseShapeRadius(label) ?? DEFAULT_SHAPE_RADIUS;
+    const arc: CustomShapePoint[] = [];
+    for (let k = 0; k <= K; k += 1) {
+      const th = (k / K) * (Math.PI / 2);
+      if (mode === 'arch-tl') arc.push([1 - R * Math.cos(th), 1 - Math.sin(th)]);
+      else if (mode === 'arch-tr') arc.push([R * Math.cos(th), 1 - Math.sin(th)]);
+      else if (mode === 'arch-bl') arc.push([1 - R * Math.sin(th), Math.cos(th)]);
+      else arc.push([R * Math.sin(th), Math.cos(th)]);
+    }
+    const poly: CustomShapePoint[] =
+      mode === 'arch-tl'
+        ? [[0, 0], [0, 1], ...arc]
+        : mode === 'arch-bl'
+          ? [...arc, [0, 0], [0, 1]]
+          : mode === 'arch-tr'
+            ? [[1, 0], [1, 1], ...arc]
+            : [...arc, [1, 0], [1, 1]];
+    return [poly.map(([u, v]) => [u * 100, v * 100] as CustomShapePoint)];
+  }
+  const parts = UNIT_SHAPE_CONVEX_UV_PARTS[mode as UnitShapeMode];
+  if (!parts || parts.length === 0) return null;
+  return parts.map((part) =>
+    part.map(([u, v]) => [(u / 0.96 + 0.5) * 100, (v / 0.96 + 0.5) * 100] as CustomShapePoint),
+  );
+}
+
+function pointInPolygon(x: number, y: number, poly: ReadonlyArray<CustomShapePoint>): boolean {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i, i += 1) {
+    const [xi, yi] = poly[i];
+    const [xj, yj] = poly[j];
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+const badgeSpotCache = new Map<string, { cx: number; cy: number; r: number } | null>();
+
+/**
+ * Best place for a round badge (status icon) inside a non-rectangular unit shape: the point of the
+ * shape that is furthest from its edges, in tile pixels, plus the radius of the circle that fits there.
+ * Returns null for plain boxes / ellipses (the tile centre is already right).
+ */
+export function shapeBadgeSpot(
+  mode: string | null | undefined,
+  label: string | null | undefined,
+  wPx: number,
+  hPx: number,
+): { cx: number; cy: number; r: number } | null {
+  const w = Math.max(1, Math.round(wPx));
+  const h = Math.max(1, Math.round(hPx));
+  const cacheKey = `${mode}|${mode === 'custom' ? label : ''}|${w}x${h}`;
+  if (badgeSpotCache.has(cacheKey)) return badgeSpotCache.get(cacheKey) ?? null;
+
+  const parts = shapePolygonParts(mode, label);
+  let best: { cx: number; cy: number; r: number } | null = null;
+  if (parts) {
+    for (const part of parts) {
+      const px = part.map(([x, y]) => [(x / 100) * w, (y / 100) * h] as CustomShapePoint);
+      const minX = Math.min(...px.map((p) => p[0]));
+      const maxX = Math.max(...px.map((p) => p[0]));
+      const minY = Math.min(...px.map((p) => p[1]));
+      const maxY = Math.max(...px.map((p) => p[1]));
+      const score = (x: number, y: number) => {
+        let d = Infinity;
+        for (let i = 0; i < px.length; i += 1) {
+          d = Math.min(d, distToSegment([x, y], px[i], px[(i + 1) % px.length]));
+        }
+        return pointInPolygon(x, y, px) ? d : -d;
+      };
+      let bx = (minX + maxX) / 2;
+      let by = (minY + maxY) / 2;
+      let bs = score(bx, by);
+      let stepX = (maxX - minX) / 24;
+      let stepY = (maxY - minY) / 24;
+      let x0 = minX;
+      let x1 = maxX;
+      let y0 = minY;
+      let y1 = maxY;
+      for (let pass = 0; pass < 3; pass += 1) {
+        for (let x = x0; x <= x1 + 1e-6; x += stepX || 1) {
+          for (let y = y0; y <= y1 + 1e-6; y += stepY || 1) {
+            const s = score(x, y);
+            if (s > bs) {
+              bs = s;
+              bx = x;
+              by = y;
+            }
+          }
+        }
+        x0 = Math.max(minX, bx - stepX * 1.5);
+        x1 = Math.min(maxX, bx + stepX * 1.5);
+        y0 = Math.max(minY, by - stepY * 1.5);
+        y1 = Math.min(maxY, by + stepY * 1.5);
+        stepX /= 5;
+        stepY /= 5;
+      }
+      if (bs > 0 && (!best || bs > best.r)) best = { cx: bx, cy: by, r: bs };
+    }
+  }
+  if (badgeSpotCache.size > 400) badgeSpotCache.clear();
+  badgeSpotCache.set(cacheKey, best);
+  return best;
 }
 
 /** Distance from point p to the segment a-b. */

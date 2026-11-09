@@ -7,6 +7,7 @@ import {
   getCustomUnitPolygonVerticesAndAxes,
   getPolygonAtriumWorldFaces,
   getRingSectorRoutingPolygon,
+  getTrapezoidUnitGeometry,
   isCircleTile,
   parseLandmarkMeta,
   parseUnitShapeMode,
@@ -332,6 +333,46 @@ function minDistToPolygonEdges(
   return Math.sqrt(minD2);
 }
 
+const OUTLINE_CELL_PX = 20;
+
+/**
+ * The real drawn outline of a non-rectangular unit (every part of it, concave bites included) in world cells.
+ * The collision parts used for placement are coarse approximations and only their first part was ever treated as an
+ * obstacle, which let routes cut through the rest of the unit.
+ */
+function getUnitOutlineCorners(it: MapItem, items: ReadonlyArray<MapItem>): Array<{ x: number; y: number }> | null {
+  const mode = parseUnitShapeMode(it, items);
+  if (mode === 'rect' || mode === 'circle') return null;
+  let fillPoints: string;
+  try {
+    fillPoints = getTrapezoidUnitGeometry(
+      mode,
+      it.w * OUTLINE_CELL_PX,
+      it.h * OUTLINE_CELL_PX,
+      OUTLINE_CELL_PX,
+      undefined,
+      it,
+      items,
+    ).fillPoints;
+  } catch {
+    return null;
+  }
+  const nums = fillPoints.match(/-?\d+(?:\.\d+)?/g);
+  if (!nums || nums.length < 6) return null;
+  const rad = ((it.angle ?? 0) * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const cx = it.x + it.w * 0.5;
+  const cy = it.y + it.h * 0.5;
+  const corners: Array<{ x: number; y: number }> = [];
+  for (let i = 0; i + 1 < nums.length; i += 2) {
+    const lx = Number(nums[i]) / OUTLINE_CELL_PX - it.w * 0.5;
+    const ly = Number(nums[i + 1]) / OUTLINE_CELL_PX - it.h * 0.5;
+    corners.push({ x: cx + lx * cos - ly * sin, y: cy + lx * sin + ly * cos });
+  }
+  return corners.length >= 3 ? corners : null;
+}
+
 function buildTileCollisionShape(it: MapItem, items: ReadonlyArray<MapItem>): TileCollisionShape {
   if (it.kind === 'atrium') {
     const polyFaces = getPolygonAtriumWorldFaces(it);
@@ -447,7 +488,8 @@ function buildTileCollisionShape(it: MapItem, items: ReadonlyArray<MapItem>): Ti
   }
 
   if (it.kind === 'unit') {
-    const customPoly = getCustomUnitPolygonVerticesAndAxes(it, { ux, uy, vx, vy });
+    const outline = getUnitOutlineCorners(it, items);
+    const customPoly = outline ? { corners: outline } : getCustomUnitPolygonVerticesAndAxes(it, { ux, uy, vx, vy });
     if (customPoly && customPoly.corners.length >= 3) {
       return {
         item: it,

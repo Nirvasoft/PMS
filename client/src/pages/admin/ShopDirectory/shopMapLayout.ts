@@ -6,6 +6,9 @@ import {
   customShapeLabelOffsetPx,
   decodeCustomShape,
   normalizeTileAngle,
+  parseShapeRadius,
+  polygonConvexUvParts,
+  snapUvPartsToBoxEdges,
   UNIT_SHAPE_CATEGORY_TABS,
   UNIT_SHAPE_COMPACT_FAMILIES,
   UNIT_SHAPE_CONVEX_UV_PARTS,
@@ -866,6 +869,130 @@ function buildPolygonUnitGeometryFromNormPoints(
   };
 }
 
+/** Walkway width kept between a Kiosk / circular landmark and the units that wrap around it (in grid cells). */
+export const KIOSK_AISLE_CELLS = 1;
+
+/** True when the tile is a circular Kiosk / landmark that other units can wrap around. */
+export function isKioskCircleTile(
+  c: { kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number },
+): boolean {
+  return isCircleRingCorridor(c);
+}
+
+/** Nearest circular Kiosk (within `maxGap` cells) whose centre lies outside the tile - used for concentric hugging. */
+function findHuggedCircle(
+  tile: { key?: string; x: number; y: number; w: number; h: number; angle?: number } | null | undefined,
+  allItems: ReadonlyArray<{ key?: string; kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number }> | null | undefined,
+  maxGap = 6,
+): { cx: number; cy: number; rx: number; ry: number } | null {
+  if (!tile || !allItems || tile.angle) return null;
+  let best: { k: { x: number; y: number; w: number; h: number }; gap: number } | null = null;
+  for (const k of allItems) {
+    if (k === (tile as unknown) || (tile.key && k.key === tile.key)) continue;
+    if (!isCircleRingCorridor(k)) continue;
+    const kcx = k.x + k.w * 0.5;
+    const kcy = k.y + k.h * 0.5;
+    if (kcx > tile.x && kcx < tile.x + tile.w && kcy > tile.y && kcy < tile.y + tile.h) continue;
+    const gapX = Math.max(0, tile.x - (k.x + k.w), k.x - (tile.x + tile.w));
+    const gapY = Math.max(0, tile.y - (k.y + k.h), k.y - (tile.y + tile.h));
+    const gap = Math.hypot(gapX, gapY);
+    if (gap > maxGap) continue;
+    if (!best || gap < best.gap) best = { k, gap };
+  }
+  if (!best) return null;
+  const { k } = best;
+  return {
+    cx: k.x + k.w * 0.5,
+    cy: k.y + k.h * 0.5,
+    rx: k.w * 0.5 + KIOSK_AISLE_CELLS,
+    ry: k.h * 0.5 + KIOSK_AISLE_CELLS,
+  };
+}
+
+/**
+ * Trims a tile outline so it keeps a constant aisle around an ellipse (concentric with the Kiosk). Points that fall
+ * inside the ellipse are pushed radially onto its edge. Returns null when nothing is trimmed or too much would be.
+ */
+function fitPolygonAroundEllipse(
+  base: ReadonlyArray<{ x: number; y: number }>,
+  tile: { x: number; y: number; w: number; h: number },
+  ell: { cx: number; cy: number; rx: number; ry: number },
+): Array<{ x: number; y: number }> | null {
+  const dense: Array<{ x: number; y: number }> = [];
+  for (let i = 0; i < base.length; i++) {
+    const a = base[i];
+    const b = base[(i + 1) % base.length];
+    const len = Math.hypot((b.x - a.x) * tile.w, (b.y - a.y) * tile.h);
+    const steps = Math.max(1, Math.ceil(len / 0.25));
+    for (let s = 0; s < steps; s++) {
+      dense.push({ x: a.x + ((b.x - a.x) * s) / steps, y: a.y + ((b.y - a.y) * s) / steps });
+    }
+  }
+  let moved = 0;
+  const out = dense.map((p) => {
+    const nx = (tile.x + p.x * tile.w - ell.cx) / ell.rx;
+    const ny = (tile.y + p.y * tile.h - ell.cy) / ell.ry;
+    const d = Math.hypot(nx, ny);
+    if (d >= 1 - 1e-6) return p;
+    moved += 1;
+    const k = d < 1e-6 ? 0 : 1 / d;
+    const bx = ell.cx + nx * k * ell.rx;
+    const by = ell.cy + ny * k * ell.ry;
+    return {
+      x: Math.max(0, Math.min(1, (bx - tile.x) / tile.w)),
+      y: Math.max(0, Math.min(1, (by - tile.y) / tile.h)),
+    };
+  });
+  if (moved === 0) return null;
+  const deduped = out.filter((p, i) => {
+    const q = out[(i + out.length - 1) % out.length];
+    return Math.abs(p.x - q.x) > 1e-4 || Math.abs(p.y - q.y) > 1e-4;
+  });
+  if (deduped.length < 3) return null;
+  let area = 0;
+  for (let i = 0; i < deduped.length; i++) {
+    const a = deduped[i];
+    const b = deduped[(i + 1) % deduped.length];
+    area += a.x * b.y - b.x * a.y;
+  }
+  return Math.abs(area / 2) < 0.3 ? null : deduped;
+}
+
+/**
+ * "Wrap Kiosk": gives every nearby unit a Concave Notch facing the Kiosk. The notch outline then trims itself
+ * concentrically around the Kiosk (see `fitPolygonAroundEllipse`). Returns the updated items and how many changed.
+ */
+export function wrapKioskNotches(
+  items: ReadonlyArray<MapItem>,
+  kioskKey: string,
+  maxGap = 5.5,
+): { items: MapItem[]; count: number } {
+  const k = items.find((i) => i.key === kioskKey);
+  if (!k) return { items: [...items], count: 0 };
+  const kcx = k.x + k.w * 0.5;
+  const kcy = k.y + k.h * 0.5;
+  let count = 0;
+  const next = items.map((u) => {
+    if (u.key === k.key || u.kind !== 'unit' || u.angle) return u;
+    const mode = parseUnitShapeMode(u);
+    if (mode === 'circle' || mode === 'custom' || mode === 'ring-curve' || mode === 'trapezoid-ring' || mode.startsWith('arch-')) {
+      return u;
+    }
+    const gapX = Math.max(0, u.x - (k.x + k.w), k.x - (u.x + u.w));
+    const gapY = Math.max(0, u.y - (k.y + k.h), k.y - (u.y + u.h));
+    if (Math.hypot(gapX, gapY) > maxGap) return u;
+    const ovX = Math.min(u.x + u.w, k.x + k.w) - Math.max(u.x, k.x);
+    const ovY = Math.min(u.y + u.h, k.y + k.h) - Math.max(u.y, k.y);
+    if (ovX > u.w * 0.75 || ovY > u.h * 0.75) return u;
+    const ucx = u.x + u.w * 0.5;
+    const ucy = u.y + u.h * 0.5;
+    const corner = kcx < ucx && kcy < ucy ? 'tl' : kcx >= ucx && kcy < ucy ? 'tr' : kcx < ucx && kcy >= ucy ? 'bl' : 'br';
+    count += 1;
+    return { ...u, label: `unit:notch-${corner}` };
+  });
+  return { items: next, count };
+}
+
 export function getTrapezoidUnitGeometry(
   mode: Exclude<UnitShapeMode, 'rect' | 'circle'>,
   wPx: number,
@@ -1339,13 +1466,43 @@ export function getTrapezoidUnitGeometry(
     mode === 'notch-bl-chamfer-tr' ||
     mode === 'notch-tl-chamfer-br'
   ) {
-    const rx = 0.68;
-    const ry = 0.68;
+    const arcR = Math.min(0.95, Math.max(0.3, parseShapeRadius(tile?.label) ?? 0.68));
+    const rx = arcR;
+    const ry = arcR;
     const cutPx = Math.min(wPx, hPx) * 0.42;
     const cx = Math.max(0.22, Math.min(0.46, cutPx / Math.max(1, wPx)));
     const cy = Math.max(0.22, Math.min(0.46, cutPx / Math.max(1, hPx)));
     const K = 24;
     const pts: Array<{ x: number; y: number }> = [];
+
+    // Constant-aisle hugging: when a Kiosk sits right next to this tile, trim the plain outline concentrically around it.
+    const hugEllipse = findHuggedCircle(tile, allItems);
+    if (hugEllipse && tile) {
+      const baseOutline: Array<{ x: number; y: number }> =
+        mode === 'notch-br-chamfer-tl'
+          ? [{ x: cx, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: 1 }, { x: 0, y: cy }]
+          : mode === 'notch-tl-chamfer-br'
+            ? [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 - cy }, { x: 1 - cx, y: 1 }, { x: 0, y: 1 }]
+            : mode === 'notch-tr-chamfer-bl'
+              ? [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: cx, y: 1 }, { x: 0, y: 1 - cy }]
+              : mode === 'notch-bl-chamfer-tr'
+                ? [{ x: 0, y: 0 }, { x: 1 - cx, y: 0 }, { x: 1, y: cy }, { x: 1, y: 1 }, { x: 0, y: 1 }]
+                : [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: 1 }];
+      const fitted = fitPolygonAroundEllipse(baseOutline, tile, hugEllipse);
+      if (fitted) {
+        const isLeft = mode.startsWith('notch-tl') || mode.startsWith('notch-bl');
+        const isTop = mode.startsWith('notch-tl') || mode.startsWith('notch-tr');
+        return buildPolygonUnitGeometryFromNormPoints(
+          fitted,
+          wPx,
+          hPx,
+          cellPx,
+          merge,
+          Math.round(wPx * 0.08) * (isLeft ? 1 : -1),
+          Math.round(hPx * 0.08) * (isTop ? 1 : -1),
+        );
+      }
+    }
 
     if (mode === 'notch-tl' || mode === 'notch-tl-chamfer-br') {
       for (let k = 0; k <= K; k++) {
@@ -1874,6 +2031,9 @@ export function getTrapezoidUnitGeometry(
   // ── 9. Outer Ring Concave Wing (arch-tl / arch-tr / arch-bl / arch-br) ──
   if (mode === 'arch-tl' || mode === 'arch-tr' || mode === 'arch-bl' || mode === 'arch-br') {
     const K = 24;
+    const archR = Math.min(0.95, Math.max(0.3, parseShapeRadius(tile?.label) ?? 0.68));
+    const archMaxU = Math.min(1, archR + 0.1);
+    const archMinU = Math.max(0, 1 - archR - 0.1);
     const match = tile && allItems ? findNearestCircleCorridorForUnit(tile, allItems) : null;
     let maxRingH = 0;
     if (match && allItems) {
@@ -1916,12 +2076,13 @@ export function getTrapezoidUnitGeometry(
       const arc: Array<{ x: number; y: number }> = [];
       for (let k = 0; k <= K; k++) {
         const th = (k / K) * (Math.PI * 0.5);
-        const u0 = 0.32 + 0.68 * Math.cos(th);
-        const v0 = Math.sin(th);
-        arc.push(clampArcPt(u0, v0, 0.22, 1, false));
+        // Mirror of arch-tr: concave arc centred on the bottom-right corner.
+        const u0 = 1 - archR * Math.cos(th);
+        const v0 = 1 - Math.sin(th);
+        arc.push(clampArcPt(u0, v0, archMinU, 1, false));
       }
       return buildPolygonUnitGeometryFromNormPoints(
-        [{ x: 0, y: 0 }, ...arc, { x: 0, y: 1 }],
+        [{ x: 0, y: 0 }, { x: 0, y: 1 }, ...arc],
         wPx,
         hPx,
         cellPx,
@@ -1934,9 +2095,9 @@ export function getTrapezoidUnitGeometry(
       const arc: Array<{ x: number; y: number }> = [];
       for (let k = 0; k <= K; k++) {
         const th = (k / K) * (Math.PI * 0.5);
-        const u0 = 0.68 * Math.cos(th);
+        const u0 = archR * Math.cos(th);
         const v0 = 1 - Math.sin(th);
-        arc.push(clampArcPt(u0, v0, 0, 0.78, true));
+        arc.push(clampArcPt(u0, v0, 0, archMaxU, true));
       }
       return buildPolygonUnitGeometryFromNormPoints(
         [{ x: 1, y: 0 }, { x: 1, y: 1 }, ...arc],
@@ -1952,12 +2113,13 @@ export function getTrapezoidUnitGeometry(
       const arc: Array<{ x: number; y: number }> = [];
       for (let k = 0; k <= K; k++) {
         const th = (k / K) * (Math.PI * 0.5);
-        const u0 = 0.32 + 0.68 * Math.sin(th);
-        const v0 = 1 - Math.cos(th);
-        arc.push(clampArcPt(u0, v0, 0.22, 1, false));
+        // Mirror of arch-br: concave arc centred on the top-right corner.
+        const u0 = 1 - archR * Math.sin(th);
+        const v0 = Math.cos(th);
+        arc.push(clampArcPt(u0, v0, archMinU, 1, false));
       }
       return buildPolygonUnitGeometryFromNormPoints(
-        [{ x: 0, y: 0 }, ...arc, { x: 0, y: 1 }],
+        [...arc, { x: 0, y: 0 }, { x: 0, y: 1 }],
         wPx,
         hPx,
         cellPx,
@@ -1970,9 +2132,9 @@ export function getTrapezoidUnitGeometry(
     const arc: Array<{ x: number; y: number }> = [];
     for (let k = 0; k <= K; k++) {
       const th = (k / K) * (Math.PI * 0.5);
-      const u0 = 0.68 * Math.sin(th);
+      const u0 = archR * Math.sin(th);
       const v0 = Math.cos(th);
-      arc.push(clampArcPt(u0, v0, 0, 0.78, true));
+      arc.push(clampArcPt(u0, v0, 0, archMaxU, true));
     }
     return buildPolygonUnitGeometryFromNormPoints(
       [...arc, { x: 1, y: 0 }, { x: 1, y: 1 }],
@@ -2862,10 +3024,12 @@ export function getCustomUnitConvexPolygons(
     if (!mode || mode === 'rect') {
       return null;
     }
-    uvParts =
+    const rawParts =
       mode === 'custom'
         ? customShapeConvexUvParts(decodeCustomShape(t.label)) ?? null
-        : UNIT_SHAPE_CONVEX_UV_PARTS[mode] ?? null;
+        : getStraightOutlineUvParts(t, mode) ?? UNIT_SHAPE_CONVEX_UV_PARTS[mode] ?? null;
+    // Straight outer edges of the box must collide exactly (circles keep their inscribed polygon).
+    uvParts = rawParts && mode !== 'circle' ? snapUvPartsToBoxEdges(rawParts) : rawParts;
   }
 
   if (!uvParts || uvParts.length === 0) return null;
@@ -2889,6 +3053,41 @@ export function getCustomUnitConvexPolygons(
     }
     return { corners, extraAxes };
   });
+}
+
+const outlinePartsCache = new Map<string, Array<Array<[number, number]>> | null>();
+
+/**
+ * Collision parts taken from the real drawn outline for shapes with straight edges (steps, slopes, bevels, chamfers,
+ * wedges, courts...). The hand-written parts of those shapes were smaller than what is drawn, so tiles could overlap
+ * the drawn shape. Curved shapes (arcs, notches, rings) return null and keep their looser parts so neighbours can hug them.
+ */
+function getStraightOutlineUvParts(
+  t: { label?: string | null; w: number; h: number },
+  mode: UnitShapeMode,
+): Array<Array<[number, number]>> | null {
+  if (mode === 'rect' || mode === 'circle' || mode === 'custom') return null;
+  const key = `${mode}|${t.label ?? ''}|${t.w}x${t.h}`;
+  const hit = outlinePartsCache.get(key);
+  if (hit !== undefined) return hit;
+
+  let parts: Array<Array<[number, number]>> | null = null;
+  try {
+    const cell = 20;
+    const wPx = t.w * cell;
+    const hPx = t.h * cell;
+    const nums = getTrapezoidUnitGeometry(mode, wPx, hPx, cell, undefined, null, null).fillPoints.match(/-?\d+(?:\.\d+)?/g);
+    if (nums && nums.length >= 6 && nums.length / 2 <= 10) {
+      const pts: Array<[number, number]> = [];
+      for (let i = 0; i + 1 < nums.length; i += 2) pts.push([(Number(nums[i]) / wPx) * 100, (Number(nums[i + 1]) / hPx) * 100]);
+      parts = polygonConvexUvParts(pts);
+    }
+  } catch {
+    parts = null;
+  }
+  if (outlinePartsCache.size > 300) outlinePartsCache.clear();
+  outlinePartsCache.set(key, parts);
+  return parts;
 }
 
 export function getCustomUnitPolygonVerticesAndAxes(
@@ -8300,3 +8499,23 @@ export function resizeTileGroup(
   };
 }
 
+type UnitStatusSource =
+  | { unit?: { status?: string | null; leases?: Array<{ endDate?: string | number | Date | null }> | null } | null }
+  | null
+  | undefined;
+
+/** CSS status class of a unit tile, derived from its unit status / lease end date. */
+export function statusClass(shop: UnitStatusSource): string {
+  const u = shop?.unit;
+  const status = String(u?.status || '').toUpperCase();
+  const end = u?.leases?.[0]?.endDate;
+  if (status === 'OCCUPIED' && end) {
+    const days = (new Date(end).getTime() - Date.now()) / 86400000;
+    if (days <= 90) return 'st-expiring';
+  }
+  if (status === 'OCCUPIED') return 'st-occupied';
+  if (status === 'RESERVED') return 'st-reserved';
+  if (status === 'MAINTENANCE') return 'st-maintenance';
+  if (status === 'NOT_FOR_RENT') return 'st-notrent';
+  return 'st-vacant';
+}
