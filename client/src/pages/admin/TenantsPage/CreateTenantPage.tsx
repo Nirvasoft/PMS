@@ -72,11 +72,6 @@ export default function CreateTenantPage() {
   };
 
   const handleSubmit = async () => {
-    if (isV6Active) {
-      toast.error('Tenant creation is disabled because V6 ERP integration is active. Please sync tenants from V6 ERP.');
-      return;
-    }
-
     setHasAttemptedSubmit(true);
 
     const missing: string[] = [];
@@ -161,9 +156,9 @@ export default function CreateTenantPage() {
           <span style={{ fontSize: 20 }}>⚠️</span>
           <div>
             <strong style={{ display: 'block', fontSize: 14, color: '#b45309', marginBottom: 2 }}>
-              Tenant Creation Disabled (V6 ERP Active)
+              V6 ERP Integration Active
             </strong>
-            V6 ERP Integration is currently active. Tenant information is synchronized from V6 ERP. Direct manual creation of new tenants is disabled.
+            You can create a new tenant manually below or sync existing customers from V6 ERP.
           </div>
           <PermissionGuard permission="tenants.create">
             <button
@@ -340,10 +335,9 @@ export default function CreateTenantPage() {
           <button
             className="btn-primary"
             onClick={handleSubmit}
-            disabled={isLoading || isV6Active}
-            style={isV6Active ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
+            disabled={isLoading}
           >
-            {isV6Active ? 'Creation Disabled (V6 Active)' : isLoading ? 'Creating…' : 'Create Tenant'}
+            {isLoading ? 'Creating…' : 'Create Tenant'}
           </button>
         </PermissionGuard>
       </div>

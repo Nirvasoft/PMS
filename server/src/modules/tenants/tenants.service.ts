@@ -188,10 +188,6 @@ export class TenantsService {
     // propertyId is not part of the createTenantSchema (it's infrastructure, not user input)
     const propertyId = typeof dto.propertyId === 'string' ? dto.propertyId : undefined;
 
-    // If V6 ERP integration is active for this property, disallow manual tenant creation
-    if (await isV6ErpActive(companyId, propertyId)) {
-      throw AppError.badRequest('Tenant creation is disabled because V6 ERP integration is active. Please sync tenants from V6 ERP.', 'V6_SYNC_ACTIVE');
-    }
     const parsedData = createTenantSchema.parse(dto);
     const { tags = [], glAccountCode, ...rest } = parsedData;
 

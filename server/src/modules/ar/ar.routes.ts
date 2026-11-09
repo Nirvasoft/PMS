@@ -32,7 +32,6 @@ receiptsRouter.get('/', asyncHandler(async (req, res) => {
 }));
 
 receiptsRouter.post('/', validateRequest(createReceiptSchema), asyncHandler(async (req, res) => {
-  await assertV6ErpNotActive(req.user!.companyId, 'Receipt', req.body?.propertyId);
   const data = await receiptsService.create(req.user!.companyId, req.body, req.user!.sub);
   res.status(201).json({ success: true, data });
 }));

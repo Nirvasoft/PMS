@@ -141,22 +141,11 @@ export default function TenantListPage() {
               </button>
             </PermissionGuard>
           )}
-          {isV6Active ? (
-            <button
-              className="btn-primary"
-              disabled
-              title="Tenant creation is disabled because V6 ERP integration is active. Please sync tenants from V6 ERP."
-              style={{ opacity: 0.6, cursor: 'not-allowed', display: 'flex', alignItems: 'center', gap: 6 }}
-            >
-              🔒 New Tenant (V6 Active)
+          <PermissionGuard permission="tenants.create">
+            <button className="btn-primary" onClick={() => navigate('/admin/tenants/new')}>
+              <Plus size={15} /> New Tenant
             </button>
-          ) : (
-            <PermissionGuard permission="tenants.create">
-              <button className="btn-primary" onClick={() => navigate('/admin/tenants/new')}>
-                <Plus size={15} /> New Tenant
-              </button>
-            </PermissionGuard>
-          )}
+          </PermissionGuard>
         </div>
       </div>
 
@@ -170,7 +159,7 @@ export default function TenantListPage() {
         }}>
           <span style={{ fontSize: 16 }}>🔗</span>
           <span>
-            <strong style={{ color: 'var(--text-primary)' }}>V6 ERP Integration Active:</strong> Tenant registry is managed and synchronized from V6 ERP. Direct tenant creation is disabled.
+            <strong style={{ color: 'var(--text-primary)' }}>V6 ERP Integration Active:</strong> Tenant registry can be synchronized from V6 ERP or created directly.
           </span>
         </div>
       )}

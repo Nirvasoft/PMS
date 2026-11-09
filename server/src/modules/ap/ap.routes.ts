@@ -69,7 +69,6 @@ paymentVouchersRouter.get('/', asyncHandler(async (req, res) => {
 }));
 
 paymentVouchersRouter.post('/', validateRequest(createPaymentVoucherSchema), asyncHandler(async (req, res) => {
-  await assertV6ErpNotActive(req.user!.companyId, 'Payment voucher', req.body?.propertyId);
   const data = await paymentVouchersService.create(req.user!.companyId, req.body, req.user!.sub);
   res.status(201).json({ success: true, data });
 }));
