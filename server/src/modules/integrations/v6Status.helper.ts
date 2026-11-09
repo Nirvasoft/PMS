@@ -12,7 +12,9 @@ export async function isV6ErpActive(companyId: string, propertyId?: string | nul
   const v6Config = await prisma.integrationConfig.findFirst({
     where: {
       companyId,
-      ...(effectivePropertyId ? { propertyId: effectivePropertyId } : {}),
+      ...(effectivePropertyId
+        ? { OR: [{ propertyId: effectivePropertyId }, { propertyId: null }] }
+        : {}),
       integrationType: 'v6erp',
       status: { not: 'disabled' },
       isActive: true,
