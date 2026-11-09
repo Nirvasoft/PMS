@@ -2699,12 +2699,113 @@ class IntegrationsService {
     const custJson = (await custResp.json().catch(() => null)) as any;
     const list: any[] = custJson?.list || [];
     total = list.length;
+
+    // Obtain V6 JWT token to fetch full UVM002 + UVM001 (bizPartner) fields via /Customer/GetBizPartnerInfoByRoleAllowed
+    let v6Token = '';
+    if (list.length > 0) {
+      try {
+        const tokenResp = await fetch(cleanRoot + '/lkn/getotkenlogin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ domain }),
+          signal: AbortSignal.timeout(10000),
+        });
+        if (tokenResp.ok) {
+          const tokenJson = (await tokenResp.json().catch(() => null)) as any;
+          if (tokenJson?.token) {
+            v6Token = String(tokenJson.token);
+          }
+        }
+      } catch {
+        // Fallback to loginRefreshToken below
+      }
+
+      if (!v6Token) {
+        try {
+          const refreshResp = await fetch(cleanRoot + '/main/loginRefreshToken', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ domain, userId: 'admin', oid: '001' }),
+            signal: AbortSignal.timeout(10000),
+          });
+          if (refreshResp.ok) {
+            const refreshJson = (await refreshResp.json().catch(() => null)) as any;
+            if (refreshJson?.token) {
+              v6Token = String(refreshJson.token);
+            }
+          }
+        } catch {
+          // Proceed with fields available from getCustomer list
+        }
+      }
+    }
+
+    // Pre-fetch UVM002 + UVM001 (bizPartner) details by customer syskey in small batches
+    const bpDetailBySyskey = new Map<string, any>();
+    if (v6Token && list.length > 0) {
+      const authHeaders = {
+        'Content-Type': 'application/json',
+        'Content-Over': v6Token,
+        'APP-CALLER': '1',
+      };
+      const syskeys = list
+        .map((item) => String(item?.syskey || item?.customerSyskey || '').trim())
+        .filter((sk) => sk && sk !== '0');
+
+      const BATCH_SIZE = 5;
+      for (let i = 0; i < syskeys.length; i += BATCH_SIZE) {
+        const batch = syskeys.slice(i, i + BATCH_SIZE);
+        await Promise.all(
+          batch.map(async (sk) => {
+            try {
+              const bpResp = await fetch(cleanRoot + '/Customer/GetBizPartnerInfoByRoleAllowed', {
+                method: 'POST',
+                headers: authHeaders,
+                body: JSON.stringify({ syskey: sk }),
+                signal: AbortSignal.timeout(10000),
+              });
+              if (bpResp.ok) {
+                const bpJson = (await bpResp.json().catch(() => null)) as any;
+                if (bpJson && bpJson.syskey) {
+                  bpDetailBySyskey.set(sk, bpJson);
+                }
+              }
+            } catch {
+              // Ignore individual detail failure and fall back to getCustomer item
+            }
+          }),
+        );
+      }
+    }
+
     for (const item of list) {
       const cuscode = (item.code || item.customerCode || item.t1 || '').trim();
       const cusname = (item.name || item.customerName || item.t2 || '').trim();
       const syskey = String(item.syskey || item.customerSyskey || '').trim();
 
       if (!cuscode) continue;
+
+      const bpDetail = syskey ? bpDetailBySyskey.get(syskey) : null;
+      const uvm001 = bpDetail?.bizPartner || item?.bizPartner || item?.uvm001 || item?.UVM001 || null;
+
+      // Map V6 ERP fields:
+      // - uvm001.t6 -> Tenant.idNumber (ID Number)
+      // - UVM001.t8 -> Tenant.fatherName (Father's Name)
+      // - UVM001.t7 -> Tenant.notes (notes)
+      // - uvm002.t4 -> Tenant.currency (currency)
+      const rawIdNumber = String(uvm001?.t6 ?? item?.uvm001_t6 ?? item?.t6 ?? item?.idNumber ?? '').trim();
+      const rawFatherName = String(uvm001?.t8 ?? item?.uvm001_t8 ?? item?.t8 ?? item?.fatherName ?? '').trim();
+      const rawNotes = String(uvm001?.t7 ?? item?.uvm001_t7 ?? item?.t7 ?? item?.notes ?? '').trim();
+      const rawCurrency = String(
+        bpDetail?.t4 ?? item?.uvm002?.t4 ?? item?.UVM002?.t4 ?? item?.curr ?? item?.t4 ?? item?.currency ?? '',
+      )
+        .trim()
+        .toUpperCase();
+
+      const idNumber = rawIdNumber ? rawIdNumber.substring(0, 100) : null;
+      const fatherName = rawFatherName ? rawFatherName.substring(0, 100) : null;
+      const notes = rawNotes ? rawNotes : null;
+      const currency = rawCurrency ? rawCurrency.substring(0, 3) : null;
 
       const existingTenant = await prisma.tenant.findFirst({
         where: {
@@ -2724,6 +2825,10 @@ class IntegrationsService {
           data: {
             code: cuscode,
             lastName: cusname || existingTenant.lastName,
+            idNumber,
+            fatherName,
+            notes,
+            ...(currency ? { currency } : {}),
             // Every tenant synced from V6 is treated as already verified
             kycStatus: 'verified',
             kycVerifiedAt: existingTenant.kycVerifiedAt ?? new Date(),
@@ -2739,6 +2844,10 @@ class IntegrationsService {
             code: cuscode,
             firstName: cuscode,
             lastName: cusname || cuscode,
+            idNumber,
+            fatherName,
+            notes,
+            ...(currency ? { currency } : {}),
             email: item.email || null,
             phone: item.phone || item.mobile || null,
             // Every tenant synced from V6 is treated as already verified

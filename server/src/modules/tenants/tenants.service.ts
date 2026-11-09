@@ -122,7 +122,7 @@ export class TenantsService {
           id: true, tenantType: true, firstName: true, lastName: true,
           companyName: true, email: true, mobile: true, kycStatus: true,
           isBlacklisted: true, avatarUrl: true, tags: true, source: true,
-          currency: true,
+          idNumber: true, fatherName: true, notes: true, currency: true,
           createdAt: true,
           property: { select: { name: true } },
           _count: { select: { leases: { where: activeLeasesWhere } } },

@@ -17,6 +17,9 @@ export interface TenantListItem {
   avatarUrl: string | null;
   tags: string[];
   source: string | null;
+  idNumber?: string | null;
+  fatherName?: string | null;
+  notes?: string | null;
   currency: string | null;
   glAccountCode?: string | null;
   activeLeases: number;
