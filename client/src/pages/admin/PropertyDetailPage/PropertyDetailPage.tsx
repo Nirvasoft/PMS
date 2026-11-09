@@ -25,7 +25,12 @@ import {
   AlertCircle, Wrench, ChevronRight, ChevronLeft, X, Camera, Edit3, GripVertical,
   Waves, Dumbbell, Flame, TreePine, Lock, Zap, Car, Coffee, FileText, DollarSign, Briefcase,
   Wifi, Shield, ArrowUp, ShoppingBag, UtensilsCrossed, MonitorSmartphone, Download, Gauge,
+  Smartphone, MessageCircle, MessageSquare, Send, MoreHorizontal, ChevronDown, Check, type LucideIcon,
 } from 'lucide-react';
+import {
+  CONTACT_CHANNEL_OPTIONS, channelOption, contactChannelsOf, validateChannelEntry,
+  type ContactChannelType,
+} from '../../../utils/contactChannels';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard, usePermission } from '../../../components/guards/PermissionGuard';
@@ -525,7 +530,103 @@ const CONTACT_ROLES = [
   { value: 'leasing',          label: 'Leasing Agent' },
   { value: 'other',            label: 'Other' },
 ];
-const BLANK_CONTACT = { role: 'building_manager', name: '', phone: '', mobile: '', email: '', isPrimary: false };
+const CHANNEL_ICONS: Record<ContactChannelType, LucideIcon> = {
+  phone: Phone, mobile: Smartphone, email: Mail, viber: MessageCircle, whatsapp: MessageCircle,
+  telegram: Send, sms: MessageSquare, website: Globe, other: MoreHorizontal,
+};
+/** Channel types in the order they are suggested when a new row is added. */
+const CHANNEL_SUGGESTION_ORDER: ContactChannelType[] = ['mobile', 'email', 'viber', 'telegram', 'whatsapp', 'phone', 'sms', 'website', 'other'];
+
+const CHANNEL_COLORS: Record<ContactChannelType, string> = {
+  phone: '#10b981', mobile: '#10b981', email: '#f59e0b', viber: '#7360f2', whatsapp: '#25d366',
+  telegram: '#229ed9', sms: '#14b8a6', website: '#3b82f6', other: '#94a3b8',
+};
+const ROLE_ICONS: Record<string, LucideIcon> = {
+  building_manager: Building2, security: Shield, maintenance: Wrench, emergency: AlertCircle, leasing: Briefcase, other: Users,
+};
+
+interface IconSelectOption { value: string; label: string; icon: LucideIcon; color?: string }
+
+/** Dropdown whose options carry an icon (a native <select> cannot render icons inside its list). */
+function IconSelect({ value, options, onChange, ariaLabel, invalid }: {
+  value: string;
+  options: IconSelectOption[];
+  onChange: (value: string) => void;
+  ariaLabel: string;
+  invalid?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => { if (!rootRef.current?.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
+  }, [open]);
+
+  const index = Math.max(0, options.findIndex((o) => o.value === value));
+  const selected = options[index];
+  const SelectedIcon = selected.icon;
+
+  const onButtonKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    e.preventDefault();
+    const next = e.key === 'ArrowDown' ? Math.min(options.length - 1, index + 1) : Math.max(0, index - 1);
+    onChange(options[next].value);
+  };
+
+  return (
+    <div className={`cf-dd${open ? ' is-open' : ''}${invalid ? ' is-invalid' : ''}`} ref={rootRef}>
+      <button
+        type="button"
+        className="cf-dd-btn"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={ariaLabel}
+        onClick={() => setOpen((o) => !o)}
+        onKeyDown={onButtonKeyDown}
+      >
+        <span className="cf-dd-icon" style={{ color: selected.color }}><SelectedIcon size={15} /></span>
+        <span className="cf-dd-label">{selected.label}</span>
+        <ChevronDown size={14} className="cf-dd-chev" />
+      </button>
+      {open && (
+        <ul className="cf-dd-menu" role="listbox" aria-label={ariaLabel}>
+          {options.map((o) => {
+            const OptionIcon = o.icon;
+            const isSelected = o.value === value;
+            return (
+              <li
+                key={o.value}
+                role="option"
+                aria-selected={isSelected}
+                className={`cf-dd-option${isSelected ? ' is-selected' : ''}`}
+                onClick={() => { onChange(o.value); setOpen(false); }}
+              >
+                <span className="cf-dd-icon" style={{ color: o.color }}><OptionIcon size={15} /></span>
+                <span className="cf-dd-label">{o.label}</span>
+                {isSelected && <Check size={13} className="cf-dd-check" />}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+const ROLE_OPTIONS: IconSelectOption[] = CONTACT_ROLES.map((r) => ({ value: r.value, label: r.label, icon: ROLE_ICONS[r.value] ?? Users }));
+const CHANNEL_SELECT_OPTIONS: IconSelectOption[] = CONTACT_CHANNEL_OPTIONS.map((o) => ({
+  value: o.value, label: o.label, icon: CHANNEL_ICONS[o.value], color: CHANNEL_COLORS[o.value],
+}));
+
+interface ChannelRow { key: number; type: ContactChannelType; value: string; touched?: boolean }
+let channelRowKey = 0;
+const newChannelRow = (type: ContactChannelType = 'mobile', value = ''): ChannelRow => ({ key: ++channelRowKey, type, value });
+const BLANK_CONTACT = { role: 'building_manager', name: '', isPrimary: false };
 
 // ─── Contacts Tab ─────────────────────────────
 function ContactsTab({ propertyId }: { propertyId: string }) {
@@ -537,32 +638,83 @@ function ContactsTab({ propertyId }: { propertyId: string }) {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ ...BLANK_CONTACT });
+  const [channelRows, setChannelRows] = useState<ChannelRow[]>(() => [newChannelRow()]);
+  const [showErrors, setShowErrors] = useState(false);
+  const [nameTouched, setNameTouched] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [isRemoving, setIsRemoving] = useState<string | null>(null);
 
   const contacts = data?.data || [];
+  // Same rule the public page uses to pick its leasing contact (security / maintenance / emergency are never shown).
+  const hasPublicContact = contacts.some(
+    (c) => !['security', 'maintenance', 'emergency'].includes(c.role) && contactChannelsOf(c).some((ch) => ch.type !== 'other'),
+  );
+
+  const resetValidation = () => { setShowErrors(false); setNameTouched(false); };
+  const nameError = (showErrors || nameTouched) && !form.name.trim() ? 'Full name is required' : null;
+  const rowError = (row: ChannelRow) => (showErrors || row.touched ? validateChannelEntry(row) : null);
+
+  const openNewForm = () => {
+    resetValidation();
+    setEditingId(null);
+    setForm({ ...BLANK_CONTACT });
+    setChannelRows([newChannelRow()]);
+    setShowForm(true);
+  };
+  const addChannelRow = () => {
+    setChannelRows((rows) => {
+      const used = new Set(rows.map((r) => r.type));
+      return [...rows, newChannelRow(CHANNEL_SUGGESTION_ORDER.find((tp) => !used.has(tp)) ?? 'other')];
+    });
+  };
+  const updateChannelRow = (key: number, patch: Partial<ChannelRow>) =>
+    setChannelRows((rows) => rows.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+  const removeChannelRow = (key: number) => setChannelRows((rows) => rows.filter((r) => r.key !== key));
 
   const handleSave = async () => {
-    if (!form.name.trim()) { toast.error('Name is required'); return; }
+    setShowErrors(true);
+    const filled = channelRows.map((r) => ({ type: r.type, value: r.value.trim() })).filter((r) => r.value);
+    if (!form.name.trim() || filled.some((ch) => validateChannelEntry(ch))) {
+      toast.error('Please fix the highlighted fields');
+      return;
+    }
+    // A property has one primary contact: warn before taking the flag away from someone else.
+    const currentPrimary = form.isPrimary ? contacts.find((c) => c.isPrimary && c.id !== editingId) : undefined;
+    if (currentPrimary) {
+      const ok = await confirmDialog(
+        `${currentPrimary.name} is already the primary contact. Make ${form.name.trim()} the primary contact instead?`,
+        { confirmText: 'Make primary' },
+      );
+      if (!ok) return;
+    }
+    const payload = { role: form.role, name: form.name.trim(), isPrimary: form.isPrimary, channels: filled };
     setIsAdding(true);
     try {
       if (editingId) {
-        await updateContact({ propertyId, contactId: editingId, data: { ...form, name: form.name.trim() } }).unwrap();
+        await updateContact({ propertyId, contactId: editingId, data: payload }).unwrap();
         toast.success('Contact updated');
       } else {
-        await addContact({ propertyId, data: { ...form, name: form.name.trim() } }).unwrap();
+        await addContact({ propertyId, data: payload }).unwrap();
         toast.success('Contact added');
       }
       setShowForm(false);
       setEditingId(null);
       setForm({ ...BLANK_CONTACT });
-    } catch { toast.error('Failed to save contact'); }
+      setChannelRows([newChannelRow()]);
+      resetValidation();
+    } catch (e) {
+      const err = e as { data?: { errors?: { message?: string }[]; message?: string } };
+      toast.error(err?.data?.errors?.[0]?.message || err?.data?.message || 'Failed to save contact');
+    }
     finally { setIsAdding(false); }
   };
 
   const handleEdit = (c: typeof contacts[0]) => {
+    resetValidation();
     setEditingId(c.id);
-    setForm({ role: c.role, name: c.name, phone: c.phone || '', mobile: c.mobile || '', email: c.email || '', isPrimary: c.isPrimary });
+    setForm({ role: c.role, name: c.name, isPrimary: c.isPrimary });
+    const rows = contactChannelsOf(c).map((ch) => newChannelRow(ch.type, ch.value));
+    setChannelRows(rows.length > 0 ? rows : [newChannelRow()]);
     setShowForm(true);
   };
 
@@ -579,40 +731,116 @@ function ContactsTab({ propertyId }: { propertyId: string }) {
       <div className="section-header">
         <h3>Key Contacts</h3>
         <PermissionGuard permission="properties.update">
-          <button className="btn btn-primary" onClick={() => { setShowForm(!showForm); setEditingId(null); setForm({ ...BLANK_CONTACT }); }}>
+          <button className="btn btn-primary" onClick={() => { if (showForm) { setShowForm(false); setEditingId(null); resetValidation(); } else openNewForm(); }}>
             <Plus size={14} /> {showForm ? 'Cancel' : 'Add Contact'}
           </button>
         </PermissionGuard>
       </div>
 
+      {data && !hasPublicContact && (
+        <div className="contact-public-notice" role="note">
+          <AlertCircle size={15} />
+          <span>
+            No public leasing contact yet. The public page falls back to the company phone / email (if set) and every
+            enquiry is saved as a lead. Add a contact with a phone or email (e.g. Leasing Agent or Building Manager) to
+            show it instead.
+          </span>
+        </div>
+      )}
+
       {showForm && (
-        <div className="contact-form">
-          <div className="contact-form-title">{editingId ? 'Edit Contact' : 'New Contact'}</div>
-          {/* Row 1: Role + Name */}
-          <div className="form-row">
-            <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}>
-              {CONTACT_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-            </select>
-            <input placeholder="Full Name *" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+        <div className="contact-form cf">
+          <div className="cf-header">
+            <div className="cf-title">{editingId ? 'Edit Contact' : 'New Contact'}</div>
           </div>
-          {/* Row 2: Phone + Mobile + Email */}
-          <div className="form-row">
-            <input placeholder="Phone" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
-            <input placeholder="Mobile" value={form.mobile} onChange={e => setForm({ ...form, mobile: e.target.value })} />
-            <input placeholder="Email" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
+
+          <div className="cf-section">
+            <div className="cf-grid">
+              <div className="cf-field">
+                <span>Role</span>
+                <IconSelect
+                  ariaLabel="Role"
+                  value={form.role}
+                  options={ROLE_OPTIONS}
+                  onChange={(role) => setForm({ ...form, role })}
+                />
+              </div>
+              <div className="cf-field">
+                <span>Full name <b>*</b></span>
+                <input
+                  className={nameError ? 'is-invalid' : ''}
+                  placeholder="e.g. U Aung Kyaw"
+                  value={form.name}
+                  aria-invalid={Boolean(nameError)}
+                  onChange={e => setForm({ ...form, name: e.target.value })}
+                  onBlur={() => setNameTouched(true)}
+                />
+                {nameError && <div className="cf-error">{nameError}</div>}
+              </div>
+            </div>
           </div>
-          {/* Row 3: isPrimary */}
-          <div className="form-row form-check-row">
-            <label className="contact-primary-label">
-              <input type="checkbox" checked={form.isPrimary} onChange={e => setForm({ ...form, isPrimary: e.target.checked })} />
-              <Star size={13} /> Mark as primary contact
-            </label>
+
+          <div className="cf-section">
+            <div className="cf-channels">
+              {channelRows.length === 0
+                ? <div className="cf-channels-empty">No channel yet. Add a phone, email or messaging app.</div>
+                : (
+                  <div className="cf-channels-head" aria-hidden="true">
+                    <span>Type</span>
+                    <span>Number / username / address</span>
+                    <span />
+                  </div>
+                )}
+              {channelRows.map((row) => {
+                const opt = channelOption(row.type);
+                const error = rowError(row);
+                return (
+                  <div className="cf-channel-item" key={row.key}>
+                    <div className="cf-channel">
+                      <IconSelect
+                        ariaLabel="Channel type"
+                        value={row.type}
+                        options={CHANNEL_SELECT_OPTIONS}
+                        onChange={(type) => updateChannelRow(row.key, { type: type as ContactChannelType })}
+                      />
+                      <input
+                        className={`cf-channel-value${error ? ' is-invalid' : ''}`}
+                        type={opt.input}
+                        aria-label={`${opt.label} value`}
+                        aria-invalid={Boolean(error)}
+                        placeholder={opt.placeholder}
+                        value={row.value}
+                        onChange={e => updateChannelRow(row.key, { value: e.target.value })}
+                        onBlur={() => updateChannelRow(row.key, { touched: true })}
+                      />
+                      <button type="button" className="cf-channel-remove" title="Remove channel" onClick={() => removeChannelRow(row.key)}>
+                        <X size={14} />
+                      </button>
+                    </div>
+                    {error && <div className="cf-error cf-channel-error">{error}</div>}
+                  </div>
+                );
+              })}
+            </div>
+            <button type="button" className="cf-add-channel" onClick={addChannelRow}>
+              <Plus size={13} /> Add channel
+            </button>
+            <div className="cf-hint">
+              Viber, WhatsApp, Telegram and email channels become one-tap buttons on the public leasing page.
+            </div>
           </div>
-          <div className="form-actions">
+
+          <label className="cf-primary">
+            <input type="checkbox" checked={form.isPrimary} onChange={e => setForm({ ...form, isPrimary: e.target.checked })} />
+            <Star size={13} />
+            <span>Mark as primary contact</span>
+          </label>
+
+          <div className="form-actions cf-actions">
             <button className="btn-primary" onClick={handleSave} disabled={isAdding}>
               {isAdding ? 'Saving…' : editingId ? 'Update Contact' : 'Save Contact'}
             </button>
-            <button className="btn-ghost" onClick={() => { setShowForm(false); setEditingId(null); }}>Cancel</button>
+            <button className="btn-ghost" onClick={() => { setShowForm(false); setEditingId(null); resetValidation(); }}>Cancel</button>
           </div>
         </div>
       )}
@@ -622,17 +850,25 @@ function ContactsTab({ propertyId }: { propertyId: string }) {
         : <div className="contacts-list">
             {contacts.map((c) => (
               <div key={c.id} className="contact-card">
-                {c.isPrimary && <span className="primary-badge"><Star size={11} /> Primary</span>}
                 <div className="contact-avatar" style={{ background: c.isPrimary ? 'rgba(243,156,18,0.15)' : 'rgba(16,185,129,0.12)', color: c.isPrimary ? '#f39c12' : '#10b981' }}>
                   {c.name.charAt(0).toUpperCase()}
                 </div>
                 <div className="contact-body">
-                  <div className="contact-role">{CONTACT_ROLES.find(r => r.value === c.role)?.label || c.role.replace(/_/g, ' ')}</div>
+                  <div className="contact-role">
+                    <span>{CONTACT_ROLES.find(r => r.value === c.role)?.label || c.role.replace(/_/g, ' ')}</span>
+                    {c.isPrimary && <span className="primary-badge"><Star size={11} /> Primary</span>}
+                  </div>
                   <div className="contact-name">{c.name}</div>
                   <div className="contact-details">
-                    {c.phone  && <span><Phone size={12} /> {c.phone}</span>}
-                    {c.mobile && <span><Phone size={12} /> {c.mobile} <span className="contact-tag">mob</span></span>}
-                    {c.email  && <span><Mail size={12} /> {c.email}</span>}
+                    {contactChannelsOf(c).map((ch, i) => {
+                      const Icon = CHANNEL_ICONS[ch.type];
+                      return (
+                        <span key={`${ch.type}-${i}`} className={`contact-chan is-${ch.type}`} title={channelOption(ch.type).label}>
+                          <Icon size={12} /> {ch.value}
+                          {!['phone', 'email'].includes(ch.type) && <span className="contact-tag">{channelOption(ch.type).label}</span>}
+                        </span>
+                      );
+                    })}
                   </div>
                 </div>
                 <PermissionGuard permission="properties.update">

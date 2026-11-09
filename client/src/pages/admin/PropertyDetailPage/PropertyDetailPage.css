@@ -389,15 +389,15 @@
   border-radius: 10px;
 }
 
-.contact-role { font-size: 0.72rem; text-transform: capitalize; color: var(--text-muted); margin-bottom: 2px; }
+.contact-role { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 0.72rem; text-transform: capitalize; color: var(--text-muted); margin-bottom: 2px; }
 .contact-name { font-size: 0.92rem; font-weight: 600; margin-bottom: 6px; }
 .contact-details { display: flex; gap: 16px; flex-wrap: wrap; }
 .contact-details span { display: flex; align-items: center; gap: 5px; font-size: 0.78rem; color: var(--text-muted); }
 
 .primary-badge {
-  position: absolute;
-  top: 10px;
-  right: 40px;
+  position: static;
+  flex-shrink: 0;
+  text-transform: none;
   font-size: 0.65rem;
   background: rgba(243,156,18,0.15);
   color: #f39c12;
@@ -882,7 +882,7 @@
 /* ─── Enhanced Contact Card ──────────────────────── */
 .contact-card {
   position: relative;
-  padding: 14px 44px 14px 14px;
+  padding: 14px 76px 14px 14px;
   background: rgba(255,255,255,0.03);
   border: 1px solid rgba(255,255,255,0.06);
   border-radius: 10px;
@@ -904,23 +904,6 @@
 }
 
 .contact-body { flex: 1; min-width: 0; }
-
-/* isPrimary checkbox in add form */
-.form-check-row { flex-wrap: nowrap; align-items: center; }
-.contact-primary-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.82rem;
-  color: var(--text-primary);
-  cursor: pointer;
-  user-select: none;
-}
-.contact-primary-label input[type="checkbox"] {
-  accent-color: #f39c12;
-  width: 15px;
-  height: 15px;
-}
 
 /* Mobile tag badge */
 .contact-tag {
@@ -957,10 +940,6 @@
 }
 .contact-card:hover .contact-card-actions { opacity: 1; }
 
-.contact-form-title {
-  font-size: .78rem; font-weight: 700; color: var(--text-muted);
-  text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px;
-}
 
 /* ─── Edit / Remove buttons ──────────────────── */
 .edit-btn {
@@ -1736,3 +1715,131 @@
   background: #ffffff;
 }
 
+
+/* Key Contacts: shown when the public page has no property contact to display */
+.contact-public-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 10px;
+}
+.contact-public-notice svg { flex-shrink: 0; margin-top: 2px; }
+
+/* ─── Contact form (Add / Edit contact) ─────────── */
+.contact-form.cf { gap: 18px; padding: 20px 24px; max-width: 780px; }
+.cf-header { display: flex; flex-direction: column; gap: 2px; }
+.cf-title { font-size: 0.95rem; font-weight: 700; color: var(--text-primary); }
+.cf-section { display: flex; flex-direction: column; gap: 10px; }
+
+/* Same column tracks as a channel row, so Role lines up with Type and Full name with the value input */
+.cf-grid { display: grid; grid-template-columns: 190px minmax(0, 1fr) 40px; gap: 10px; align-items: start; }
+.cf-grid .cf-field:nth-child(2) { grid-column: 2 / -1; }
+.cf-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.cf-field > span { font-size: 0.74rem; font-weight: 600; color: var(--text-muted); }
+.cf-field > span b { color: #e74c3c; }
+
+/* One control height for every input / dropdown so rows line up */
+.cf-field input, .cf-channel-value, .cf-dd-btn {
+  width: 100%; height: 40px; box-sizing: border-box; padding: 0 12px; min-width: 0; margin: 0;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
+  color: var(--text-primary); font-size: 0.85rem; font-family: inherit; line-height: 1.2; outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.cf-field input:focus, .cf-channel-value:focus, .cf-dd.is-open .cf-dd-btn, .cf-dd-btn:focus-visible {
+  border-color: rgba(16, 185, 129, 0.55); box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+}
+/* Validation: red border */
+.cf-field input.is-invalid, .cf-channel-value.is-invalid, .cf-dd.is-invalid .cf-dd-btn,
+.cf-field input.is-invalid:focus, .cf-channel-value.is-invalid:focus {
+  border-color: #e74c3c; box-shadow: 0 0 0 3px rgba(231, 76, 60, 0.12);
+}
+.cf-error { font-size: 0.72rem; color: #e74c3c; line-height: 1.3; }
+.cf-channel-error { margin: 4px 0 0 200px; }
+
+/* Dropdown with icons */
+.cf-dd { position: relative; min-width: 0; }
+.cf-dd-btn { display: flex; align-items: center; gap: 9px; text-align: left; cursor: pointer; }
+.cf-dd-icon { display: flex; flex-shrink: 0; color: var(--accent, #10b981); }
+.cf-dd-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cf-dd-chev { flex-shrink: 0; color: var(--text-muted); transition: transform 0.15s; }
+.cf-dd.is-open .cf-dd-chev { transform: rotate(180deg); }
+.cf-dd-menu {
+  position: absolute; z-index: 40; top: calc(100% + 4px); left: 0; min-width: 100%; margin: 0; padding: 4px;
+  list-style: none; max-height: 280px; overflow-y: auto;
+  background: #1a1f2e; border: 1px solid rgba(255,255,255,0.12); border-radius: 10px;
+  box-shadow: 0 12px 28px rgba(0,0,0,0.4);
+}
+.cf-dd-option {
+  display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 6px;
+  font-size: 0.85rem; color: var(--text-primary); cursor: pointer; white-space: nowrap;
+}
+.cf-dd-option:hover { background: rgba(16, 185, 129, 0.12); }
+.cf-dd-option.is-selected { font-weight: 600; background: rgba(16, 185, 129, 0.08); }
+.cf-dd-check { margin-left: auto; color: var(--accent, #10b981); flex-shrink: 0; }
+
+.cf-channels { display: flex; flex-direction: column; gap: 8px; }
+.cf-channels-empty { font-size: 0.8rem; color: var(--text-muted); padding: 8px 0; }
+.cf-channels-head, .cf-channel { display: grid; grid-template-columns: 190px minmax(0, 1fr) 40px; gap: 10px; align-items: center; }
+.cf-channels-head { font-size: 0.72rem; font-weight: 600; color: var(--text-muted); margin-bottom: -2px; }
+.cf-channel-remove {
+  width: 40px; height: 40px; padding: 0; display: flex; align-items: center; justify-content: center;
+  background: rgba(231, 76, 60, 0.08); border: none; border-radius: 8px; color: #e74c3c; cursor: pointer;
+  transition: background 0.15s;
+}
+.cf-channel-remove:hover { background: rgba(231, 76, 60, 0.2); }
+.cf-add-channel {
+  align-self: flex-start; display: inline-flex; align-items: center; gap: 6px;
+  height: 34px; padding: 0 14px; font-size: 0.8rem; font-weight: 600; color: var(--accent, #10b981);
+  background: transparent; border: 1px dashed rgba(16, 185, 129, 0.45); border-radius: 8px; cursor: pointer;
+  transition: background 0.15s;
+}
+.cf-add-channel:hover { background: rgba(16, 185, 129, 0.08); }
+.cf-hint { font-size: 0.74rem; color: var(--text-muted); line-height: 1.4; }
+.cf-primary {
+  align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px;
+  cursor: pointer; user-select: none; font-size: 0.83rem; color: var(--text-primary);
+  background: rgba(243, 156, 18, 0.06); border: 1px solid rgba(243, 156, 18, 0.25); border-radius: 8px;
+}
+.cf-primary svg { color: #f39c12; flex-shrink: 0; }
+.cf-primary input { accent-color: #f39c12; width: 15px; height: 15px; margin: 0; }
+.cf-actions { display: flex; gap: 10px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.06); }
+.cf-actions button { height: 38px; padding: 0 20px; margin: 0; display: inline-flex; align-items: center; justify-content: center; }
+
+/* Channel chips on the contact card */
+.contact-chan svg { flex-shrink: 0; }
+.contact-chan.is-viber svg { color: #7360f2; }
+.contact-chan.is-whatsapp svg { color: #25d366; }
+.contact-chan.is-telegram svg { color: #229ed9; }
+.contact-chan.is-email svg { color: #f59e0b; }
+.contact-chan.is-website svg { color: #3b82f6; }
+
+@media (max-width: 640px) {
+  .contact-form.cf { padding: 16px; }
+  .cf-grid { grid-template-columns: 1fr; }
+  .cf-grid .cf-field:nth-child(2) { grid-column: 1; }
+  .cf-channels-head { display: none; }
+  .cf-channel { grid-template-columns: minmax(0, 1fr) 40px; }
+  .cf-channel > .cf-dd { grid-column: 1 / -1; }
+  .cf-channel-value { grid-column: 1; }
+  .cf-channel-remove { grid-column: 2; }
+  .cf-channel-error { margin-left: 0; }
+}
+
+[data-theme="light"] .cf-actions { border-top-color: rgba(0,0,0,0.08); }
+[data-theme="light"] .cf-field input,
+[data-theme="light"] .cf-channel-value,
+[data-theme="light"] .cf-dd-btn {
+  background: #ffffff; border-color: rgba(0,0,0,0.12); color: var(--text-primary);
+}
+[data-theme="light"] .cf-field input.is-invalid,
+[data-theme="light"] .cf-channel-value.is-invalid,
+[data-theme="light"] .cf-dd.is-invalid .cf-dd-btn { border-color: #e74c3c; }
+[data-theme="light"] .cf-dd-menu { background: #ffffff; border-color: rgba(0,0,0,0.12); box-shadow: 0 12px 28px rgba(0,0,0,0.14); }
+[data-theme="light"] .cf-dd-option:hover { background: rgba(16, 185, 129, 0.1); }

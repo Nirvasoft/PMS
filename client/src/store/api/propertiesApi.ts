@@ -2,6 +2,7 @@ import { createApi } from '@reduxjs/toolkit/query/react';
 import { baseQueryWithReauth } from './baseQuery';
 import { organizationApi } from './organizationApi';
 import { billingApi } from './billingApi';
+import type { ContactChannelType } from '../../utils/contactChannels';
 
 // ─── Types ────────────────────────────────────
 
@@ -52,6 +53,8 @@ export interface PropertyContact {
   phone: string | null;
   mobile: string | null;
   email: string | null;
+  /** Phone / mobile / email / Viber / Telegram / ... entries; null on contacts saved before channels existed. */
+  channels?: Array<{ type: ContactChannelType; value: string }> | null;
   isPrimary: boolean;
   sortOrder: number;
 }

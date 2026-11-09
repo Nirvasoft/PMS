@@ -5,6 +5,8 @@ import { geocodingService } from '../../common/geocoding.service';
 import { storageService } from '../documents/services/storage.service';
 import { PROPERTY_TYPES, FACILITY_TYPES } from './seeds/seedData';
 import { currencyRatesService } from '../billing/currencyRates.service';
+import { validateContactChannels, legacyColumnsFromChannels } from './contactChannels';
+import { invalidateMallPublicCache } from '../mall/publicCache';
 
 // ── Allowed status transitions ────────────────
 const STATUS_TRANSITIONS: Record<string, string[]> = {
@@ -384,20 +386,49 @@ export class PropertiesService {
     });
   }
 
+  /** Validates `channels` (when sent) and keeps the legacy phone / mobile / email columns in sync with it. */
+  private contactData(dto: Record<string, unknown>): Record<string, unknown> {
+    const { channels, ...rest } = dto;
+    if (channels === undefined) return rest;
+    const valid = validateContactChannels(channels);
+    return { ...rest, channels: valid as any, ...legacyColumnsFromChannels(valid) };
+  }
+
   async addContact(propertyId: string, dto: Record<string, unknown>) {
-    return prisma.propertyContact.create({ data: { propertyId, ...(dto as any) } });
+    const data = this.contactData(dto);
+    // Only one primary contact per property: marking this one primary clears the flag on the others.
+    const created = await prisma.$transaction(async (tx) => {
+      if (data.isPrimary === true) {
+        await tx.propertyContact.updateMany({ where: { propertyId, isPrimary: true }, data: { isPrimary: false } });
+      }
+      return tx.propertyContact.create({ data: { propertyId, ...(data as any) } });
+    });
+    invalidateMallPublicCache(propertyId); // the public page shows the leasing contact
+    return created;
   }
 
   async updateContact(propertyId: string, contactId: string, dto: Record<string, unknown>) {
     const contact = await prisma.propertyContact.findFirst({ where: { id: contactId, propertyId } });
     if (!contact) throw AppError.notFound('Contact');
-    return prisma.propertyContact.update({ where: { id: contactId }, data: dto as any });
+    const data = this.contactData(dto);
+    const updated = await prisma.$transaction(async (tx) => {
+      if (data.isPrimary === true) {
+        await tx.propertyContact.updateMany({
+          where: { propertyId, isPrimary: true, id: { not: contactId } },
+          data: { isPrimary: false },
+        });
+      }
+      return tx.propertyContact.update({ where: { id: contactId }, data: data as any });
+    });
+    invalidateMallPublicCache(propertyId);
+    return updated;
   }
 
   async removeContact(propertyId: string, contactId: string) {
     const contact = await prisma.propertyContact.findFirst({ where: { id: contactId, propertyId } });
     if (!contact) throw AppError.notFound('Contact');
     await prisma.propertyContact.delete({ where: { id: contactId } });
+    invalidateMallPublicCache(propertyId);
   }
 
   // ── Photos ────────────────────────────────────

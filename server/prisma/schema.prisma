@@ -1190,6 +1190,8 @@ model PropertyContact {
   phone      String?  @db.VarChar(50)
   mobile     String?  @db.VarChar(50)
   email      String?  @db.VarChar(255)
+  // [{ type: 'phone' | 'mobile' | 'email' | 'viber' | 'whatsapp' | 'telegram' | 'sms' | 'website' | 'other', value }]
+  channels   Json?
   isPrimary  Boolean  @default(false) @map("is_primary")
   sortOrder  Int      @default(0) @map("sort_order") @db.SmallInt
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
