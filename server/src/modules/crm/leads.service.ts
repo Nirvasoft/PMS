@@ -88,7 +88,8 @@ export class LeadsService {
   }
 
   // ── Create ───────────────────────────────
-  async create(companyId: string, dto: Record<string, unknown>, userId: string) {
+  /** `userId` is null for leads created by the system (e.g. the public website enquiry). */
+  async create(companyId: string, dto: Record<string, unknown>, userId: string | null) {
     const assignedTo = (dto.assignedTo as string) ?? await this.autoAssignAgent(dto.propertyId as string | undefined, companyId);
     const propertyId = (dto.propertyId as string | undefined) || undefined;
     const leadNumber =

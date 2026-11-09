@@ -221,3 +221,20 @@ export const createSensorSchema = z.object({
     apiKey: z.string().optional(),
   }),
 });
+
+/** Visitor enquiry sent from the public navigation page; becomes a CRM lead. */
+export const publicEnquirySchema = z.object({
+  body: z
+    .object({
+      name: z.string().trim().min(1, 'Name is required').max(120),
+      phone: z.string().trim().max(40).optional(),
+      email: z.union([z.literal(''), z.string().trim().email('Invalid email').max(255)]).optional(),
+      companyName: z.string().trim().max(150).optional(),
+      businessType: z.string().trim().max(50).optional(),
+      message: z.string().trim().max(1000).optional(),
+      unitId: z.string().uuid().optional(),
+      /** Honeypot: real visitors never see or fill this field. */
+      website: z.string().max(200).optional(),
+    })
+    .refine((b) => Boolean(b.phone) || Boolean(b.email), { message: 'Phone or email is required', path: ['phone'] }),
+});

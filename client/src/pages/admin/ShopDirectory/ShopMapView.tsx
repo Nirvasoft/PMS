@@ -29,7 +29,7 @@ import {
   unitNumberOf, shopDisplayName, matchesShopQuery, scoreShopSearchMatch,
   computeWalkwayPath, buildSmoothRouteSvgPath, computeRouteDirectionArrows, computeFloorplateBounds, findDefaultStartItem, findNearestFacilityItem,
   rotateMapLayout, parseRotationAngle, computeUnitMergeMap,
-  normalizeTileAngle, wrapKioskNotches, isKioskCircleTile, KIOSK_AISLE_CELLS, statusClass,
+  normalizeTileAngle, cropLayoutToContent, wrapKioskNotches, isKioskCircleTile, KIOSK_AISLE_CELLS, statusClass,
   UNIT_SHAPE_LABELS, UNIT_SHAPE_CATEGORY_TABS, UNIT_SHAPE_COMPACT_FAMILIES, parseUnitShapeMode, encodeUnitShapeMode, isAutoUnitShapeLabel, nextUnitShapeMode, resolveSmartFamilyShapeMode, isTrapezoidUnitMode, getTrapezoidUnitGeometry, getCircleRingSectorAlignment,
   LANDMARK_VARIANTS, parseLandmarkMeta, encodeLandmarkMeta, nextLandmarkVariant, autoSquareCircleLandmark, getPolygonAtriumGeometry,
   parseFloorPlanData, buildCopiedFloorLayout, saveCachedFloorPlan, getCachedFloorPlan,
@@ -73,6 +73,10 @@ interface Props {
   publicMode?: boolean;
   /** Public page: pulse Available units on the map (and jump to a floor that has some). */
   highlightAvailable?: boolean;
+  /** Tile key (`u:<unitId>`) to select on first render, e.g. when a visitor picks an available unit. */
+  initialTarget?: string;
+  /** Public page: "I'm interested" on the card of an Available unit. */
+  onEnquireUnit?: (shop: any) => void;
 }
 
 const ALL_RESIZE_HANDLES = ['se', 'sw', 'nw', 'ne', 'e', 'w', 's', 'n'] as const;
@@ -1232,11 +1236,13 @@ export default function ShopMapView({
   initialFloor,
   publicMode = false,
   highlightAvailable = false,
+  initialTarget,
+  onEnquireUnit,
 }: Props) {
   useUnitPhotoCache();
   const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
   const initialFromParam = urlParams.get('from') || '';
-  const initialToParam = urlParams.get('to') || '';
+  const initialToParam = initialTarget || urlParams.get('to') || '';
   const initialRotateParam = parseRotationAngle(urlParams.get('rotate'));
 
   const floors = useMemo(() => {
@@ -1508,10 +1514,11 @@ export default function ShopMapView({
 
   const effectiveRotation: MapRotationAngle = editing ? 0 : mapRotation;
   const isQuarterTurn = effectiveRotation === 90 || effectiveRotation === 270;
-  const rotatedLayout = useMemo(
-    () => rotateMapLayout(items, effectiveColumns, effectiveRotation),
-    [items, effectiveColumns, effectiveRotation],
-  );
+  const rotatedLayout = useMemo(() => {
+    const rotated = rotateMapLayout(items, effectiveColumns, effectiveRotation);
+    // View mode only: no empty rows / columns around the content (editing keeps its grid padding).
+    return editing ? rotated : cropLayoutToContent(rotated);
+  }, [items, effectiveColumns, effectiveRotation, editing]);
   // Render atriums first, then units & transit/other landmarks so Elevator/Escalator/Stairs inside an Atrium are always on top
   const displayItems = useMemo(
     () => [
@@ -1522,7 +1529,7 @@ export default function ShopMapView({
   );
   const displayColumns = rotatedLayout.columns;
   const maxDisplayBottom = useMemo(() => {
-    let maxB = blueprintGridBounds ? Math.max(20, blueprintGridBounds.bottomCells) : 20;
+    let maxB = blueprintGridBounds ? Math.max(20, blueprintGridBounds.bottomCells) : editing ? 20 : 0;
     for (const it of displayItems) {
       const dy =
         editing && dragGroupDelta && selectedGroupSet.has(it.key) ? dragGroupDelta.dy : 0;
@@ -1824,7 +1831,9 @@ export default function ShopMapView({
     ? (lockedEditCellPxRef.current?.cellPx ?? Math.max(5, rawCellPx))
     : isQuarterTurn
       ? Math.max(minDeviceCellPx, Math.min(rawCellPx, maxCellByHeight, 13))
-      : Math.max(minDeviceCellPx, rawCellPx);
+      : viewport.w > 768
+        ? Math.max(minDeviceCellPx, Math.min(rawCellPx, maxCellByHeight)) // laptop / desktop: fit the screen height too
+        : Math.max(minDeviceCellPx, rawCellPx);
   const naturalGridWidth = displayColumns * cellPx;
   const gridWidth = Math.max(240, naturalGridWidth);
   const colStepPx = displayColumns > 0 ? gridWidth / displayColumns : cellPx;
@@ -4190,6 +4199,11 @@ export default function ShopMapView({
               </div>
 
               <div className="shop-map-route-actions">
+                {publicMode && onEnquireUnit && selectedShop && selectedStatusNote?.kind === 'available' && (
+                  <button type="button" className="btn btn-primary btn-sm" onClick={() => onEnquireUnit(selectedShop)}>
+                    I'm interested
+                  </button>
+                )}
                 {originFloorBeforeTransit && (
                   <button
                     type="button"
@@ -4865,9 +4879,13 @@ export default function ShopMapView({
                     const showUnitLabel = !um || um.showLabel;
                     const unitNumberLabel = unitNumberOf(shop);
                     const statusNote = unitStatusNote(shop);
+                    // Room for the status tag AND the unit number; smaller tiles on the public link show the number only.
+                    const statusHasRoom = shortSidePx >= 34 && longSidePx >= 48;
                     const statusTileLabel =
                       (publicMode || !editing) && !decor && it.kind === 'unit' && mapView !== 'photo' && statusNote
-                        ? statusNote.tag
+                        ? publicMode && !statusHasRoom && unitNumberLabel
+                          ? unitNumberLabel
+                          : statusNote.tag
                         : null;
                     const tileDisplayLabel = statusTileLabel ?? shopDisplayName(shop);
                     const labelLen = Math.max(2, tileDisplayLabel.length);
@@ -4995,7 +5013,7 @@ export default function ShopMapView({
                     const isLabelUpsideDown = !isSmartUprightLabel && worldLabelAngle > 90 && worldLabelAngle < 270;
                     const showUnitSubNumber = Boolean(
                       !showPhotoMode &&
-                        !publicMode &&
+                        (!publicMode || Boolean(statusTileLabel)) &&
                         tileDisplayLabel !== unitNumberLabel &&
                         unitNumberLabel &&
                         shortSidePx >= 34 &&
@@ -5228,26 +5246,46 @@ export default function ShopMapView({
                             )}
                             {showStatusDefault && photoStatusNote && (() => {
                               // Non-rectangular shapes: sit the badge where the shape is widest, and shrink it to fit inside.
-                              const baseBadgePx = Math.max(18, Math.min(44, Math.floor(shortSidePx * 0.72)));
                               const spot = it.kind === 'unit' ? shapeBadgeSpot(unitMode, it.label, wPx, hPx) : null;
+                              // The unit number sits under the badge when the tile has room for it.
+                              const availW = spot ? spot.r * 2 : effectiveAngle ? shortSidePx : wPx;
+                              const noPx =
+                                unitNumberLabel && shortSidePx >= 30
+                                  ? Math.min(
+                                      Math.max(8, Math.min(11, Math.floor(shortSidePx * 0.2))),
+                                      Math.floor((availW - 6) / (unitNumberLabel.length * 0.62)),
+                                    )
+                                  : 0;
+                              const showNo = noPx >= 7;
+                              const noBlockPx = showNo ? Math.ceil(noPx * 1.5) + 2 : 0;
+                              const baseBadgePx = showNo
+                                ? Math.max(14, Math.min(44, Math.floor((shortSidePx - noBlockPx - 4) * 0.8)))
+                                : Math.max(18, Math.min(44, Math.floor(shortSidePx * 0.72)));
                               const badgePx = spot
                                 ? Math.max(14, Math.min(baseBadgePx, Math.floor(spot.r * 2 * 0.85)))
                                 : baseBadgePx;
-                              const iconPx = spot
-                                ? Math.max(9, Math.min(28, Math.floor(badgePx * 0.64)))
-                                : Math.max(11, Math.min(28, Math.floor(shortSidePx * 0.46)));
+                              const iconPx = Math.max(9, Math.min(28, Math.floor(badgePx * 0.64)));
                               return (
-                                <span className={`shop-map-tile-status-default is-${photoStatusNote.kind}`} aria-hidden="true">
+                                <span className={`shop-map-tile-status-default is-${photoStatusNote.kind}`}>
                                   <span
-                                    className="shop-map-tile-status-badge"
+                                    className="shop-map-tile-status-stack"
                                     style={{
-                                      width: badgePx,
-                                      height: badgePx,
                                       ...(spot ? ({ translate: `${spot.cx - wPx / 2}px ${spot.cy - hPx / 2}px` } as CSSProperties) : {}),
                                       ...(effectiveAngle ? ({ rotate: `${-effectiveAngle}deg` } as CSSProperties) : {}),
                                     }}
                                   >
-                                    <StatusDefaultIcon size={iconPx} strokeWidth={2.2} />
+                                    <span
+                                      className="shop-map-tile-status-badge"
+                                      style={{ width: badgePx, height: badgePx }}
+                                      aria-hidden="true"
+                                    >
+                                      <StatusDefaultIcon size={iconPx} strokeWidth={2.2} />
+                                    </span>
+                                    {showNo && (
+                                      <span className="shop-map-tile-unit-chip" style={{ fontSize: noPx }}>
+                                        {unitNumberLabel}
+                                      </span>
+                                    )}
                                   </span>
                                 </span>
                               );

@@ -13,7 +13,7 @@
   position: relative;
   width: 100%;
   max-width: 360px;
-  padding: 26px 22px 20px;
+  padding: 0 22px 20px;
   border-radius: 18px;
   text-align: center;
   background: #ffffff;
@@ -134,3 +134,198 @@
   box-shadow: 0 8px 22px rgba(2, 6, 23, 0.4);
 }
 .public-available-reset:hover { background: #047857; }
+
+/* Scroll the modal when the unit list + contact panel are taller than the screen. */
+.public-ad-modal { max-height: 92vh; overflow-y: auto; }
+
+/* Available unit list inside the ad */
+.public-ad-units {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+}
+.public-ad-unit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 8px 7px 12px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+.public-ad-unit.is-active { border-color: #059669; background: #ecfdf5; }
+.public-ad-unit-info { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: 0.78rem; color: #475569; }
+.public-ad-unit-info strong { font-size: 0.86rem; color: #0f172a; }
+.public-ad-unit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.public-ad-unit-btn:hover { border-color: #059669; color: #047857; }
+.public-ad-unit-btn.is-enquire { border-color: #059669; background: #059669; color: #ffffff; }
+.public-ad-unit-btn.is-enquire:hover { background: #047857; }
+/* 5+ units: scrolling list with a floor / unit-number filter */
+.public-ad-units.is-scroll {
+  max-height: 232px;
+  overflow-y: auto;
+  padding-right: 2px;
+  margin-bottom: 4px;
+  overscroll-behavior: contain;
+}
+.public-ad-filters { display: flex; gap: 6px; margin-bottom: 8px; }
+.public-ad-filter-select,
+.public-ad-filter-search {
+  min-height: 34px;
+  box-sizing: border-box;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 0.82rem;
+}
+.public-ad-filter-select { flex: 0 0 auto; max-width: 46%; padding: 0 8px; }
+.public-ad-filter-search { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; padding: 0 10px; color: #64748b; }
+.public-ad-filter-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #0f172a;
+  font-size: 0.82rem;
+  font-family: inherit;
+}
+.public-ad-filter-select:focus,
+.public-ad-filter-search:focus-within { border-color: #059669; box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.18); }
+.public-ad-units-empty { padding: 14px 10px; text-align: center; font-size: 0.8rem; color: #64748b; }
+.public-ad-units-count { margin: 0 0 12px; text-align: right; font-size: 0.72rem; color: #94a3b8; }
+
+/* Contact channels */
+.public-contact-unit { font-size: 0.78rem; color: #475569; }
+.public-contact-channels { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.public-contact-chip {
+  flex: 1 1 28%;
+  min-width: 84px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+}
+.public-contact-chip:hover { border-color: #059669; color: #047857; }
+.public-contact-chip.is-call { background: #059669; border-color: #059669; color: #ffffff; }
+.public-contact-chip.is-call:hover { background: #047857; color: #ffffff; }
+.public-contact-values { font-size: 0.8rem; color: #475569; text-align: center; word-break: break-word; }
+.public-contact-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.public-contact-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 0.82rem;
+  text-decoration: none;
+}
+.public-contact-row:hover { border-color: #059669; }
+.public-contact-row-label { font-weight: 700; flex-shrink: 0; }
+.public-contact-row-value { min-width: 0; color: #475569; text-align: right; overflow-wrap: anywhere; }
+.public-contact-row.is-call { background: #059669; border-color: #059669; color: #ffffff; }
+.public-contact-row.is-call .public-contact-row-value { color: rgba(255, 255, 255, 0.9); }
+.public-contact-row.is-call:hover { background: #047857; }
+.public-contact-copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.public-contact-copy:hover { color: #0f172a; }
+
+/* Enquiry form (creates a CRM lead) */
+.public-enquiry-form { display: flex; flex-direction: column; gap: 8px; text-align: left; }
+.public-enquiry-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.public-enquiry-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 10px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 0.85rem;
+  font-family: inherit;
+}
+.public-enquiry-input:focus { outline: none; border-color: #059669; box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.18); }
+textarea.public-enquiry-input { resize: vertical; min-height: 64px; }
+.public-enquiry-trap { position: absolute; left: -10000px; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.public-enquiry-error { font-size: 0.78rem; font-weight: 600; color: #dc2626; }
+.public-enquiry-done {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px;
+  font-size: 0.82rem;
+  color: #065f46;
+  text-align: center;
+}
+.public-enquiry-done svg { color: #059669; }
+.public-contact-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 2px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+.public-contact-divider::before,
+.public-contact-divider::after { content: ''; flex: 1; height: 1px; background: #e2e8f0; }
+@media (max-width: 420px) { .public-enquiry-row { grid-template-columns: 1fr; } }
+
+/* Sticky header: title and close button stay visible while the unit list / form scrolls. */
+.public-ad-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 -22px 12px;
+  padding: 14px 16px 12px 22px;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+}
+.public-ad-header .public-ad-icon { width: 40px; height: 40px; margin: 0; flex-shrink: 0; }
+.public-ad-header .public-ad-title { flex: 1; min-width: 0; margin: 0; text-align: left; font-size: 1.02rem; }
+.public-ad-header .public-ad-close { position: static; flex-shrink: 0; }

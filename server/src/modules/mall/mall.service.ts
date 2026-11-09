@@ -3,7 +3,10 @@ import { AppError } from '../../common/errors';
 import { invoicesService } from '../billing/invoices.service';
 import { logger } from '../../common/logger';
 import { customShapeConvexUvParts } from './customShape';
+import { leadsService } from '../crm/leads.service';
+import { notificationService } from '../notifications/services/notification.service';
 import { invalidateMallPublicCache } from './publicCache';
+import { hasReachableChannel, parseContactChannels, type ContactChannel } from '../properties/contactChannels';
 
 class MallService {
   // ═══════════════════════════════════════
@@ -1884,7 +1887,7 @@ class MallService {
           where: { role: { notIn: ['security', 'maintenance', 'emergency'] } },
           orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }, { createdAt: 'asc' }],
           take: 5,
-          select: { name: true, role: true, phone: true, mobile: true, email: true },
+          select: { name: true, role: true, phone: true, mobile: true, email: true, channels: true },
         },
       },
     });
@@ -1920,8 +1923,17 @@ class MallService {
       },
     });
 
+    // Units that have a tile on a floor plan; the public page only advertises units visitors can find on the map.
+    const placedTiles = await prisma.mallFloorPlanItem.findMany({
+      where: { companyId: property.companyId, propertyId, unitId: { not: null } },
+      select: { unitId: true },
+      distinct: ['unitId'],
+    });
+    const placedUnitIds = new Set(placedTiles.map((t) => t.unitId));
+
     // Units that are not occupied/reserved are "Available": never expose stale shop identity publicly.
-    const publicShops = shops.map((s) => {
+    const publicShops = shops.map((shop) => {
+      const s = { ...shop, placedOnMap: placedUnitIds.has(shop.unitId) };
       const status = String(s.unit?.status ?? '').toLowerCase();
       if (status === 'occupied' || status === 'reserved') return s;
       return {
@@ -1937,8 +1949,37 @@ class MallService {
       };
     });
 
-    const leasingContact =
-      property.contacts.find((c) => c.mobile || c.phone || c.email) ?? null;
+    const propertyContact = property.contacts.find((c) => hasReachableChannel(c)) ?? null;
+    let leasingContact: {
+      name: string;
+      phones: string[];
+      email: string | null;
+      /** Explicit channels (Viber, Telegram, ...) when the contact has them; otherwise the page derives buttons from phones / email. */
+      channels?: ContactChannel[];
+    } | null = propertyContact
+      ? {
+          name: propertyContact.name,
+          phones: Array.from(
+            new Set([propertyContact.mobile, propertyContact.phone].map((p) => p?.trim()).filter(Boolean)),
+          ) as string[],
+          email: propertyContact.email || null,
+        }
+      : null;
+    if (leasingContact && propertyContact) {
+      const channels = parseContactChannels(propertyContact.channels).filter((ch) => ch.type !== 'other');
+      if (channels.length > 0) leasingContact.channels = channels;
+    }
+    if (!leasingContact) {
+      // No usable property contact: fall back to the company's own public phone / email.
+      const company = await prisma.company.findUnique({
+        where: { id: property.companyId },
+        select: { name: true, phone: true, email: true },
+      });
+      const phones = [company?.phone?.trim()].filter(Boolean) as string[];
+      if (company && (phones.length > 0 || company.email)) {
+        leasingContact = { name: company.name, phones, email: company.email || null };
+      }
+    }
 
     return {
       property: {
@@ -1948,18 +1989,185 @@ class MallService {
         address: [property.addressLine1, property.city].filter(Boolean).join(', '),
         coverImageUrl: property.coverImageUrl ?? property.photos[0]?.url ?? property.imageUrl ?? null,
         imageUrl: property.photos[0]?.url ?? property.imageUrl ?? null,
-        leasingContact: leasingContact
-          ? {
-              name: leasingContact.name,
-              phones: Array.from(
-                new Set([leasingContact.mobile, leasingContact.phone].map((p) => p?.trim()).filter(Boolean)),
-              ) as string[],
-              email: leasingContact.email || null,
-            }
-          : null,
+        leasingContact,
       },
       shops: publicShops,
     };
+  }
+
+  /**
+   * Public enquiry ("Enquire" on an available unit, or the general "I'm interested") -> CRM lead.
+   * Bots (honeypot) and blacklisted emails are acknowledged but dropped; a repeat of the same enquiry within 24 hours
+   * only adds an activity to the existing lead.
+   */
+  async createPublicEnquiry(
+    propertyId: string,
+    dto: {
+      name: string;
+      phone?: string;
+      email?: string;
+      companyName?: string;
+      businessType?: string;
+      message?: string;
+      unitId?: string;
+      website?: string;
+    },
+  ): Promise<{ received: true }> {
+    if (dto.website?.trim()) return { received: true };
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(propertyId)) {
+      throw AppError.notFound('Property not found');
+    }
+
+    const property = await prisma.property.findUnique({
+      where: { id: propertyId },
+      select: { id: true, companyId: true, name: true },
+    });
+    if (!property) throw AppError.notFound('Property not found');
+    const { companyId } = property;
+
+    const email = dto.email?.trim().toLowerCase() || undefined;
+    const phone = dto.phone?.trim() || undefined;
+    if (!email && !phone) throw AppError.validation('Phone or email is required');
+
+    // Only units that are still advertised (Available and placed on the map) can be enquired about.
+    let unit: { id: string; unitNumber: string; floor: string; areaSqft: number | null } | null = null;
+    if (dto.unitId) {
+      const shop = await prisma.shopProfile.findFirst({
+        where: { companyId, propertyId, unitId: dto.unitId },
+        select: {
+          unit: { select: { id: true, unitNumber: true, status: true, areaSqft: true, floorLabel: true, floorNumber: true } },
+        },
+      });
+      const placed = shop
+        ? await prisma.mallFloorPlanItem.count({ where: { companyId, propertyId, unitId: dto.unitId } })
+        : 0;
+      const u = shop?.unit;
+      if (!u || String(u.status ?? '').toLowerCase() !== 'available' || placed === 0) {
+        throw AppError.validation('This unit is no longer available. Please contact the leasing team directly.');
+      }
+      unit = {
+        id: u.id,
+        unitNumber: u.unitNumber,
+        floor: (u.floorLabel ?? '').trim() || (u.floorNumber != null ? `Floor ${u.floorNumber}` : ''),
+        areaSqft: u.areaSqft != null && Number(u.areaSqft) > 0 ? Number(u.areaSqft) : null,
+      };
+    }
+
+    if (email && (await leadsService.checkEmailBlacklist(email, companyId)).blacklisted) {
+      return { received: true };
+    }
+
+    const unitTag = unit ? `unit:${unit.unitNumber}` : null;
+    const unitText = unit
+      ? `unit ${unit.unitNumber}${unit.floor ? ` (${unit.floor}${unit.areaSqft ? `, ${Math.round(unit.areaSqft)} sqft` : ''})` : ''}`
+      : null;
+    const activityMeta = {
+      channel: 'public-map',
+      unitId: unit?.id ?? null,
+      unitNumber: unit?.unitNumber ?? null,
+      floor: unit?.floor ?? null,
+      areaSqft: unit?.areaSqft ?? null,
+    };
+
+    // Same visitor asking again about the same unit: keep one lead.
+    const contactMatch = [...(email ? [{ email }] : []), ...(phone ? [{ mobile: phone }] : [])];
+    const existing = await prisma.lead.findFirst({
+      where: {
+        companyId,
+        propertyId,
+        deletedAt: null,
+        createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+        stage: { notIn: ['lost', 'duplicate', 'lease_signed'] },
+        OR: contactMatch,
+        ...(unitTag ? { tags: { has: unitTag } } : {}),
+      },
+      select: { id: true },
+    });
+    if (existing) {
+      await prisma.leadActivity.create({
+        data: {
+          leadId: existing.id,
+          activityType: 'note',
+          description: `The visitor sent the enquiry again from the public map${unitText ? ` (${unitText})` : ''}${dto.message ? `: ${dto.message}` : ''}`,
+          metadata: activityMeta,
+        },
+      });
+      return { received: true };
+    }
+
+    const [firstName, ...rest] = dto.name.trim().split(/\s+/);
+    const notes = [
+      dto.message?.trim(),
+      unitText ? `Enquiry about ${unitText} at ${property.name}.` : null,
+      dto.businessType ? `Business type: ${dto.businessType}` : null,
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    const lead = await leadsService.create(
+      companyId,
+      {
+        propertyId,
+        firstName,
+        lastName: rest.join(' ') || undefined,
+        companyName: dto.companyName || undefined,
+        email,
+        mobile: phone,
+        unitTypePreference: dto.businessType || undefined,
+        minAreaSqft: unit?.areaSqft ?? undefined,
+        source: 'website',
+        priority: 'medium',
+        tags: ['public-map', ...(unitTag ? [unitTag] : [])],
+        notes: notes || undefined,
+      },
+      null,
+    );
+
+    await prisma.leadActivity.create({
+      data: {
+        leadId: lead.id,
+        activityType: 'note',
+        description: unitText
+          ? `Enquiry from the public map for ${unitText}`
+          : 'General leasing enquiry from the public map',
+        metadata: activityMeta,
+      },
+    });
+
+    // Tell the assigned agent (best effort - the enquiry is already saved).
+    if (lead.assignedTo) {
+      const who = [dto.name.trim(), phone ?? email].filter(Boolean).join(' - ');
+      try {
+        const sent = await notificationService.send({
+          templateCode: 'lead_new_enquiry',
+          companyId,
+          recipientIds: [lead.assignedTo],
+          variables: { leadName: dto.name.trim(), unitInfo: unitText ?? 'a space', propertyName: property.name, contact: phone ?? email ?? '' },
+          entityType: 'lead',
+          entityId: lead.id,
+        });
+        if (sent.queued === 0) throw new Error('no template');
+      } catch {
+        await prisma.notificationLog
+          .create({
+            data: {
+              companyId,
+              recipientId: lead.assignedTo,
+              channel: 'in_app',
+              subject: 'New leasing enquiry',
+              body: `${who} asked about ${unitText ?? 'a space'} at ${property.name}.`,
+              status: 'sent',
+              sentAt: new Date(),
+              entityType: 'lead',
+              entityId: lead.id,
+              metadata: { leadId: lead.id, ...activityMeta },
+            },
+          })
+          .catch((err: unknown) => logger.warn('Could not log the enquiry notification', { err }));
+      }
+    }
+
+    return { received: true };
   }
 
   async getPublicFloorPlan(propertyId: string, floorKey: string) {

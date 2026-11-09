@@ -2991,7 +2991,7 @@ function isAtriumTransitOverlap(
   return false;
 }
 
-export function getCustomUnitConvexPolygons(
+function getCustomUnitConvexPolygons(
   t: { kind: TileKind | string; label?: string | null; x: number; y: number; w: number; h: number; angle?: number },
   f: { ux: number; uy: number; vx: number; vy: number },
 ): Array<{ corners: Array<{ x: number; y: number }>; extraAxes: Array<{ x: number; y: number }> }> | null {
@@ -3243,7 +3243,7 @@ export function hasAnyOverlap(items: MapItem[]): boolean {
   return false;
 }
 
-export interface ViewportGridBounds {
+interface ViewportGridBounds {
   minX: number;
   maxX: number;
   minY: number;
@@ -6014,7 +6014,7 @@ function findOuterRingWingForUnit(
   return archMode;
 }
 
-export function resolveAutoUnitShapeMode(
+function resolveAutoUnitShapeMode(
   u: ShapeDetectTile,
   items: ReadonlyArray<ShapeDetectTile>,
 ): UnitShapeMode {
@@ -7026,6 +7026,28 @@ export function parseRotationAngle(val: string | number | null | undefined): Map
  * Rotates the map layout by 0°, 90°, 180°, or 270° clockwise around the occupied bounding box
  * while keeping individual tile text and icons upright.
  */
+/**
+ * View mode: drops the empty grid space left of / above the first tile and right of the last one, so the map is
+ * not pushed down or sideways by unused rows and columns (the saved grid keeps its editing padding).
+ */
+export function cropLayoutToContent(
+  layout: { items: MapItem[]; columns: number },
+  pad = 1,
+  minColumns = 12,
+): { items: MapItem[]; columns: number } {
+  const { items } = layout;
+  if (items.length === 0) return layout;
+  const minX = Math.min(...items.map((i) => i.x));
+  const minY = Math.min(...items.map((i) => i.y));
+  const maxX = Math.max(...items.map((i) => i.x + i.w));
+  const dx = Math.max(0, minX - pad);
+  const dy = Math.max(0, minY - pad);
+  return {
+    items: dx === 0 && dy === 0 ? items : items.map((it) => ({ ...it, x: it.x - dx, y: it.y - dy })),
+    columns: Math.max(minColumns, Math.ceil(maxX - dx + pad)),
+  };
+}
+
 export function rotateMapLayout(
   items: MapItem[],
   columns: number,
@@ -7234,7 +7256,7 @@ function getTileWorldCorners(
   ];
 }
 
-export interface PolygonAtriumWorldFace {
+interface PolygonAtriumWorldFace {
   index: number;
   x0: number;
   y0: number;

@@ -5,12 +5,22 @@ import { resolveImageAssetUrl } from '../../utils/unitPhotoCache';
 import { useUnitPhotoCache } from '../../components/common/CachedUnitPhoto';
 import ShopMapView from '../admin/ShopDirectory/ShopMapView';
 import AvailableUnitsAdModal from './AvailableUnitsAdModal';
+import LeasingContactModal from './LeasingContactModal';
+import type { AvailableUnit, EnquiryUnit } from './leasingContact';
 import {
+  compareShopsByUnitNumber,
+  floorKeyOf,
   getCachedDirectory,
   saveCachedDirectory,
+  unitKey,
+  unitNumberOf,
 } from '../admin/ShopDirectory/shopMapLayout';
 
 const MIT_WEBSITE_URL = 'https://www.mit.com.mm';
+
+/** Available for lease AND placed on the map, so a visitor can actually find it. Older cached data has no flag: keep it. */
+const isAdvertisedUnit = (shop: any): boolean =>
+  String(shop?.unit?.status ?? '').toLowerCase() === 'available' && shop?.placedOnMap !== false;
 
 export default function PublicMallNavigationPage() {
   useUnitPhotoCache();
@@ -20,6 +30,12 @@ export default function PublicMallNavigationPage() {
 
   const [search, setSearch] = useState('');
   const [brandImgIdx, setBrandImgIdx] = useState(0);
+
+  // Opening the map on another floor / unit remounts it with new initial values.
+  const [mapFloor, setMapFloor] = useState(initialFloor);
+  const [mapTarget, setMapTarget] = useState('');
+  const [mapKey, setMapKey] = useState(0);
+  const [enquiry, setEnquiry] = useState<EnquiryUnit | null>(null);
 
   const { data, isLoading, isError } = useGetPublicDirectoryQuery(
     { propertyId },
@@ -41,11 +57,26 @@ export default function PublicMallNavigationPage() {
 
   // "Units available for lease" ad: only when at least one unit is Available.
   // Shown on every page load/refresh, but only once per load (closing it keeps it closed until refresh).
-  const availableCount = useMemo(
-    () => allShops.filter((s: any) => String(s?.unit?.status ?? '').toLowerCase() === 'available').length,
+  const availableCount = useMemo(() => allShops.filter(isAdvertisedUnit).length, [allShops]);
+  const hasAvailable = availableCount > 0;
+  const availableUnits = useMemo<AvailableUnit[]>(
+    () =>
+      allShops
+        .filter((s: any) => s?.unitId && isAdvertisedUnit(s))
+        .sort(
+          (a: any, b: any) =>
+            (Number(a.unit?.floorNumber) || 0) - (Number(b.unit?.floorNumber) || 0) || compareShopsByUnitNumber(a, b),
+        )
+        .map((s: any) => ({
+          unitId: s.unitId,
+          unitNumber: unitNumberOf(s) || 'Unit',
+          floor: floorKeyOf(s),
+          floorKey: floorKeyOf(s),
+          areaSqft: Number(s.unit?.areaSqft) || null,
+        })),
     [allShops],
   );
-  const hasAvailable = availableCount > 0;
+  const leasingContact = property?.leasingContact ?? null;
   const [adOpen, setAdOpen] = useState(false);
   const adShownRef = useRef(false);
   const [highlightAvailable, setHighlightAvailable] = useState(false);
@@ -60,6 +91,13 @@ export default function PublicMallNavigationPage() {
   }, [propertyId, isLoading, hasAvailable]);
 
   const closeAd = () => setAdOpen(false);
+
+  const showUnitOnMap = (unit: AvailableUnit) => {
+    closeAd();
+    setMapFloor(unit.floorKey);
+    setMapTarget(unitKey(unit.unitId));
+    setMapKey((k) => k + 1);
+  };
 
   const highlightTimerRef = useRef<number | null>(null);
   const stopHighlight = () => {
@@ -169,14 +207,24 @@ export default function PublicMallNavigationPage() {
         </div>
       ) : (
         <ShopMapView
+          key={mapKey}
           shops={allShops}
           propertyId={propertyId}
           propertyName={property?.name}
           searchQuery={search}
           fullScreen
-          initialFloor={initialFloor}
+          initialFloor={mapFloor}
+          initialTarget={mapTarget || undefined}
           publicMode
           highlightAvailable={highlightAvailable}
+          onEnquireUnit={(shop) =>
+            setEnquiry({
+              unitId: shop?.unitId,
+              unitNumber: unitNumberOf(shop) || 'Unit',
+              floor: floorKeyOf(shop),
+              areaSqft: Number(shop?.unit?.areaSqft) || null,
+            })
+          }
         />
       )}
 
@@ -189,10 +237,23 @@ export default function PublicMallNavigationPage() {
       {adOpen && hasAvailable && (
         <AvailableUnitsAdModal
           count={availableCount}
+          propertyId={propertyId}
           propertyName={property?.name}
-          contact={property?.leasingContact}
+          contact={leasingContact}
+          units={availableUnits}
           onViewUnits={viewAvailableUnits}
+          onShowUnit={showUnitOnMap}
           onClose={closeAd}
+        />
+      )}
+
+      {enquiry && (
+        <LeasingContactModal
+          propertyId={propertyId}
+          contact={leasingContact}
+          propertyName={property?.name}
+          unit={enquiry}
+          onClose={() => setEnquiry(null)}
         />
       )}
 

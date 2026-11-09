@@ -264,6 +264,28 @@ export const mallApi = createApi({
       }),
       providesTags: ['FloorPlan'],
     }),
+    createPublicEnquiry: builder.mutation<
+      any,
+      {
+        propertyId: string;
+        body: {
+          name: string;
+          phone?: string;
+          email?: string;
+          companyName?: string;
+          businessType?: string;
+          message?: string;
+          unitId?: string;
+          website?: string;
+        };
+      }
+    >({
+      query: ({ propertyId, body }) => ({
+        url: `/api/v1/public/mall/properties/${propertyId}/enquiries`,
+        method: 'POST',
+        body,
+      }),
+    }),
     getMallQrCode: builder.query<any, { text: string }>({
       query: ({ text }) => ({
         url: `/api/v1/public/mall/qr`,
@@ -321,6 +343,7 @@ export const {
   useGetPosSalesHistoryQuery,
   useGetPublicDirectoryQuery,
   useGetPublicFloorPlanQuery,
+  useCreatePublicEnquiryMutation,
   useGetMallQrCodeQuery,
 } = mallApi;
 

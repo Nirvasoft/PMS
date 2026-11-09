@@ -4,9 +4,10 @@ import { asyncHandler } from '../../middleware';
 import { validateRequest } from '../../middleware/validateRequest';
 import { mallService } from './mall.service';
 import { cachedPublic } from './publicCache';
+import { createRateLimiter } from './publicRateLimit';
 import { requirePermission } from '../auth/guards/roleGuard';
 import {
-  upsertMallPropertySchema, upsertShopProfileSchema, saveFloorPlanSchema,
+  upsertMallPropertySchema, upsertShopProfileSchema, saveFloorPlanSchema, publicEnquirySchema,
   upsertCommercialLeaseSchema,
   submitGtoSchema, verifyGtoSchema,
   createCamPoolSchema, updateCamPoolSchema, generateCamBillingSchema, runReconciliationSchema,
@@ -357,6 +358,13 @@ publicRouter.get('/properties/:propertyId/directory', asyncHandler(async (req, r
   );
   res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
   res.json({ success: true, data });
+}));
+
+// Visitor enquiry -> CRM lead. 5 submissions per IP per 10 minutes.
+const enquiryRateLimit = createRateLimiter({ windowMs: 10 * 60_000, max: 5 });
+publicRouter.post('/properties/:propertyId/enquiries', enquiryRateLimit, validateRequest(publicEnquirySchema), asyncHandler(async (req, res) => {
+  const data = await mallService.createPublicEnquiry(String(req.params.propertyId), req.body);
+  res.status(201).json({ success: true, data });
 }));
 
 publicRouter.get('/properties/:propertyId/floor-plan', asyncHandler(async (req, res) => {

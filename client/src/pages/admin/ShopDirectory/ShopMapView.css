@@ -3477,3 +3477,23 @@
   stroke: rgba(15, 23, 42, 0.75);
   stroke-width: 3px;
 }
+
+/* 3D photo view: status badge with the unit number underneath. */
+.shop-map-tile-status-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.shop-map-tile-unit-chip {
+  max-width: 100%;
+  padding: 0 4px;
+  border-radius: 4px;
+  font-weight: 700;
+  line-height: 1.35;
+  white-space: nowrap;
+  letter-spacing: 0.2px;
+  color: #ffffff;
+  background: rgba(2, 6, 23, 0.55);
+  text-shadow: 0 1px 2px rgba(2, 6, 23, 0.6);
+}
