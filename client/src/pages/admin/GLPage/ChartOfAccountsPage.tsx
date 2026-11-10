@@ -1,8 +1,8 @@
 import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
-import { BookOpen, Search, X, Check, GitBranch, Layers, Pencil, Eye, Lock } from 'lucide-react';
+import { BookOpen, Search, X, Check, GitBranch, Layers, Pencil, RefreshCw, Eye, Lock } from 'lucide-react';
 import {
   useGetGlAccountsQuery,
   useCreateGlAccountMutation,
@@ -11,12 +11,17 @@ import {
   useGetCostCentersQuery,
 } from '../../../store/api/glApi';
 import type { GlAccount, DepartmentCenter, CostCenter } from '../../../store/api/glApi';
+import { useSyncV6CoaMutation } from '../../../store/api/integrationsApi';
 import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
+import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import { useAlertDialog } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import '../BillingPage/BillingPage.css';
 import '../../../components/GlAccountLookupField.css';
 import './GLPage.css';
+
+const V6_COA_AUTO_SYNC_COOLDOWN_MS = 5 * 60 * 1000;
+const lastV6AutoSyncByProperty = new Map<string, number>();
 
 const ACCOUNT_TYPE_GROUPS = [
   {
@@ -193,6 +198,7 @@ function AccountNode({
   searchQuery,
   onEdit,
   onView,
+  isV6Active = false,
   ancestors = new Set<string>(),
 }: {
   account: GlAccount;
@@ -201,6 +207,7 @@ function AccountNode({
   searchQuery: string;
   onEdit: (a: GlAccount) => void;
   onView: (a: GlAccount) => void;
+  isV6Active?: boolean;
   ancestors?: Set<string>;
 }) {
   const [open, setOpen] = useState(true);
@@ -313,6 +320,7 @@ function AccountNode({
               searchQuery={searchQuery}
               onEdit={onEdit}
               onView={onView}
+              isV6Active={isV6Active}
               ancestors={nextAncestors}
             />
           ))}
@@ -323,8 +331,9 @@ function AccountNode({
 }
 
 export default function ChartOfAccountsPage() {
+  const { isV6Active } = useV6IntegrationStatus();
   const propertyId = useSelectedPropertyId();
-  const { data: accounts = [], isLoading } = useGetGlAccountsQuery(
+  const { data: accounts = [], isLoading, refetch: refetchAccounts } = useGetGlAccountsQuery(
     propertyId ? { propertyId } : {}
   );
   const { data: departmentCenters = [] } = useGetDepartmentCentersQuery(
@@ -335,11 +344,54 @@ export default function ChartOfAccountsPage() {
   );
   const [createAccount] = useCreateGlAccountMutation();
   const [updateAccount] = useUpdateGlAccountMutation();
+  const [syncV6Coa, { isLoading: isSyncingCoa }] = useSyncV6CoaMutation();
   const [showModal, setShowModal] = useState(false);
   const [editAccount, setEditAccount] = useState<GlAccount | null>(null);
   const [modalViewOnly, setModalViewOnly] = useState(false);
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('');
+
+  // Smart Auto-Sync for active property whenever V6 ERP Flag is ON
+  useEffect(() => {
+    if (!isV6Active) {
+      lastV6AutoSyncByProperty.clear();
+      return;
+    }
+    if (!propertyId) return;
+
+    const lastSyncedAt = lastV6AutoSyncByProperty.get(propertyId) || 0;
+    if (Date.now() - lastSyncedAt < V6_COA_AUTO_SYNC_COOLDOWN_MS) {
+      return;
+    }
+
+    lastV6AutoSyncByProperty.set(propertyId, Date.now());
+    syncV6Coa({ propertyId })
+      .unwrap()
+      .then(() => {
+        refetchAccounts();
+      })
+      .catch((err) => {
+        // Allow retry on next visit if auto-sync failed
+        lastV6AutoSyncByProperty.delete(propertyId);
+        console.warn('[V6 ERP] Auto-sync COA failed:', err);
+      });
+  }, [isV6Active, propertyId, syncV6Coa, refetchAccounts]);
+
+  const handleManualSync = async () => {
+    if (!isV6Active || isSyncingCoa) return;
+    try {
+      const res = await syncV6Coa(propertyId ? { propertyId } : {}).unwrap();
+      if (propertyId) {
+        lastV6AutoSyncByProperty.set(propertyId, Date.now());
+      }
+      await refetchAccounts();
+      toast.success(
+        res?.data?.message || `Synced ${res?.data?.totalV6Accounts ?? ''} Chart of Accounts from V6 ERP`,
+      );
+    } catch (err: any) {
+      toast.error(err?.data?.message || err?.message || 'Failed to sync Chart of Accounts from V6 ERP');
+    }
+  };
 
   const accountIdSet = new Set(accounts.map(a => a.id));
   const rootAccounts = accounts.filter(a => !a.parentId || a.parentId === a.id || !accountIdSet.has(a.parentId));
@@ -362,6 +414,7 @@ export default function ChartOfAccountsPage() {
     setShowModal(true);
   };
   const handleNew = () => {
+    if (isV6Active) return;
     setEditAccount(null);
     setModalViewOnly(false);
     setShowModal(true);
@@ -376,16 +429,41 @@ export default function ChartOfAccountsPage() {
           </div>
           <div>
             <h1>Chart of Accounts</h1>
-            <p>{accounts.length} total accounts</p>
+            <p>{accounts.length} total accounts{isV6Active ? ' • Synced with V6 ERP' : ''}</p>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {isV6Active && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={isSyncingCoa || !propertyId}
+              onClick={handleManualSync}
+              title="Sync Chart of Accounts from V6 ERP for the active property"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                background: 'rgba(16,185,129,0.1)',
+                color: '#10b981',
+                border: '1px solid rgba(16,185,129,0.3)',
+                opacity: isSyncingCoa ? 0.75 : 1,
+                cursor: isSyncingCoa ? 'wait' : 'pointer',
+              }}
+            >
+              <RefreshCw size={14} className={isSyncingCoa ? 'spin' : undefined} />
+              {isSyncingCoa ? 'Syncing V6 COA…' : 'Sync V6 COA'}
+            </button>
+          )}
           <PermissionGuard permission="finance-coa.write">
             <button
               className="btn-primary"
+              disabled={isV6Active}
               onClick={handleNew}
+              title={isV6Active ? 'Account creation is disabled because V6 ERP integration is active.' : undefined}
+              style={isV6Active ? { opacity: 0.6, cursor: 'not-allowed', display: 'inline-flex', alignItems: 'center', gap: 6 } : undefined}
             >
-              + Add Account
+              {isV6Active ? '🔒 Add Account (V6 Active)' : '+ Add Account'}
             </button>
           </PermissionGuard>
         </div>
@@ -455,6 +533,7 @@ export default function ChartOfAccountsPage() {
                 searchQuery={search}
                 onEdit={handleEdit}
                 onView={handleView}
+                isV6Active={isV6Active}
               />
             ))}
           </ul>
@@ -462,7 +541,11 @@ export default function ChartOfAccountsPage() {
             <p style={{padding:20,textAlign:'center',color:'var(--text-muted)'}}>
               {hasFilters
                 ? 'No accounts match your search or filter criteria.'
-                : 'No accounts found. Click "+ Add Account" to create a new account.'}
+                : isV6Active
+                  ? (isSyncingCoa
+                      ? 'Syncing Chart of Accounts from V6 ERP…'
+                      : 'No V6 ERP accounts synced yet for this property. Click "Sync V6 COA" above.')
+                  : 'No accounts found. Click "+ Add Account" to create a new account.'}
             </p>
           )}
         </div>

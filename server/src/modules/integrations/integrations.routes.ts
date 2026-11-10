@@ -152,8 +152,24 @@ developerRouter.post('/api-keys/:id/revoke', asyncHandler(async (req, res) => {
 }));
 
 // ═══════════════════════════════════════
-// V6 ERP PUSH ROUTE
+// V6 ERP PUSH & COA SYNC ROUTES
 // ═══════════════════════════════════════
+
+/**
+ * POST /api/v1/developer/v6erp/sync-coa
+ *
+ * Pulls General Ledger -> Chart of Accounts from V6 ERP (/mDisRepository/integrationAPI/getCOA)
+ * for the currently active property when V6 ERP flag is ON.
+ */
+developerRouter.post('/v6erp/sync-coa', asyncHandler(async (req, res) => {
+  const { propertyId } = (req.body || {}) as { propertyId?: string };
+  const data = await integrationsService.syncV6ChartOfAccounts(
+    getCompanyId(req),
+    propertyId,
+    getUserId(req),
+  );
+  res.json({ success: true, data });
+}));
 
 /**
  * POST /api/v1/developer/v6erp/push-invoices
@@ -162,7 +178,7 @@ developerRouter.post('/api-keys/:id/revoke', asyncHandler(async (req, res) => {
  * Body (optional): { invoiceIds?: string[]; propertyId?: string }  — omit invoiceIds to send ALL issued invoices for the active property.
  *
  * The integration config must have:
- *   config.baseUrl         e.g.  "http://localhost:8080"
+ *   config.baseUrl         e.g.  "https://erp.mitcloud.com"
  *   config.domain          e.g.  "demo" (optional, default: "demo")
  */
 developerRouter.post('/v6erp/push-invoices', asyncHandler(async (req, res) => {

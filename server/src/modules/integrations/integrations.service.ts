@@ -66,8 +66,213 @@ export const API_KEY_SCOPES = [
   'properties:read',
 ];
 
+// V6 ERP GLM004 Account Category Table Mapping:
+// 1 = Asset       (Debit)
+// 2 = Liability   (Credit)
+// 3 = Capital     (Credit -> equity)
+// 4 = Income      (Credit -> revenue)
+// 5 = Expense     (Debit  -> expense)
+// 6 = Off Balance (Debit  -> asset)
+const V6_GLM004_CATEGORY_MAP: Record<
+  string,
+  { accountType: string; subType: string; normalBalance: string }
+> = {
+  '1': { accountType: 'asset',     subType: 'Current Asset',     normalBalance: 'debit' },
+  '2': { accountType: 'liability', subType: 'Current Liability', normalBalance: 'credit' },
+  '3': { accountType: 'equity',    subType: 'Capital',           normalBalance: 'credit' },
+  '4': { accountType: 'revenue',   subType: 'Operating Revenue', normalBalance: 'credit' },
+  '5': { accountType: 'expense',   subType: 'Operating Expense', normalBalance: 'debit' },
+  '6': { accountType: 'asset',     subType: 'Off Balance Sheet', normalBalance: 'debit' },
+};
+
+function mapV6AccountClassification(
+  code: string,
+  name: string,
+  categoryId?: string | number,
+): {
+  accountType: string;
+  subType: string;
+  normalBalance: string;
+} {
+  const lowerName = (name || '').toLowerCase();
+  const catKey = categoryId !== undefined && categoryId !== null ? String(categoryId).trim() : '';
+
+  // 1. Primary classification from V6 GLM004 Category ID (1..6) when available
+  if (catKey && V6_GLM004_CATEGORY_MAP[catKey]) {
+    const base = { ...V6_GLM004_CATEGORY_MAP[catKey] };
+    if (base.accountType === 'asset') {
+      if (
+        lowerName.includes('cash') ||
+        lowerName.includes('bank') ||
+        lowerName.includes('kbz') ||
+        lowerName.includes('cb ') ||
+        lowerName.includes('aya') ||
+        lowerName.includes('uab') ||
+        lowerName.includes('saving')
+      ) {
+        base.subType = 'Cash & Bank';
+      } else if (
+        lowerName.includes('receivable') ||
+        lowerName.includes('debtor') ||
+        lowerName.includes('trade ar')
+      ) {
+        base.subType = 'Accounts Receivable';
+      } else if (
+        lowerName.includes('building') ||
+        lowerName.includes('equipment') ||
+        lowerName.includes('vehicle') ||
+        lowerName.includes('computer') ||
+        lowerName.includes('furniture') ||
+        lowerName.includes('machinery') ||
+        lowerName.includes('fixed') ||
+        lowerName.includes('depreciation')
+      ) {
+        base.subType = 'Fixed Asset';
+      } else if (lowerName.includes('inventory') || lowerName.includes('stock')) {
+        base.subType = 'Inventory';
+      }
+    } else if (base.accountType === 'liability') {
+      if (lowerName.includes('payable') || lowerName.includes('creditor')) {
+        base.subType = 'Accounts Payable';
+      } else if (lowerName.includes('deposit')) {
+        base.subType = 'Tenant Deposit';
+      } else if (lowerName.includes('tax') || lowerName.includes('vat') || lowerName.includes('commercial')) {
+        base.subType = 'Tax Liability';
+      }
+    } else if (base.accountType === 'expense') {
+      if (lowerName.includes('cost of') || lowerName.includes('cogs') || lowerName.includes('purchase')) {
+        base.subType = 'Cost of Sales';
+      } else if (lowerName.includes('salary') || lowerName.includes('wage') || lowerName.includes('payroll') || lowerName.includes('staff')) {
+        base.subType = 'Payroll Expense';
+      }
+    }
+    return base;
+  }
+
+  // 2. Fallback heuristic based on V6 ERP standard account numbering (1-xxxx .. 7-xxxx)
+  const prefix = (code || '').trim().split(/[-.]/)[0]?.charAt(0) || '';
+  switch (prefix) {
+    case '1': {
+      let subType = 'Current Asset';
+      if (
+        lowerName.includes('cash') ||
+        lowerName.includes('bank') ||
+        lowerName.includes('kbz') ||
+        lowerName.includes('cb ') ||
+        lowerName.includes('aya') ||
+        lowerName.includes('uab') ||
+        lowerName.includes('saving')
+      ) {
+        subType = 'Cash & Bank';
+      } else if (lowerName.includes('receivable') || lowerName.includes('debtor')) {
+        subType = 'Accounts Receivable';
+      } else if (
+        lowerName.includes('building') ||
+        lowerName.includes('equipment') ||
+        lowerName.includes('vehicle') ||
+        lowerName.includes('furniture') ||
+        lowerName.includes('computer') ||
+        lowerName.includes('machinery') ||
+        lowerName.includes('depreciation')
+      ) {
+        subType = 'Fixed Asset';
+      } else if (lowerName.includes('inventory') || lowerName.includes('stock')) {
+        subType = 'Inventory';
+      }
+      return { accountType: 'asset', subType, normalBalance: 'debit' };
+    }
+    case '2': {
+      let subType = 'Current Liability';
+      if (lowerName.includes('payable') || lowerName.includes('creditor')) {
+        subType = 'Accounts Payable';
+      } else if (lowerName.includes('deposit')) {
+        subType = 'Tenant Deposit';
+      } else if (lowerName.includes('tax') || lowerName.includes('vat')) {
+        subType = 'Tax Liability';
+      }
+      return { accountType: 'liability', subType, normalBalance: 'credit' };
+    }
+    case '3':
+      return { accountType: 'equity', subType: 'Capital', normalBalance: 'credit' };
+    case '4':
+      return { accountType: 'revenue', subType: 'Operating Revenue', normalBalance: 'credit' };
+    case '5':
+      return { accountType: 'expense', subType: 'Cost of Sales', normalBalance: 'debit' };
+    case '6':
+    case '7':
+    case '8':
+    case '9':
+      return { accountType: 'expense', subType: 'Operating Expense', normalBalance: 'debit' };
+    default:
+      return { accountType: 'asset', subType: 'General', normalBalance: 'debit' };
+  }
+}
+
+function resolveV6ParentCode(code: string, allCodes: Set<string>): string | null {
+  const trimmed = (code || '').trim();
+  if (!trimmed) return null;
+
+  const parts = trimmed.split('-');
+  if (parts.length >= 2) {
+    const prefix = parts[0];
+    const numPart = parts.slice(1).join('-');
+
+    if (/^\d{4,}$/.test(numPart)) {
+      const len = numPart.length;
+      for (let z = 1; z < len; z++) {
+        const candidateNum = numPart.slice(0, len - z) + '0'.repeat(z);
+        if (candidateNum !== numPart) {
+          const candidate = `${prefix}-${candidateNum}`;
+          if (allCodes.has(candidate)) {
+            return candidate;
+          }
+        }
+      }
+      const shortGroup = `${prefix}-${numPart.slice(0, 2)}00`;
+      if (shortGroup !== trimmed && allCodes.has(shortGroup)) {
+        return shortGroup;
+      }
+      const topHeader = `${prefix}-${numPart.charAt(0)}${'0'.repeat(Math.max(2, len - 1))}`;
+      if (topHeader !== trimmed && allCodes.has(topHeader)) {
+        return topHeader;
+      }
+      const rootHeader = `${prefix}-000`;
+      if (rootHeader !== trimmed && allCodes.has(rootHeader)) {
+        return rootHeader;
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Parse mDisRepository getCOA description format:
+ * "<Account Name> - <Department Code> - <Cost Center Code>"
+ * Example: "KBZ - YGN - SIN" => { baseName: "KBZ", deptCode: "YGN", ccCode: "SIN" }
+ * Example: "Inventory -SNM Brick - SPOY - Construction" => { baseName: "Inventory -SNM Brick", deptCode: "SPOY", ccCode: "Construction" }
+ */
+function parseV6CoaDescription(rawDescription: string): {
+  baseName: string;
+  deptCode: string | null;
+  ccCode: string | null;
+} {
+  const trimmed = String(rawDescription || '').trim();
+  const parts = trimmed
+    .split(/\s+-\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (parts.length >= 3) {
+    const ccCode = parts[parts.length - 1] || null;
+    const deptCode = parts[parts.length - 2] || null;
+    const baseName = parts.slice(0, parts.length - 2).join(' - ').trim() || trimmed;
+    return { baseName, deptCode, ccCode };
+  }
+  return { baseName: trimmed, deptCode: null, ccCode: null };
+}
+
 class IntegrationsService {
   private v6TokenCache = new Map<string, { codex: string; expiresAt: number }>();
+  private activeCoaSyncs = new Map<string, Promise<any>>();
 
   private resolveV6Config(config: any): {
     repoRoot: string;
@@ -173,6 +378,14 @@ class IntegrationsService {
       },
     });
 
+    if (created.integrationType === 'v6erp' && created.isActive && created.status !== 'disabled') {
+      try {
+        await this.syncV6ChartOfAccounts(companyId, effectivePropertyId || undefined, userId);
+      } catch (err: any) {
+        logger.warn(`Auto V6 COA sync on create failed: ${err?.message || err}`);
+      }
+    }
+
     return created;
   }
 
@@ -205,6 +418,24 @@ class IntegrationsService {
       },
     });
 
+    if (existing.integrationType === 'v6erp') {
+      const wasActive = existing.isActive && existing.status !== 'disabled';
+      const nowActive = updated.isActive && updated.status !== 'disabled';
+      if (wasActive && !nowActive) {
+        await this.restorePmsChartOfAccountsOnV6Disable(
+          companyId,
+          updated.propertyId || undefined,
+          existing.id,
+        );
+      } else if (nowActive) {
+        try {
+          await this.syncV6ChartOfAccounts(companyId, updated.propertyId || undefined, _userId);
+        } catch (err: any) {
+          logger.warn(`Auto V6 COA sync on enable failed: ${err?.message || err}`);
+        }
+      }
+    }
+
     return {
       ...updated,
       credentials: updated.credentials,
@@ -217,6 +448,13 @@ class IntegrationsService {
     await ensurePropertySetupScope();
     const existing = await prisma.integrationConfig.findFirst({ where: { id, companyId } });
     if (!existing) throw AppError.notFound('Integration');
+    if (existing.integrationType === 'v6erp') {
+      await this.restorePmsChartOfAccountsOnV6Disable(
+        companyId,
+        existing.propertyId || undefined,
+        existing.id,
+      );
+    }
     return prisma.integrationConfig.delete({ where: { id } });
   }
 
@@ -234,11 +472,24 @@ class IntegrationsService {
           where: { id },
           data: { status: 'active', isActive: true, lastError: null },
         });
+
+        let coaSyncResult: any = null;
+        try {
+          coaSyncResult = await this.syncV6ChartOfAccounts(
+            companyId,
+            _propertyId || config.propertyId || undefined,
+            _userId,
+          );
+        } catch (coaErr: any) {
+          logger.warn(`Auto V6 COA sync on testConnection failed: ${coaErr?.message || coaErr}`);
+        }
+
         return {
           connected: true,
           version: 'V6 ERP mDisRepository Integration API',
-          organisationName: `Domain: ${auth.domain}`,
+          organisationName: `Domain: ${auth.domain}${coaSyncResult ? ` • COA Synced (${coaSyncResult.totalFetched || 0})` : ''}`,
           responseTimeMs: elapsed,
+          coaSync: coaSyncResult,
         };
       } catch (err: any) {
         const errMsg = err.name === 'AbortError' ? 'Timeout (12s)' : err.message;
@@ -1882,10 +2133,836 @@ class IntegrationsService {
   }
 
   /**
+   * Fetch Chart of Accounts from V6 ERP via mDisRepository IntegrationAPI:
+   * POST {repoRoot}/integrationAPI/getCOA
+   * Header: Content-Over: <codex>
+   * Body: { domain, code: "", date: "" }
+   */
+  private async fetchV6CoaViaMdis(config: any): Promise<{
+    coalist: any[];
+    domain: string;
+    repoRoot: string;
+  }> {
+    let auth = await this.getV6CodexToken(config);
+    const requestCoa = async (token: string, domain: string, repoRoot: string) => {
+      return fetch(`${repoRoot}/integrationAPI/getCOA`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Over': token,
+        },
+        body: JSON.stringify({
+          domain,
+          code: '',
+          date: '',
+        }),
+        signal: AbortSignal.timeout(20000),
+      });
+    };
+
+    let resp = await requestCoa(auth.codex, auth.domain, auth.repoRoot);
+    if (resp.status === 401 || resp.status === 403) {
+      auth = await this.getV6CodexToken(config, true);
+      resp = await requestCoa(auth.codex, auth.domain, auth.repoRoot);
+    }
+
+    const rawText = await resp.text().catch(() => '');
+    let json: any = null;
+    try {
+      json = JSON.parse(rawText);
+    } catch {
+      // non-JSON response
+    }
+
+    if (!resp.ok) {
+      const msg = json?.message || `HTTP ${resp.status}: ${rawText.substring(0, 180)}`;
+      throw new AppError(502, 'V6ERP_COA_SYNC_FAILED', `V6 ERP getCOA failed: ${msg}`);
+    }
+
+    const coalist =
+      json?.coalist ||
+      json?.dataList ||
+      json?.datalist ||
+      json?.data ||
+      (Array.isArray(json) ? json : null);
+
+    if (!Array.isArray(coalist)) {
+      throw new AppError(
+        502,
+        'V6ERP_COA_SYNC_FAILED',
+        `V6 ERP getCOA returned invalid coalist payload: ${rawText.substring(0, 180)}`,
+      );
+    }
+
+    return { coalist, domain: auth.domain, repoRoot: auth.repoRoot };
+  }
+
+  /**
+   * Inbound Sync: V6 ERP Chart of Accounts (via mDisRepository/integrationAPI/getCOA) -> PMS GlAccount, DepartmentCenter, CostCenter
+   */
+  async syncV6ChartOfAccounts(companyId: string, propertyId?: string, userId?: string) {
+    const lockKey = `${companyId}:${propertyId || 'all'}`;
+    const existingPromise = this.activeCoaSyncs.get(lockKey);
+    if (existingPromise) {
+      return existingPromise;
+    }
+
+    const syncPromise = this._runSyncV6ChartOfAccounts(companyId, propertyId, userId).finally(() => {
+      this.activeCoaSyncs.delete(lockKey);
+    });
+    this.activeCoaSyncs.set(lockKey, syncPromise);
+    return syncPromise;
+  }
+
+  private async _runSyncV6ChartOfAccounts(companyId: string, propertyId?: string, userId?: string) {
+    await ensurePropertySetupScope();
+    const requestedPropertyId = await resolveEffectivePropertyId(companyId, propertyId);
+
+    const config = await this.findActiveV6Config(companyId, requestedPropertyId);
+    if (!config) {
+      throw AppError.badRequest(
+        'V6ERP_NOT_ACTIVE',
+        'V6 ERP integration is not configured or active for this property',
+      );
+    }
+
+    const effectivePropertyId = requestedPropertyId || config.propertyId || null;
+    const t0 = Date.now();
+    const { coalist: rawList } = await this.fetchV6CoaViaMdis(config);
+
+    type ParsedV6Account = {
+      code: string;
+      name: string;
+      rawDescription: string;
+      syskey: string;
+      deptCode: string;
+      deptName: string;
+      ccCode: string;
+      ccName: string;
+      accountType: string;
+      subType: string;
+      normalBalance: string;
+    };
+
+    const parsedAccounts: ParsedV6Account[] = [];
+    const uniqueCodeSet = new Set<string>();
+    const v6DeptsMap = new Map<string, string>(); // deptCode -> deptName
+    const v6CcsMap = new Map<string, string>();   // ccCode -> ccName
+
+    for (const rawAcc of rawList) {
+      const code = String(rawAcc.code || rawAcc.t1 || rawAcc.accCode || '').trim();
+      if (!code) continue;
+
+      const rawDescription = String(
+        rawAcc.description || rawAcc.t2 || rawAcc.name || code,
+      ).trim();
+      const parsedDesc = parseV6CoaDescription(rawDescription);
+
+      const explicitDept = String(
+        rawAcc.department || rawAcc.deptcode || rawAcc.t3 || '',
+      ).trim();
+      const explicitCc = String(
+        rawAcc.costcenter || rawAcc.cccode || rawAcc.t4 || '',
+      ).trim();
+
+      const deptCode = explicitDept || parsedDesc.deptCode || '';
+      const ccCode = explicitCc || parsedDesc.ccCode || '';
+      const deptName = String(rawAcc.departmentName || rawAcc.deptDesc || deptCode).trim();
+      const ccName = String(rawAcc.costCenterName || rawAcc.ccDesc || ccCode).trim();
+      const baseName =
+        explicitDept || explicitCc ? rawDescription : parsedDesc.baseName || code;
+
+      const syskey = String(rawAcc.syskey || rawAcc.id || code).trim();
+      const rawCategory = rawAcc.n2 ?? rawAcc.category ?? rawAcc.type;
+      const { accountType, subType, normalBalance } = mapV6AccountClassification(
+        code,
+        baseName,
+        rawCategory,
+      );
+
+      uniqueCodeSet.add(code);
+      if (deptCode) {
+        v6DeptsMap.set(deptCode, deptName || deptCode);
+      }
+      if (ccCode) {
+        v6CcsMap.set(ccCode, ccName || ccCode);
+      }
+
+      parsedAccounts.push({
+        code,
+        name: baseName,
+        rawDescription,
+        syskey,
+        deptCode,
+        deptName: deptName || deptCode,
+        ccCode,
+        ccName: ccName || ccCode,
+        accountType,
+        subType,
+        normalBalance,
+      });
+    }
+
+    // ── Step 1: Sync V6 ERP Departments (DepartmentCenter) ──
+    const deptIdByCode = new Map<string, string>();
+    const syncedDeptIds = new Set<string>();
+    let deptsCreated = 0;
+    let deptsUpdated = 0;
+
+    for (const [deptCode, deptName] of v6DeptsMap.entries()) {
+      const existingDept = await prisma.departmentCenter.findFirst({
+        where: {
+          companyId,
+          code: deptCode,
+          ...(effectivePropertyId ? { propertyId: effectivePropertyId } : {}),
+        },
+      });
+
+      let savedDept: any;
+      if (existingDept) {
+        savedDept = await prisma.departmentCenter.update({
+          where: { id: existingDept.id },
+          data: {
+            name: deptName || deptCode,
+            description: `Synced from V6 ERP Department (${deptCode})`,
+            externalRef: deptCode,
+            isActive: true,
+          },
+        });
+        deptsUpdated++;
+      } else {
+        savedDept = await prisma.departmentCenter.create({
+          data: {
+            companyId,
+            propertyId: effectivePropertyId,
+            code: deptCode,
+            name: deptName || deptCode,
+            description: `Synced from V6 ERP Department (${deptCode})`,
+            externalRef: deptCode,
+            isActive: true,
+          },
+        });
+        deptsCreated++;
+      }
+
+      deptIdByCode.set(deptCode, savedDept.id);
+      syncedDeptIds.add(savedDept.id);
+
+      await prisma.integrationEntityMap.upsert({
+        where: {
+          integrationId_entityType_pmsId: {
+            integrationId: config.id,
+            entityType: 'department_center',
+            pmsId: savedDept.id,
+          },
+        },
+        create: {
+          companyId,
+          integrationId: config.id,
+          entityType: 'department_center',
+          pmsId: savedDept.id,
+          externalId: deptCode,
+          externalRef: `${deptCode} — ${deptName || deptCode}`.substring(0, 255),
+        },
+        update: {
+          externalId: deptCode,
+          externalRef: `${deptCode} — ${deptName || deptCode}`.substring(0, 255),
+          syncedAt: new Date(),
+        },
+      });
+    }
+
+    // Hide non-V6 PMS DepartmentCenters while V6 ERP is active
+    const nonV6ActiveDepts = await prisma.departmentCenter.findMany({
+      where: {
+        companyId,
+        ...(effectivePropertyId ? { propertyId: effectivePropertyId } : {}),
+        isActive: true,
+        ...(syncedDeptIds.size > 0 ? { id: { notIn: Array.from(syncedDeptIds) } } : {}),
+      },
+      select: { id: true, code: true, name: true },
+    });
+    for (const pmsDept of nonV6ActiveDepts) {
+      await prisma.integrationEntityMap.upsert({
+        where: {
+          integrationId_entityType_pmsId: {
+            integrationId: config.id,
+            entityType: 'department_center_pms_hidden',
+            pmsId: pmsDept.id,
+          },
+        },
+        create: {
+          companyId,
+          integrationId: config.id,
+          entityType: 'department_center_pms_hidden',
+          pmsId: pmsDept.id,
+          externalId: pmsDept.code,
+          externalRef: `${pmsDept.code} — ${pmsDept.name}`.substring(0, 255),
+        },
+        update: {
+          syncedAt: new Date(),
+        },
+      });
+      await prisma.departmentCenter.update({
+        where: { id: pmsDept.id },
+        data: { isActive: false },
+      });
+    }
+
+    // ── Step 2: Sync V6 ERP Cost Centers (CostCenter) ──
+    const ccIdByCode = new Map<string, string>();
+    const syncedCcIds = new Set<string>();
+    let ccsCreated = 0;
+    let ccsUpdated = 0;
+
+    for (const [ccCode, ccName] of v6CcsMap.entries()) {
+      const existingCc = await prisma.costCenter.findFirst({
+        where: {
+          companyId,
+          code: ccCode,
+          ...(effectivePropertyId ? { propertyId: effectivePropertyId } : {}),
+        },
+      });
+
+      let savedCc: any;
+      if (existingCc) {
+        savedCc = await prisma.costCenter.update({
+          where: { id: existingCc.id },
+          data: {
+            name: ccName || ccCode,
+            description: `Synced from V6 ERP Cost Center (${ccCode})`,
+            externalRef: ccCode,
+            isActive: true,
+          },
+        });
+        ccsUpdated++;
+      } else {
+        savedCc = await prisma.costCenter.create({
+          data: {
+            companyId,
+            propertyId: effectivePropertyId,
+            code: ccCode,
+            name: ccName || ccCode,
+            description: `Synced from V6 ERP Cost Center (${ccCode})`,
+            externalRef: ccCode,
+            isActive: true,
+          },
+        });
+        ccsCreated++;
+      }
+
+      ccIdByCode.set(ccCode, savedCc.id);
+      syncedCcIds.add(savedCc.id);
+
+      await prisma.integrationEntityMap.upsert({
+        where: {
+          integrationId_entityType_pmsId: {
+            integrationId: config.id,
+            entityType: 'cost_center',
+            pmsId: savedCc.id,
+          },
+        },
+        create: {
+          companyId,
+          integrationId: config.id,
+          entityType: 'cost_center',
+          pmsId: savedCc.id,
+          externalId: ccCode,
+          externalRef: `${ccCode} — ${ccName || ccCode}`.substring(0, 255),
+        },
+        update: {
+          externalId: ccCode,
+          externalRef: `${ccCode} — ${ccName || ccCode}`.substring(0, 255),
+          syncedAt: new Date(),
+        },
+      });
+    }
+
+    // Hide non-V6 PMS CostCenters while V6 ERP is active
+    const nonV6ActiveCcs = await prisma.costCenter.findMany({
+      where: {
+        companyId,
+        ...(effectivePropertyId ? { propertyId: effectivePropertyId } : {}),
+        isActive: true,
+        ...(syncedCcIds.size > 0 ? { id: { notIn: Array.from(syncedCcIds) } } : {}),
+      },
+      select: { id: true, code: true, name: true },
+    });
+    for (const pmsCc of nonV6ActiveCcs) {
+      await prisma.integrationEntityMap.upsert({
+        where: {
+          integrationId_entityType_pmsId: {
+            integrationId: config.id,
+            entityType: 'cost_center_pms_hidden',
+            pmsId: pmsCc.id,
+          },
+        },
+        create: {
+          companyId,
+          integrationId: config.id,
+          entityType: 'cost_center_pms_hidden',
+          pmsId: pmsCc.id,
+          externalId: pmsCc.code,
+          externalRef: `${pmsCc.code} — ${pmsCc.name}`.substring(0, 255),
+        },
+        update: {
+          syncedAt: new Date(),
+        },
+      });
+      await prisma.costCenter.update({
+        where: { id: pmsCc.id },
+        data: { isActive: false },
+      });
+    }
+
+    // ── Step 3: Upsert all V6 GL Accounts (preserving every code + department + costCenter combination) ──
+    let created = 0;
+    let updated = 0;
+    let failed = 0;
+    const errors: Array<{ code: string; error: string }> = [];
+
+    const syncedAccounts: Array<{
+      id: string;
+      code: string;
+      deptId: string | null;
+      ccId: string | null;
+    }> = [];
+    const primaryAccountIdByCode = new Map<string, string>();
+
+    for (const item of parsedAccounts) {
+      const deptId = item.deptCode ? deptIdByCode.get(item.deptCode) || null : null;
+      const ccId = item.ccCode ? ccIdByCode.get(item.ccCode) || null : null;
+
+      try {
+        let existing = await prisma.glAccount.findFirst({
+          where: {
+            companyId,
+            code: item.code,
+            departmentCenterId: deptId,
+            costCenterId: ccId,
+            ...(effectivePropertyId ? { propertyId: effectivePropertyId } : {}),
+          },
+        });
+
+        if (!existing && (deptId || ccId)) {
+          const unassignedExisting = await prisma.glAccount.findFirst({
+            where: {
+              companyId,
+              code: item.code,
+              departmentCenterId: null,
+              costCenterId: null,
+              ...(effectivePropertyId ? { propertyId: effectivePropertyId } : {}),
+            },
+          });
+          const hasUnassignedItemInBatch = parsedAccounts.some(
+            (x) => x.code === item.code && !x.deptCode && !x.ccCode,
+          );
+          if (unassignedExisting && !hasUnassignedItemInBatch) {
+            existing = unassignedExisting;
+          }
+        }
+
+        const descParts = [`Synced from V6 ERP (${item.syskey})`];
+        if (item.deptCode) descParts.push(`Dept: ${item.deptCode}`);
+        if (item.ccCode) descParts.push(`CC: ${item.ccCode}`);
+        const description = descParts.join(' • ');
+
+        let savedAccount: any;
+        if (existing) {
+          savedAccount = await prisma.glAccount.update({
+            where: { id: existing.id },
+            data: {
+              name: item.name,
+              accountType: item.accountType,
+              accountSubtype: item.subType,
+              normalBalance: item.normalBalance,
+              description,
+              externalRef: item.syskey,
+              departmentCenterId: deptId,
+              costCenterId: ccId,
+              isActive: true,
+            },
+          });
+          updated++;
+        } else {
+          savedAccount = await prisma.glAccount.create({
+            data: {
+              companyId,
+              propertyId: effectivePropertyId,
+              code: item.code,
+              name: item.name,
+              accountType: item.accountType,
+              accountSubtype: item.subType,
+              normalBalance: item.normalBalance,
+              description,
+              externalRef: item.syskey,
+              departmentCenterId: deptId,
+              costCenterId: ccId,
+              isActive: true,
+            },
+          });
+          created++;
+        }
+
+        syncedAccounts.push({
+          id: savedAccount.id,
+          code: item.code,
+          deptId,
+          ccId,
+        });
+
+        if (!primaryAccountIdByCode.has(item.code) || (!deptId && !ccId)) {
+          primaryAccountIdByCode.set(item.code, savedAccount.id);
+        }
+
+        const extRef = `${item.code} — ${item.rawDescription}`.substring(0, 255);
+        await prisma.integrationEntityMap.upsert({
+          where: {
+            integrationId_entityType_pmsId: {
+              integrationId: config.id,
+              entityType: 'gl_account',
+              pmsId: savedAccount.id,
+            },
+          },
+          create: {
+            companyId,
+            integrationId: config.id,
+            entityType: 'gl_account',
+            pmsId: savedAccount.id,
+            externalId: `${item.code} (Syskey: ${item.syskey})`.substring(0, 255),
+            externalRef: extRef,
+          },
+          update: {
+            externalId: `${item.code} (Syskey: ${item.syskey})`.substring(0, 255),
+            externalRef: extRef,
+            syncedAt: new Date(),
+          },
+        });
+      } catch (err: any) {
+        failed++;
+        errors.push({ code: item.code, error: err?.message || 'Failed to upsert GL account' });
+      }
+    }
+
+    // ── Step 4: Link parentId hierarchy across synced V6 accounts ──
+    for (const acc of syncedAccounts) {
+      const parentCode = resolveV6ParentCode(acc.code, uniqueCodeSet);
+      const parentId = parentCode ? primaryAccountIdByCode.get(parentCode) || null : null;
+      if (parentId && parentId !== acc.id) {
+        await prisma.glAccount
+          .update({
+            where: { id: acc.id },
+            data: { parentId },
+          })
+          .catch(() => {});
+      }
+    }
+
+    // ── Step 5: Hide non-V6 PMS accounts while V6 ERP is active ──
+    const syncedIdList = syncedAccounts.map((a) => a.id);
+    if (syncedIdList.length > 0) {
+      const nonV6ActiveAccounts = await prisma.glAccount.findMany({
+        where: {
+          companyId,
+          ...(effectivePropertyId ? { propertyId: effectivePropertyId } : {}),
+          isActive: true,
+          id: { notIn: syncedIdList },
+        },
+        select: { id: true, code: true, name: true },
+      });
+
+      for (const pmsAcc of nonV6ActiveAccounts) {
+        await prisma.integrationEntityMap.upsert({
+          where: {
+            integrationId_entityType_pmsId: {
+              integrationId: config.id,
+              entityType: 'gl_account_pms_hidden',
+              pmsId: pmsAcc.id,
+            },
+          },
+          create: {
+            companyId,
+            integrationId: config.id,
+            entityType: 'gl_account_pms_hidden',
+            pmsId: pmsAcc.id,
+            externalId: pmsAcc.code,
+            externalRef: `${pmsAcc.code} — ${pmsAcc.name}`.substring(0, 255),
+          },
+          update: {
+            syncedAt: new Date(),
+          },
+        });
+
+        await prisma.glAccount.update({
+          where: { id: pmsAcc.id },
+          data: { isActive: false },
+        });
+      }
+    }
+
+    // ── Step 6: Remap Charge Types to V6 Revenue/Liability GL Accounts when needed ──
+    try {
+      const activeV6Accounts = await prisma.glAccount.findMany({
+        where: {
+          companyId,
+          ...(effectivePropertyId ? { propertyId: effectivePropertyId } : {}),
+          id: { in: syncedIdList },
+          isActive: true,
+        },
+      });
+      const revenueAcc =
+        activeV6Accounts.find(
+          (a) => a.accountType === 'revenue' && a.name.toLowerCase().includes('sale'),
+        ) || activeV6Accounts.find((a) => a.accountType === 'revenue');
+      const depositAcc =
+        activeV6Accounts.find(
+          (a) => a.accountType === 'liability' && a.name.toLowerCase().includes('deposit'),
+        ) || activeV6Accounts.find((a) => a.accountType === 'liability');
+
+      const chargeTypes = await prisma.chargeType.findMany({
+        where: {
+          companyId,
+          ...(effectivePropertyId ? { propertyId: effectivePropertyId } : {}),
+        },
+      });
+
+      for (const ct of chargeTypes) {
+        if (!ct.glAccountCode || !uniqueCodeSet.has(ct.glAccountCode)) {
+          const isDeposit =
+            ct.code.toLowerCase().includes('dep') || ct.name.toLowerCase().includes('deposit');
+          const targetAcc = isDeposit ? depositAcc || revenueAcc : revenueAcc;
+          if (targetAcc) {
+            await prisma.chargeType.update({
+              where: { id: ct.id },
+              data: { glAccountCode: targetAcc.code },
+            });
+          }
+        }
+      }
+    } catch (ctErr: any) {
+      logger.warn(`Auto-link ChargeTypes to V6 GL accounts skipped: ${ctErr?.message || ctErr}`);
+    }
+
+    const durationMs = Date.now() - t0;
+
+    await prisma.integrationSyncLog.create({
+      data: {
+        companyId,
+        integrationId: config.id,
+        syncType: 'coa_pull',
+        direction: 'pull',
+        status: failed === 0 ? 'success' : created + updated > 0 ? 'partial' : 'failed',
+        recordsProcessed: parsedAccounts.length,
+        recordsCreated: created,
+        recordsUpdated: updated,
+        recordsFailed: failed,
+        errorDetails: errors,
+        durationMs,
+        initiatedBy: userId ? 'user' : 'cron',
+        initiatedUserId: userId || null,
+        completedAt: new Date(),
+      },
+    });
+
+    await prisma.integrationConfig.update({
+      where: { id: config.id },
+      data: { lastSyncAt: new Date(), lastError: errors[0]?.error || null },
+    });
+
+    return {
+      totalFetched: parsedAccounts.length,
+      created,
+      updated,
+      failed,
+      departmentsSynced: v6DeptsMap.size,
+      deptsCreated,
+      deptsUpdated,
+      costCentersSynced: v6CcsMap.size,
+      ccsCreated,
+      ccsUpdated,
+      durationMs,
+      message: `Synced ${created + updated} of ${parsedAccounts.length} Chart of Accounts (${v6DeptsMap.size} Departments, ${v6CcsMap.size} Cost Centers) from V6 ERP.`,
+    };
+  }
+
+  /**
+   * When V6 ERP integration is disabled or deleted:
+   * 1. Deactivate V6-synced GL accounts, Departments, and Cost Centers so only PMS records are shown.
+   * 2. Re-activate PMS GL accounts, Departments, and Cost Centers that were hidden while V6 ERP was active.
+   */
+  async restorePmsChartOfAccountsOnV6Disable(
+    companyId: string,
+    propertyId?: string,
+    integrationId?: string,
+  ) {
+    try {
+      await ensurePropertySetupScope();
+      const effectivePropertyId = await resolveEffectivePropertyId(companyId, propertyId);
+
+      const v6Maps = await prisma.integrationEntityMap.findMany({
+        where: {
+          companyId,
+          ...(integrationId ? { integrationId } : {}),
+          entityType: 'gl_account',
+        },
+        select: { pmsId: true },
+      });
+      const v6AccountIds = v6Maps.map((m) => m.pmsId);
+
+      if (v6AccountIds.length > 0) {
+        await prisma.glAccount.updateMany({
+          where: {
+            companyId,
+            id: { in: v6AccountIds },
+            ...(effectivePropertyId ? { propertyId: effectivePropertyId } : {}),
+          },
+          data: { isActive: false },
+        });
+      }
+
+      await prisma.glAccount.updateMany({
+        where: {
+          companyId,
+          ...(effectivePropertyId ? { propertyId: effectivePropertyId } : {}),
+          description: { startsWith: 'Synced from V6 ERP' },
+        },
+        data: { isActive: false },
+      });
+
+      const hiddenPmsMaps = await prisma.integrationEntityMap.findMany({
+        where: {
+          companyId,
+          ...(integrationId ? { integrationId } : {}),
+          entityType: 'gl_account_pms_hidden',
+        },
+        select: { id: true, pmsId: true },
+      });
+
+      if (hiddenPmsMaps.length > 0) {
+        const pmsAccountIds = hiddenPmsMaps.map((m) => m.pmsId);
+        await prisma.glAccount.updateMany({
+          where: {
+            companyId,
+            id: { in: pmsAccountIds },
+          },
+          data: { isActive: true },
+        });
+
+        await prisma.integrationEntityMap.deleteMany({
+          where: {
+            id: { in: hiddenPmsMaps.map((m) => m.id) },
+          },
+        });
+      }
+
+      const v6DeptMaps = await prisma.integrationEntityMap.findMany({
+        where: {
+          companyId,
+          ...(integrationId ? { integrationId } : {}),
+          entityType: 'department_center',
+        },
+        select: { pmsId: true },
+      });
+      if (v6DeptMaps.length > 0) {
+        await prisma.departmentCenter.updateMany({
+          where: {
+            companyId,
+            id: { in: v6DeptMaps.map((m) => m.pmsId) },
+            ...(effectivePropertyId ? { propertyId: effectivePropertyId } : {}),
+          },
+          data: { isActive: false },
+        });
+      }
+      await prisma.departmentCenter.updateMany({
+        where: {
+          companyId,
+          ...(effectivePropertyId ? { propertyId: effectivePropertyId } : {}),
+          description: { startsWith: 'Synced from V6 ERP' },
+        },
+        data: { isActive: false },
+      });
+
+      const hiddenDeptMaps = await prisma.integrationEntityMap.findMany({
+        where: {
+          companyId,
+          ...(integrationId ? { integrationId } : {}),
+          entityType: 'department_center_pms_hidden',
+        },
+        select: { id: true, pmsId: true },
+      });
+      if (hiddenDeptMaps.length > 0) {
+        await prisma.departmentCenter.updateMany({
+          where: {
+            companyId,
+            id: { in: hiddenDeptMaps.map((m) => m.pmsId) },
+          },
+          data: { isActive: true },
+        });
+        await prisma.integrationEntityMap.deleteMany({
+          where: { id: { in: hiddenDeptMaps.map((m) => m.id) } },
+        });
+      }
+
+      const v6CcMaps = await prisma.integrationEntityMap.findMany({
+        where: {
+          companyId,
+          ...(integrationId ? { integrationId } : {}),
+          entityType: 'cost_center',
+        },
+        select: { pmsId: true },
+      });
+      if (v6CcMaps.length > 0) {
+        await prisma.costCenter.updateMany({
+          where: {
+            companyId,
+            id: { in: v6CcMaps.map((m) => m.pmsId) },
+            ...(effectivePropertyId ? { propertyId: effectivePropertyId } : {}),
+          },
+          data: { isActive: false },
+        });
+      }
+      await prisma.costCenter.updateMany({
+        where: {
+          companyId,
+          ...(effectivePropertyId ? { propertyId: effectivePropertyId } : {}),
+          description: { startsWith: 'Synced from V6 ERP' },
+        },
+        data: { isActive: false },
+      });
+
+      const hiddenCcMaps = await prisma.integrationEntityMap.findMany({
+        where: {
+          companyId,
+          ...(integrationId ? { integrationId } : {}),
+          entityType: 'cost_center_pms_hidden',
+        },
+        select: { id: true, pmsId: true },
+      });
+      if (hiddenCcMaps.length > 0) {
+        await prisma.costCenter.updateMany({
+          where: {
+            companyId,
+            id: { in: hiddenCcMaps.map((m) => m.pmsId) },
+          },
+          data: { isActive: true },
+        });
+        await prisma.integrationEntityMap.deleteMany({
+          where: { id: { in: hiddenCcMaps.map((m) => m.id) } },
+        });
+      }
+    } catch (err: any) {
+      logger.warn(
+        `Failed to restore PMS COA/Depts/CCs on V6 disable: ${err?.message || err}`,
+      );
+    }
+  }
+
+  /**
    * Unified V6 ERP Sync (mDisRepository IntegrationAPI):
-   * 1. Push PMS Customers to V6 ERP (createCustomerMaster)
-   * 2. Push Issued PMS Invoices / Debit Notes to V6 ERP (postARInvoice)
-   * 3. Push Confirmed PMS Cash Receipts to V6 ERP (postCashReceipt)
+   * 1. Pull Chart of Accounts from V6 ERP (getCOA)
+   * 2. Push PMS Customers to V6 ERP (createCustomerMaster)
+   * 3. Push Issued PMS Invoices / Debit Notes to V6 ERP (postARInvoice)
+   * 4. Push Confirmed PMS Cash Receipts to V6 ERP (postCashReceipt)
    */
   async syncV6Erp(
     config: any,
@@ -1902,11 +2979,29 @@ class IntegrationsService {
     this.resolveV6Config(config);
 
     const t0 = Date.now();
+    let coaTotal = 0;
+    let coaCreated = 0;
+    let coaUpdated = 0;
     let customersImported = 0;
     let customersUpdated = 0;
     const errors: any[] = [];
 
-    // 1. Outbound Customer Master Sync (createCustomerMaster)
+    // 1. Inbound Chart of Accounts Sync (getCOA)
+    try {
+      const coaRes = await this.syncV6ChartOfAccounts(
+        companyId,
+        effectivePropertyId || undefined,
+        userId,
+      );
+      coaTotal = coaRes.totalFetched || 0;
+      coaCreated = coaRes.created || 0;
+      coaUpdated = coaRes.updated || 0;
+    } catch (coaErr: any) {
+      logger.warn(`V6 ERP COA sync warning: ${coaErr.message}`);
+      errors.push({ error: `COA sync warning: ${coaErr.message}` });
+    }
+
+    // 2. Outbound Customer Master Sync (createCustomerMaster)
     try {
       const custRes = await this.syncV6Customers(companyId, effectivePropertyId || undefined, userId);
       customersImported += custRes.created || 0;
@@ -1919,7 +3014,7 @@ class IntegrationsService {
       errors.push({ error: `Customer sync warning: ${cErr.message}` });
     }
 
-    // 2. Outbound AR Invoice / Debit Note Push (postARInvoice)
+    // 3. Outbound AR Invoice / Debit Note Push (postARInvoice)
     let invoiceRes: any = { sent: 0, failed: 0, skipped: 0, results: [] };
     try {
       invoiceRes = await this.pushInvoicesToV6Erp(
@@ -1939,7 +3034,7 @@ class IntegrationsService {
       errors.push(...failedInvoices);
     }
 
-    // 3. Outbound Cash Receipt Push (postCashReceipt)
+    // 4. Outbound Cash Receipt Push (postCashReceipt)
     let receiptRes: any = { sent: 0, failed: 0, results: [] };
     try {
       receiptRes = await this.pushReceiptsToV6Erp(
@@ -1961,6 +3056,8 @@ class IntegrationsService {
 
     const durationMs = Date.now() - t0;
     const totalProcessed =
+      coaCreated +
+      coaUpdated +
       customersImported +
       customersUpdated +
       (invoiceRes.results?.length || 0) +
@@ -1975,8 +3072,8 @@ class IntegrationsService {
         direction: 'push',
         status: totalFailed === 0 ? 'success' : totalProcessed > 0 ? 'partial' : 'failed',
         recordsProcessed: totalProcessed,
-        recordsCreated: customersImported + (invoiceRes.sent || 0) + (receiptRes.sent || 0),
-        recordsUpdated: customersUpdated,
+        recordsCreated: coaCreated + customersImported + (invoiceRes.sent || 0) + (receiptRes.sent || 0),
+        recordsUpdated: coaUpdated + customersUpdated,
         recordsFailed: totalFailed,
         errorDetails: errors,
         durationMs,
@@ -1999,15 +3096,15 @@ class IntegrationsService {
       success: true,
       customersImported,
       customersUpdated,
-      coaTotal: 0,
-      coaCreated: 0,
-      coaUpdated: 0,
+      coaTotal,
+      coaCreated,
+      coaUpdated,
       invoicesSent: invoiceRes.sent || 0,
       invoicesFailed: invoiceRes.failed || 0,
       receiptsSent: receiptRes.sent || 0,
       receiptsFailed: receiptRes.failed || 0,
       log,
-      message: `Sync completed: ${customersImported + customersUpdated} customer(s) synced, ${invoiceRes.sent || 0} invoice(s) sent, ${receiptRes.sent || 0} receipt(s) sent.`,
+      message: `Sync completed: ${coaCreated + coaUpdated} COA account(s) synced, ${customersImported + customersUpdated} customer(s) synced, ${invoiceRes.sent || 0} invoice(s) sent, ${receiptRes.sent || 0} receipt(s) sent.`,
     };
   }
 }

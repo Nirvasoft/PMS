@@ -25,6 +25,7 @@ export function useV6IntegrationStatus(overridePropertyId?: string) {
   );
 
   return {
+    isV6Active: isV6PushActive,
     isV6PushActive,
     v6Config: v6,
     isLoading: isLoading || isFetching || companyLoading,

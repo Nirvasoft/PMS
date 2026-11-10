@@ -9,12 +9,14 @@ import {
   type DepartmentCenter,
 } from '../../../store/api/glApi';
 import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
+import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import { useAlertDialog, useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import toast from 'react-hot-toast';
 import './GLPage.css';
 
 export default function DepartmentCentersPage() {
+  const { isV6Active } = useV6IntegrationStatus();
   const propertyId = useSelectedPropertyId();
   const { data: departmentCenters = [], isLoading } = useGetDepartmentCentersQuery(
     propertyId ? { propertyId } : undefined
@@ -66,23 +68,27 @@ export default function DepartmentCentersPage() {
           </div>
           <div>
             <h1>Department</h1>
-            <p>{departmentCenters.length} total departments for accounting & GL</p>
+            <p>{departmentCenters.length} total departments for accounting & GL{isV6Active ? ' • Synced with V6 ERP' : ''}</p>
           </div>
         </div>
         <PermissionGuard permission="finance-coa.write">
           <button
             className="btn-primary"
+            disabled={isV6Active}
             onClick={() => {
+              if (isV6Active) return;
               setEditingItem(null);
               setShowModal(true);
             }}
+            title={isV6Active ? 'Department creation is disabled because V6 ERP integration is active.' : undefined}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: 6,
+              ...(isV6Active ? { opacity: 0.6, cursor: 'not-allowed' } : {}),
             }}
           >
-            <Plus size={16} /> Add Department
+            {isV6Active ? '🔒 Add Department (V6 Active)' : <><Plus size={16} /> Add Department</>}
           </button>
         </PermissionGuard>
       </div>
