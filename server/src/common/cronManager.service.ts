@@ -9,7 +9,6 @@ import { invoicesService } from '../modules/billing/invoices.service';
 import { penaltyService } from '../modules/billing/penalty.service';
 import { pmService } from '../modules/preventive-maintenance/pm.service';
 import { mallService } from '../modules/mall/mall.service';
-import { integrationsService } from '../modules/integrations/integrations.service';
 
 export interface CronJobDefinition {
   key: string;
@@ -454,63 +453,6 @@ export const SYSTEM_CRON_REGISTRY: CronJobDefinition[] = [
       return `Expired ${totalExpired} parking allocations and freed slots`;
     },
   },
-  {
-    key: 'integrations.v6erp_sync',
-    name: 'V6 ERP Auto-Sync (Chart of Accounts & Customers)',
-    category: 'System',
-    description: 'Automatically syncs General Ledger Chart of Accounts and Customers from V6 ERP for active V6 ERP integrations.',
-    defaultCron: '0 * * * *', // Hourly check (respects integration syncFrequency)
-    supportsManualTrigger: true,
-    runner: async () => {
-      const activeIntegrations = await prisma.integrationConfig.findMany({
-        where: {
-          integrationType: 'v6erp',
-          isActive: true,
-          status: { not: 'disabled' },
-          company: { isActive: true },
-        },
-      });
-
-      if (activeIntegrations.length === 0) {
-        return 'No active V6 ERP integrations enabled';
-      }
-
-      let syncedCompanies = 0;
-      let totalCoa = 0;
-      const now = Date.now();
-
-      try {
-        for (const intg of activeIntegrations) {
-          try {
-            const freq = (intg.syncFrequency || 'daily').toLowerCase();
-            const minIntervalHours = freq === 'daily' ? 23 : freq === 'hourly' ? 55 / 60 : 0;
-            if (minIntervalHours > 0 && intg.lastSyncAt) {
-              const elapsedHours = (now - new Date(intg.lastSyncAt).getTime()) / (1000 * 60 * 60);
-              if (elapsedHours < minIntervalHours) {
-                continue;
-              }
-            }
-            await setTenantContext(intg.companyId);
-            const res = await integrationsService.syncV6Erp(
-              intg,
-              intg.companyId,
-              undefined,
-              intg.propertyId || undefined,
-              'cron',
-            );
-            syncedCompanies++;
-            totalCoa += res.coaTotal || 0;
-          } catch (err: any) {
-            logger.error(`Scheduled V6 ERP sync failed for company ${intg.companyId}: ${err.message}`);
-          }
-        }
-      } finally {
-        await resetTenantSession();
-      }
-
-      return `Synced ${syncedCompanies} active V6 ERP integration(s) (${totalCoa} COA accounts verified)`;
-    },
-  },
 ];
 
 class CronManagerService {
@@ -546,8 +488,12 @@ class CronManagerService {
         skipDuplicates: true,
       });
 
-      // Clean up any obsolete high-frequency job configs from previous versions
+      // Clean up any obsolete job configs and logs from previous versions
       await prisma.cronJobConfig.deleteMany({
+        where: { jobKey: { notIn: registeredKeys } },
+      }).catch(() => {});
+
+      await prisma.cronJobLog.deleteMany({
         where: { jobKey: { notIn: registeredKeys } },
       }).catch(() => {});
 
