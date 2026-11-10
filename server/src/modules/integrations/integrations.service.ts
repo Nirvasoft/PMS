@@ -119,7 +119,7 @@ class IntegrationsService {
 
     return configs.map(c => ({
       ...c,
-      credentials:    undefined,   // Never expose raw credentials to client
+      credentials:    c.credentials,
       hasCredentials: !!(c.credentials && Object.keys(c.credentials as object).length > 0),
       recentSync: c.syncLogs[0] || null,
       totalSyncs: c._count.syncLogs,
@@ -207,7 +207,7 @@ class IntegrationsService {
 
     return {
       ...updated,
-      credentials: undefined,
+      credentials: updated.credentials,
       hasCredentials: !!(updated.credentials && Object.keys(updated.credentials as object).length > 0),
     };
   }

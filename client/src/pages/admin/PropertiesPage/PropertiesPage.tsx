@@ -20,6 +20,7 @@ import { useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 import { ISO_CURRENCY_LIST } from '../../../constants/currencies';
+import { isValidCurrencyOverridePasscode } from '../../../utils/passcode';
 import './PropertiesPage.css';
 
 
@@ -28,62 +29,6 @@ const STATUS_COLORS: Record<string, string> = {
   under_renovation: '#f39c12',
   decommissioned: '#e74c3c',
 };
-
-/** Returns bar colour + gradient based on occupancy % thresholds */
-function occupancyColor(rate: number): { color: string; gradient: string; glow: string } {
-  if (rate >= 90) return {
-    color: '#2ecc71',
-    gradient: 'linear-gradient(90deg, #27ae60, #2ecc71)',
-    glow: 'rgba(46,204,113,.25)',
-  };
-  if (rate >= 70) return {
-    color: '#f39c12',
-    gradient: 'linear-gradient(90deg, #e67e22, #f1c40f)',
-    glow: 'rgba(243,156,18,.25)',
-  };
-  if (rate >= 40) return {
-    color: '#e74c3c',
-    gradient: 'linear-gradient(90deg, #e74c3c, #f39c12)',
-    glow: 'rgba(231,76,60,.2)',
-  };
-  return {
-    color: '#e74c3c',
-    gradient: 'linear-gradient(90deg, #c0392b, #e74c3c)',
-    glow: 'rgba(231,76,60,.3)',
-  };
-}
-
-const TYPE_ICONS: Record<string, ReactNode> = {
-  residential: <Home size={14} />,
-  commercial: <Building2 size={14} />,
-  retail: <BarChart2 size={14} />,
-  mixed_use: <Building2 size={14} />,
-  industrial: <Wrench size={14} />,
-  hospitality: <Building2 size={14} />,
-  warehouse: <Building2 size={14} />,
-};
-
-const TIMEZONES  = ['UTC','America/New_York','America/Chicago','America/Los_Angeles','Europe/London','Europe/Paris','Asia/Singapore','Asia/Tokyo','Asia/Bangkok','Asia/Yangon','Asia/Dubai','Australia/Sydney'];
-const COUNTRIES  = ['US','SG','GB','TH','MM','JP','AE','AU','DE','FR','IN','CN'];
-const SQM_TO_SQFT = 10.7639;
-
-/**
- * Currency-unlock passcode: DD + XX + YYYY + XX + MM, where DD/YYYY/MM must match
- * today's date and both XX segments must be an identical 2-digit pair chosen by the user.
- * e.g. for 17/09/2026: "174420264409" or "171220261209" both work (XX = 44 or 12).
- */
-function isValidCurrencyOverridePasscode(input: string, today: Date = new Date()): boolean {
-  if (!/^\d{12}$/.test(input)) return false;
-  const dd   = String(today.getDate()).padStart(2, '0');
-  const yyyy = String(today.getFullYear());
-  const mm   = String(today.getMonth() + 1).padStart(2, '0');
-  const day    = input.slice(0, 2);
-  const x1     = input.slice(2, 4);
-  const year   = input.slice(4, 8);
-  const x2     = input.slice(8, 10);
-  const month  = input.slice(10, 12);
-  return day === dd && year === yyyy && month === mm && x1 === x2;
-}
 
 interface EditForm {
   name: string; code: string; propertyType: string; legalName: string;

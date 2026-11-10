@@ -10,11 +10,12 @@ import {
 import {
   Plug, Plus, RefreshCw, Zap, Trash2, Activity,
   CheckCircle2, AlertCircle, Clock, ChevronDown, ChevronUp,
-  Edit, Map, Database, Loader2, Search,
+  Edit, Map, Database, Loader2, Search, Eye, EyeOff, Lock,
 } from 'lucide-react';
 import { useConfirm } from '../../components/DialogProvider';
 import { PermissionGuard } from '../../components/guards/PermissionGuard';
 import { useSelectedPropertyId } from '../../hooks/useSelectedPropertyId';
+import { isValidCurrencyOverridePasscode } from '../../utils/passcode';
 
 const TYPE_META: Record<string, { name: string; icon: string; cat: string; color: string; image?: string }> = {
   v6erp:       { name: 'V6 ERP',                 icon: '🔗', image: '/v6erp-logo.png', cat: 'ERP', color: '#2b579a' },
@@ -62,6 +63,13 @@ export default function IntegrationsPage() {
     configJson: '', credentialsJson: '',
   });
 
+  // API Credentials Show/Hide with Currency Override Passcode
+  const [showCredentials, setShowCredentials] = useState(false);
+  const [credentialsUnlockedOnce, setCredentialsUnlockedOnce] = useState(false);
+  const [showCredentialsPasscodePrompt, setShowCredentialsPasscodePrompt] = useState(false);
+  const [credentialsPasscodeInput, setCredentialsPasscodeInput] = useState('');
+  const [credentialsPasscodeError, setCredentialsPasscodeError] = useState('');
+
   const [showLogs, setShowLogs] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<any>(null);
   const [testingId, setTestingId] = useState<string | null>(null);
@@ -75,6 +83,11 @@ export default function IntegrationsPage() {
     setTypeDropdownOpen(false);
     setShowEdit(null);
     setEditSubmitted(false);
+    setShowCredentials(false);
+    setCredentialsUnlockedOnce(false);
+    setShowCredentialsPasscodePrompt(false);
+    setCredentialsPasscodeInput('');
+    setCredentialsPasscodeError('');
     setShowLogs(null);
     setShowEntityMap(null);
     setTestResult(null);
@@ -153,12 +166,31 @@ export default function IntegrationsPage() {
 
   const openEdit = (intg: any) => {
     setEditSubmitted(false);
+    setShowCredentials(false);
+    setCredentialsUnlockedOnce(false);
+    setShowCredentialsPasscodePrompt(false);
+    setCredentialsPasscodeInput('');
+    setCredentialsPasscodeError('');
+
     const defaultV6Config =
       intg.integrationType === 'v6erp'
         ? { baseUrl: 'https://erp.mitcloud.com', domain: 'demo' }
         : {};
     const cfgObj =
       intg.config && Object.keys(intg.config).length > 0 ? intg.config : defaultV6Config;
+
+    const defaultV6Creds =
+      intg.integrationType === 'v6erp'
+        ? {
+            clientID: 'nssog8TW8VBtf+riPsDijA==',
+            clientSecret: '8jlA2@06HRZQFnw1hawSedd4G2VMHCsE',
+          }
+        : {};
+    const credsObj =
+      intg.credentials && Object.keys(intg.credentials).length > 0
+        ? intg.credentials
+        : defaultV6Creds;
+
     setEditForm({
       name:            intg.name          || '',
       description:     intg.description   || '',
@@ -166,9 +198,21 @@ export default function IntegrationsPage() {
       isActive:        intg.isActive !== undefined ? Boolean(intg.isActive) : (intg.status === 'active'),
       // Pre-populate config as formatted JSON string for the textarea
       configJson:      Object.keys(cfgObj).length > 0 ? JSON.stringify(cfgObj, null, 2) : '',
-      credentialsJson: '',
+      credentialsJson: Object.keys(credsObj).length > 0 ? JSON.stringify(credsObj, null, 2) : '',
     });
     setShowEdit(intg);
+  };
+
+  const handleCredentialsPasscodeSubmit = () => {
+    if (isValidCurrencyOverridePasscode(credentialsPasscodeInput)) {
+      setShowCredentials(true);
+      setCredentialsUnlockedOnce(true);
+      setShowCredentialsPasscodePrompt(false);
+      setCredentialsPasscodeInput('');
+      setCredentialsPasscodeError('');
+    } else {
+      setCredentialsPasscodeError('Incorrect passcode');
+    }
   };
 
   const handleEdit = async () => {
@@ -190,7 +234,7 @@ export default function IntegrationsPage() {
         return;
       }
     }
-    if (editForm.credentialsJson.trim()) {
+    if (credentialsUnlockedOnce && editForm.credentialsJson.trim()) {
       try {
         credentials = JSON.parse(editForm.credentialsJson);
       } catch {
@@ -221,6 +265,11 @@ export default function IntegrationsPage() {
       toast.success('Integration updated successfully');
       setShowEdit(null);
       setEditSubmitted(false);
+      setShowCredentials(false);
+      setCredentialsUnlockedOnce(false);
+      setShowCredentialsPasscodePrompt(false);
+      setCredentialsPasscodeInput('');
+      setCredentialsPasscodeError('');
     } catch (err: any) {
       toast.error(err?.data?.message || err?.message || 'Failed to update integration');
     }
@@ -651,35 +700,171 @@ export default function IntegrationsPage() {
                     style={{ fontFamily: 'monospace', fontSize: 12, resize: 'vertical' }}
                   />
                 </label>
-                <label style={{ gridColumn: '1 / -1' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    🔑 API Credentials
-                    <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 400 }}>(JSON)</span>
-                    {showEdit?.hasCredentials && (
-                      <span style={{
-                        fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
-                        background: 'rgba(16,185,129,0.12)', color: '#10b981',
-                        border: '1px solid rgba(16,185,129,0.3)',
-                      }}>
-                        ✅ Credentials saved
+                <div className="mall-form-field" style={{ gridColumn: '1 / -1' }}>
+                  <div
+                    className="mall-form-field-label"
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 8,
+                    }}
+                  >
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      🔑 API Credentials
+                      <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 400 }}>(JSON)</span>
+                      {showEdit?.hasCredentials && (
+                        <span style={{
+                          fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
+                          background: 'rgba(16,185,129,0.12)', color: '#10b981',
+                          border: '1px solid rgba(16,185,129,0.3)',
+                          textTransform: 'none',
+                        }}>
+                          ✅ Credentials saved
+                        </span>
+                      )}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (showCredentials) {
+                          setShowCredentials(false);
+                          setShowCredentialsPasscodePrompt(false);
+                          setCredentialsPasscodeInput('');
+                          setCredentialsPasscodeError('');
+                        } else {
+                          setShowCredentialsPasscodePrompt(prev => !prev);
+                          setCredentialsPasscodeInput('');
+                          setCredentialsPasscodeError('');
+                        }
+                      }}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 5,
+                        padding: '4px 10px',
+                        borderRadius: 6,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        border: '1px solid var(--border-color, rgba(255,255,255,0.15))',
+                        background: showCredentials ? 'rgba(239, 68, 68, 0.1)' : 'rgba(59, 130, 246, 0.12)',
+                        color: showCredentials ? '#ef4444' : 'var(--accent, #3b82f6)',
+                        textTransform: 'none',
+                      }}
+                      title={showCredentials ? 'Hide API Credentials' : 'Show API Credentials (Passcode Required)'}
+                    >
+                      {showCredentials ? (
+                        <><EyeOff size={13} /> Hide</>
+                      ) : (
+                        <><Eye size={13} /> Show</>
+                      )}
+                    </button>
+                  </div>
+
+                  {showCredentials ? (
+                    <>
+                      <textarea
+                        rows={4}
+                        value={editForm.credentialsJson}
+                        onChange={e => setEditForm(f => ({ ...f, credentialsJson: e.target.value }))}
+                        placeholder={'{\n  "clientID": "nssog8TW8VBtf+riPsDijA==",\n  "clientSecret": "8jlA2@06HRZQFnw1hawSedd4G2VMHCsE"\n}'}
+                        style={{ fontFamily: 'monospace', fontSize: 12, resize: 'vertical' }}
+                      />
+                      <span style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2, display: 'block' }}>
+                        🔓 Credentials unlocked. Edit the JSON above or click Hide to lock again.
                       </span>
-                    )}
-                  </span>
-                  <textarea
-                    rows={4}
-                    value={editForm.credentialsJson}
-                    onChange={e => setEditForm(f => ({ ...f, credentialsJson: e.target.value }))}
-                    placeholder={showEdit?.hasCredentials
-                      ? '🔒 Leave empty to keep existing credentials unchanged.\n   Type new JSON to replace them.'
-                      : '{\n  "clientID": "nssog8TW8VBtf+riPsDijA==",\n  "clientSecret": "8jlA2@06HRZQFnw1hawSedd4G2VMHCsE"\n}'}
-                    style={{ fontFamily: 'monospace', fontSize: 12, resize: 'vertical' }}
-                  />
-                  <span style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4, display: 'block' }}>
-                    {showEdit?.hasCredentials
-                      ? '🔒 Credentials are stored securely. Leave blank to keep unchanged, or type new JSON to replace.'
-                      : '💡 Leave empty if no authentication is required.'}
-                  </span>
-                </label>
+                    </>
+                  ) : showCredentialsPasscodePrompt ? (
+                    <div
+                      style={{
+                        padding: '12px 14px',
+                        borderRadius: 8,
+                        border: '1px solid var(--border-color, rgba(255,255,255,0.15))',
+                        background: 'var(--bg-card-subtle, rgba(255,255,255,0.03))',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 8,
+                      }}
+                    >
+                      <div style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Lock size={13} />
+                        <span>Enter the override passcode to unlock and view API Credentials.</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <input
+                          type="password"
+                          value={credentialsPasscodeInput}
+                          onChange={e => { setCredentialsPasscodeInput(e.target.value); setCredentialsPasscodeError(''); }}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleCredentialsPasscodeSubmit();
+                            } else if (e.key === 'Escape') {
+                              setShowCredentialsPasscodePrompt(false);
+                              setCredentialsPasscodeInput('');
+                              setCredentialsPasscodeError('');
+                            }
+                          }}
+                          placeholder="Enter passcode"
+                          autoFocus
+                          style={{ flex: 1 }}
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-ghost"
+                          onClick={() => {
+                            setShowCredentialsPasscodePrompt(false);
+                            setCredentialsPasscodeInput('');
+                            setCredentialsPasscodeError('');
+                          }}
+                          style={{ padding: '8px 12px', fontSize: 12 }}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-primary"
+                          onClick={handleCredentialsPasscodeSubmit}
+                          style={{ padding: '8px 14px', fontSize: 12 }}
+                        >
+                          Unlock
+                        </button>
+                      </div>
+                      {credentialsPasscodeError && (
+                        <span style={{ color: '#e74c3c', fontSize: 12 }}>
+                          {credentialsPasscodeError}
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <div
+                      onDoubleClick={() => {
+                        setShowCredentialsPasscodePrompt(true);
+                        setCredentialsPasscodeInput('');
+                        setCredentialsPasscodeError('');
+                      }}
+                      style={{
+                        padding: '10px 14px',
+                        borderRadius: 8,
+                        border: '1px dashed var(--border-color, rgba(255,255,255,0.15))',
+                        background: 'var(--bg-body, rgba(255,255,255,0.02))',
+                        color: 'var(--text-secondary)',
+                        fontSize: 12,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        cursor: 'pointer',
+                        userSelect: 'none',
+                      }}
+                      title="Click Show or double-click to enter passcode"
+                    >
+                      <span>🔒 Credentials are hidden and protected. Click <strong>Show</strong> to unlock with passcode.</span>
+                      <span style={{ fontFamily: 'monospace', letterSpacing: 2, opacity: 0.7 }}>••••••••••••</span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
             <div className="mall-modal-footer" style={{ flexShrink: 0 }}>
