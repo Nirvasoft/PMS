@@ -467,7 +467,7 @@ export const UNIT_SHAPE_CONVEX_UV_PARTS: Partial<
 
 export type CustomShapePoint = [number, number];
 
-export const CUSTOM_SHAPE_MAX_POINTS = 64;
+export const CUSTOM_SHAPE_MAX_POINTS = 96;
 export const CUSTOM_SHAPE_MIN_POINTS = 3;
 const CUSTOM_SHAPE_PREFIX = 'unit:custom:';
 
@@ -705,24 +705,26 @@ export function isSimpleCustomPolygon(pts: ReadonlyArray<CustomShapePoint>): boo
 export function roundCustomCorner(
   pts: ReadonlyArray<CustomShapePoint>,
   index: number,
-  steps = 6,
+  steps = 10,
   fraction = 0.4,
 ): { points: CustomShapePoint[]; from: number; to: number } | null {
   const n = pts.length;
   if (index < 0 || index >= n) return null;
-  if (n - 1 + steps + 1 > CUSTOM_SHAPE_MAX_POINTS) return null;
+  const maxExtra = CUSTOM_SHAPE_MAX_POINTS - n;
+  const effSteps = Math.min(steps, maxExtra);
+  if (effSteps < 2) return null;
   const p = pts[index];
   const a = pts[(index + n - 1) % n];
   const c = pts[(index + 1) % n];
   const la = Math.hypot(a[0] - p[0], a[1] - p[1]);
   const lc = Math.hypot(c[0] - p[0], c[1] - p[1]);
   if (la < 1 || lc < 1) return null;
-  const d = fraction * Math.min(la, lc);
+  const d = Math.max(0.1, Math.min(0.49, fraction)) * Math.min(la, lc);
   const p1: CustomShapePoint = [p[0] + ((a[0] - p[0]) * d) / la, p[1] + ((a[1] - p[1]) * d) / la];
   const p2: CustomShapePoint = [p[0] + ((c[0] - p[0]) * d) / lc, p[1] + ((c[1] - p[1]) * d) / lc];
   const arc: CustomShapePoint[] = [];
-  for (let s = 0; s <= steps; s += 1) {
-    const t = s / steps;
+  for (let s = 0; s <= effSteps; s += 1) {
+    const t = s / effSteps;
     const u = 1 - t;
     arc.push([
       roundPct(u * u * p1[0] + 2 * u * t * p[0] + t * t * p2[0]),
@@ -731,6 +733,206 @@ export function roundCustomCorner(
   }
   const points = [...pts.slice(0, index), ...arc, ...pts.slice(index + 1)];
   return { points, from: index, to: index + arc.length - 1 };
+}
+
+/**
+ * Bends straight edge `edgeIndex` (from `pts[edgeIndex]` to `pts[(edgeIndex + 1) % n]`) into a smooth
+ * quadratic Bezier arc that passes directly through `throughPoint` at `t = 0.5`.
+ */
+export function bendCustomEdge(
+  pts: ReadonlyArray<CustomShapePoint>,
+  edgeIndex: number,
+  throughPoint: CustomShapePoint,
+  steps = 12,
+): CustomShapePoint[] | null {
+  const n = pts.length;
+  if (edgeIndex < 0 || edgeIndex >= n) return null;
+  const a = pts[edgeIndex];
+  const b = pts[(edgeIndex + 1) % n];
+  const dist = distToSegment(throughPoint, a, b);
+  if (dist < 0.8) return pts.map((p) => [p[0], p[1]] as CustomShapePoint);
+  const maxExtra = CUSTOM_SHAPE_MAX_POINTS - n;
+  const effSteps = Math.min(steps, maxExtra + 1);
+  if (effSteps < 2) return null;
+  const cx = 2 * throughPoint[0] - 0.5 * (a[0] + b[0]);
+  const cy = 2 * throughPoint[1] - 0.5 * (a[1] + b[1]);
+  const inner: CustomShapePoint[] = [];
+  for (let s = 1; s < effSteps; s += 1) {
+    const t = s / effSteps;
+    const u = 1 - t;
+    inner.push([
+      roundPct(u * u * a[0] + 2 * u * t * cx + t * t * b[0]),
+      roundPct(u * u * a[1] + 2 * u * t * cy + t * t * b[1]),
+    ]);
+  }
+  return [...pts.slice(0, edgeIndex + 1), ...inner, ...pts.slice(edgeIndex + 1)];
+}
+
+/**
+ * Evaluates a smooth open curve through control chain `chain` (keeping `chain[0]` and `chain[last]` pinned),
+ * first relaxing interior kinks with Laplacian averaging and then sampling a Centripetal Catmull-Rom spline.
+ */
+function smoothOpenChain(chain: ReadonlyArray<CustomShapePoint>, targetCount: number): CustomShapePoint[] {
+  if (chain.length <= 2) return chain.map((p) => [p[0], p[1]] as CustomShapePoint);
+  let relaxed = chain.map((p) => [p[0], p[1]] as CustomShapePoint);
+  for (let pass = 0; pass < 2; pass += 1) {
+    const next = relaxed.map((p) => [p[0], p[1]] as CustomShapePoint);
+    for (let i = 1; i < relaxed.length - 1; i += 1) {
+      next[i] = [
+        0.25 * relaxed[i - 1][0] + 0.5 * relaxed[i][0] + 0.25 * relaxed[i + 1][0],
+        0.25 * relaxed[i - 1][1] + 0.5 * relaxed[i][1] + 0.25 * relaxed[i + 1][1],
+      ];
+    }
+    relaxed = next;
+  }
+
+  // Chaikin corner-cutting with pinned endpoints + uniform arc-length resampling
+  let dense = relaxed;
+  for (let iter = 0; iter < 3; iter += 1) {
+    const sub: CustomShapePoint[] = [dense[0]];
+    for (let i = 0; i < dense.length - 1; i += 1) {
+      const p = dense[i];
+      const q = dense[i + 1];
+      if (i > 0) sub.push([0.75 * p[0] + 0.25 * q[0], 0.75 * p[1] + 0.25 * q[1]]);
+      if (i < dense.length - 2) sub.push([0.25 * p[0] + 0.75 * q[0], 0.25 * p[1] + 0.75 * q[1]]);
+    }
+    sub.push(dense[dense.length - 1]);
+    dense = sub;
+  }
+
+  const cumLen: number[] = [0];
+  for (let i = 1; i < dense.length; i += 1) {
+    const d = Math.hypot(dense[i][0] - dense[i - 1][0], dense[i][1] - dense[i - 1][1]);
+    cumLen.push(cumLen[i - 1] + d);
+  }
+  const totalLen = cumLen[cumLen.length - 1];
+  if (totalLen < 1e-3) return [chain[0], chain[chain.length - 1]];
+
+  const steps = Math.max(4, targetCount - 1);
+  const out: CustomShapePoint[] = [[roundPct(chain[0][0]), roundPct(chain[0][1])]];
+  for (let s = 1; s < steps; s += 1) {
+    const targetD = (s / steps) * totalLen;
+    let k = 0;
+    while (k < cumLen.length - 2 && cumLen[k + 1] < targetD) k += 1;
+    const segLen = cumLen[k + 1] - cumLen[k];
+    const t = segLen > 1e-6 ? (targetD - cumLen[k]) / segLen : 0;
+    out.push([
+      roundPct(dense[k][0] + t * (dense[k + 1][0] - dense[k][0])),
+      roundPct(dense[k][1] + t * (dense[k + 1][1] - dense[k][1])),
+    ]);
+  }
+  out.push([roundPct(chain[chain.length - 1][0]), roundPct(chain[chain.length - 1][1])]);
+  return out;
+}
+
+/**
+ * Smooths jagged/hand-drawn curved chains of a custom polygon while keeping straight horizontal & vertical
+ * walls and their 90° corners crisp. If `selectedIndex` is provided, smooths the curved chain containing
+ * that vertex (or rounds that corner if it lies between two straight walls).
+ */
+export function smoothCustomPolygon(
+  pts: ReadonlyArray<CustomShapePoint>,
+  selectedIndex?: number | null,
+  cornerFraction = 0.4,
+): CustomShapePoint[] | null {
+  const n = pts.length;
+  if (n < 3) return null;
+
+  const isOrthoEdge = (i: number): boolean => {
+    const a = pts[i];
+    const b = pts[(i + 1) % n];
+    const dx = Math.abs(b[0] - a[0]);
+    const dy = Math.abs(b[1] - a[1]);
+    const len = Math.hypot(dx, dy);
+    if (len < 3.5) return false;
+    return dx <= 0.8 || dy <= 0.8;
+  };
+
+  const orthoFlags = Array.from({ length: n }, (_, i) => isOrthoEdge(i));
+  const firstOrtho = orthoFlags.findIndex((f) => f);
+
+  // If no orthogonal walls exist at all, smooth around the selected vertex or Chaikin-smooth the whole ring
+  if (firstOrtho === -1) {
+    if (selectedIndex != null && selectedIndex >= 0 && selectedIndex < n) {
+      const prev = (selectedIndex + n - 1) % n;
+      const next = (selectedIndex + 1) % n;
+      const mid: CustomShapePoint = [
+        roundPct(0.25 * pts[prev][0] + 0.5 * pts[selectedIndex][0] + 0.25 * pts[next][0]),
+        roundPct(0.25 * pts[prev][1] + 0.5 * pts[selectedIndex][1] + 0.25 * pts[next][1]),
+      ];
+      return pts.map((p, idx) => (idx === selectedIndex ? mid : p));
+    }
+    const relaxed = pts.map((_, i) => {
+      const a = pts[(i + n - 1) % n];
+      const b = pts[i];
+      const c = pts[(i + 1) % n];
+      return [
+        roundPct(0.25 * a[0] + 0.5 * b[0] + 0.25 * c[0]),
+        roundPct(0.25 * a[1] + 0.5 * b[1] + 0.25 * c[1]),
+      ] as CustomShapePoint;
+    });
+    return isSimpleCustomPolygon(relaxed) ? relaxed : null;
+  }
+
+  // Walk the polygon starting at `firstOrtho` and collect contiguous runs of non-orthogonal edges
+  interface ChainRun {
+    indices: number[]; // vertex indices from anchorStart .. anchorEnd inclusive
+  }
+  const runs: ChainRun[] = [];
+  let offset = 0;
+  while (offset < n) {
+    const eIdx = (firstOrtho + offset) % n;
+    if (orthoFlags[eIdx]) {
+      offset += 1;
+      continue;
+    }
+    const indices: number[] = [eIdx];
+    while (offset < n && !orthoFlags[(firstOrtho + offset) % n]) {
+      offset += 1;
+      indices.push((firstOrtho + offset) % n);
+    }
+    if (indices.length >= 3) {
+      runs.push({ indices });
+    }
+  }
+
+  // If user selected a vertex: either smooth the curved run it belongs to, or round that sharp corner
+  let targetRuns = runs;
+  if (selectedIndex != null && selectedIndex >= 0 && selectedIndex < n) {
+    const matchingRun = runs.find((r) => r.indices.includes(selectedIndex));
+    if (!matchingRun) {
+      const rounded = roundCustomCorner(pts, selectedIndex, 10, cornerFraction);
+      return rounded && isSimpleCustomPolygon(rounded.points) ? rounded.points : null;
+    }
+    targetRuns = [matchingRun];
+  }
+
+  if (targetRuns.length === 0) return null;
+
+  // Smooth target multi-segment non-orthogonal runs while keeping orthogonal walls untouched
+  let current = pts.map((p) => [p[0], p[1]] as CustomShapePoint);
+  for (const r of targetRuns) {
+    const chainPts = r.indices.map((idx) => pts[idx]);
+    // Find where start & end anchor vertices sit in `current`
+    const aStart = chainPts[0];
+    const aEnd = chainPts[chainPts.length - 1];
+    const sIdx = current.findIndex((p) => p[0] === aStart[0] && p[1] === aStart[1]);
+    const eIdx = current.findIndex((p) => p[0] === aEnd[0] && p[1] === aEnd[1]);
+    if (sIdx === -1 || eIdx === -1) continue;
+    const budget = Math.min(14, Math.max(chainPts.length + 4, 10), CUSTOM_SHAPE_MAX_POINTS - (current.length - chainPts.length));
+    if (budget < 3) continue;
+    const smoothedChain = smoothOpenChain(chainPts, budget);
+    const nextPoly: CustomShapePoint[] = [];
+    if (sIdx < eIdx) {
+      nextPoly.push(...current.slice(0, sIdx), ...smoothedChain, ...current.slice(eIdx + 1));
+    } else {
+      nextPoly.push(...smoothedChain, ...current.slice(eIdx + 1, sIdx));
+    }
+    if (isSimpleCustomPolygon(nextPoly)) {
+      current = nextPoly;
+    }
+  }
+  return current;
 }
 
 type CustomShapePresetGroup = 'triangle' | 'polygon' | 'round' | 'letter';

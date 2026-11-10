@@ -2,11 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Shapes, X } from 'lucide-react';
 import {
+  bendCustomEdge,
   CUSTOM_SHAPE_MAX_POINTS,
   CUSTOM_SHAPE_MIN_POINTS,
   CUSTOM_SHAPE_PRESETS,
   isSimpleCustomPolygon,
   roundCustomCorner,
+  smoothCustomPolygon,
   type CustomShapePoint,
 } from './shopMapShapeCatalog';
 
@@ -41,7 +43,9 @@ export function CustomShapeEditor({
   const [sel, setSel] = useState<number | null>(null);
   const [snap, setSnap] = useState(true);
   const [snapNb, setSnapNb] = useState(true);
+  const [cornerRadiusPct, setCornerRadiusPct] = useState(40);
   const [drag, setDrag] = useState<number | null>(null);
+  const [bendDrag, setBendDrag] = useState<{ edgeIdx: number; basePts: CustomShapePoint[] } | null>(null);
   const [note, setNote] = useState<string | null>(initialNote);
   const svgRef = useRef<SVGSVGElement | null>(null);
 
@@ -90,7 +94,7 @@ export function CustomShapeEditor({
 
   const roundOne = (n: number) => Math.round(clampPct(n) * 10) / 10;
 
-  const pointerToPct = (e: { clientX: number; clientY: number }): CustomShapePoint | null => {
+  const pointerToPct = (e: { clientX: number; clientY: number }, ignoreGridSnap = false): CustomShapePoint | null => {
     const svg = svgRef.current;
     const ctm = svg?.getScreenCTM();
     if (!svg || !ctm) return null;
@@ -104,7 +108,7 @@ export function CustomShapeEditor({
       const near = nearestNeighborPoint([x, y]);
       if (near && near.distPx <= 9) return [roundOne(near.pt[0]), roundOne(near.pt[1])];
     }
-    if (snap) {
+    if (snap && !ignoreGridSnap) {
       x = Math.round(x / 5) * 5;
       y = Math.round(y / 5) * 5;
     }
@@ -151,14 +155,22 @@ export function CustomShapeEditor({
   }, []);
 
   const onSvgMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (bendDrag != null) {
+      const p = pointerToPct(e, true);
+      if (!p) return;
+      const bent = bendCustomEdge(bendDrag.basePts, bendDrag.edgeIdx, p, 12);
+      if (bent) setPts(bent);
+      return;
+    }
     if (drag == null) return;
     const p = pointerToPct(e);
     if (!p) return;
     setPts((prev) => prev.map((q, i) => (i === drag ? p : q)));
   };
   const endDrag = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (drag == null) return;
+    if (drag == null && bendDrag == null) return;
     setDrag(null);
+    setBendDrag(null);
     try {
       svgRef.current?.releasePointerCapture(e.pointerId);
     } catch {
@@ -170,6 +182,18 @@ export function CustomShapeEditor({
     e.stopPropagation();
     setSel(idx);
     setDrag(idx);
+    setNote(null);
+    svgRef.current?.setPointerCapture(e.pointerId);
+  };
+
+  const startEdgeBend = (e: React.PointerEvent, edgeIdx: number) => {
+    e.stopPropagation();
+    if (pts.length + 2 > CUSTOM_SHAPE_MAX_POINTS) {
+      setNote(`Too many points (max ${CUSTOM_SHAPE_MAX_POINTS})`);
+      return;
+    }
+    setSel(null);
+    setBendDrag({ edgeIdx, basePts: pts.map((p) => [p[0], p[1]] as CustomShapePoint) });
     setNote(null);
     svgRef.current?.setPointerCapture(e.pointerId);
   };
@@ -191,16 +215,27 @@ export function CustomShapeEditor({
 
   const doRound = () => {
     if (sel == null) return;
-    const r = roundCustomCorner(pts, sel);
+    const r = roundCustomCorner(pts, sel, 10, cornerRadiusPct / 100);
     if (!r) {
       setNote(
-        pts.length + 6 > CUSTOM_SHAPE_MAX_POINTS
+        pts.length + 2 > CUSTOM_SHAPE_MAX_POINTS
           ? `Too many points (max ${CUSTOM_SHAPE_MAX_POINTS})`
           : 'Edges next to this corner are too short to round',
       );
       return;
     }
     setPts(r.points);
+    setSel(null);
+    setNote(null);
+  };
+
+  const doSmoothCurve = () => {
+    const smoothed = smoothCustomPolygon(pts, sel, cornerRadiusPct / 100);
+    if (!smoothed) {
+      setNote('Select a corner dot or draw a curved section first, then click Smooth curve');
+      return;
+    }
+    setPts(smoothed);
     setSel(null);
     setNote(null);
   };
@@ -220,14 +255,14 @@ export function CustomShapeEditor({
 
   return createPortal(
     <div className="shop-map-qr-backdrop" onClick={onClose}>
-      <div className="shop-map-qr-modal" style={{ maxWidth: 640 }} onClick={(e) => e.stopPropagation()}>
+      <div className="shop-map-qr-modal" style={{ maxWidth: 660 }} onClick={(e) => e.stopPropagation()}>
         <div className="shop-map-qr-header">
           <div>
             <h3>
               <Shapes size={18} /> Custom Shape — {title}
             </h3>
             <p>
-              Drag the dots to move · click an edge to add a point · double-click a dot to delete it
+              Drag dots to move · drag blue diamonds to bend an edge into a smooth curve · click an edge to add a point
             </p>
           </div>
           <button type="button" className="shop-map-qr-close" onClick={onClose}>
@@ -319,6 +354,31 @@ export function CustomShapeEditor({
                   />
                 );
               })}
+              {/* Interactive Edge-Bend Handles (cyan diamonds at the midpoint of edges >= 14% long) */}
+              {bendDrag == null &&
+                pts.map((p, i) => {
+                  const q = pts[(i + 1) % pts.length];
+                  const lenPct = Math.hypot(q[0] - p[0], q[1] - p[1]);
+                  if (lenPct < 14) return null;
+                  const [x1, y1] = toPx(p);
+                  const [x2, y2] = toPx(q);
+                  const mx = (x1 + x2) / 2;
+                  const my = (y1 + y2) / 2;
+                  const sz = 5.2;
+                  return (
+                    <polygon
+                      key={`bend${i}`}
+                      points={`${mx},${my - sz} ${mx + sz},${my} ${mx},${my + sz} ${mx - sz},${my}`}
+                      fill="#06b6d4"
+                      stroke="#fff"
+                      strokeWidth={1.8}
+                      style={{ cursor: 'move' }}
+                      onPointerDown={(e) => startEdgeBend(e, i)}
+                    >
+                      <title>Drag to bend this edge into a smooth curve</title>
+                    </polygon>
+                  );
+                })}
               {pts.map((p, i) => {
                 const [x, y] = toPx(p);
                 const active = sel === i;
@@ -349,6 +409,14 @@ export function CustomShapeEditor({
             </button>
             <button
               type="button"
+              style={btn(true)}
+              onClick={doSmoothCurve}
+              title="Smooth jagged/angled curve points while keeping straight horizontal & vertical walls sharp"
+            >
+              Smooth curve
+            </button>
+            <button
+              type="button"
               style={{ ...btn(), opacity: sel == null ? 0.5 : 1 }}
               disabled={sel == null}
               onClick={doRound}
@@ -356,6 +424,21 @@ export function CustomShapeEditor({
             >
               Round corner
             </button>
+            <label
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11.5, opacity: 0.85 }}
+              title="Curve radius when rounding a selected corner"
+            >
+              <span>Radius {cornerRadiusPct}%</span>
+              <input
+                type="range"
+                min={15}
+                max={48}
+                step={1}
+                value={cornerRadiusPct}
+                onChange={(e) => setCornerRadiusPct(Number(e.target.value))}
+                style={{ width: 64, accentColor: '#4f46e5', cursor: 'pointer' }}
+              />
+            </label>
             <button
               type="button"
               style={{ ...btn(), opacity: sel == null ? 0.5 : 1 }}

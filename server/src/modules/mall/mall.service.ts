@@ -575,6 +575,18 @@ class MallService {
     return profile;
   }
 
+  async deleteShopProfile(unitId: string, companyId: string) {
+    const profile = await prisma.shopProfile.findFirst({ where: { unitId, companyId } });
+    if (!profile) throw AppError.notFound('Shop profile');
+
+    await prisma.$transaction([
+      prisma.mallFloorPlanItem.deleteMany({ where: { unitId, companyId } }),
+      prisma.shopProfile.delete({ where: { unitId } }),
+    ]);
+    invalidateMallPublicCache(profile.propertyId);
+    return { deleted: true, unitId };
+  }
+
   async getTenantMix(propertyId: string, companyId: string) {
     const [shops, mallProp] = await Promise.all([
       prisma.shopProfile.findMany({

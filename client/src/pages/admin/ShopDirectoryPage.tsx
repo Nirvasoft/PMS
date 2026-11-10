@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import { useAppDispatch } from '../../store';
 import {
   mallApi,
-  useGetShopsQuery, useGetTenantMixQuery, useUpsertShopProfileMutation,
+  useGetShopsQuery, useGetTenantMixQuery, useUpsertShopProfileMutation, useDeleteShopProfileMutation,
   useGetAvailableUnitsQuery, useGetCommercialLeaseQuery, useUpsertCommercialLeaseMutation,
 } from '../../store/api/mallApi';
 import {
@@ -173,6 +173,7 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
   const [unitStatusFilter, setUnitStatusFilter] = useState('');
   const [showLeaseEdit, setShowLeaseEdit] = useState(false);
   const [leaseFormData, setLeaseFormData] = useState<any>({});
+  const [shopToDelete, setShopToDelete] = useState<any>(null);
 
   // Unit/Shop Photo state & refs
   const shopPhotoInputRef = useRef<HTMLInputElement>(null);
@@ -187,6 +188,7 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
   );
   const { data: mixData } = useGetTenantMixQuery({ propertyId }, { skip: !propertyId });
   const [upsertProfile, { isLoading: isSaving }] = useUpsertShopProfileMutation();
+  const [deleteShopProfile, { isLoading: isDeletingShop }] = useDeleteShopProfileMutation();
   const [uploadFloorPlan, { isLoading: isUploadingPhoto }] = useUploadFloorPlanMutation();
   const [deleteFloorPlan, { isLoading: isDeletingPhoto }] = useDeleteFloorPlanMutation();
   const { data: availRes } = useGetAvailableUnitsQuery(
@@ -305,6 +307,23 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
       await upsertProfile({ unitId: detailShop.unitId, data: formData }).unwrap();
       setShowForm(false);
     } catch (e) { console.error(e); }
+  };
+
+  const handleConfirmDeleteShop = async () => {
+    if (!shopToDelete?.unitId) return;
+    const label = shopToDelete.brandName || shopToDelete.shopNumber || shopToDelete.unit?.unitNumber || 'Shop';
+    try {
+      await deleteShopProfile({ unitId: shopToDelete.unitId }).unwrap();
+      if (detailShop?.unitId === shopToDelete.unitId) {
+        setDetailShop(null);
+        setShowForm(false);
+        setShowLeaseEdit(false);
+      }
+      setShopToDelete(null);
+      toast.success(`Removed "${label}" from Shop Directory`);
+    } catch (err: any) {
+      toast.error(err?.data?.errors?.[0]?.message || 'Failed to delete shop from directory');
+    }
   };
 
   const handleShopPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -840,7 +859,22 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
                 <span className="shop-dir-list-rent">
                   {lease ? `$${Number(lease.rentAmount).toLocaleString()}/mo` : '—'}
                 </span>
-                <ChevronRight size={16} className="shop-dir-list-arrow" />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+                  <PermissionGuard permission="mall-shops.write">
+                    <button
+                      type="button"
+                      className="shop-photo-remove-btn"
+                      title="Remove from Shop Directory"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShopToDelete(shop);
+                      }}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </PermissionGuard>
+                  <ChevronRight size={16} className="shop-dir-list-arrow" />
+                </div>
               </div>
             );
           })}
@@ -863,6 +897,14 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
                 <PermissionGuard permission="mall-shops.write">
                   <button className="btn btn-sm btn-outline" onClick={() => openEdit(detailShop)}>
                     <Edit3 size={14} /> Edit
+                  </button>
+                  <button
+                    type="button"
+                    className="shop-photo-remove-btn"
+                    title="Remove from Shop Directory"
+                    onClick={() => setShopToDelete(detailShop)}
+                  >
+                    <Trash2 size={14} /> Delete
                   </button>
                 </PermissionGuard>
                 <button className="shop-detail-close" onClick={closeDetail}>
@@ -1640,6 +1682,56 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
           </div>
         </div>
       , document.body)}
+
+      {/* ── Delete Shop from Directory Confirmation Modal ── */}
+      {shopToDelete && createPortal(
+        <div className="mall-modal-overlay" onClick={() => !isDeletingShop && setShopToDelete(null)}>
+          <div className="mall-modal" style={{ maxWidth: 440 }} onClick={(e) => e.stopPropagation()}>
+            <div className="mall-modal-header">
+              <h3 style={{ color: '#ef4444' }}>
+                <Trash2 size={18} /> Remove from Shop Directory
+              </h3>
+              <button
+                className="mall-modal-close"
+                onClick={() => setShopToDelete(null)}
+                disabled={isDeletingShop}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="mall-modal-body">
+              <p style={{ margin: '0 0 10px', fontSize: 13.5, color: 'var(--text-primary)' }}>
+                Are you sure you want to remove{' '}
+                <strong>
+                  {shopToDelete.brandName || 'Unnamed Shop'} ({shopToDelete.shopNumber || shopToDelete.unit?.unitNumber})
+                </strong>{' '}
+                from the Shop Directory?
+              </p>
+              <p style={{ margin: 0, fontSize: 12.5, color: 'var(--text-secondary)' }}>
+                This only removes the shop profile and map tile from Shop Directory. The underlying Property Unit will not be deleted.
+              </p>
+            </div>
+            <div className="mall-modal-footer">
+              <button
+                className="btn btn-ghost"
+                onClick={() => setShopToDelete(null)}
+                disabled={isDeletingShop}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary"
+                style={{ background: '#ef4444', borderColor: '#ef4444', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                onClick={handleConfirmDeleteShop}
+                disabled={isDeletingShop}
+              >
+                <Trash2 size={14} /> {isDeletingShop ? 'Removing…' : 'Remove Shop'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }

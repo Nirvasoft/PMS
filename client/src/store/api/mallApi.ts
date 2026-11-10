@@ -74,6 +74,12 @@ export const mallApi = createApi({
       }),
       invalidatesTags: ['Shops'],
     }),
+    deleteShopProfile: builder.mutation<any, { unitId: string }>({
+      query: ({ unitId }) => ({
+        url: `/shops/${unitId}/profile`, method: 'DELETE',
+      }),
+      invalidatesTags: ['Shops', 'FloorPlan', 'MallDashboard'],
+    }),
     getTenantMix: builder.query<any, { propertyId: string }>({
       query: ({ propertyId }) => ({ url: '/tenant-mix', params: { propertyId } }),
       providesTags: ['Shops', 'MallDashboard'],
@@ -304,6 +310,7 @@ export const {
   useGetShopsQuery,
   useGetShopProfileQuery,
   useUpsertShopProfileMutation,
+  useDeleteShopProfileMutation,
   useGetTenantMixQuery,
   useGetAvailableUnitsQuery,
   useGetCommercialLeaseQuery,

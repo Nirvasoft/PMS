@@ -85,6 +85,11 @@ router.put('/shops/:unitId/profile', validateRequest(upsertShopProfileSchema), a
   res.json({ success: true, data });
 }));
 
+router.delete('/shops/:unitId/profile', requirePermission('mall-shops.write'), asyncHandler(async (req, res) => {
+  const data = await mallService.deleteShopProfile(String(req.params.unitId), getCompanyId(req));
+  res.json({ success: true, data });
+}));
+
 router.get('/tenant-mix', asyncHandler(async (req, res) => {
   const data = await mallService.getTenantMix(req.query.propertyId as string, getCompanyId(req));
   res.json({ success: true, data });
