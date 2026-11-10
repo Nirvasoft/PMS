@@ -6145,6 +6145,28 @@ export default function ShopMapView({
         const csShop = csItem.unitId ? shopByUnit.get(csItem.unitId) : null;
         const existing = decodeCustomShape(csItem.label);
         const fromCurrent = existing ? null : currentShapeAsCustomPolygon(csItem, items);
+        const refCellPx = Math.max(5, cellPx);
+        const csBlueprint =
+          blueprint && blueprint.visible && blueprint.dataUrl
+            ? {
+                dataUrl: blueprint.dataUrl,
+                bpXCells:
+                  typeof blueprint.offsetCellX === 'number'
+                    ? blueprint.offsetCellX
+                    : blueprint.offsetX / refCellPx,
+                bpYCells:
+                  typeof blueprint.offsetCellY === 'number'
+                    ? blueprint.offsetCellY
+                    : blueprint.offsetY / refCellPx,
+                bpWCells: (DEFAULT_COLUMNS * blueprint.scale) / 100,
+                aspectRatio: blueprint.aspectRatio,
+                rotation: blueprint.rotation || 0,
+                opacity: blueprint.opacity,
+                tileX: csItem.x,
+                tileY: csItem.y,
+                tileAngle: csItem.angle ?? 0,
+              }
+            : null;
         return (
           <CustomShapeEditor
             title={csShop ? `${shopDisplayName(csShop)} (${unitNumberOf(csShop)})` : 'Shop Unit'}
@@ -6153,6 +6175,7 @@ export default function ShopMapView({
             initialPoints={existing ?? fromCurrent?.points ?? []}
             initialNote={fromCurrent?.note ?? null}
             neighbors={neighborOutlinesInTileFrame(csItem, items)}
+            blueprint={csBlueprint}
             onClose={() => setCustomShapeKey(null)}
             onApply={(points) => {
               applyCustomUnitShape(csItem.key, points);

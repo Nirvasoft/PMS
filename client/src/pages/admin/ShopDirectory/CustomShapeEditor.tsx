@@ -12,6 +12,28 @@ import {
   type CustomShapePoint,
 } from './shopMapShapeCatalog';
 
+export interface CustomShapeBlueprintOverlay {
+  dataUrl: string;
+  /** Blueprint top-left X in grid cells */
+  bpXCells: number;
+  /** Blueprint top-left Y in grid cells */
+  bpYCells: number;
+  /** Blueprint width in grid cells */
+  bpWCells: number;
+  /** Blueprint height/width aspect ratio */
+  aspectRatio?: number;
+  /** Blueprint rotation in degrees around blueprint center */
+  rotation: number;
+  /** Current blueprint opacity (0..100) from the map */
+  opacity: number;
+  /** Tile top-left X in grid cells */
+  tileX: number;
+  /** Tile top-left Y in grid cells */
+  tileY: number;
+  /** Tile rotation in degrees around tile center */
+  tileAngle: number;
+}
+
 interface Props {
   title: string;
   /** Tile size in grid cells – the canvas uses the same aspect ratio so what you draw is what you get. */
@@ -22,6 +44,8 @@ interface Props {
   initialNote: string | null;
   /** Outlines of nearby tiles in this tile's own 0..100 % frame (can extend outside 0..100). */
   neighbors: Array<{ key: string; points: CustomShapePoint[] }>;
+  /** Active floorplan blueprint overlay mapped to grid cells so the user can trace walls inside Custom Shape. */
+  blueprint?: CustomShapeBlueprintOverlay | null;
   onApply: (points: CustomShapePoint[]) => void;
   onClose: () => void;
 }
@@ -36,6 +60,7 @@ export function CustomShapeEditor({
   initialPoints,
   initialNote,
   neighbors,
+  blueprint = null,
   onApply,
   onClose,
 }: Props) {
@@ -44,10 +69,31 @@ export function CustomShapeEditor({
   const [snap, setSnap] = useState(true);
   const [snapNb, setSnapNb] = useState(true);
   const [cornerRadiusPct, setCornerRadiusPct] = useState(40);
+  const [showBp, setShowBp] = useState(true);
+  const [bpOpacity, setBpOpacity] = useState(() =>
+    blueprint ? Math.min(95, Math.max(45, blueprint.opacity)) : 55,
+  );
+  const [bpAspect, setBpAspect] = useState<number>(
+    blueprint?.aspectRatio && blueprint.aspectRatio > 0 ? blueprint.aspectRatio : 0.75,
+  );
   const [drag, setDrag] = useState<number | null>(null);
   const [bendDrag, setBendDrag] = useState<{ edgeIdx: number; basePts: CustomShapePoint[] } | null>(null);
   const [note, setNote] = useState<string | null>(initialNote);
   const svgRef = useRef<SVGSVGElement | null>(null);
+
+  useEffect(() => {
+    if (!blueprint?.dataUrl) return;
+    if (blueprint.aspectRatio && blueprint.aspectRatio > 0) {
+      setBpAspect(blueprint.aspectRatio);
+    }
+    const img = new window.Image();
+    img.onload = () => {
+      if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+        setBpAspect(img.naturalHeight / img.naturalWidth);
+      }
+    };
+    img.src = blueprint.dataUrl;
+  }, [blueprint?.dataUrl, blueprint?.aspectRatio]);
 
   const { W, H } = useMemo(() => {
     const aspect = Math.min(4, Math.max(0.25, tileW / Math.max(1, tileH)));
@@ -302,6 +348,7 @@ export function CustomShapeEditor({
                 border: '1px solid var(--border-color, var(--border, #cbd5e1))',
                 borderRadius: 10,
                 userSelect: 'none',
+                overflow: 'hidden',
               }}
               viewBox={`${-PAD} ${-PAD} ${W + PAD * 2} ${H + PAD * 2}`}
               onPointerMove={onSvgMove}
@@ -309,9 +356,59 @@ export function CustomShapeEditor({
               onPointerCancel={endDrag}
               onPointerDown={() => setSel(null)}
             >
-              <rect x={0} y={0} width={W} height={H} fill="none" stroke="#94a3b8" strokeDasharray="4 4" />
+              {blueprint && showBp && (() => {
+                const bpHCells = blueprint.bpWCells * bpAspect;
+                const tileCx = blueprint.tileX + tileW * 0.5;
+                const tileCy = blueprint.tileY + tileH * 0.5;
+                const cellPxX = W / Math.max(1, tileW);
+                const cellPxY = H / Math.max(1, tileH);
+                const bpCx = blueprint.bpXCells + blueprint.bpWCells * 0.5;
+                const bpCy = blueprint.bpYCells + bpHCells * 0.5;
+                return (
+                  <>
+                    <g
+                      pointerEvents="none"
+                      opacity={bpOpacity / 100}
+                      transform={`translate(${W / 2} ${H / 2}) scale(${cellPxX} ${cellPxY}) rotate(${-blueprint.tileAngle}) translate(${-tileCx} ${-tileCy})`}
+                    >
+                      <image
+                        href={blueprint.dataUrl}
+                        x={blueprint.bpXCells}
+                        y={blueprint.bpYCells}
+                        width={blueprint.bpWCells}
+                        height={bpHCells}
+                        preserveAspectRatio="none"
+                        transform={
+                          blueprint.rotation
+                            ? `rotate(${blueprint.rotation} ${bpCx} ${bpCy})`
+                            : undefined
+                        }
+                      />
+                    </g>
+                    {/* Subtle outside-tile frame tint so the 0..100% tile box stands out clearly over the blueprint */}
+                    <path
+                      d={`M ${-PAD} ${-PAD} H ${W + PAD} V ${H + PAD} H ${-PAD} Z M 0 0 V ${H} H ${W} V 0 Z`}
+                      fillRule="evenodd"
+                      fill="rgba(15, 23, 42, 0.12)"
+                      pointerEvents="none"
+                    />
+                  </>
+                );
+              })()}
+              <rect
+                x={0}
+                y={0}
+                width={W}
+                height={H}
+                fill="none"
+                stroke={blueprint && showBp ? '#4f46e5' : '#94a3b8'}
+                strokeWidth={blueprint && showBp ? 1.5 : 1}
+                strokeOpacity={blueprint && showBp ? 0.7 : 1}
+                strokeDasharray="4 4"
+                pointerEvents="none"
+              />
               {[10, 20, 30, 40, 50, 60, 70, 80, 90].map((g) => (
-                <g key={g} stroke="#94a3b8" strokeOpacity={g === 50 ? 0.35 : 0.15}>
+                <g key={g} stroke="#94a3b8" strokeOpacity={g === 50 ? 0.35 : 0.15} pointerEvents="none">
                   <line x1={(g / 100) * W} y1={0} x2={(g / 100) * W} y2={H} />
                   <line x1={0} y1={(g / 100) * H} x2={W} y2={(g / 100) * H} />
                 </g>
@@ -330,7 +427,13 @@ export function CustomShapeEditor({
               ))}
               <polygon
                 points={polyD}
-                fill={valid ? 'rgba(79,70,229,0.22)' : 'rgba(220,38,38,0.18)'}
+                fill={
+                  valid
+                    ? blueprint && showBp
+                      ? 'rgba(79,70,229,0.14)'
+                      : 'rgba(79,70,229,0.22)'
+                    : 'rgba(220,38,38,0.18)'
+                }
                 stroke={valid ? '#4f46e5' : '#dc2626'}
                 strokeWidth={2.5}
                 strokeLinejoin="round"
@@ -404,6 +507,35 @@ export function CustomShapeEditor({
           </div>
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10, alignItems: 'center' }}>
+            {blueprint && (
+              <>
+                <button
+                  type="button"
+                  style={btn(showBp)}
+                  onClick={() => setShowBp((s) => !s)}
+                  title="Show or hide the floorplan blueprint behind this shop unit while shaping"
+                >
+                  Blueprint {showBp ? 'ON' : 'OFF'}
+                </button>
+                {showBp && (
+                  <label
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11.5, opacity: 0.85 }}
+                    title="Adjust blueprint visibility inside the shape editor"
+                  >
+                    <span>BP {bpOpacity}%</span>
+                    <input
+                      type="range"
+                      min={10}
+                      max={95}
+                      step={5}
+                      value={bpOpacity}
+                      onChange={(e) => setBpOpacity(Number(e.target.value))}
+                      style={{ width: 64, accentColor: '#10b981', cursor: 'pointer' }}
+                    />
+                  </label>
+                )}
+              </>
+            )}
             <button type="button" style={btn(snap)} onClick={() => setSnap((s) => !s)}>
               Snap to grid {snap ? 'ON' : 'OFF'}
             </button>
