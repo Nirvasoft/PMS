@@ -13,7 +13,6 @@ import {
 } from '../../../store/api/tenantsApi';
 import { useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
 import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
-import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import {
   List, User, Building2, Shield, ShieldOff, Phone, Mail,
   Plus, Trash2, Pin, PinOff, CheckCircle, XCircle, Clock,
@@ -283,7 +282,6 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
   const history = historyData?.data || [];
   const [editing, setEditing] = useState(false);
   const [updateTenant, { isLoading: saving }] = useUpdateTenantMutation();
-  const { isV6Active } = useV6IntegrationStatus();
   const activePropertyId = useSelectedPropertyId();
   const { data: currencyRatesData } = useGetCurrencyRatesQuery({ propertyId: activePropertyId });
   const currencyOptions = currencyRatesData?.data || [];
@@ -326,12 +324,6 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
     // Currency is locked once saved — the field is disabled in the UI when tenant.currency
     // is already set, and the server ignores changes to it anyway (defense in depth).
     if (tenant.currency) delete payload.currency;
-    if (isV6Active) {
-      delete payload.firstName;
-      delete payload.lastName;
-      delete payload.companyName;
-      delete payload.companyRegNo;
-    }
     payload.tags = tags;
     try {
       await updateTenant({ id: tenantId, data: payload }).unwrap();
@@ -360,18 +352,6 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
             </div>
           </div>
 
-          {isV6Active && (
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
-              borderRadius: 8, background: 'rgba(59, 130, 246, 0.08)',
-              border: '1px solid rgba(59, 130, 246, 0.25)', margin: '0 0 14px',
-              fontSize: 12, color: 'var(--text-secondary)'
-            }}>
-              <span>🔒</span>
-              <span><strong>V6 ERP Active:</strong> Code and Name are synchronized from V6 ERP and cannot be modified here.</span>
-            </div>
-          )}
-
           <div className="edit-grid">
             {tenant.tenantType === 'individual' ? (
               <>
@@ -379,15 +359,11 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
                   label="Code"
                   value={form.firstName}
                   onChange={(v) => set('firstName', v)}
-                  disabled={isV6Active}
-                  title={isV6Active ? 'Code is managed by V6 ERP' : ''}
                 />
                 <EditField
                   label="Name"
                   value={form.lastName}
                   onChange={(v) => set('lastName', v)}
-                  disabled={isV6Active}
-                  title={isV6Active ? 'Name is managed by V6 ERP' : ''}
                 />
                 <EditField label="Father's Name" value={form.fatherName} onChange={(v) => set('fatherName', v)} />
                 <EditField label="Father's NRC" value={form.fatherNrc} onChange={(v) => set('fatherNrc', v)} />
@@ -409,15 +385,11 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
                   value={form.companyName}
                   onChange={(v) => set('companyName', v)}
                   span={2}
-                  disabled={isV6Active}
-                  title={isV6Active ? 'Company Name is managed by V6 ERP' : ''}
                 />
                 <EditField
                   label="Reg. No."
                   value={form.companyRegNo}
                   onChange={(v) => set('companyRegNo', v)}
-                  disabled={isV6Active}
-                  title={isV6Active ? 'Registration No. is managed by V6 ERP' : ''}
                 />
                 <EditSelect label="Company Type" value={form.companyType} onChange={(v) => set('companyType', v)}
                   options={[['','—'],['private_limited','Private Limited'],['partnership','Partnership'],['sole_prop','Sole Proprietor'],['public','Public Listed']]} />

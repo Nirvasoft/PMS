@@ -6,7 +6,6 @@ import { useGetBankAccountsQuery, useCreateBankAccountMutation } from '../../../
 import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
-import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import { useAlertDialog } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { skipToken } from '@reduxjs/toolkit/query';
@@ -21,7 +20,6 @@ const BANK_ICONS: Record<string, string> = {
 const getBankIcon = (name: string) => Object.entries(BANK_ICONS).find(([k]) => name.toUpperCase().includes(k))?.[1] || '🏦';
 
 export default function BankAccountsPage() {
-  const { isV6Active } = useV6IntegrationStatus();
   const navigate = useNavigate();
   const activePropertyFilter = useSelectedPropertyFilter();
   const { data: scopeData } = useGetMyPropertyScopeQuery();
@@ -68,12 +66,9 @@ export default function BankAccountsPage() {
         <PermissionGuard permission="finance-banking.write">
           <button
             className="btn-primary"
-            disabled={isV6Active}
-            onClick={() => { if (!isV6Active) setShowCreate(true); }}
-            title={isV6Active ? 'Bank account creation is disabled because V6 ERP integration is active.' : undefined}
-            style={isV6Active ? { opacity: 0.6, cursor: 'not-allowed', display: 'inline-flex', alignItems: 'center', gap: 6 } : undefined}
+            onClick={() => setShowCreate(true)}
           >
-            {isV6Active ? '🔒 Add Bank Account (V6 Active)' : '+ Add Bank Account'}
+            + Add Bank Account
           </button>
         </PermissionGuard>
       </div>

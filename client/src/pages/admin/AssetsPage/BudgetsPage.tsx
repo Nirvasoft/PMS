@@ -8,7 +8,6 @@ import {
 import type { Budget } from '../../../store/api/assetsApi';
 import { useGetGlAccountsQuery } from '../../../store/api/glApi';
 import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
-import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import {
   BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Legend, Cell,
@@ -23,7 +22,6 @@ import { formatCompactAmount as fmtAmt } from '../../../utils/formatCurrency';
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 export default function BudgetsPage() {
-  const { isV6Active } = useV6IntegrationStatus();
   const [tab, setTab] = useState<'spreadsheet' | 'variance'>('spreadsheet');
   const [year, setYear] = useState(new Date().getFullYear());
   const [showCreate, setShowCreate] = useState(false);
@@ -44,12 +42,9 @@ export default function BudgetsPage() {
           <PermissionGuard permission="finance-budgets.write">
             <button
               className="btn-primary"
-              disabled={isV6Active}
-              onClick={() => { if (!isV6Active) setShowCreate(true); }}
-              title={isV6Active ? 'Budget creation is disabled because V6 ERP integration is active.' : undefined}
-              style={isV6Active ? { opacity: 0.6, cursor: 'not-allowed', display: 'inline-flex', alignItems: 'center', gap: 6 } : undefined}
+              onClick={() => setShowCreate(true)}
             >
-              {isV6Active ? '🔒 New Budget (V6 Active)' : '+ New Budget'}
+              + New Budget
             </button>
           </PermissionGuard>
         )}

@@ -10,6 +10,7 @@ import {
 } from './tenants.schema';
 import { webhookTenantCreated, webhookTenantBlacklisted } from '../../common/webhookHooks';
 import { isV6ErpActive } from '../integrations/v6Status.helper';
+import { integrationsService } from '../integrations/integrations.service';
 
 // ══════════════════════════════════════════════
 // HELPERS
@@ -269,6 +270,19 @@ export class TenantsService {
     await this.initKycChecklist(tenant.id, tenantType, companyId);
 
     webhookTenantCreated(tenant);
+
+    // If V6 ERP is active, push customer master to V6 ERP (POST /mDisRepository/IntegrationAPI/createCustomerMaster)
+    if (await isV6ErpActive(companyId, tenant.propertyId)) {
+      integrationsService
+        .pushCustomerToV6Erp(companyId, tenant.id, tenant.propertyId)
+        .catch((err) =>
+          logger.warn('Failed to push newly created tenant to V6 ERP', {
+            err: err instanceof Error ? err.message : String(err),
+            tenantId: tenant.id,
+          }),
+        );
+    }
+
     return { ...tenant, glAccountCode: glAccountCode || null, displayName: displayName(tenant) };
   }
 
@@ -284,14 +298,7 @@ export class TenantsService {
     // server-side backstop (mirrors units.service.ts update()).
     if (tenant.currency) delete rest.currency;
 
-    // If V6 ERP integration is active for the tenant's property, lock Code (firstName/companyRegNo) and Name (lastName/companyName)
     const v6Active = await isV6ErpActive(companyId, tenant.propertyId);
-    if (v6Active) {
-      delete rest.firstName;
-      delete rest.lastName;
-      delete rest.companyName;
-      delete rest.companyRegNo;
-    }
 
     // Duplicate code (firstName) check — exclude self
     if (tenant.tenantType === 'individual' && rest.firstName) {
@@ -321,6 +328,17 @@ export class TenantsService {
       } catch (err) {
         logger.warn('Failed to update tenant gl_account_code', { err, tenantId: id });
       }
+    }
+
+    if (v6Active) {
+      integrationsService
+        .pushCustomerToV6Erp(companyId, updated.id, updated.propertyId)
+        .catch((err) =>
+          logger.warn('Failed to push updated tenant to V6 ERP', {
+            err: err instanceof Error ? err.message : String(err),
+            tenantId: updated.id,
+          }),
+        );
     }
 
     return {

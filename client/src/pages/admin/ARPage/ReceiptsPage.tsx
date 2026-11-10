@@ -2,13 +2,16 @@ import { useState, useMemo, useEffect } from 'react';
 import { useGetReceiptsQuery } from '../../../store/api/arApi';
 import { useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
 import { useGetPaymentMethodsQuery } from '../../../store/api/glApi';
+import { usePushReceiptsToV6ErpMutation } from '../../../store/api/integrationsApi';
 import { useSelectedPropertyId, useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
+import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import { skipToken } from '@reduxjs/toolkit/query/react';
 import {
   Banknote, Plus, Search, ChevronLeft, ChevronRight,
-  DollarSign, CheckCircle, RotateCcw,
+  DollarSign, CheckCircle, RotateCcw, UploadCloud,
 } from 'lucide-react';
 import { format } from 'date-fns';
+import toast from 'react-hot-toast';
 import CreateReceiptModal from './CreateReceiptModal';
 import ReceiptDetailDrawer from './ReceiptDetailDrawer';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
@@ -31,6 +34,18 @@ export default function ReceiptsPage() {
 
   const propertyId = useSelectedPropertyId();         // for currency rates (always a real id)
   const propertyFilter = useSelectedPropertyFilter(); // '' = All Properties, else specific id
+  const { isV6PushActive: isV6Active } = useV6IntegrationStatus(propertyFilter || undefined);
+  const [pushReceiptsToV6Erp, { isLoading: pushingToV6 }] = usePushReceiptsToV6ErpMutation();
+
+  const handleSendReceiptsToV6 = async () => {
+    if (!isV6Active || pushingToV6) return;
+    try {
+      const res = await pushReceiptsToV6Erp(propertyFilter ? { propertyId: propertyFilter } : {}).unwrap();
+      toast.success(res?.data?.message || 'Receipts sent to V6 ERP');
+    } catch (err: any) {
+      toast.error(err?.data?.message || err?.message || 'Failed to send receipts to V6 ERP');
+    }
+  };
 
   // Reset to page 1 whenever the active property changes
   useEffect(() => { setPage(1); }, [propertyFilter]);
@@ -130,17 +145,39 @@ export default function ReceiptsPage() {
           </div>
         </div>
         <PermissionGuard permission="ar-receipts.write">
-          <button
-            className="btn btn-primary"
-            onClick={() => setShowCreate(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
-          >
-            <Plus size={14} /> Record Receipts
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {isV6Active && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleSendReceiptsToV6}
+                disabled={pushingToV6}
+                title="Send confirmed receipts to V6 ERP (postCashReceipt)"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  background: 'rgba(16,185,129,0.1)',
+                  color: '#10b981',
+                  border: '1px solid rgba(16,185,129,0.3)',
+                }}
+              >
+                <UploadCloud size={14} />
+                {pushingToV6 ? 'Sending…' : 'Send to V6 ERP'}
+              </button>
+            )}
+            <button
+              className="btn btn-primary"
+              onClick={() => setShowCreate(true)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              <Plus size={14} /> Record Receipts
+            </button>
+          </div>
         </PermissionGuard>
       </div>
 

@@ -1898,7 +1898,7 @@ export const generalImportService = {
           }
         }
 
-        if (!v6Active && insertedBatch.length > 0 && openPeriods.length > 0 && arAccId && revAccId) {
+        if (insertedBatch.length > 0 && openPeriods.length > 0 && arAccId && revAccId) {
           try {
             const jeRows: any[] = [];
             const jelRows: any[] = [];

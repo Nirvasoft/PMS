@@ -42,7 +42,7 @@ export default function InvoiceDetailPage() {
   const [sendInvoice, { isLoading: sending }] = useSendInvoiceMutation();
   const [createCreditNote, { isLoading: creatingCN }] = useCreateCreditNoteMutation();
   const [pushInvoicesToV6Erp, { isLoading: pushingToV6 }] = usePushInvoicesToV6ErpMutation();
-  const { isV6Active } = useV6IntegrationStatus();
+  const { isV6PushActive: isV6Active } = useV6IntegrationStatus();
   const confirmDialog = useConfirm();
   const alertDialog = useAlertDialog();
 
@@ -137,7 +137,11 @@ export default function InvoiceDetailPage() {
     if (!inv || inv.status !== 'issued') return;
     if (!(await confirmDialog(`Send invoice ${inv.invoiceNumber} to V6 ERP?\n\nStatus will change to "sent" upon completion.`))) return;
     try {
-      const result = await pushInvoicesToV6Erp({ invoiceIds: [inv.id] }).unwrap();
+      const targetPropId = inv.property?.id || (inv as any).propertyId || selectedPropertyId || undefined;
+      const result = await pushInvoicesToV6Erp({
+        invoiceIds: [inv.id],
+        ...(targetPropId ? { propertyId: targetPropId } : {}),
+      }).unwrap();
       if (result.data?.sent > 0) {
         toast.success(`Invoice ${inv.invoiceNumber} sent to V6 ERP!`);
       } else if (result.data?.failed > 0) {

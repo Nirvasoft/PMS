@@ -197,7 +197,7 @@ export default function InvoiceListPage() {
   const [sendInvoice] = useSendInvoiceMutation();
   const [triggerPdf] = useLazyGetInvoicePdfQuery();
   const [pushInvoicesToV6Erp, { isLoading: pushingToV6 }] = usePushInvoicesToV6ErpMutation();
-  const { isV6Active } = useV6IntegrationStatus(activePropertyFilter || undefined);
+  const { isV6PushActive: isV6Active } = useV6IntegrationStatus(activePropertyFilter || undefined);
   const confirmDialog = useConfirm();
 
   const invoices = data?.data || [];

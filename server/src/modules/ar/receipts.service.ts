@@ -5,6 +5,8 @@ import { logger } from '../../common/logger';
 import { invalidateCacheByPrefix } from '../../common/redis';
 import { glService } from '../gl/gl.service';
 import { webhookPaymentReceived, webhookRefundProcessed } from '../../common/webhookHooks';
+import { isV6ErpActive } from '../integrations/v6Status.helper';
+import { integrationsService } from '../integrations/integrations.service';
 
 export class ReceiptsService {
   // ── Currency Conversion ─────────────────────
@@ -293,6 +295,16 @@ export class ReceiptsService {
     }
 
     webhookPaymentReceived(receipt);
+    if (await isV6ErpActive(companyId, receipt.propertyId)) {
+      integrationsService
+        .pushReceiptsToV6Erp(companyId, [receipt.id], false, receipt.propertyId || undefined)
+        .catch((err) =>
+          logger.warn('Failed to push newly created receipt to V6 ERP', {
+            err: err instanceof Error ? err.message : String(err),
+            receiptId: receipt.id,
+          }),
+        );
+    }
     await invalidateCacheByPrefix(`invoices:${companyId}:`);
     return receipt;
   }

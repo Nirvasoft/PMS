@@ -171,34 +171,23 @@ developerRouter.post('/v6erp/push-invoices', asyncHandler(async (req, res) => {
   res.json({ success: true, data });
 }));
 
-/**
- * POST /api/v1/developer/v6erp/sync-coa
- *
- * Pulls General Ledger -> Chart of Accounts from V6 ERP (/v6IntegrationAPIlogin/getCOA)
- * for the currently active property when V6 ERP flag is ON.
- */
-developerRouter.post('/v6erp/sync-coa', asyncHandler(async (req, res) => {
-  const { propertyId } = (req.body || {}) as { propertyId?: string };
-  const data = await integrationsService.syncV6ChartOfAccounts(
+developerRouter.post('/v6erp/push-receipts', asyncHandler(async (req, res) => {
+  const { receiptIds, propertyId } = (req.body || {}) as { receiptIds?: string[]; propertyId?: string };
+  const data = await integrationsService.pushReceiptsToV6Erp(
     getCompanyId(req),
+    receiptIds,
+    false,
     propertyId,
-    getUserId(req),
   );
   res.json({ success: true, data });
 }));
 
-/**
- * POST /api/v1/developer/v6erp/sync-customers
- *
- * Pulls Customers from V6 ERP (/v6IntegrationAPIlogin/getCustomer) and upserts them as PMS tenants
- * for the currently active property when V6 ERP flag is ON.
- */
-developerRouter.post('/v6erp/sync-cashbook', asyncHandler(async (req, res) => {
-  const { propertyId } = (req.body || {}) as { propertyId?: string };
-  const data = await integrationsService.syncV6Cashbook(
+developerRouter.post('/v6erp/push-customer', asyncHandler(async (req, res) => {
+  const { tenantId, propertyId } = (req.body || {}) as { tenantId: string; propertyId?: string };
+  const data = await integrationsService.pushCustomerToV6Erp(
     getCompanyId(req),
+    tenantId,
     propertyId,
-    getUserId(req),
   );
   res.json({ success: true, data });
 }));

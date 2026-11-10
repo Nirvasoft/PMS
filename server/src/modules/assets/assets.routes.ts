@@ -2,7 +2,6 @@ import { Router, Request } from 'express';
 import { asyncHandler } from '../../middleware';
 import { budgetsService } from './budgets.service';
 import { assetsService } from './assets.service';
-import { assertV6ErpNotActive } from '../integrations/v6Status.helper';
 
 const p = (req: Request, key: string) => req.params[key] as string;
 const q = (req: Request, key: string) => (req.query[key] as string) || '';
@@ -18,7 +17,6 @@ budgetsRouter.get('/', asyncHandler(async (req, res) => {
 }));
 
 budgetsRouter.post('/', asyncHandler(async (req, res) => {
-  await assertV6ErpNotActive(req.user!.companyId, 'Budget', req.body?.propertyId);
   const data = await budgetsService.create(req.user!.companyId, req.user!.sub, req.body);
   res.status(201).json({ success: true, data });
 }));
@@ -62,7 +60,6 @@ assetsRouter.get('/:id', asyncHandler(async (req, res) => {
 }));
 
 assetsRouter.post('/', asyncHandler(async (req, res) => {
-  await assertV6ErpNotActive(req.user!.companyId, 'Fixed asset', req.body?.propertyId);
   const data = await assetsService.create(req.user!.companyId, req.body);
   res.status(201).json({ success: true, data });
 }));

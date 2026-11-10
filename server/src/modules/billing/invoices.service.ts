@@ -9,6 +9,7 @@ import { glService } from '../gl/gl.service';
 import { webhookInvoiceIssued } from '../../common/webhookHooks';
 import { calcLeaseTermMonths } from '../leases/services/helpers';
 import { isV6ErpActive } from '../integrations/v6Status.helper';
+import { integrationsService } from '../integrations/integrations.service';
 
 /** Adds computed `outstandingAmount` to an invoice object */
 function withOutstanding<T extends { totalAmount: any; paidAmount: any }>(inv: T): T & { outstandingAmount: number } {
@@ -615,7 +616,7 @@ export class InvoicesService {
       null;
 
     // GL auto-posting: Dr Accounts Receivable (linked to Invoice Dept/CC) / Cr per ChargeType GL Account / Cr Tax Payable
-    if (!(await isV6ErpActive(companyId, invoice.propertyId))) {
+    if (Boolean(true)) {
       const glLines: Array<{
         accountCode: string;
         debit: number;
@@ -681,6 +682,17 @@ export class InvoicesService {
         costCenterId: invCcId,
         lines: glLines,
       });
+    }
+
+    if (await isV6ErpActive(companyId, invoice.propertyId)) {
+      integrationsService
+        .pushInvoicesToV6Erp(companyId, [invoice.id], false, invoice.propertyId || undefined)
+        .catch((err) =>
+          logger.warn('Failed to push newly created invoice to V6 ERP', {
+            err: err instanceof Error ? err.message : String(err),
+            invoiceId: invoice.id,
+          }),
+        );
     }
 
     // Send notification
@@ -1076,7 +1088,7 @@ export class InvoicesService {
    */
   private async _postInvoiceGlAndNotify(invoice: any, companyId: string, invoiceDate: Date, currency: string): Promise<void> {
     try {
-      if (!(await isV6ErpActive(companyId, invoice.propertyId))) {
+      if (Boolean(true)) {
         const subtotal    = Number(invoice.subtotal);
         const totalAmount = Number(invoice.totalAmount);
         const taxAmount   = Number(invoice.taxAmount);
@@ -1159,6 +1171,16 @@ export class InvoicesService {
           costCenterId: invCcId,
           lines: glLines,
         });
+      }
+      if (await isV6ErpActive(companyId, invoice.propertyId)) {
+        integrationsService
+          .pushInvoicesToV6Erp(companyId, [invoice.id], false, invoice.propertyId || undefined)
+          .catch((err) =>
+            logger.warn('[createFromLease] Failed to push invoice to V6 ERP', {
+              err: err instanceof Error ? err.message : String(err),
+              invoiceId: invoice.id,
+            }),
+          );
       }
     } catch (err: any) {
       logger.warn(`[createFromLease] GL auto-journal skipped: ${err.message}`);
@@ -1397,7 +1419,7 @@ export class InvoicesService {
     );
 
     // GL auto-posting: Dr AR (linked to Invoice Dept/CC) / Cr per ChargeType GL Account / Cr Tax Payable
-    if (!(await isV6ErpActive(first.companyId, first.propertyId))) {
+    if (Boolean(true)) {
       const glLines: Array<{
         accountCode: string;
         debit: number;
@@ -1468,6 +1490,18 @@ export class InvoicesService {
         lines: glLines,
       });
     }
+
+    if (await isV6ErpActive(first.companyId, first.propertyId)) {
+      integrationsService
+        .pushInvoicesToV6Erp(first.companyId, [invoice.id], false, first.propertyId || undefined)
+        .catch((err) =>
+          logger.warn('[generateFromSchedules] Failed to push invoice to V6 ERP', {
+            err: err instanceof Error ? err.message : String(err),
+            invoiceId: invoice.id,
+          }),
+        );
+    }
+
     // Send notification
     const tenantName = first.tenant
       ? `${first.tenant.firstName || ''} ${first.tenant.lastName || ''}`.trim()
@@ -1534,7 +1568,7 @@ export class InvoicesService {
     });
 
     // 1. Reverse posted GL journal entry(s) for this invoice
-    if (!(await isV6ErpActive(companyId, invoice.propertyId))) {
+    if (Boolean(true)) {
       try {
         const postedJournals = await prisma.journalEntry.findMany({
           where: {

@@ -1406,21 +1406,6 @@ class GlService {
     }>;
   }) {
     try {
-      if (params.entryType === 'ar_invoice' || params.referenceType === 'invoice') {
-        let targetPropertyId = params.propertyId || null;
-        if (!targetPropertyId && params.referenceId) {
-          const inv = await prisma.invoice.findUnique({
-            where: { id: params.referenceId },
-            select: { propertyId: true },
-          });
-          targetPropertyId = inv?.propertyId || null;
-        }
-        if (await isV6ErpActive(params.companyId, targetPropertyId)) {
-          logger.info(`GL auto-post skipped: V6 ERP integration is active for invoice (${params.description})`);
-          return null;
-        }
-      }
-
       const entryDate = new Date(params.entryDate);
 
       // Find open fiscal period

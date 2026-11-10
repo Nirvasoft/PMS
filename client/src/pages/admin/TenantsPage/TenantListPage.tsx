@@ -36,7 +36,7 @@ const KYC_LABELS: Record<string, string> = {
 export default function TenantListPage() {
   const navigate = useNavigate();
   const confirmDialog = useConfirm();
-  const { isV6Active } = useV6IntegrationStatus();
+  const { isV6PushActive: isV6Active } = useV6IntegrationStatus();
   const propertyId = useSelectedPropertyFilter(); // '' when "All Properties", else active property id
   const [search, setSearch]           = useState('');
   const [showFilters, setShowFilters] = useState(false);

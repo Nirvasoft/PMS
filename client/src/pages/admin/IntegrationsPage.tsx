@@ -153,13 +153,19 @@ export default function IntegrationsPage() {
 
   const openEdit = (intg: any) => {
     setEditSubmitted(false);
+    const defaultV6Config =
+      intg.integrationType === 'v6erp'
+        ? { baseUrl: 'https://erp.mitcloud.com', domain: 'demo' }
+        : {};
+    const cfgObj =
+      intg.config && Object.keys(intg.config).length > 0 ? intg.config : defaultV6Config;
     setEditForm({
       name:            intg.name          || '',
       description:     intg.description   || '',
       syncFrequency:   intg.syncFrequency || 'daily',
       isActive:        intg.isActive !== undefined ? Boolean(intg.isActive) : (intg.status === 'active'),
       // Pre-populate config as formatted JSON string for the textarea
-      configJson:      intg.config && Object.keys(intg.config).length > 0 ? JSON.stringify(intg.config, null, 2) : '',
+      configJson:      Object.keys(cfgObj).length > 0 ? JSON.stringify(cfgObj, null, 2) : '',
       credentialsJson: '',
     });
     setShowEdit(intg);
@@ -641,7 +647,7 @@ export default function IntegrationsPage() {
                     rows={6}
                     value={editForm.configJson}
                     onChange={e => setEditForm(f => ({ ...f, configJson: e.target.value }))}
-                    placeholder={'{\n  "baseUrl": "http://localhost:8080",\n  "domain": "demo"\n}'}
+                    placeholder={'{\n  "baseUrl": "https://erp.mitcloud.com",\n  "domain": "demo"\n}'}
                     style={{ fontFamily: 'monospace', fontSize: 12, resize: 'vertical' }}
                   />
                 </label>
@@ -665,7 +671,7 @@ export default function IntegrationsPage() {
                     onChange={e => setEditForm(f => ({ ...f, credentialsJson: e.target.value }))}
                     placeholder={showEdit?.hasCredentials
                       ? '🔒 Leave empty to keep existing credentials unchanged.\n   Type new JSON to replace them.'
-                      : '{\n  "username": "admin",\n  "password": "yourpassword"\n}'}
+                      : '{\n  "clientID": "nssog8TW8VBtf+riPsDijA==",\n  "clientSecret": "8jlA2@06HRZQFnw1hawSedd4G2VMHCsE"\n}'}
                     style={{ fontFamily: 'monospace', fontSize: 12, resize: 'vertical' }}
                   />
                   <span style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4, display: 'block' }}>

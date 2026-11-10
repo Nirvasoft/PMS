@@ -16,7 +16,7 @@ type TenantType = 'individual' | 'company';
 export default function CreateTenantPage() {
   const navigate = useNavigate();
   const [createTenant, { isLoading }] = useCreateTenantMutation();
-  const { isV6Active } = useV6IntegrationStatus();
+  const { isV6PushActive: isV6Active } = useV6IntegrationStatus();
   const [syncV6Customers, { isLoading: isSyncingCustomers }] = useSyncV6CustomersMutation();
   const [tenantType, setTenantType] = useState<TenantType>('individual');
 

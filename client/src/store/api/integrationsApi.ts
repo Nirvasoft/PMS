@@ -1,6 +1,5 @@
 import { createApi } from '@reduxjs/toolkit/query/react';
 import { baseQueryWithReauth } from './baseQuery';
-import { glApi } from './glApi';
 import { tenantsApi } from './tenantsApi';
 
 export const integrationsApi = createApi({
@@ -20,32 +19,14 @@ export const integrationsApi = createApi({
     createIntegration: builder.mutation<any, any>({
       query: (body) => ({ url: '/integrations', method: 'POST', body }),
       invalidatesTags: ['Integrations'],
-      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
-        try {
-          await queryFulfilled;
-          dispatch(glApi.util.invalidateTags(['GlAccounts', 'DepartmentCenters', 'CostCenters']));
-        } catch { /* ignore */ }
-      },
     }),
     updateIntegration: builder.mutation<any, { id: string; data: any }>({
       query: ({ id, data }) => ({ url: `/integrations/${id}`, method: 'PUT', body: data }),
       invalidatesTags: ['Integrations', 'SyncLogs', 'EntityMap'],
-      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
-        try {
-          await queryFulfilled;
-          dispatch(glApi.util.invalidateTags(['GlAccounts', 'DepartmentCenters', 'CostCenters']));
-        } catch { /* ignore */ }
-      },
     }),
     deleteIntegration: builder.mutation<any, string>({
       query: (id) => ({ url: `/integrations/${id}`, method: 'DELETE' }),
       invalidatesTags: ['Integrations', 'EntityMap'],
-      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
-        try {
-          await queryFulfilled;
-          dispatch(glApi.util.invalidateTags(['GlAccounts', 'DepartmentCenters', 'CostCenters']));
-        } catch { /* ignore */ }
-      },
     }),
     testIntegration: builder.mutation<any, string | { id: string; propertyId?: string }>({
       query: (arg) => {
@@ -54,22 +35,10 @@ export const integrationsApi = createApi({
         return { url: `/integrations/${id}/test`, method: 'POST', body };
       },
       invalidatesTags: ['Integrations', 'SyncLogs', 'EntityMap'],
-      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
-        try {
-          await queryFulfilled;
-          dispatch(glApi.util.invalidateTags(['GlAccounts', 'DepartmentCenters', 'CostCenters']));
-        } catch { /* ignore */ }
-      },
     }),
     triggerSync: builder.mutation<any, { id: string; data?: any }>({
       query: ({ id, data = {} }) => ({ url: `/integrations/${id}/sync`, method: 'POST', body: data }),
       invalidatesTags: ['Integrations', 'SyncLogs', 'EntityMap'],
-      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
-        try {
-          await queryFulfilled;
-          dispatch(glApi.util.invalidateTags(['GlAccounts', 'DepartmentCenters', 'CostCenters']));
-        } catch { /* ignore */ }
-      },
     }),
     getSyncLogs: builder.query<any, { integrationId: string; page?: number }>({
       query: ({ integrationId, page = 1 }) => `/integrations/${integrationId}/sync-logs?page=${page}`,
@@ -142,7 +111,7 @@ export const integrationsApi = createApi({
       invalidatesTags: ['ApiKeys'],
     }),
 
-    // ── V6 ERP Push & COA Sync ──
+    // ── V6 ERP Push & Customer Sync ──
     pushInvoicesToV6Erp: builder.mutation<any, { invoiceIds?: string[]; propertyId?: string } | void>({
       query: (body) => ({
         url: '/developer/v6erp/push-invoices',
@@ -150,36 +119,20 @@ export const integrationsApi = createApi({
         body: body ?? {},
       }),
     }),
-    syncV6Coa: builder.mutation<any, { propertyId?: string } | void>({
+    pushReceiptsToV6Erp: builder.mutation<any, { receiptIds?: string[]; propertyId?: string } | void>({
       query: (body) => ({
-        url: '/developer/v6erp/sync-coa',
+        url: '/developer/v6erp/push-receipts',
         method: 'POST',
         body: body ?? {},
       }),
-      invalidatesTags: ['Integrations', 'SyncLogs', 'EntityMap'],
-      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
-        try {
-          await queryFulfilled;
-          dispatch(glApi.util.invalidateTags(['GlAccounts', 'DepartmentCenters', 'CostCenters']));
-        } catch { /* ignore */ }
-      },
     }),
-
-    syncV6Cashbook: builder.mutation<any, { propertyId?: string } | void>({
+    pushCustomerToV6Erp: builder.mutation<any, { tenantId: string; propertyId?: string }>({
       query: (body) => ({
-        url: '/developer/v6erp/sync-cashbook',
+        url: '/developer/v6erp/push-customer',
         method: 'POST',
-        body: body ?? {},
+        body,
       }),
-      invalidatesTags: ['Integrations', 'SyncLogs', 'EntityMap'],
-      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
-        try {
-          await queryFulfilled;
-          dispatch(glApi.util.invalidateTags(['PaymentMethods']));
-        } catch { /* ignore */ }
-      },
     }),
-
     syncV6Customers: builder.mutation<any, { propertyId?: string } | void>({
       query: (body) => ({
         url: '/developer/v6erp/sync-customers',
@@ -290,8 +243,8 @@ export const {
   useRevokeApiKeyMutation,
   // V6 ERP
   usePushInvoicesToV6ErpMutation,
-  useSyncV6CoaMutation,
-  useSyncV6CashbookMutation,
+  usePushReceiptsToV6ErpMutation,
+  usePushCustomerToV6ErpMutation,
   useSyncV6CustomersMutation,
   // BMS
   useGetBmsSummaryQuery,

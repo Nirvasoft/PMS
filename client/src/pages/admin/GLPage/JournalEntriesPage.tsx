@@ -7,7 +7,6 @@ import {
   useGetGlAccountsQuery,
 } from '../../../store/api/glApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
-import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import TableScrollWrapper from '../../../components/TableScrollWrapper';
@@ -49,7 +48,6 @@ const getEntryCcs = (je: any): Array<{ id?: string; code: string; name: string }
 };
 
 export default function JournalEntriesPage() {
-  const { isV6Active } = useV6IntegrationStatus();
   const selectedPropertyId = useSelectedPropertyFilter();
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
@@ -120,12 +118,9 @@ export default function JournalEntriesPage() {
         <PermissionGuard permission="finance-journal.write">
           <button
             className="btn-primary"
-            disabled={isV6Active}
-            onClick={() => { if (!isV6Active) setShowCreate(true); }}
-            title={isV6Active ? 'Journal entry creation is disabled because V6 ERP integration is active.' : undefined}
-            style={isV6Active ? { opacity: 0.6, cursor: 'not-allowed', display: 'inline-flex', alignItems: 'center', gap: 6 } : undefined}
+            onClick={() => setShowCreate(true)}
           >
-            {isV6Active ? '🔒 New Journal Entry (V6 Active)' : '+ New Journal Entry'}
+            + New Journal Entry
           </button>
         </PermissionGuard>
       </div>

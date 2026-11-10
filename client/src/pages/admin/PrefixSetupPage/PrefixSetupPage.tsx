@@ -4,8 +4,6 @@ import {
   Save,
   Plus,
   RotateCcw,
-  Lock,
-  Info,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
@@ -17,7 +15,6 @@ import {
 } from '../../../store/api/sequenceApi';
 import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
-import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import { useConfirm } from '../../../components/DialogProvider';
 import './PrefixSetupPage.css';
 
@@ -148,7 +145,6 @@ function isRowModified(row: EditableRow): boolean {
 
 export default function PrefixSetupPage() {
   const confirmDialog = useConfirm();
-  const { isV6Active } = useV6IntegrationStatus();
 
   // Active Property from global application context
   const activePropertyId = useSelectedPropertyId();
@@ -177,21 +173,18 @@ export default function PrefixSetupPage() {
   // Sync serverSequences to local rows and baseline when loaded or property changed
   useEffect(() => {
     if (serverSequences && serverSequences.length > 0) {
-      const mapped: EditableRow[] = serverSequences.map((s) => {
-        const isLockedTenant = s.typeKey === 'tenant' && isV6Active;
-        return {
-          rowId: s.id || s.typeKey,
-          typeKey: s.typeKey,
-          label: s.label || DOC_TYPE_LOOKUP[s.typeKey]?.label || s.typeKey,
-          module: DOC_TYPE_LOOKUP[s.typeKey]?.module || s.module || 'organization',
-          prefix1: isLockedTenant ? 'TNT' : s.prefix1,
-          prefix2: isLockedTenant ? 'none' : (s.prefix2 || 'none'),
-          padLength: isLockedTenant ? 6 : (s.padLength || 6),
-          currentVal: s.currentVal || 0,
-          mode: isLockedTenant ? 'manual' : (s.mode || (s.typeKey === 'tenant' ? 'manual' : undefined)),
-          isNew: false,
-        };
-      });
+      const mapped: EditableRow[] = serverSequences.map((s) => ({
+        rowId: s.id || s.typeKey,
+        typeKey: s.typeKey,
+        label: s.label || DOC_TYPE_LOOKUP[s.typeKey]?.label || s.typeKey,
+        module: DOC_TYPE_LOOKUP[s.typeKey]?.module || s.module || 'organization',
+        prefix1: s.prefix1,
+        prefix2: s.prefix2 || 'none',
+        padLength: s.padLength || 6,
+        currentVal: s.currentVal || 0,
+        mode: s.mode || (s.typeKey === 'tenant' ? 'manual' : undefined),
+        isNew: false,
+      }));
       setRows(mapped);
       setInitialRows(mapped);
     } else {
@@ -211,7 +204,7 @@ export default function PrefixSetupPage() {
       setRows(defaultRows);
       setInitialRows(defaultRows);
     }
-  }, [serverSequences, isV6Active]);
+  }, [serverSequences]);
 
   // Derive whether local rows differ from initial saved DB state
   const isDirty = useMemo(() => {
@@ -468,16 +461,6 @@ export default function PrefixSetupPage() {
 
       {/* ── Main Setup Card (Table Only) ───────────────────────────────── */}
       <div className="prefix-card">
-        {/* V6 ERP Notice when Active */}
-        {isV6Active && activeTab === 'organization' && (
-          <div className="prefix-v6-notice">
-            <Info size={15} />
-            <span>
-              <strong>V6 ERP Active:</strong> Tenant codes are managed and synchronized from V6 ERP. Tenant code sequence is locked to default manual mode.
-            </span>
-          </div>
-        )}
-
         {/* ── Dynamic Prefix Table with Evenly Spaced Columns ─ */}
         <div className="prefix-table-container">
           {isLoading ? (
@@ -521,7 +504,6 @@ export default function PrefixSetupPage() {
                   activeRows.map((row, index) => {
                     const sample = computeLiveSample(row.prefix1, row.prefix2, row.padLength, row.currentVal + 1);
                     const isModified = isRowModified(row);
-                    const isTenantLocked = row.typeKey === 'tenant' && isV6Active;
 
                     return (
                       <tr key={row.rowId} className={row.isNew ? 'row-new' : ''}>
@@ -548,11 +530,6 @@ export default function PrefixSetupPage() {
                               ) : (
                                 <span className="prefix-type-title">{row.label}</span>
                               )}
-                              {isTenantLocked && (
-                                <span className="prefix-v6-tag" title="Tenant codes are synchronized from V6 ERP">
-                                  <Lock size={10} /> V6 ERP
-                                </span>
-                              )}
                               <span
                                 className={`prefix-status-badge ${isModified ? 'status-modified' : 'status-default'}`}
                                 title={isModified ? 'Modified from system default settings' : 'Using system default settings'}
@@ -566,29 +543,23 @@ export default function PrefixSetupPage() {
                         {/* Mode Column */}
                         <td>
                           {row.typeKey === 'tenant' ? (
-                            <div className="prefix-mode-cell" title={isTenantLocked ? "Locked by V6 ERP Integration" : "Code Generation Mode"}>
-                              {isTenantLocked ? (
-                                <span className="prefix-mode-pill active prefix-mode-locked" title="Tenant codes are managed by V6 ERP">
-                                  Manual (V6 Synced)
-                                </span>
-                              ) : (
-                                <div className="prefix-mode-toggle">
-                                  <button
-                                    type="button"
-                                    className={`prefix-mode-pill ${row.mode !== 'auto' ? 'active' : ''}`}
-                                    onClick={() => handleUpdateField(row.rowId, 'mode', 'manual')}
-                                  >
-                                    Manual
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className={`prefix-mode-pill ${row.mode === 'auto' ? 'active' : ''}`}
-                                    onClick={() => handleUpdateField(row.rowId, 'mode', 'auto')}
-                                  >
-                                    Auto
-                                  </button>
-                                </div>
-                              )}
+                            <div className="prefix-mode-cell" title="Code Generation Mode">
+                              <div className="prefix-mode-toggle">
+                                <button
+                                  type="button"
+                                  className={`prefix-mode-pill ${row.mode !== 'auto' ? 'active' : ''}`}
+                                  onClick={() => handleUpdateField(row.rowId, 'mode', 'manual')}
+                                >
+                                  Manual
+                                </button>
+                                <button
+                                  type="button"
+                                  className={`prefix-mode-pill ${row.mode === 'auto' ? 'active' : ''}`}
+                                  onClick={() => handleUpdateField(row.rowId, 'mode', 'auto')}
+                                >
+                                  Auto
+                                </button>
+                              </div>
                             </div>
                           ) : (
                             <span className="prefix-mode-auto-badge" title="Automatically numbered sequence">
@@ -605,8 +576,6 @@ export default function PrefixSetupPage() {
                             maxLength={10}
                             placeholder="e.g. INV"
                             value={row.prefix1}
-                            disabled={isTenantLocked}
-                            title={isTenantLocked ? "Locked: Managed by V6 ERP" : undefined}
                             onChange={(e) => {
                               const clean = e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, '');
                               handleUpdateField(row.rowId, 'prefix1', clean);
@@ -619,8 +588,6 @@ export default function PrefixSetupPage() {
                           <select
                             className="prefix-input-select"
                             value={row.prefix2}
-                            disabled={isTenantLocked}
-                            title={isTenantLocked ? "Locked: Managed by V6 ERP" : undefined}
                             onChange={(e) =>
                               handleUpdateField(row.rowId, 'prefix2', e.target.value as Prefix2Format)
                             }
@@ -639,8 +606,6 @@ export default function PrefixSetupPage() {
                             min={3}
                             max={10}
                             value={row.padLength}
-                            disabled={isTenantLocked}
-                            title={isTenantLocked ? "Locked: Managed by V6 ERP" : undefined}
                             onChange={(e) =>
                               handleUpdateField(
                                 row.rowId,
@@ -671,10 +636,10 @@ export default function PrefixSetupPage() {
                         <td style={{ textAlign: 'center' }}>
                           <button
                             type="button"
-                            className={`prefix-btn-reset-text ${(!isModified || isTenantLocked) ? 'is-default' : ''}`}
-                            onClick={() => isModified && !isTenantLocked && handleResetRow(row)}
-                            disabled={!isModified || isTenantLocked}
-                            title={isTenantLocked ? "Locked: Managed by V6 ERP" : isModified ? `Reset ${row.label} to default settings` : `${row.label} is already using default settings`}
+                            className={`prefix-btn-reset-text ${!isModified ? 'is-default' : ''}`}
+                            onClick={() => isModified && handleResetRow(row)}
+                            disabled={!isModified}
+                            title={isModified ? `Reset ${row.label} to default settings` : `${row.label} is already using default settings`}
                           >
                             Reset
                           </button>

@@ -13,11 +13,9 @@ import {
   type GlAccount,
 } from '../../../store/api/glApi';
 import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
-import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
-import { useSyncV6CashbookMutation } from '../../../store/api/integrationsApi';
 import {
   CreditCard, Plus, X, Check, Pencil, Trash2, Search, RotateCcw,
-  ChevronLeft, ChevronRight, BookOpen, Filter, RefreshCw,
+  ChevronLeft, ChevronRight, BookOpen, Filter,
 } from 'lucide-react';
 import { useAlertDialog, useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
@@ -26,7 +24,6 @@ import toast from 'react-hot-toast';
 import '../BillingPage/BillingPage.css';
 
 export default function PaymentMethodSetupPage() {
-  const { isV6Active } = useV6IntegrationStatus();
   const propertyId = useSelectedPropertyId();
   const { data: paymentMethods = [], isFetching } = useGetPaymentMethodsQuery(
     propertyId ? { propertyId } : skipToken
@@ -43,7 +40,6 @@ export default function PaymentMethodSetupPage() {
   const [createPaymentMethod, { isLoading: creating }] = useCreatePaymentMethodMutation();
   const [updatePaymentMethod, { isLoading: updating }] = useUpdatePaymentMethodMutation();
   const [deletePaymentMethod] = useDeletePaymentMethodMutation();
-  const [syncV6Cashbook, { isLoading: syncingV6Cashbook }] = useSyncV6CashbookMutation();
   const alertDialog = useAlertDialog();
   const confirmDialog = useConfirm();
 
@@ -119,7 +115,6 @@ export default function PaymentMethodSetupPage() {
   };
 
   const openCreate = () => {
-    if (isV6Active) return;
     setHasAttemptedSubmit(false);
     setEditing(null);
     setForm(emptyForm);
@@ -216,32 +211,6 @@ export default function PaymentMethodSetupPage() {
     return true;
   });
 
-  // Automatically sync V6 ERP Cashbook when browsing Payment Method Setup with V6 active
-  useEffect(() => {
-    if (!isV6Active || !propertyId) return;
-    syncV6Cashbook({ propertyId }).catch(() => {
-      // Silent background sync on browse; manual button shows toast feedback
-    });
-  }, [isV6Active, propertyId, syncV6Cashbook]);
-
-  const handleManualSyncV6Cashbook = async () => {
-    if (!propertyId) return;
-    try {
-      const res = await syncV6Cashbook({ propertyId }).unwrap();
-      const info = res?.data;
-      toast.success(
-        info?.message ||
-          `Synced ${info?.totalV6Cashbooks ?? 0} Payment Method(s) from V6 ERP Cashbook.`,
-      );
-    } catch (err: any) {
-      alertDialog(
-        err?.data?.error?.message ||
-          err?.data?.message ||
-          'Failed to sync Cashbook from V6 ERP.',
-      );
-    }
-  };
-
   // Close form modal when the active property changes
   useEffect(() => {
     closeForm();
@@ -269,40 +238,20 @@ export default function PaymentMethodSetupPage() {
           <div style={{ flex: 1 }}>
             <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Payment Method Setup</h1>
             <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
-              {`${paymentMethods.length} total payment methods${isV6Active ? ' • Synced with V6 ERP Cashbook' : ''}`}</p></div>
-          {isV6Active && (
-            <button
-              type="button"
-              className="btn btn-secondary"
-              disabled={syncingV6Cashbook}
-              onClick={handleManualSyncV6Cashbook}
-              title="Pull latest Cashbook from V6 ERP into Payment Method Setup"
-              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-            >
-              <RefreshCw
-                size={14}
-                style={syncingV6Cashbook ? { animation: 'spin 1s linear infinite' } : undefined}
-              />
-              {syncingV6Cashbook ? 'Syncing V6 Cashbook…' : 'Sync V6 Cashbook'}
-            </button>
-          )}
-          <div style={{ display: 'none' }}><p>
+              {`${paymentMethods.length} total payment methods`}
             </p>
           </div>
           <PermissionGuard permission="finance-coa.write">
             <button
               className="btn btn-primary"
-              disabled={isV6Active}
               onClick={openCreate}
-              title={isV6Active ? 'Payment method creation is disabled because V6 ERP integration is active.' : undefined}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
-                ...(isV6Active ? { opacity: 0.6, cursor: 'not-allowed' } : {}),
               }}
             >
-              {isV6Active ? '🔒 New Payment Method (V6 Active)' : <><Plus size={14} /> New Payment Method</>}
+              <Plus size={14} /> New Payment Method
             </button>
           </PermissionGuard>
         </div>
