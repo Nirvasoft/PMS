@@ -5,6 +5,7 @@ import { X } from 'lucide-react';
 import { store } from './store';
 import { ProtectedRoute, PublicRoute, RequirePermission } from './components/RouteGuards';
 import { DialogProvider } from './components/DialogProvider';
+import { LanguageProvider } from './i18n/LanguageProvider';
 import LoginPage from './pages/LoginPage/LoginPage';
 import MfaVerifyPage from './pages/MfaVerifyPage/MfaVerifyPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage/ForgotPasswordPage';
@@ -531,56 +532,58 @@ export default function App() {
   return (
     <GlobalErrorBoundary>
       <Provider store={store}>
-        <DialogProvider>
-          <BrowserRouter>
-            <AuthBootstrap>
-              <AppRoutes />
-            </AuthBootstrap>
-            <Toaster
-              position="top-right"
-              containerStyle={{ zIndex: 100000 }}
-              toastOptions={{
-                duration: 3000,
-                style: {
-                  background: 'var(--surface-elevated)',
-                  color: 'var(--text-primary)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: '12px',
-                  fontSize: '14px',
-                },
-              }}
-            >
-              {(t) => (
-                <ToastBar toast={t}>
-                  {({ icon, message }) => (
-                    <>
-                      {icon}
-                      {message}
-                      {t.type !== 'loading' && (
-                        <button
-                          onClick={() => toast.dismiss(t.id)}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            background: 'transparent',
-                            border: 'none',
-                            cursor: 'pointer',
-                            color: 'var(--text-secondary)',
-                            padding: 4,
-                            marginLeft: 4,
-                          }}
-                        >
-                          <X size={14} />
-                        </button>
-                      )}
-                    </>
-                  )}
-                </ToastBar>
-              )}
-            </Toaster>
-          </BrowserRouter>
-        </DialogProvider>
+        <LanguageProvider>
+          <DialogProvider>
+            <BrowserRouter>
+              <AuthBootstrap>
+                <AppRoutes />
+              </AuthBootstrap>
+              <Toaster
+                position="top-right"
+                containerStyle={{ zIndex: 100000 }}
+                toastOptions={{
+                  duration: 3000,
+                  style: {
+                    background: 'var(--surface-elevated)',
+                    color: 'var(--text-primary)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: '12px',
+                    fontSize: '14px',
+                  },
+                }}
+              >
+                {(t) => (
+                  <ToastBar toast={t}>
+                    {({ icon, message }) => (
+                      <>
+                        {icon}
+                        {message}
+                        {t.type !== 'loading' && (
+                          <button
+                            onClick={() => toast.dismiss(t.id)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              background: 'transparent',
+                              border: 'none',
+                              cursor: 'pointer',
+                              color: 'var(--text-secondary)',
+                              padding: 4,
+                              marginLeft: 4,
+                            }}
+                          >
+                            <X size={14} />
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </ToastBar>
+                )}
+              </Toaster>
+            </BrowserRouter>
+          </DialogProvider>
+        </LanguageProvider>
       </Provider>
     </GlobalErrorBoundary>
   );

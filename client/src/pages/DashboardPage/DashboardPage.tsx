@@ -21,6 +21,7 @@ import {
 import toast from 'react-hot-toast';
 import NotificationBell from '../../components/notifications/NotificationBell';
 import ThemeToggle from '../../components/ThemeToggle';
+import { LanguageSwitcher } from '../../i18n/LanguageProvider';
 import { useRealtimeNotifications } from '../../hooks/useRealtimeNotifications';
 import ExpiringDocumentsWidget from '../../components/widgets/ExpiringDocumentsWidget';
 import { TableSkeleton } from '../../components/common/SkeletonLoaders';
@@ -1059,6 +1060,7 @@ export default function DashboardLayout() {
         <div className="top-bar">
           <div />
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <LanguageSwitcher />
             <ThemeToggle />
             <NotificationBell />
           </div>
