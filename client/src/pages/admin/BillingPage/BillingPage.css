@@ -2706,13 +2706,15 @@
 .rb-schedule-header {
   position: sticky;
   top: 0;
-  background: rgba(255,255,255,0.04);
-  font-size: 0.65rem;
+  background: var(--surface-card, #162a23);
+  padding: 10px 12px;
+  font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--text-tertiary);
-  z-index: 1;
+  color: var(--text-primary, #f1f5f9);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  z-index: 2;
 }
 .rb-schedule-charge {
   overflow: hidden;
@@ -2760,7 +2762,11 @@
   filter: invert(0);
 }
 [data-theme="light"] .rb-hint { background: rgba(0,0,0,0.02); }
-[data-theme="light"] .rb-schedule-header { background: rgba(0,0,0,0.02); }
+[data-theme="light"] .rb-schedule-header {
+  background: var(--accent, #059669);
+  color: #ffffff;
+  border-bottom-color: #047857;
+}
 
 [data-theme="light"] .billing-table-scroll.has-overflow .billing-table thead th {
   background: var(--accent, #059669) !important;

@@ -967,6 +967,7 @@ function RunBillingModal({ activeProperty, onClose, onSubmit, isLoading }: {
   onSubmit: (propertyId: string, asOfDate: string) => void;
   isLoading: boolean;
 }) {
+  const confirmDialog = useConfirm();
   const todayStr = new Date().toISOString().split('T')[0];
   // Locked to the sidebar's Active Property, same convention as elsewhere — only when
   // "All Properties" is active can a specific property (or "All Properties" itself) be
@@ -997,11 +998,13 @@ function RunBillingModal({ activeProperty, onClose, onSubmit, isLoading }: {
     );
   }, [schedulesData, asOfDate]);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!asOfDate || asOfDate > todayStr) {
       toast.error('Bill date cannot be in the future');
       return;
     }
+    if (dueSchedules.length === 0) return;
+    if (!(await confirmDialog('Are you sure you want to run billing?'))) return;
     onSubmit(propertyId, asOfDate);
   };
 
@@ -1074,8 +1077,12 @@ function RunBillingModal({ activeProperty, onClose, onSubmit, isLoading }: {
 
         <div className="rb-footer">
           <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={handleSubmit} disabled={isLoading}
-            style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <button
+            className="btn btn-primary"
+            onClick={handleSubmit}
+            disabled={isLoading || schedulesLoading || dueSchedules.length === 0}
+            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+          >
             <Play size={14} /> {isLoading ? 'Running…' : 'Run Billing'}
           </button>
         </div>

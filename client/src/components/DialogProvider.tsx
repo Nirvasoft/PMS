@@ -108,7 +108,7 @@ export function DialogProvider({ children }: { children: ReactNode }) {
       <AlertContext.Provider value={alertDialog}>
         {children}
         {current && (
-          <div className="modal-overlay">
+          <div className="modal-overlay" style={{ zIndex: 9999 }}>
             <div className="modal-card" style={{ maxWidth: 420 }}>
               <div className="modal-header">
                 <h2>{current.options.title || (current.kind === 'confirm' ? 'Confirm' : 'Notice')}</h2>
