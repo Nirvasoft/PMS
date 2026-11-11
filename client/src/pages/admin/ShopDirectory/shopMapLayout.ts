@@ -8,6 +8,7 @@ import {
   normalizeTileAngle,
   parseShapeRadius,
   polygonConvexUvParts,
+  rotateUnitShapeLabel,
   snapUvPartsToBoxEdges,
   UNIT_SHAPE_CATEGORY_TABS,
   UNIT_SHAPE_COMPACT_FAMILIES,
@@ -7142,6 +7143,10 @@ export function rotateMapLayout(
   const spanX = Math.max(1, maxX - minX);
   const spanY = Math.max(1, maxY - minY);
 
+  const quarterTurns = rotation === 90 ? 1 : rotation === 180 ? 2 : 3;
+  const rotateLabel = (it: MapItem): string | null =>
+    it.kind === 'unit' ? (rotateUnitShapeLabel(it.label, quarterTurns) ?? null) : it.label;
+
   if (rotation === 180) {
     return {
       columns,
@@ -7150,6 +7155,7 @@ export function rotateMapLayout(
         const ly = it.y - minY;
         return {
           ...it,
+          label: rotateLabel(it),
           x: Math.max(0, minX + (spanX - (lx + it.w))),
           y: Math.max(0, minY + (spanY - (ly + it.h))),
           w: it.w,
@@ -7168,6 +7174,7 @@ export function rotateMapLayout(
       const ly = it.y - minY;
       return {
         ...it,
+        label: rotateLabel(it),
         x: rotation === 90 ? padX + (spanY - (ly + it.h)) : padX + ly,
         y: rotation === 90 ? 1 + lx : 1 + (spanX - (lx + it.w)),
         w: it.h,

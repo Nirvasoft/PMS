@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Shapes, X } from 'lucide-react';
+import { Shapes, Spline, X } from 'lucide-react';
 import {
-  bendCustomEdge,
   CUSTOM_SHAPE_MAX_POINTS,
   CUSTOM_SHAPE_MIN_POINTS,
   CUSTOM_SHAPE_PRESETS,
+  fitBezierToCurvedRuns,
   isSimpleCustomPolygon,
   roundCustomCorner,
+  sampleBezierShapeToPolygon,
   smoothCustomPolygon,
+  type CustomBezierEdge,
+  type CustomBezierShapeSpec,
   type CustomShapePoint,
 } from './shopMapShapeCatalog';
 
@@ -40,32 +43,111 @@ interface Props {
   tileW: number;
   tileH: number;
   initialPoints: CustomShapePoint[];
+  /** Optional saved Bezier anchor & tangent handle specification for this unit. */
+  initialBezierSpec?: CustomBezierShapeSpec | null;
   /** Message shown when the editor opens (e.g. the source preset had curves that become straight segments). */
   initialNote: string | null;
   /** Outlines of nearby tiles in this tile's own 0..100 % frame (can extend outside 0..100). */
   neighbors: Array<{ key: string; points: CustomShapePoint[] }>;
   /** Active floorplan blueprint overlay mapped to grid cells so the user can trace walls inside Custom Shape. */
   blueprint?: CustomShapeBlueprintOverlay | null;
-  onApply: (points: CustomShapePoint[]) => void;
+  onApply: (points: CustomShapePoint[], bezierSpec?: CustomBezierShapeSpec | null) => void;
   onClose: () => void;
 }
 
-const PAD = 36;
+const PAD = 38;
 const clampPct = (n: number) => Math.min(100, Math.max(0, n));
+const clampCtrlPct = (n: number) => Math.min(130, Math.max(-30, n));
+
+function evaluateBezierMidpoint(
+  a: CustomShapePoint,
+  b: CustomShapePoint,
+  curve: CustomBezierEdge,
+): CustomShapePoint {
+  if (curve.mode === 'quad') {
+    return [
+      0.25 * a[0] + 0.5 * curve.cp1[0] + 0.25 * b[0],
+      0.25 * a[1] + 0.5 * curve.cp1[1] + 0.25 * b[1],
+    ];
+  }
+  return [
+    0.125 * a[0] + 0.375 * curve.cp1[0] + 0.375 * curve.cp2[0] + 0.125 * b[0],
+    0.125 * a[1] + 0.375 * curve.cp1[1] + 0.375 * curve.cp2[1] + 0.125 * b[1],
+  ];
+}
+
+function buildCurveFromThroughPoint(
+  a: CustomShapePoint,
+  b: CustomShapePoint,
+  throughPt: CustomShapePoint,
+  mode: 'quad' | 'cubic',
+  roundCtrl: (n: number) => number,
+): CustomBezierEdge {
+  const mx = (a[0] + b[0]) * 0.5;
+  const my = (a[1] + b[1]) * 0.5;
+  const dx = throughPt[0] - mx;
+  const dy = throughPt[1] - my;
+  if (mode === 'quad') {
+    const qx = roundCtrl(2 * throughPt[0] - mx);
+    const qy = roundCtrl(2 * throughPt[1] - my);
+    return { mode: 'quad', cp1: [qx, qy], cp2: [qx, qy] };
+  }
+  const c1: CustomShapePoint = [
+    roundCtrl(a[0] + (b[0] - a[0]) / 3 + (4 / 3) * dx),
+    roundCtrl(a[1] + (b[1] - a[1]) / 3 + (4 / 3) * dy),
+  ];
+  const c2: CustomShapePoint = [
+    roundCtrl(a[0] + ((b[0] - a[0]) * 2) / 3 + (4 / 3) * dx),
+    roundCtrl(a[1] + ((b[1] - a[1]) * 2) / 3 + (4 / 3) * dy),
+  ];
+  return { mode: 'cubic', cp1: c1, cp2: c2 };
+}
 
 export function CustomShapeEditor({
   title,
   tileW,
   tileH,
   initialPoints,
+  initialBezierSpec = null,
   initialNote,
   neighbors,
   blueprint = null,
   onApply,
   onClose,
 }: Props) {
-  const [pts, setPts] = useState<CustomShapePoint[]>(initialPoints);
+  const initialResolved = useMemo((): {
+    anchors: CustomShapePoint[];
+    curves: Record<number, CustomBezierEdge>;
+  } => {
+    if (initialBezierSpec && initialBezierSpec.anchors.length >= CUSTOM_SHAPE_MIN_POINTS) {
+      return {
+        anchors: initialBezierSpec.anchors.map((p) => [p[0], p[1]] as CustomShapePoint),
+        curves: { ...initialBezierSpec.curves },
+      };
+    }
+    if (initialPoints.length >= 7) {
+      const autoFitted = fitBezierToCurvedRuns(initialPoints);
+      if (autoFitted && Object.keys(autoFitted.curves).length > 0) {
+        const sampled = sampleBezierShapeToPolygon(autoFitted, 16);
+        if (isSimpleCustomPolygon(sampled)) {
+          return autoFitted;
+        }
+      }
+    }
+    return {
+      anchors: initialPoints.map((p) => [p[0], p[1]] as CustomShapePoint),
+      curves: {},
+    };
+  }, [initialPoints, initialBezierSpec]);
+
+  const [pts, setPts] = useState<CustomShapePoint[]>(initialResolved.anchors);
+  const [curves, setCurves] = useState<Record<number, CustomBezierEdge>>(initialResolved.curves);
   const [sel, setSel] = useState<number | null>(null);
+  const [selEdge, setSelEdge] = useState<number | null>(() => {
+    const firstCurveKey = Object.keys(initialResolved.curves)[0];
+    return firstCurveKey !== undefined ? Number(firstCurveKey) : null;
+  });
+  const [defaultBezierMode, setDefaultBezierMode] = useState<'cubic' | 'quad'>('cubic');
   const [snap, setSnap] = useState(true);
   const [snapNb, setSnapNb] = useState(true);
   const [cornerRadiusPct, setCornerRadiusPct] = useState(40);
@@ -77,7 +159,10 @@ export function CustomShapeEditor({
     blueprint?.aspectRatio && blueprint.aspectRatio > 0 ? blueprint.aspectRatio : 0.75,
   );
   const [drag, setDrag] = useState<number | null>(null);
-  const [bendDrag, setBendDrag] = useState<{ edgeIdx: number; basePts: CustomShapePoint[] } | null>(null);
+  const [ctrlDrag, setCtrlDrag] = useState<{
+    edgeIdx: number;
+    handle: 'cp1' | 'cp2' | 'mid';
+  } | null>(null);
   const [note, setNote] = useState<string | null>(initialNote);
   const svgRef = useRef<SVGSVGElement | null>(null);
 
@@ -101,7 +186,14 @@ export function CustomShapeEditor({
     return { W: Math.round(340 * aspect), H: 340 };
   }, [tileW, tileH]);
 
-  const valid = useMemo(() => isSimpleCustomPolygon(pts), [pts]);
+  const hasCurves = useMemo(() => Object.keys(curves).length > 0, [curves]);
+
+  const evaluatedPolygon = useMemo(() => {
+    if (!hasCurves) return pts;
+    return sampleBezierShapeToPolygon({ anchors: pts, curves }, 16);
+  }, [pts, curves, hasCurves]);
+
+  const valid = useMemo(() => isSimpleCustomPolygon(evaluatedPolygon), [evaluatedPolygon]);
 
   const toPx = (p: CustomShapePoint): [number, number] => [(p[0] / 100) * W, (p[1] / 100) * H];
 
@@ -121,7 +213,6 @@ export function CustomShapeEditor({
         const ay = (a[1] / 100) * H;
         const bx = (b[0] / 100) * W;
         const by = (b[1] / 100) * H;
-        // Vertices win over edge points when they are about as close.
         const dv = Math.hypot(px - ax, py - ay);
         if (!best || dv - 4 < best.score) best = { pt: [a[0], a[1]], distPx: dv, score: dv - 4 };
         const dx = bx - ax;
@@ -139,8 +230,13 @@ export function CustomShapeEditor({
   };
 
   const roundOne = (n: number) => Math.round(clampPct(n) * 10) / 10;
+  const roundCtrl = (n: number) => Math.round(clampCtrlPct(n) * 10) / 10;
 
-  const pointerToPct = (e: { clientX: number; clientY: number }, ignoreGridSnap = false): CustomShapePoint | null => {
+  const pointerToPct = (
+    e: { clientX: number; clientY: number },
+    ignoreGridSnap = false,
+    allowOutOfBox = false,
+  ): CustomShapePoint | null => {
     const svg = svgRef.current;
     const ctm = svg?.getScreenCTM();
     if (!svg || !ctm) return null;
@@ -148,9 +244,11 @@ export function CustomShapeEditor({
     pt.x = e.clientX;
     pt.y = e.clientY;
     const local = pt.matrixTransform(ctm.inverse());
-    let x = clampPct((local.x / W) * 100);
-    let y = clampPct((local.y / H) * 100);
-    if (snapNb && neighbors.length > 0) {
+    const clampFn = allowOutOfBox ? clampCtrlPct : clampPct;
+    const roundFn = allowOutOfBox ? roundCtrl : roundOne;
+    let x = clampFn((local.x / W) * 100);
+    let y = clampFn((local.y / H) * 100);
+    if (!allowOutOfBox && snapNb && neighbors.length > 0) {
       const near = nearestNeighborPoint([x, y]);
       if (near && near.distPx <= 9) return [roundOne(near.pt[0]), roundOne(near.pt[1])];
     }
@@ -158,7 +256,7 @@ export function CustomShapeEditor({
       x = Math.round(x / 5) * 5;
       y = Math.round(y / 5) * 5;
     }
-    return [roundOne(x), roundOne(y)];
+    return [roundFn(x), roundFn(y)];
   };
 
   const matchSelectedToNeighbor = () => {
@@ -178,7 +276,86 @@ export function CustomShapeEditor({
       setNote(`Minimum ${CUSTOM_SHAPE_MIN_POINTS} points`);
       return;
     }
+    const n = pts.length;
+    const prevEdge = (idx - 1 + n) % n;
     setPts((prev) => prev.filter((_, i) => i !== idx));
+    setCurves((prev) => {
+      const next: Record<number, CustomBezierEdge> = {};
+      for (const [kStr, val] of Object.entries(prev)) {
+        const k = Number(kStr);
+        if (k === idx || k === prevEdge) continue;
+        const newIdx = k > idx ? k - 1 : k;
+        next[newIdx] = val;
+      }
+      return next;
+    });
+    setSel(null);
+    setSelEdge(null);
+    setNote(null);
+  };
+
+  const straightenEdge = (edgeIdx: number) => {
+    setCurves((prev) => {
+      if (!prev[edgeIdx]) return prev;
+      const next = { ...prev };
+      delete next[edgeIdx];
+      return next;
+    });
+    if (selEdge === edgeIdx) setSelEdge(null);
+    setNote(null);
+  };
+
+  const toggleEdgeCurveMode = (edgeIdx: number, targetMode: 'quad' | 'cubic') => {
+    setCurves((prev) => {
+      const cur = prev[edgeIdx];
+      const a = pts[edgeIdx];
+      const b = pts[(edgeIdx + 1) % pts.length];
+      if (!a || !b) return prev;
+      if (!cur) {
+        const mx = (a[0] + b[0]) * 0.5;
+        const my = (a[1] + b[1]) * 0.5;
+        const nx = -(b[1] - a[1]) * 0.22;
+        const ny = (b[0] - a[0]) * 0.22;
+        const through: CustomShapePoint = [roundCtrl(mx + nx), roundCtrl(my + ny)];
+        return {
+          ...prev,
+          [edgeIdx]: buildCurveFromThroughPoint(a, b, through, targetMode, roundCtrl),
+        };
+      }
+      if (cur.mode === targetMode) return prev;
+      if (targetMode === 'cubic') {
+        // Elevate quadratic control point to exact equivalent cubic control points
+        const c1: CustomShapePoint = [
+          roundCtrl(a[0] + (2 / 3) * (cur.cp1[0] - a[0])),
+          roundCtrl(a[1] + (2 / 3) * (cur.cp1[1] - a[1])),
+        ];
+        const c2: CustomShapePoint = [
+          roundCtrl(b[0] + (2 / 3) * (cur.cp1[0] - b[0])),
+          roundCtrl(b[1] + (2 / 3) * (cur.cp1[1] - b[1])),
+        ];
+        return { ...prev, [edgeIdx]: { mode: 'cubic', cp1: c1, cp2: c2 } };
+      }
+      // Collapse cubic to quadratic control point passing through current curve midpoint
+      const mid = evaluateBezierMidpoint(a, b, cur);
+      return {
+        ...prev,
+        [edgeIdx]: buildCurveFromThroughPoint(a, b, mid, 'quad', roundCtrl),
+      };
+    });
+    setDefaultBezierMode(targetMode);
+  };
+
+  const handleAutoFitBezier = () => {
+    const sourcePoly = evaluatedPolygon;
+    const fitted = fitBezierToCurvedRuns(sourcePoly);
+    if (!fitted || Object.keys(fitted.curves).length === 0) {
+      setNote('Drag any cyan diamond on a wall to create a Bezier curve handle.');
+      return;
+    }
+    setPts(fitted.anchors);
+    setCurves(fitted.curves);
+    const firstKey = Object.keys(fitted.curves)[0];
+    setSelEdge(firstKey !== undefined ? Number(firstKey) : null);
     setSel(null);
     setNote(null);
   };
@@ -201,22 +378,108 @@ export function CustomShapeEditor({
   }, []);
 
   const onSvgMove = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (bendDrag != null) {
-      const p = pointerToPct(e, true);
+    if (ctrlDrag != null) {
+      const p = pointerToPct(e, true, true);
       if (!p) return;
-      const bent = bendCustomEdge(bendDrag.basePts, bendDrag.edgeIdx, p, 12);
-      if (bent) setPts(bent);
+      const { edgeIdx, handle } = ctrlDrag;
+      const a = pts[edgeIdx];
+      const b = pts[(edgeIdx + 1) % pts.length];
+      if (!a || !b) return;
+      const dist = Math.hypot(
+        p[0] - (a[0] + b[0]) * 0.5,
+        p[1] - (a[1] + b[1]) * 0.5,
+      );
+      setCurves((prev) => {
+        const cur = prev[edgeIdx];
+        if (handle === 'mid') {
+          if (dist < 0.8 && !cur) return prev;
+          if (!cur) {
+            return {
+              ...prev,
+              [edgeIdx]: buildCurveFromThroughPoint(a, b, p, defaultBezierMode, roundCtrl),
+            };
+          }
+          if (cur.mode === 'quad') {
+            return {
+              ...prev,
+              [edgeIdx]: buildCurveFromThroughPoint(a, b, p, 'quad', roundCtrl),
+            };
+          }
+          // Shift both cubic handles together so t=0.5 passes through pointer `p`
+          const curMid = evaluateBezierMidpoint(a, b, cur);
+          const dx = (4 / 3) * (p[0] - curMid[0]);
+          const dy = (4 / 3) * (p[1] - curMid[1]);
+          return {
+            ...prev,
+            [edgeIdx]: {
+              mode: 'cubic',
+              cp1: [roundCtrl(cur.cp1[0] + dx), roundCtrl(cur.cp1[1] + dy)],
+              cp2: [roundCtrl(cur.cp2[0] + dx), roundCtrl(cur.cp2[1] + dy)],
+            },
+          };
+        }
+        if (!cur) return prev;
+        if (cur.mode === 'quad' || handle === 'cp1') {
+          return {
+            ...prev,
+            [edgeIdx]: {
+              ...cur,
+              cp1: p,
+              ...(cur.mode === 'quad' ? { cp2: p } : {}),
+            },
+          };
+        }
+        return {
+          ...prev,
+          [edgeIdx]: {
+            ...cur,
+            cp2: p,
+          },
+        };
+      });
       return;
     }
     if (drag == null) return;
     const p = pointerToPct(e);
     if (!p) return;
+    const oldPt = pts[drag];
+    if (!oldPt) return;
+    const dx = p[0] - oldPt[0];
+    const dy = p[1] - oldPt[1];
+    if (dx === 0 && dy === 0) return;
+    const n = pts.length;
+    const prevEdgeIdx = (drag - 1 + n) % n;
     setPts((prev) => prev.map((q, i) => (i === drag ? p : q)));
+    setCurves((prev) => {
+      if (!prev[drag] && !prev[prevEdgeIdx]) return prev;
+      const next = { ...prev };
+      if (next[drag]) {
+        const c = next[drag];
+        next[drag] = {
+          ...c,
+          cp1: [roundCtrl(c.cp1[0] + dx), roundCtrl(c.cp1[1] + dy)],
+          ...(c.mode === 'quad'
+            ? { cp2: [roundCtrl(c.cp1[0] + dx), roundCtrl(c.cp1[1] + dy)] }
+            : {}),
+        };
+      }
+      if (next[prevEdgeIdx]) {
+        const c = next[prevEdgeIdx];
+        if (c.mode === 'cubic') {
+          next[prevEdgeIdx] = {
+            ...c,
+            cp2: [roundCtrl(c.cp2[0] + dx), roundCtrl(c.cp2[1] + dy)],
+          };
+        }
+      }
+      return next;
+    });
   };
+
   const endDrag = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (drag == null && bendDrag == null) return;
+    if (drag == null && ctrlDrag == null) return;
     setDrag(null);
-    setBendDrag(null);
+    setCtrlDrag(null);
     try {
       svgRef.current?.releasePointerCapture(e.pointerId);
     } catch {
@@ -232,20 +495,26 @@ export function CustomShapeEditor({
     svgRef.current?.setPointerCapture(e.pointerId);
   };
 
-  const startEdgeBend = (e: React.PointerEvent, edgeIdx: number) => {
+  const startCurveHandleDrag = (
+    e: React.PointerEvent,
+    edgeIdx: number,
+    handle: 'cp1' | 'cp2' | 'mid',
+  ) => {
     e.stopPropagation();
-    if (pts.length + 2 > CUSTOM_SHAPE_MAX_POINTS) {
-      setNote(`Too many points (max ${CUSTOM_SHAPE_MAX_POINTS})`);
-      return;
-    }
     setSel(null);
-    setBendDrag({ edgeIdx, basePts: pts.map((p) => [p[0], p[1]] as CustomShapePoint) });
+    setSelEdge(edgeIdx);
+    setCtrlDrag({ edgeIdx, handle });
     setNote(null);
     svgRef.current?.setPointerCapture(e.pointerId);
   };
 
   const insertOnEdge = (e: React.PointerEvent, edgeIdx: number) => {
     e.stopPropagation();
+    if (curves[edgeIdx]) {
+      setSelEdge(edgeIdx);
+      setSel(null);
+      return;
+    }
     if (pts.length >= CUSTOM_SHAPE_MAX_POINTS) {
       setNote(`Maximum ${CUSTOM_SHAPE_MAX_POINTS} points`);
       return;
@@ -253,7 +522,16 @@ export function CustomShapeEditor({
     const p = pointerToPct(e);
     if (!p) return;
     setPts((prev) => [...prev.slice(0, edgeIdx + 1), p, ...prev.slice(edgeIdx + 1)]);
+    setCurves((prev) => {
+      const next: Record<number, CustomBezierEdge> = {};
+      for (const [kStr, val] of Object.entries(prev)) {
+        const k = Number(kStr);
+        next[k > edgeIdx ? k + 1 : k] = val;
+      }
+      return next;
+    });
     setSel(edgeIdx + 1);
+    setSelEdge(null);
     setDrag(edgeIdx + 1);
     setNote(null);
     svgRef.current?.setPointerCapture(e.pointerId);
@@ -261,54 +539,97 @@ export function CustomShapeEditor({
 
   const doRound = () => {
     if (sel == null) return;
-    const r = roundCustomCorner(pts, sel, 10, cornerRadiusPct / 100);
+    const basePoly = evaluatedPolygon;
+    const r = roundCustomCorner(basePoly, sel, 10, cornerRadiusPct / 100);
     if (!r) {
       setNote(
-        pts.length + 2 > CUSTOM_SHAPE_MAX_POINTS
+        basePoly.length + 2 > CUSTOM_SHAPE_MAX_POINTS
           ? `Too many points (max ${CUSTOM_SHAPE_MAX_POINTS})`
           : 'Edges next to this corner are too short to round',
       );
       return;
     }
-    setPts(r.points);
+    const fitted = fitBezierToCurvedRuns(r.points);
+    if (fitted && Object.keys(fitted.curves).length > 0) {
+      setPts(fitted.anchors);
+      setCurves(fitted.curves);
+    } else {
+      setPts(r.points);
+      setCurves({});
+    }
     setSel(null);
     setNote(null);
   };
 
   const doSmoothCurve = () => {
-    const smoothed = smoothCustomPolygon(pts, sel, cornerRadiusPct / 100);
+    const basePoly = evaluatedPolygon;
+    const smoothed = smoothCustomPolygon(basePoly, sel, cornerRadiusPct / 100);
     if (!smoothed) {
       setNote('Select a corner dot or draw a curved section first, then click Smooth curve');
       return;
     }
-    setPts(smoothed);
+    const fitted = fitBezierToCurvedRuns(smoothed);
+    if (fitted && Object.keys(fitted.curves).length > 0) {
+      setPts(fitted.anchors);
+      setCurves(fitted.curves);
+    } else {
+      setPts(smoothed);
+      setCurves({});
+    }
     setSel(null);
     setNote(null);
   };
 
-  const polyD = pts.map((p) => toPx(p).join(',')).join(' ');
+  const svgShapePathD = useMemo(() => {
+    if (pts.length === 0) return '';
+    const [x0, y0] = toPx(pts[0]);
+    const parts: string[] = [`M ${x0.toFixed(1)} ${y0.toFixed(1)}`];
+    const n = pts.length;
+    for (let i = 0; i < n; i += 1) {
+      const q = pts[(i + 1) % n];
+      const [qx, qy] = toPx(q);
+      const c = curves[i];
+      if (!c) {
+        parts.push(`L ${qx.toFixed(1)} ${qy.toFixed(1)}`);
+      } else if (c.mode === 'quad') {
+        const [c1x, c1y] = toPx(c.cp1);
+        parts.push(`Q ${c1x.toFixed(1)} ${c1y.toFixed(1)} ${qx.toFixed(1)} ${qy.toFixed(1)}`);
+      } else {
+        const [c1x, c1y] = toPx(c.cp1);
+        const [c2x, c2y] = toPx(c.cp2);
+        parts.push(
+          `C ${c1x.toFixed(1)} ${c1y.toFixed(1)} ${c2x.toFixed(1)} ${c2y.toFixed(1)} ${qx.toFixed(1)} ${qy.toFixed(1)}`,
+        );
+      }
+    }
+    parts.push('Z');
+    return parts.join(' ');
+  }, [pts, curves, W, H]);
+
   const previewPct = (pr: ReadonlyArray<CustomShapePoint>) => pr.map(([x, y]) => `${x},${y}`).join(' ');
 
   const btn = (active = false): React.CSSProperties => ({
     padding: '4px 10px',
     fontSize: 12,
     borderRadius: 8,
-    border: `1px solid ${active ? 'var(--primary, #4f46e5)' : 'var(--border-color, var(--border, #cbd5e1))'}`,
-    background: active ? 'var(--primary-light, rgba(79,70,229,0.1))' : 'var(--card-bg, var(--surface, #fff))',
+    border: `1px solid ${active ? 'var(--accent, #10b981)' : 'var(--border-color, var(--border, #cbd5e1))'}`,
+    background: active ? 'rgba(16, 185, 129, 0.14)' : 'var(--card-bg, var(--surface, #fff))',
     color: 'var(--text-primary, #0f172a)',
     cursor: 'pointer',
   });
 
+  const activeEdgeCurve = selEdge != null ? curves[selEdge] ?? null : null;
+
   return createPortal(
     <div className="shop-map-qr-backdrop" onClick={onClose}>
-      <div className="shop-map-qr-modal" style={{ maxWidth: 660 }} onClick={(e) => e.stopPropagation()}>
+      <div className="shop-map-qr-modal" style={{ maxWidth: 680 }} onClick={(e) => e.stopPropagation()}>
         <div className="shop-map-qr-header">
           <div>
             <h3>
-              <Shapes size={18} /> Custom Shape — {title}
+              <Shapes size={18} /> Custom Shape &amp; Bezier Curves — {title}
             </h3>
             <p>
-              Drag dots to move · drag blue diamonds to bend an edge into a smooth curve · click an edge to add a point
+              Drag white anchor dots · drag cyan diamonds (◆) to bend any edge · drag green/cyan Bezier tangent handles (CP1/CP2) to sculpt smooth curves
             </p>
           </div>
           <button type="button" className="shop-map-qr-close" onClick={onClose}>
@@ -323,8 +644,23 @@ export function CustomShapeEditor({
                 type="button"
                 style={{ ...btn(), display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}
                 onClick={() => {
-                  setPts(pr.points.map((p) => [p[0], p[1]] as CustomShapePoint));
+                  const rawPts = pr.points.map((p) => [p[0], p[1]] as CustomShapePoint);
+                  if (pr.group === 'round') {
+                    const fitted = fitBezierToCurvedRuns(rawPts);
+                    if (fitted && Object.keys(fitted.curves).length > 0) {
+                      setPts(fitted.anchors);
+                      setCurves(fitted.curves);
+                      const firstKey = Object.keys(fitted.curves)[0];
+                      setSelEdge(firstKey !== undefined ? Number(firstKey) : null);
+                      setSel(null);
+                      setNote(null);
+                      return;
+                    }
+                  }
+                  setPts(rawPts);
+                  setCurves({});
                   setSel(null);
+                  setSelEdge(null);
                   setNote(null);
                 }}
                 title={pr.label}
@@ -354,7 +690,10 @@ export function CustomShapeEditor({
               onPointerMove={onSvgMove}
               onPointerUp={endDrag}
               onPointerCancel={endDrag}
-              onPointerDown={() => setSel(null)}
+              onPointerDown={() => {
+                setSel(null);
+                setSelEdge(null);
+              }}
             >
               {blueprint && showBp && (() => {
                 const bpHCells = blueprint.bpWCells * bpAspect;
@@ -385,7 +724,6 @@ export function CustomShapeEditor({
                         }
                       />
                     </g>
-                    {/* Subtle outside-tile frame tint so the 0..100% tile box stands out clearly over the blueprint */}
                     <path
                       d={`M ${-PAD} ${-PAD} H ${W + PAD} V ${H + PAD} H ${-PAD} Z M 0 0 V ${H} H ${W} V 0 Z`}
                       fillRule="evenodd"
@@ -401,7 +739,7 @@ export function CustomShapeEditor({
                 width={W}
                 height={H}
                 fill="none"
-                stroke={blueprint && showBp ? '#4f46e5' : '#94a3b8'}
+                stroke={blueprint && showBp ? '#10b981' : '#94a3b8'}
                 strokeWidth={blueprint && showBp ? 1.5 : 1}
                 strokeOpacity={blueprint && showBp ? 0.7 : 1}
                 strokeDasharray="4 4"
@@ -425,24 +763,49 @@ export function CustomShapeEditor({
                   pointerEvents="none"
                 />
               ))}
-              <polygon
-                points={polyD}
+              <path
+                d={svgShapePathD}
                 fill={
                   valid
                     ? blueprint && showBp
-                      ? 'rgba(79,70,229,0.14)'
-                      : 'rgba(79,70,229,0.22)'
-                    : 'rgba(220,38,38,0.18)'
+                      ? 'rgba(16, 185, 129, 0.16)'
+                      : 'rgba(16, 185, 129, 0.24)'
+                    : 'rgba(220, 38, 38, 0.18)'
                 }
-                stroke={valid ? '#4f46e5' : '#dc2626'}
+                stroke={valid ? '#10b981' : '#dc2626'}
                 strokeWidth={2.5}
                 strokeLinejoin="round"
                 fillRule="evenodd"
               />
+              {/* Clickable Edge Hit-Targets (insert vertex on straight edge, or select curved edge) */}
               {pts.map((p, i) => {
                 const q = pts[(i + 1) % pts.length];
                 const [x1, y1] = toPx(p);
                 const [x2, y2] = toPx(q);
+                const c = curves[i];
+                if (c) {
+                  const [c1x, c1y] = toPx(c.cp1);
+                  const [c2x, c2y] = toPx(c.cp2);
+                  const edgeD =
+                    c.mode === 'quad'
+                      ? `M ${x1} ${y1} Q ${c1x} ${c1y} ${x2} ${y2}`
+                      : `M ${x1} ${y1} C ${c1x} ${c1y} ${c2x} ${c2y} ${x2} ${y2}`;
+                  return (
+                    <path
+                      key={`e${i}`}
+                      d={edgeD}
+                      fill="none"
+                      stroke={selEdge === i ? 'rgba(6, 182, 212, 0.45)' : 'transparent'}
+                      strokeWidth={12}
+                      style={{ cursor: 'pointer' }}
+                      onPointerDown={(e) => {
+                        e.stopPropagation();
+                        setSelEdge(i);
+                        setSel(null);
+                      }}
+                    />
+                  );
+                }
                 return (
                   <line
                     key={`e${i}`}
@@ -457,31 +820,119 @@ export function CustomShapeEditor({
                   />
                 );
               })}
-              {/* Interactive Edge-Bend Handles (cyan diamonds at the midpoint of edges >= 14% long) */}
-              {bendDrag == null &&
-                pts.map((p, i) => {
-                  const q = pts[(i + 1) % pts.length];
-                  const lenPct = Math.hypot(q[0] - p[0], q[1] - p[1]);
-                  if (lenPct < 14) return null;
-                  const [x1, y1] = toPx(p);
-                  const [x2, y2] = toPx(q);
-                  const mx = (x1 + x2) / 2;
-                  const my = (y1 + y2) / 2;
-                  const sz = 5.2;
-                  return (
-                    <polygon
-                      key={`bend${i}`}
-                      points={`${mx},${my - sz} ${mx + sz},${my} ${mx},${my + sz} ${mx - sz},${my}`}
+
+              {/* Bezier Tangent Control Arms & Handles (CP1, CP2) for all curved edges */}
+              {pts.map((p, i) => {
+                const c = curves[i];
+                if (!c) return null;
+                const q = pts[(i + 1) % pts.length];
+                const [ax, ay] = toPx(p);
+                const [bx, by] = toPx(q);
+                const [c1x, c1y] = toPx(c.cp1);
+                const [c2x, c2y] = toPx(c.cp2);
+                const isFocusedEdge = selEdge === i || ctrlDrag?.edgeIdx === i;
+                return (
+                  <g key={`bz-${i}`} opacity={isFocusedEdge ? 1 : 0.82}>
+                    {/* Dashed tangent lines from anchors to control handles */}
+                    <line
+                      x1={ax}
+                      y1={ay}
+                      x2={c1x}
+                      y2={c1y}
+                      stroke="#06b6d4"
+                      strokeWidth={1.6}
+                      strokeDasharray="4 3"
+                      pointerEvents="none"
+                    />
+                    <line
+                      x1={bx}
+                      y1={by}
+                      x2={c.mode === 'quad' ? c1x : c2x}
+                      y2={c.mode === 'quad' ? c1y : c2y}
+                      stroke={c.mode === 'quad' ? '#06b6d4' : '#10b981'}
+                      strokeWidth={1.6}
+                      strokeDasharray="4 3"
+                      pointerEvents="none"
+                    />
+                    {/* CP1 Tangent Handle */}
+                    <circle
+                      cx={c1x}
+                      cy={c1y}
+                      r={isFocusedEdge ? 6.2 : 5}
                       fill="#06b6d4"
-                      stroke="#fff"
-                      strokeWidth={1.8}
-                      style={{ cursor: 'move' }}
-                      onPointerDown={(e) => startEdgeBend(e, i)}
+                      stroke="#ffffff"
+                      strokeWidth={2}
+                      style={{ cursor: 'grab' }}
+                      onPointerDown={(e) => startCurveHandleDrag(e, i, 'cp1')}
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        straightenEdge(i);
+                      }}
                     >
-                      <title>Drag to bend this edge into a smooth curve</title>
-                    </polygon>
-                  );
-                })}
+                      <title>
+                        {c.mode === 'quad'
+                          ? 'Quadratic Bezier Handle (CP) — drag to curve, double-click to straighten'
+                          : 'Cubic Bezier Tangent Handle 1 (CP1) — drag to sculpt curve, double-click to straighten'}
+                      </title>
+                    </circle>
+                    {/* CP2 Tangent Handle (Cubic mode only) */}
+                    {c.mode === 'cubic' && (
+                      <circle
+                        cx={c2x}
+                        cy={c2y}
+                        r={isFocusedEdge ? 6.2 : 5}
+                        fill="#10b981"
+                        stroke="#ffffff"
+                        strokeWidth={2}
+                        style={{ cursor: 'grab' }}
+                        onPointerDown={(e) => startCurveHandleDrag(e, i, 'cp2')}
+                        onDoubleClick={(e) => {
+                          e.stopPropagation();
+                          straightenEdge(i);
+                        }}
+                      >
+                        <title>Cubic Bezier Tangent Handle 2 (CP2) — drag to sculpt curve, double-click to straighten</title>
+                      </circle>
+                    )}
+                  </g>
+                );
+              })}
+
+              {/* Interactive On-Curve / Edge-Midpoint Bend Diamonds (cyan ◆ at t=0.5 of every edge) */}
+              {pts.map((p, i) => {
+                const q = pts[(i + 1) % pts.length];
+                const c = curves[i];
+                const lenPct = Math.hypot(q[0] - p[0], q[1] - p[1]);
+                if (!c && lenPct < 10) return null;
+                const midPct: CustomShapePoint = c
+                  ? evaluateBezierMidpoint(p, q, c)
+                  : [(p[0] + q[0]) * 0.5, (p[1] + q[1]) * 0.5];
+                const [mx, my] = toPx(midPct);
+                const sz = c ? 5.8 : 5.2;
+                return (
+                  <polygon
+                    key={`bend${i}`}
+                    points={`${mx},${my - sz} ${mx + sz},${my} ${mx},${my + sz} ${mx - sz},${my}`}
+                    fill={c ? '#0891b2' : '#06b6d4'}
+                    stroke="#fff"
+                    strokeWidth={1.8}
+                    style={{ cursor: 'move' }}
+                    onPointerDown={(e) => startCurveHandleDrag(e, i, 'mid')}
+                    onDoubleClick={(e) => {
+                      e.stopPropagation();
+                      if (c) straightenEdge(i);
+                    }}
+                  >
+                    <title>
+                      {c
+                        ? 'Drag to pull curve crest · double-click to straighten edge'
+                        : 'Drag to bend this straight edge into a smooth Bezier curve'}
+                    </title>
+                  </polygon>
+                );
+              })}
+
+              {/* Anchor Vertices */}
               {pts.map((p, i) => {
                 const [x, y] = toPx(p);
                 const active = sel === i;
@@ -491,8 +942,8 @@ export function CustomShapeEditor({
                     cx={x}
                     cy={y}
                     r={active ? 8 : 6.5}
-                    fill={active ? '#f59e0b' : '#fff'}
-                    stroke={valid ? '#4f46e5' : '#dc2626'}
+                    fill={active ? '#06b6d4' : '#fff'}
+                    stroke={valid ? '#059669' : '#dc2626'}
                     strokeWidth={2.5}
                     style={{ cursor: 'grab' }}
                     onPointerDown={(e) => startVertexDrag(e, i)}
@@ -500,13 +951,87 @@ export function CustomShapeEditor({
                       e.stopPropagation();
                       deleteVertex(i);
                     }}
-                  />
+                  >
+                    <title>Anchor Point #{i + 1} — drag to move, double-click to delete</title>
+                  </circle>
                 );
               })}
             </svg>
           </div>
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10, alignItems: 'center' }}>
+          {/* Bezier Curve Controls Bar */}
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: 6,
+              marginTop: 10,
+              padding: '7px 10px',
+              borderRadius: 8,
+              background: 'rgba(6, 182, 212, 0.08)',
+              border: '1px solid rgba(6, 182, 212, 0.28)',
+              alignItems: 'center',
+            }}
+          >
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>
+              <Spline size={14} style={{ color: '#06b6d4' }} /> Bezier Curve Mode:
+            </span>
+            <button
+              type="button"
+              style={btn((activeEdgeCurve ? activeEdgeCurve.mode : defaultBezierMode) === 'cubic')}
+              onClick={() => {
+                if (selEdge != null) toggleEdgeCurveMode(selEdge, 'cubic');
+                else setDefaultBezierMode('cubic');
+              }}
+              title="Cubic Bezier: 2 independent tangent handles (CP1 & CP2) for S-curves, asymmetric arcs & full control"
+            >
+              Cubic (2 Handles)
+            </button>
+            <button
+              type="button"
+              style={btn((activeEdgeCurve ? activeEdgeCurve.mode : defaultBezierMode) === 'quad')}
+              onClick={() => {
+                if (selEdge != null) toggleEdgeCurveMode(selEdge, 'quad');
+                else setDefaultBezierMode('quad');
+              }}
+              title="Quadratic Bezier: 1 shared control handle (CP) for simple symmetric arcs"
+            >
+              Quadratic (1 Handle)
+            </button>
+            {selEdge != null && activeEdgeCurve && (
+              <button
+                type="button"
+                style={btn()}
+                onClick={() => straightenEdge(selEdge)}
+                title="Convert the selected curved edge back into a straight wall"
+              >
+                Straighten Edge
+              </button>
+            )}
+            {hasCurves && (
+              <button
+                type="button"
+                style={btn()}
+                onClick={() => {
+                  setCurves({});
+                  setSelEdge(null);
+                }}
+                title="Reset all curved edges back to straight segments between anchors"
+              >
+                Straighten All
+              </button>
+            )}
+            <button
+              type="button"
+              style={{ ...btn(), marginLeft: 'auto' }}
+              onClick={handleAutoFitBezier}
+              title="Convert dense multi-point curved chains into clean Anchor Points + Cubic Bezier Tangent Handles"
+            >
+              Auto-Fit Bezier Handles
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8, alignItems: 'center' }}>
             {blueprint && (
               <>
                 <button
@@ -552,7 +1077,7 @@ export function CustomShapeEditor({
               style={{ ...btn(), opacity: sel == null ? 0.5 : 1 }}
               disabled={sel == null}
               onClick={doRound}
-              title="Select a corner dot first, then round it into a smooth curve"
+              title="Select a corner dot first, then round it into a smooth Bezier curve"
             >
               Round corner
             </button>
@@ -568,7 +1093,7 @@ export function CustomShapeEditor({
                 step={1}
                 value={cornerRadiusPct}
                 onChange={(e) => setCornerRadiusPct(Number(e.target.value))}
-                style={{ width: 64, accentColor: '#4f46e5', cursor: 'pointer' }}
+                style={{ width: 64, accentColor: '#10b981', cursor: 'pointer' }}
               />
             </label>
             <button
@@ -604,24 +1129,26 @@ export function CustomShapeEditor({
               type="button"
               style={btn()}
               onClick={() => {
-                setPts(initialPoints.map((p) => [p[0], p[1]] as CustomShapePoint));
+                setPts(initialResolved.anchors.map((p) => [p[0], p[1]] as CustomShapePoint));
+                setCurves({ ...initialResolved.curves });
                 setSel(null);
+                setSelEdge(null);
                 setNote(initialNote);
               }}
             >
               Reset
             </button>
             <span style={{ marginLeft: 'auto', fontSize: 11.5, opacity: 0.75 }}>
-              {pts.length}/{CUSTOM_SHAPE_MAX_POINTS} points
+              {pts.length} anchors · { Object.keys(curves).length } curves ({evaluatedPolygon.length}/{CUSTOM_SHAPE_MAX_POINTS} pts)
             </span>
           </div>
 
           {!valid && (
             <div style={{ marginTop: 8, color: '#dc2626', fontSize: 12.5, fontWeight: 600 }}>
-              Edges cross each other (or the shape is flat) — move the dots so the outline does not intersect.
+              Edges cross each other (or the shape is flat) — adjust the anchor dots or Bezier handles so the outline does not intersect.
             </div>
           )}
-          {note && <div style={{ marginTop: 8, color: '#b45309', fontSize: 12.5 }}>{note}</div>}
+          {note && <div style={{ marginTop: 8, color: '#0891b2', fontSize: 12.5 }}>{note}</div>}
         </div>
         <div className="shop-map-qr-footer" style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
           <button type="button" className="btn btn-secondary btn-sm" onClick={onClose}>
@@ -631,7 +1158,12 @@ export function CustomShapeEditor({
             type="button"
             className="btn btn-primary btn-sm"
             disabled={!valid}
-            onClick={() => onApply(pts)}
+            onClick={() =>
+              onApply(
+                evaluatedPolygon,
+                hasCurves ? { anchors: pts, curves } : null,
+              )
+            }
           >
             Apply shape
           </button>
@@ -641,3 +1173,4 @@ export function CustomShapeEditor({
     document.body,
   );
 }
+

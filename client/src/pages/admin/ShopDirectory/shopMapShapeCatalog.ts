@@ -467,24 +467,104 @@ export const UNIT_SHAPE_CONVEX_UV_PARTS: Partial<
 
 export type CustomShapePoint = [number, number];
 
+export interface CustomBezierEdge {
+  mode: 'quad' | 'cubic';
+  cp1: CustomShapePoint;
+  cp2: CustomShapePoint;
+}
+
+export interface CustomBezierShapeSpec {
+  anchors: CustomShapePoint[];
+  curves: Record<number, CustomBezierEdge>;
+}
+
 export const CUSTOM_SHAPE_MAX_POINTS = 96;
 export const CUSTOM_SHAPE_MIN_POINTS = 3;
 const CUSTOM_SHAPE_PREFIX = 'unit:custom:';
+const CUSTOM_BEZIER_SEP = ':bz=';
 
 const roundPct = (n: number) => Math.round(Math.min(100, Math.max(0, n)) * 10) / 10;
+const roundCtrlPct = (n: number) => Math.round(Math.min(135, Math.max(-35, n)) * 10) / 10;
 
-export function encodeCustomShape(points: ReadonlyArray<CustomShapePoint>): string {
-  return (
+export function sampleBezierShapeToPolygon(
+  spec: CustomBezierShapeSpec,
+  stepsPerCurve = 14,
+): CustomShapePoint[] {
+  const n = spec.anchors.length;
+  if (n < CUSTOM_SHAPE_MIN_POINTS) return spec.anchors.map((p) => [roundPct(p[0]), roundPct(p[1])]);
+  const curvedEdgeCount = Object.keys(spec.curves).filter((k) => {
+    const idx = Number(k);
+    return Number.isInteger(idx) && idx >= 0 && idx < n;
+  }).length;
+  const maxExtraTotal = Math.max(0, CUSTOM_SHAPE_MAX_POINTS - n);
+  const perCurveInner =
+    curvedEdgeCount > 0
+      ? Math.max(2, Math.min(stepsPerCurve - 1, Math.floor(maxExtraTotal / curvedEdgeCount)))
+      : 0;
+  const effSteps = perCurveInner + 1;
+
+  const out: CustomShapePoint[] = [];
+  for (let i = 0; i < n; i += 1) {
+    const a = spec.anchors[i];
+    const b = spec.anchors[(i + 1) % n];
+    out.push([roundPct(a[0]), roundPct(a[1])]);
+    const curve = spec.curves[i];
+    if (!curve || effSteps < 2) continue;
+    for (let s = 1; s < effSteps; s += 1) {
+      const t = s / effSteps;
+      const u = 1 - t;
+      if (curve.mode === 'quad') {
+        const x = u * u * a[0] + 2 * u * t * curve.cp1[0] + t * t * b[0];
+        const y = u * u * a[1] + 2 * u * t * curve.cp1[1] + t * t * b[1];
+        out.push([roundPct(x), roundPct(y)]);
+      } else {
+        const x =
+          u * u * u * a[0] +
+          3 * u * u * t * curve.cp1[0] +
+          3 * u * t * t * curve.cp2[0] +
+          t * t * t * b[0];
+        const y =
+          u * u * u * a[1] +
+          3 * u * u * t * curve.cp1[1] +
+          3 * u * t * t * curve.cp2[1] +
+          t * t * t * b[1];
+        out.push([roundPct(x), roundPct(y)]);
+      }
+    }
+  }
+  return out;
+}
+
+export function encodeCustomShape(
+  points: ReadonlyArray<CustomShapePoint>,
+  bezierSpec?: CustomBezierShapeSpec | null,
+): string {
+  const base =
     CUSTOM_SHAPE_PREFIX +
-    points.map(([x, y]) => `${roundPct(x)},${roundPct(y)}`).join(';')
-  );
+    points.map(([x, y]) => `${roundPct(x)},${roundPct(y)}`).join(';');
+  if (!bezierSpec || bezierSpec.anchors.length < CUSTOM_SHAPE_MIN_POINTS) return base;
+  const curveEntries = Object.entries(bezierSpec.curves)
+    .map(([k, v]) => [Number(k), v] as const)
+    .filter(([idx]) => Number.isInteger(idx) && idx >= 0 && idx < bezierSpec.anchors.length);
+  if (curveEntries.length === 0) return base;
+  const anchorStr = bezierSpec.anchors
+    .map(([x, y]) => `${roundPct(x)},${roundPct(y)}`)
+    .join(';');
+  const curveStr = curveEntries
+    .map(
+      ([idx, c]) =>
+        `${idx},${c.mode === 'quad' ? 'q' : 'c'},${roundCtrlPct(c.cp1[0])},${roundCtrlPct(c.cp1[1])},${roundCtrlPct(c.cp2[0])},${roundCtrlPct(c.cp2[1])}`,
+    )
+    .join('~');
+  return `${base}${CUSTOM_BEZIER_SEP}${anchorStr}|${curveStr}`;
 }
 
 /** Returns the polygon (0..100 %) stored in a label, or null when it is not a valid custom shape. */
 export function decodeCustomShape(label: string | null | undefined): CustomShapePoint[] | null {
   if (!label || !label.startsWith(CUSTOM_SHAPE_PREFIX)) return null;
+  const polyBody = label.slice(CUSTOM_SHAPE_PREFIX.length).split(CUSTOM_BEZIER_SEP)[0];
   const out: CustomShapePoint[] = [];
-  for (const part of label.slice(CUSTOM_SHAPE_PREFIX.length).split(';')) {
+  for (const part of polyBody.split(';')) {
     const [xs, ys] = part.split(',');
     const x = Number(xs);
     const y = Number(ys);
@@ -493,6 +573,53 @@ export function decodeCustomShape(label: string | null | undefined): CustomShape
     if (out.length > CUSTOM_SHAPE_MAX_POINTS) return null;
   }
   return out.length >= CUSTOM_SHAPE_MIN_POINTS ? out : null;
+}
+
+/** Decodes the optional parametric Bezier anchor & handle specification stored in a custom shape label. */
+export function decodeCustomBezierSpec(label: string | null | undefined): CustomBezierShapeSpec | null {
+  if (!label || !label.startsWith(CUSTOM_SHAPE_PREFIX)) return null;
+  const bzIdx = label.indexOf(CUSTOM_BEZIER_SEP);
+  if (bzIdx === -1) return null;
+  const rawBz = label.slice(bzIdx + CUSTOM_BEZIER_SEP.length);
+  const [anchorStr, curveStr] = rawBz.split('|');
+  if (!anchorStr) return null;
+  const anchors: CustomShapePoint[] = [];
+  for (const part of anchorStr.split(';')) {
+    const [xs, ys] = part.split(',');
+    const x = Number(xs);
+    const y = Number(ys);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    anchors.push([roundPct(x), roundPct(y)]);
+  }
+  if (anchors.length < CUSTOM_SHAPE_MIN_POINTS) return null;
+  const curves: Record<number, CustomBezierEdge> = {};
+  if (curveStr) {
+    for (const entry of curveStr.split('~')) {
+      if (!entry) continue;
+      const [idxS, modeS, c1xS, c1yS, c2xS, c2yS] = entry.split(',');
+      const idx = Number(idxS);
+      const c1x = Number(c1xS);
+      const c1y = Number(c1yS);
+      const c2x = Number(c2xS);
+      const c2y = Number(c2yS);
+      if (
+        Number.isInteger(idx) &&
+        idx >= 0 &&
+        idx < anchors.length &&
+        Number.isFinite(c1x) &&
+        Number.isFinite(c1y) &&
+        Number.isFinite(c2x) &&
+        Number.isFinite(c2y)
+      ) {
+        curves[idx] = {
+          mode: modeS === 'q' ? 'quad' : 'cubic',
+          cp1: [roundCtrlPct(c1x), roundCtrlPct(c1y)],
+          cp2: [roundCtrlPct(c2x), roundCtrlPct(c2y)],
+        };
+      }
+    }
+  }
+  return { anchors, curves };
 }
 
 function signedArea(pts: ReadonlyArray<ReadonlyArray<number>>): number {
@@ -596,6 +723,109 @@ export function mirrorCustomPoints(points: ReadonlyArray<CustomShapePoint>, axis
   return points
     .map(([x, y]) => (axis === 'h' ? [100 - x, y] : [x, 100 - y]) as CustomShapePoint)
     .reverse();
+}
+
+/** Rotate a 0..100 % polygon clockwise by `quarterTurns` x 90° (point order / winding is preserved). */
+export function rotateCustomPoints(
+  points: ReadonlyArray<CustomShapePoint>,
+  quarterTurns: number,
+): CustomShapePoint[] {
+  const q = ((Math.round(quarterTurns) % 4) + 4) % 4;
+  let pts: CustomShapePoint[] = points.map(([x, y]) => [x, y] as CustomShapePoint);
+  for (let i = 0; i < q; i += 1) {
+    pts = pts.map(([x, y]) => [100 - y, x] as CustomShapePoint);
+  }
+  return pts;
+}
+
+/** Side / corner tokens of a preset shape mode after a clockwise rotation of 1, 2 or 3 quarter turns. */
+const ROTATE_TOKENS: Record<1 | 2 | 3, Record<string, string>> = {
+  1: { t: 'r', r: 'b', b: 'l', l: 't', tl: 'tr', tr: 'br', br: 'bl', bl: 'tl' },
+  2: { t: 'b', b: 't', l: 'r', r: 'l', tl: 'br', br: 'tl', tr: 'bl', bl: 'tr' },
+  3: { t: 'l', l: 'b', b: 'r', r: 't', tl: 'bl', bl: 'br', br: 'tr', tr: 'tl' },
+};
+
+/**
+ * Outlines (UV space, -0.5..0.5) of presets whose rotation is NOT another preset (their mirror twin is not the
+ * same shape), so they are turned into a rotated custom polygon instead.
+ */
+const ROTATE_AS_POLYGON_UV: Partial<Record<UnitShapeMode, ReadonlyArray<[number, number]>>> = {
+  'wing-bend-l': [[-0.22, -0.48], [0.48, -0.48], [0.48, 0.04], [0.06, 0.04], [-0.12, 0.48], [-0.48, 0.48], [-0.48, -0.14]],
+  'wing-bend-r': [[-0.48, -0.48], [0.22, -0.48], [0.48, -0.14], [0.48, 0.48], [0.12, 0.48], [-0.06, 0.04], [-0.48, 0.04]],
+  'step-t-mid': [[-0.48, -0.48], [-0.22, -0.48], [-0.22, 0.02], [0.22, 0.02], [0.22, -0.48], [0.48, -0.48], [0.48, 0.48], [-0.48, 0.48]],
+  'u-court-t': [[-0.48, -0.48], [-0.22, -0.48], [-0.22, 0.02], [0.22, 0.02], [0.22, -0.48], [0.48, -0.48], [0.48, 0.48], [-0.48, 0.48]],
+  'step-b-mid': [[-0.48, -0.48], [0.48, -0.48], [0.48, 0.48], [0.22, 0.48], [0.22, -0.02], [-0.22, -0.02], [-0.22, 0.48], [-0.48, 0.48]],
+  'u-court-b': [[-0.48, -0.48], [0.48, -0.48], [0.48, 0.48], [0.22, 0.48], [0.22, -0.02], [-0.22, -0.02], [-0.22, 0.48], [-0.48, 0.48]],
+  'pie-wedge': [[-0.48, -0.48], [0.48, -0.48], [0.14, 0.48], [-0.14, 0.48]],
+  trapezoid: [[-0.32, -0.48], [0.32, -0.48], [0.48, 0.48], [-0.48, 0.48]],
+  'trapezoid-l': [[-0.24, -0.48], [0.48, -0.48], [0.48, 0.48], [-0.48, 0.48]],
+  'trapezoid-r': [[-0.48, -0.48], [0.24, -0.48], [0.48, 0.48], [-0.48, 0.48]],
+};
+
+/**
+ * Label of a unit tile after the whole map is rotated clockwise by `quarterTurns` x 90°. The tile's bounding box
+ * is rotated by the layout code; this rotates the OUTLINE inside it (notch / step / slant / custom polygon) so
+ * neighbours that tuck into a notch keep fitting instead of overlapping the filled part of the shape.
+ */
+export function rotateUnitShapeLabel(
+  label: string | null | undefined,
+  quarterTurns: number,
+): string | null | undefined {
+  const q = (((Math.round(quarterTurns) % 4) + 4) % 4) as 0 | 1 | 2 | 3;
+  if (!label || q === 0 || !label.startsWith('unit:')) return label;
+
+  if (label.startsWith(CUSTOM_SHAPE_PREFIX)) {
+    const pts = decodeCustomShape(label);
+    if (!pts) return label;
+    const bz = decodeCustomBezierSpec(label);
+    const rotatedBz: CustomBezierShapeSpec | null = bz
+      ? {
+          anchors: rotateCustomPoints(bz.anchors, q),
+          curves: Object.fromEntries(
+            Object.entries(bz.curves).map(([k, c]) => [
+              k,
+              {
+                mode: c.mode,
+                cp1: rotateCustomPoints([c.cp1], q)[0],
+                cp2: rotateCustomPoints([c.cp2], q)[0],
+              },
+            ]),
+          ),
+        }
+      : null;
+    return encodeCustomShape(rotateCustomPoints(pts, q), rotatedBz);
+  }
+
+  const parts = label.slice(5).split(':');
+  const mode = parts[0] as UnitShapeMode;
+  if (!VALID_UNIT_SHAPE_MODES.has(mode)) return label;
+  // Plain / angle-driven shapes and auto-detected shapes are recomputed from the rotated neighbours.
+  if (
+    mode === 'rect' ||
+    mode === 'circle' ||
+    mode === 'custom' ||
+    mode === 'ring-curve' ||
+    mode === 'trapezoid-ring' ||
+    parts.includes('auto')
+  ) {
+    return label;
+  }
+
+  const uv = ROTATE_AS_POLYGON_UV[mode];
+  if (uv) {
+    const pct = uv.map(
+      ([u, v]) => [roundPct((u / 0.96 + 0.5) * 100), roundPct((v / 0.96 + 0.5) * 100)] as CustomShapePoint,
+    );
+    return encodeCustomShape(rotateCustomPoints(pct, q));
+  }
+
+  const map = ROTATE_TOKENS[q as 1 | 2 | 3];
+  const next = mode.split('-').map((tok) => map[tok] ?? tok).join('-') as UnitShapeMode;
+  if (VALID_UNIT_SHAPE_MODES.has(next)) return ['unit:' + next, ...parts.slice(1)].join(':');
+
+  const exact = customShapeFromMode(mode);
+  if (!exact.approximate) return encodeCustomShape(rotateCustomPoints(exact.points, q));
+  return label;
 }
 
 /** Default radius (fraction of the tile) of the concave arc of Notch / Outer Ring Wing shapes. */
@@ -933,6 +1163,111 @@ export function smoothCustomPolygon(
     }
   }
   return current;
+}
+
+function fitCubicHandlesForChain(chain: ReadonlyArray<CustomShapePoint>): CustomBezierEdge {
+  const a = chain[0];
+  const b = chain[chain.length - 1];
+  const cumLen: number[] = [0];
+  for (let i = 1; i < chain.length; i += 1) {
+    cumLen.push(cumLen[i - 1] + Math.hypot(chain[i][0] - chain[i - 1][0], chain[i][1] - chain[i - 1][1]));
+  }
+  const total = cumLen[cumLen.length - 1];
+  const sampleAt = (frac: number): CustomShapePoint => {
+    if (total <= 1e-6) return [(a[0] + b[0]) * 0.5, (a[1] + b[1]) * 0.5];
+    const target = frac * total;
+    let k = 0;
+    while (k < cumLen.length - 2 && cumLen[k + 1] < target) k += 1;
+    const seg = cumLen[k + 1] - cumLen[k];
+    const t = seg > 1e-6 ? (target - cumLen[k]) / seg : 0;
+    return [
+      chain[k][0] + t * (chain[k + 1][0] - chain[k][0]),
+      chain[k][1] + t * (chain[k + 1][1] - chain[k][1]),
+    ];
+  };
+  const q1 = sampleAt(1 / 3);
+  const q2 = sampleAt(2 / 3);
+  const cp1: CustomShapePoint = [
+    roundCtrlPct((-5 * a[0] + 18 * q1[0] - 9 * q2[0] + 2 * b[0]) / 6),
+    roundCtrlPct((-5 * a[1] + 18 * q1[1] - 9 * q2[1] + 2 * b[1]) / 6),
+  ];
+  const cp2: CustomShapePoint = [
+    roundCtrlPct((2 * a[0] - 9 * q1[0] + 18 * q2[0] - 5 * b[0]) / 6),
+    roundCtrlPct((2 * a[1] - 9 * q1[1] + 18 * q2[1] - 5 * b[1]) / 6),
+  ];
+  return { mode: 'cubic', cp1, cp2 };
+}
+
+/**
+ * Converts dense multi-point curved chains of a polygon into clean Anchor Vertices + Cubic Bezier Tangent Handles.
+ */
+export function fitBezierToCurvedRuns(
+  pts: ReadonlyArray<CustomShapePoint>,
+): CustomBezierShapeSpec | null {
+  const n = pts.length;
+  if (n < 5) return null;
+
+  const isStraightWallEdge = (i: number): boolean => {
+    const a = pts[i];
+    const b = pts[(i + 1) % n];
+    const dx = Math.abs(b[0] - a[0]);
+    const dy = Math.abs(b[1] - a[1]);
+    const len = Math.hypot(dx, dy);
+    if (len >= 22) return true;
+    if (len < 3.5) return false;
+    return dx <= 0.9 || dy <= 0.9;
+  };
+
+  const wallFlags = Array.from({ length: n }, (_, i) => isStraightWallEdge(i));
+  const firstWall = wallFlags.findIndex((f) => f);
+
+  if (firstWall === -1) {
+    if (n < 8) return null;
+    const q = Math.floor(n / 4);
+    const cuts = [0, q, q * 2, q * 3];
+    const anchors: CustomShapePoint[] = cuts.map((idx) => [pts[idx][0], pts[idx][1]]);
+    const curves: Record<number, CustomBezierEdge> = {};
+    for (let s = 0; s < 4; s += 1) {
+      const startIdx = cuts[s];
+      const endIdx = s < 3 ? cuts[s + 1] : n;
+      const chain: CustomShapePoint[] = [];
+      for (let k = startIdx; k <= endIdx; k += 1) {
+        chain.push(pts[k % n]);
+      }
+      curves[s] = fitCubicHandlesForChain(chain);
+    }
+    return { anchors, curves };
+  }
+
+  const anchors: CustomShapePoint[] = [];
+  const curves: Record<number, CustomBezierEdge> = {};
+  let offset = 0;
+  while (offset < n) {
+    const eIdx = (firstWall + offset) % n;
+    if (wallFlags[eIdx]) {
+      anchors.push([pts[eIdx][0], pts[eIdx][1]]);
+      offset += 1;
+      continue;
+    }
+    const chainIndices: number[] = [eIdx];
+    while (offset < n && !wallFlags[(firstWall + offset) % n]) {
+      offset += 1;
+      chainIndices.push((firstWall + offset) % n);
+    }
+    if (chainIndices.length >= 3) {
+      const anchorEdgeIdx = anchors.length;
+      anchors.push([pts[chainIndices[0]][0], pts[chainIndices[0]][1]]);
+      const chainPts = chainIndices.map((idx) => pts[idx]);
+      curves[anchorEdgeIdx] = fitCubicHandlesForChain(chainPts);
+    } else {
+      for (let k = 0; k < chainIndices.length - 1; k += 1) {
+        anchors.push([pts[chainIndices[k]][0], pts[chainIndices[k]][1]]);
+      }
+    }
+  }
+
+  if (anchors.length < CUSTOM_SHAPE_MIN_POINTS || Object.keys(curves).length === 0) return null;
+  return { anchors, curves };
 }
 
 type CustomShapePresetGroup = 'triangle' | 'polygon' | 'round' | 'letter';

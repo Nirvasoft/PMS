@@ -48,6 +48,7 @@ import {
   CUSTOM_SHAPE_GROUPS,
   CUSTOM_SHAPE_PRESETS,
   customShapeFromMode,
+  decodeCustomBezierSpec,
   decodeCustomShape,
   encodeCustomShape,
   mirrorCustomPoints,
@@ -58,6 +59,7 @@ import {
   shapeBadgeSpot,
   isSimpleCustomPolygon,
   simplifyCustomPolygon,
+  type CustomBezierShapeSpec,
   type CustomShapePoint,
 } from './shopMapShapeCatalog';
 import './ShopMapView.css';
@@ -2907,7 +2909,11 @@ export default function ShopMapView({
     );
   };
 
-  const applyCustomUnitShape = (key: string, points: CustomShapePoint[]) => {
+  const applyCustomUnitShape = (
+    key: string,
+    points: CustomShapePoint[],
+    bezierSpec?: CustomBezierShapeSpec | null,
+  ) => {
     update((prev) =>
       prev.map((i) => {
         if (i.key !== key || i.kind !== 'unit') return i;
@@ -2915,7 +2921,7 @@ export default function ShopMapView({
           Boolean(i.label?.startsWith('unit:ring-curve')) || i.label === 'unit:trapezoid-ring';
         const next: MapItem = {
           ...i,
-          label: encodeCustomShape(points),
+          label: encodeCustomShape(points, bezierSpec),
           ...(wasRingSector ? { angle: undefined } : {}),
         };
         return resolveConflictFreeTileShapeChange(next, prev, 4);
@@ -3159,7 +3165,30 @@ export default function ShopMapView({
       const raw = it.label ?? '';
       if (raw.startsWith('unit:custom:')) {
         const pts = decodeCustomShape(raw);
-        return pts ? encodeCustomShape(mirrorCustomPoints(pts, axis)) : raw;
+        if (!pts) return raw;
+        const bz = decodeCustomBezierSpec(raw);
+        let mirroredBz: CustomBezierShapeSpec | null = null;
+        if (bz && bz.anchors.length >= 3) {
+          const n = bz.anchors.length;
+          const flipPt = ([x, y]: CustomShapePoint): CustomShapePoint =>
+            axis === 'h' ? [100 - x, y] : [x, 100 - y];
+          const nextCurves: Record<number, CustomBezierShapeSpec['curves'][number]> = {};
+          for (const [kStr, c] of Object.entries(bz.curves)) {
+            const oldIdx = Number(kStr);
+            if (!Number.isFinite(oldIdx) || !c) continue;
+            const newIdx = n - 1 - ((oldIdx + 1) % n);
+            nextCurves[newIdx] = {
+              mode: c.mode,
+              cp1: flipPt(c.cp2),
+              cp2: flipPt(c.cp1),
+            };
+          }
+          mirroredBz = {
+            anchors: mirrorCustomPoints(bz.anchors, axis),
+            curves: nextCurves,
+          };
+        }
+        return encodeCustomShape(mirrorCustomPoints(pts, axis), mirroredBz);
       }
       if (raw.startsWith('unit:ring-curve') || raw === 'unit:trapezoid-ring') return raw;
       const mode = parseUnitShapeMode(it, autoShapeEnabled ? base : undefined);
@@ -6346,12 +6375,13 @@ export default function ShopMapView({
             tileW={csItem.w}
             tileH={csItem.h}
             initialPoints={existing ?? fromCurrent?.points ?? []}
+            initialBezierSpec={decodeCustomBezierSpec(csItem.label)}
             initialNote={fromCurrent?.note ?? null}
             neighbors={neighborOutlinesInTileFrame(csItem, items)}
             blueprint={csBlueprint}
             onClose={() => setCustomShapeKey(null)}
-            onApply={(points) => {
-              applyCustomUnitShape(csItem.key, points);
+            onApply={(points, bezierSpec) => {
+              applyCustomUnitShape(csItem.key, points, bezierSpec);
               setCustomShapeKey(null);
             }}
           />

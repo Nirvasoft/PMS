@@ -154,6 +154,9 @@ export class ReceiptsService {
         // The user entered/allocated this amount in the receipt's own currency — convert
         // it into the invoice's currency before it touches paidAmount, so a payment in a
         // different currency doesn't get added to the balance 1:1.
+        // Row-lock the invoice so two concurrent receipts cannot read the same paidAmount
+        // and overwrite each other's update (lost update).
+        await tx.$queryRaw`SELECT id FROM invoices WHERE id = ${alloc.invoiceId}::uuid FOR UPDATE`;
         const invoice = await tx.invoice.findUniqueOrThrow({ where: { id: alloc.invoiceId } });
         const convertedAmount = await this.convertToInvoiceCurrency(
           tx, companyId, invoice.propertyId, alloc.amount, rct.currency, invoice.currency,
@@ -165,7 +168,7 @@ export class ReceiptsService {
 
         // Update invoice paidAmount and status
         const newPaidAmount = Math.round((Number(invoice.paidAmount) + convertedAmount) * 100) / 100;
-        const newStatus = newPaidAmount >= Number(invoice.totalAmount) - 0.005 ? 'paid'
+        const newStatus = newPaidAmount >= Number(invoice.totalAmount) ? 'paid'
           : newPaidAmount > 0 ? 'partially_paid'
           : invoice.status;
 
