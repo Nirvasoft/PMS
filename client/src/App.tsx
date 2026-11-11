@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useRef } from 'react';
+import { Suspense, lazy as reactLazy, useEffect, useRef, type ComponentType } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { Toaster, ToastBar, toast } from 'react-hot-toast';
@@ -13,6 +13,47 @@ import { setCredentials, setLoading } from './store/slices/authSlice';
 // Eagerly loaded core shells (Login & Dashboard frame)
 import LoginPage from './pages/LoginPage/LoginPage';
 import DashboardLayout, { DashboardHome } from './pages/DashboardPage/DashboardPage';
+
+const CHUNK_RELOAD_TS_KEY = 'pms-chunk-reload-ts';
+const CHUNK_RELOAD_COOLDOWN_MS = 15_000;
+const CHUNK_LOAD_ERROR = /fetch dynamically imported module|error loading dynamically imported module|importing a module script failed|failed to load module script|unable to preload css/i;
+
+function reloadOnceOnStaleChunk(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error ?? '');
+  if (!CHUNK_LOAD_ERROR.test(msg)) return false;
+  try {
+    const last = Number(sessionStorage.getItem(CHUNK_RELOAD_TS_KEY) || '0');
+    if (Date.now() - last > CHUNK_RELOAD_COOLDOWN_MS) {
+      sessionStorage.setItem(CHUNK_RELOAD_TS_KEY, String(Date.now()));
+      window.location.reload();
+      return true;
+    }
+  } catch {
+    // Ignore storage errors in restricted browsing modes
+  }
+  return false;
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('vite:preloadError', (event) => {
+    if (reloadOnceOnStaleChunk((event as CustomEvent).payload ?? new Error('fetch dynamically imported module'))) {
+      event.preventDefault();
+    }
+  });
+}
+
+// Wrap React.lazy so a stale chunk 404 after a new deploy triggers a silent reload
+// while keeping <Suspense> in its loading state instead of flashing GlobalErrorBoundary.
+function lazy<T extends ComponentType<any>>(factory: () => Promise<{ default: T }>) {
+  return reactLazy(() =>
+    factory().catch((err) => {
+      if (reloadOnceOnStaleChunk(err)) {
+        return new Promise<{ default: T }>(() => {});
+      }
+      throw err;
+    }),
+  );
+}
 
 // Lazy-loaded route pages (split into on-demand chunks)
 const MfaVerifyPage = lazy(() => import('./pages/MfaVerifyPage/MfaVerifyPage'));
@@ -506,6 +547,7 @@ class GlobalErrorBoundary extends Component<{ children: RN2 }, { hasError: boole
     }
   }
   componentDidCatch(error: Error, info: any) {
+    if (reloadOnceOnStaleChunk(error)) return;
     this.setState({ info: info?.componentStack || '' });
     console.error('Global Error Boundary caught:', error, info);
   }
