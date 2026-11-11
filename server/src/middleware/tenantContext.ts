@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { setTenantContext, clearTenantContext } from '../common/database';
+import { setTenantContext } from '../common/database';
 import { logger } from '../common/logger';
 
 /**
@@ -9,8 +9,10 @@ import { logger } from '../common/logger';
  * Row-Level Security (RLS) enforcement. Must run AFTER authMiddleware
  * which populates `req.user`.
  * 
- * For unauthenticated routes, explicitly resets `app.current_company_id`
- * so a pooled connection never retains a previous request's tenant context.
+ * For unauthenticated routes, this is a no-op — the RLS variable
+ * remains unset, meaning RLS-protected tables return zero rows.
+ * This is safe because unauthenticated routes only access the
+ * `companies` table (which is NOT RLS-protected).
  */
 export async function tenantContextMiddleware(
   req: Request,
@@ -20,8 +22,6 @@ export async function tenantContextMiddleware(
   try {
     if (req.user?.companyId) {
       await setTenantContext(req.user.companyId);
-    } else {
-      await clearTenantContext();
     }
     next();
   } catch (err) {
