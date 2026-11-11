@@ -80,9 +80,21 @@ export const csvUpload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
 });
 
-/** General file upload (no image filter) for attachments etc. */
+const BLOCKED_ATTACHMENT_EXT = /\.(html?|xhtml|svg|js|mjs|cjs|exe|bat|cmd|sh|php|phtml|jsp|asp|aspx|dll|msi|scr|vbs|ps1)$/i;
+const BLOCKED_ATTACHMENT_MIME = /^(text\/html|application\/xhtml\+xml|image\/svg\+xml|application\/javascript|text\/javascript|application\/x-msdownload|application\/x-sh)$/i;
+
+function attachmentFilter(_req: Express.Request, file: Express.Multer.File, cb: multer.FileFilterCallback) {
+  if (BLOCKED_ATTACHMENT_EXT.test(file.originalname) || BLOCKED_ATTACHMENT_MIME.test(file.mimetype)) {
+    cb(new Error('Only safe document, image, and archive files are allowed'));
+  } else {
+    cb(null, true);
+  }
+}
+
+/** General file upload for attachments etc. (blocks executable & active script files) */
 export const fileUpload = multer({
   storage: multer.memoryStorage(),
+  fileFilter: attachmentFilter,
   limits: { fileSize: 10 * 1024 * 1024, files: 5 },
 });
 

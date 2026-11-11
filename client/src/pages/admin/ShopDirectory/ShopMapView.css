@@ -3178,8 +3178,8 @@
 }
 .shop-map-turn-pill.is-clickable:hover {
   transform: translateY(-1px);
-  border-color: rgba(245, 158, 11, 0.55);
-  background: rgba(245, 158, 11, 0.14);
+  border-color: rgba(6, 182, 212, 0.55);
+  background: rgba(6, 182, 212, 0.14);
   color: var(--text-primary);
 }
 .shop-map-turn-pill.dir-left,
@@ -3189,10 +3189,10 @@
   background: rgba(16, 185, 129, 0.08);
 }
 .shop-map-turn-pill.is-active {
-  color: #fffbeb !important;
-  background: linear-gradient(135deg, #f59e0b, #d97706) !important;
-  border-color: #f59e0b !important;
-  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.38);
+  color: #ecfeff !important;
+  background: linear-gradient(135deg, #06b6d4, #0891b2) !important;
+  border-color: #06b6d4 !important;
+  box-shadow: 0 2px 8px rgba(6, 182, 212, 0.38);
 }
 [data-theme="light"] .shop-map-turn-pill.is-active {
   color: #ffffff !important;
@@ -3203,23 +3203,27 @@
   z-index: 11 !important;
 }
 .shop-map-tile.is-waypoint-focused:not(.is-merged-unit):not(.is-trapezoid-tile):not(.is-polygon-atrium) {
-  border-color: #f59e0b !important;
+  border-color: #06b6d4 !important;
   box-shadow:
-    0 0 0 2.5px #f59e0b,
-    0 0 14px rgba(245, 158, 11, 0.65),
+    0 0 0 2.5px #06b6d4,
+    0 0 14px rgba(6, 182, 212, 0.65),
     0 6px 16px rgba(2, 6, 23, 0.35) !important;
   transform: translateY(-3px);
 }
 .shop-map-tile.is-waypoint-focused:is(.is-merged-unit, .is-trapezoid-tile, .is-polygon-atrium) {
-  --glass-rim: #fbbf24 !important;
-  --glass-lip: #d97706 !important;
+  --glass-rim: #22d3ee !important;
+  --glass-lip: #0891b2 !important;
   transform: translateY(-3px);
+}
+.shop-map.is-3d-pitch .shop-map-tile.is-waypoint-focused:is(.is-merged-unit, .is-trapezoid-tile) :is(.shop-map-merged-border-svg, .shop-map-trapezoid-svg) .lm-border-extrude-b {
+  stroke: #0e7490;
+  stroke-width: 4;
 }
 .shop-map-tile.is-waypoint-focused:is(.is-merged-unit, .is-trapezoid-tile, .is-polygon-atrium) :is(.shop-map-merged-border-svg, .shop-map-trapezoid-svg, .shop-map-atrium-poly-svg) :is(.lm-border-rim, .lm-border-lip-r, .lm-border-lip-b) {
   stroke-width: 2.5;
 }
 .shop-map-tile.is-waypoint-focused:is(.is-merged-unit, .is-trapezoid-tile, .is-polygon-atrium) :is(.shop-map-merged-border-svg, .shop-map-trapezoid-svg, .shop-map-atrium-poly-svg) {
-  filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.72)) !important;
+  filter: drop-shadow(0 0 8px rgba(6, 182, 212, 0.72)) !important;
 }
 .shop-map-waypoint-callout {
   position: absolute;
@@ -3232,7 +3236,7 @@
   gap: 4px;
   padding: 3px 8px;
   border-radius: 999px;
-  background: linear-gradient(135deg, #f59e0b, #d97706);
+  background: linear-gradient(135deg, #06b6d4, #0891b2);
   color: #ffffff;
   font-size: 0.68rem;
   font-weight: 700;
@@ -3250,7 +3254,7 @@
   left: 50%;
   transform: translateX(-50%);
   border: 4px solid transparent;
-  border-top-color: #d97706;
+  border-top-color: #0891b2;
 }
 .shop-map-waypoint-callout-unit {
   opacity: 0.9;
@@ -3261,12 +3265,12 @@
   50% { transform: translateX(-50%) translateY(-3px); }
 }
 .shop-map-connector-dot.waypoint {
-  fill: #f59e0b;
+  fill: #06b6d4;
   stroke: #ffffff;
   stroke-width: 1.8;
 }
 .shop-map-nav-pulse.waypoint {
-  stroke: #f59e0b;
+  stroke: #06b6d4;
   stroke-width: 2.5;
 }
 

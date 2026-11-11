@@ -83,6 +83,10 @@ export async function setTenantContext(companyId: string): Promise<void> {
   await prisma.$executeRawUnsafe(`SET app.current_company_id = '${companyId}'`);
 }
 
+export async function clearTenantContext(): Promise<void> {
+  await prisma.$executeRawUnsafe(`RESET app.current_company_id`);
+}
+
 /**
  * Execute a callback within a tenant-scoped transaction.
  * Sets the RLS session variable, runs the callback, then the transaction ends

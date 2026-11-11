@@ -18,7 +18,10 @@ export function useLanguage() {
   return useContext(LanguageContext);
 }
 
-const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'TEXTAREA', 'CODE', 'PRE', 'NOSCRIPT', 'SVG', 'PATH']);
+const SKIP_TAGS = new Set([
+  'SCRIPT', 'STYLE', 'TEXTAREA', 'CODE', 'PRE', 'NOSCRIPT',
+  'SVG', 'PATH', 'G', 'POLYGON', 'RECT', 'CIRCLE', 'LINE', 'POLYLINE', 'ELLIPSE', 'DEFS', 'CLIPPATH', 'USE',
+]);
 
 interface TextCache {
   raw: string;
@@ -39,6 +42,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   const textMapRef = useRef(new WeakMap<Text, TextCache>());
   const attrMapRef = useRef(new WeakMap<Element, AttrCache>());
   const isApplyingRef = useRef(false);
+  const hasTranslatedRef = useRef(false);
 
   const setLang = (next: SupportedLang) => {
     localStorage.setItem(STORAGE_KEY, next);
@@ -48,11 +52,23 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     document.documentElement.lang = lang;
 
+    // Fast path: if language is English and we haven't translated the DOM in this session,
+    // skip full-DOM traversal and MutationObserver completely (zero runtime overhead).
+    if (lang === 'en' && !hasTranslatedRef.current) {
+      return;
+    }
+
     const shouldSkipElement = (el: Element | null): boolean => {
       if (!el) return true;
       if (SKIP_TAGS.has(el.tagName.toUpperCase())) return true;
-      if (el.closest('[data-no-translate="true"]')) return true;
+      if (el.getAttribute('data-no-translate') === 'true') return true;
       return false;
+    };
+
+    const isInsideSkippedAncestor = (node: Node): boolean => {
+      const el = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
+      if (!el) return true;
+      return Boolean(el.closest('svg, script, style, textarea, code, pre, noscript, [data-no-translate="true"]'));
     };
 
     const translateTextNode = (node: Text) => {
@@ -96,57 +112,94 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       attrMapRef.current.set(el, cached);
     };
 
-    const walkAndTranslate = (root: Node) => {
+    const walkerFilter: NodeFilter = {
+      acceptNode(node: Node): number {
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          const el = node as Element;
+          if (SKIP_TAGS.has(el.tagName.toUpperCase()) || el.getAttribute('data-no-translate') === 'true') {
+            return NodeFilter.FILTER_REJECT; // Prune entire subtree in O(1)
+          }
+          return NodeFilter.FILTER_ACCEPT;
+        }
+        if (node.nodeType === Node.TEXT_NODE) {
+          return NodeFilter.FILTER_ACCEPT;
+        }
+        return NodeFilter.FILTER_SKIP;
+      },
+    };
+
+    const walkSubtree = (root: Node) => {
+      if (!root.isConnected || isInsideSkippedAncestor(root)) return;
+      if (root.nodeType === Node.TEXT_NODE) {
+        translateTextNode(root as Text);
+        return;
+      }
+      if (root.nodeType === Node.ELEMENT_NODE) {
+        translateElementAttrs(root as Element);
+      }
+      const walker = document.createTreeWalker(
+        root,
+        NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
+        walkerFilter,
+      );
+      let current: Node | null = walker.nextNode();
+      while (current) {
+        if (current.nodeType === Node.TEXT_NODE) {
+          translateTextNode(current as Text);
+        } else if (current.nodeType === Node.ELEMENT_NODE) {
+          translateElementAttrs(current as Element);
+        }
+        current = walker.nextNode();
+      }
+    };
+
+    const runTranslationPass = (roots: Iterable<Node>) => {
       if (isApplyingRef.current) return;
       isApplyingRef.current = true;
       try {
-        if (root.nodeType === Node.TEXT_NODE) {
-          translateTextNode(root as Text);
-          return;
-        }
-        if (root.nodeType === Node.ELEMENT_NODE) {
-          translateElementAttrs(root as Element);
-        }
-        const walker = document.createTreeWalker(
-          root,
-          NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
-        );
-        let current: Node | null = walker.nextNode();
-        while (current) {
-          if (current.nodeType === Node.TEXT_NODE) {
-            translateTextNode(current as Text);
-          } else if (current.nodeType === Node.ELEMENT_NODE) {
-            translateElementAttrs(current as Element);
-          }
-          current = walker.nextNode();
+        for (const root of roots) {
+          walkSubtree(root);
         }
       } finally {
         isApplyingRef.current = false;
       }
     };
 
-    walkAndTranslate(document.body);
+    runTranslationPass([document.body]);
 
+    if (lang === 'en') {
+      hasTranslatedRef.current = false;
+      return;
+    }
+
+    hasTranslatedRef.current = true;
+    const pendingRoots = new Set<Node>();
     let rafId: number | null = null;
-    const scheduleFullPass = () => {
+
+    const schedulePass = () => {
       if (rafId !== null) return;
       rafId = window.requestAnimationFrame(() => {
         rafId = null;
-        walkAndTranslate(document.body);
+        if (pendingRoots.size === 0) return;
+        const targets = pendingRoots.size > 35 ? [document.body] : Array.from(pendingRoots);
+        pendingRoots.clear();
+        runTranslationPass(targets);
       });
     };
 
     const observer = new MutationObserver((mutations) => {
       if (isApplyingRef.current) return;
-      let hasChanges = false;
       for (const m of mutations) {
-        if (m.type === 'characterData' || (m.type === 'childList' && m.addedNodes.length > 0)) {
-          hasChanges = true;
-          break;
+        if (m.type === 'characterData') {
+          pendingRoots.add(m.target);
+        } else if (m.type === 'childList' && m.addedNodes.length > 0) {
+          for (let i = 0; i < m.addedNodes.length; i++) {
+            pendingRoots.add(m.addedNodes[i]);
+          }
         }
       }
-      if (hasChanges) {
-        scheduleFullPass();
+      if (pendingRoots.size > 0) {
+        schedulePass();
       }
     });
 
@@ -158,6 +211,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
     return () => {
       observer.disconnect();
+      pendingRoots.clear();
       if (rafId !== null) window.cancelAnimationFrame(rafId);
     };
   }, [lang]);

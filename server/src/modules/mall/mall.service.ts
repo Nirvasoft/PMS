@@ -496,7 +496,7 @@ class MallService {
     await prisma.$transaction([
       // A unit moved from another floor must leave its old tiles
       ...(uniqueUnitIds.length
-        ? [prisma.mallFloorPlanItem.deleteMany({ where: { unitId: { in: uniqueUnitIds } } })]
+        ? [prisma.mallFloorPlanItem.deleteMany({ where: { companyId, propertyId, unitId: { in: uniqueUnitIds } } })]
         : []),
       prisma.mallFloorPlanItem.deleteMany({ where: { companyId, propertyId, floorKey } }),
       ...(items.length

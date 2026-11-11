@@ -101,6 +101,63 @@ function getBlueprintStorageKey(floorName: string): string {
   return `pms_floor_blueprint_v1_${floorName.trim().toLowerCase()}`;
 }
 
+const BP_IDB_NAME = 'pms_floor_blueprints_db';
+const BP_IDB_STORE = 'blueprints';
+
+function openBlueprintIdb(): Promise<IDBDatabase | null> {
+  if (typeof window === 'undefined' || !window.indexedDB) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    try {
+      const req = window.indexedDB.open(BP_IDB_NAME, 1);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(BP_IDB_STORE)) {
+          db.createObjectStore(BP_IDB_STORE);
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+async function readBlueprintFromIdb(key: string): Promise<string | null> {
+  const db = await openBlueprintIdb();
+  if (!db) return null;
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(BP_IDB_STORE, 'readonly');
+      const req = tx.objectStore(BP_IDB_STORE).get(key);
+      req.onsuccess = () => resolve(typeof req.result === 'string' ? req.result : null);
+      req.onerror = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+async function writeBlueprintToIdb(key: string, value: string | null): Promise<void> {
+  const db = await openBlueprintIdb();
+  if (!db) return;
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(BP_IDB_STORE, 'readwrite');
+      const store = tx.objectStore(BP_IDB_STORE);
+      if (value === null) {
+        store.delete(key);
+      } else {
+        store.put(value, key);
+      }
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => resolve();
+    } catch {
+      resolve();
+    }
+  });
+}
+
 function compressBlueprintImageToDataUrl(file: File): Promise<{ dataUrl: string; aspectRatio: number }> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -1862,53 +1919,80 @@ export default function ShopMapView({
       setAdjustingBlueprint(false);
       return;
     }
-    try {
-      const raw = window.localStorage.getItem(getBlueprintStorageKey(floor));
+    let cancelled = false;
+    const key = getBlueprintStorageKey(floor);
+
+    const applyRawBlueprint = (raw: string | null) => {
+      if (cancelled) return;
       if (!raw) {
         setBlueprint(null);
         editOriginBlueprintRef.current = null;
-        setAdjustingBlueprint(false);
         return;
       }
-      const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed.dataUrl === 'string' && parsed.dataUrl.length > 0) {
-        const refCellPx = Math.max(5, cellPx);
-        const savedGridCols = typeof parsed.gridCols === 'number' && parsed.gridCols > 0 ? parsed.gridCols : 60;
-        const colScale = DEFAULT_COLUMNS / savedGridCols;
-        const offsetX = typeof parsed.offsetX === 'number' ? parsed.offsetX : Math.round(EDIT_LEFT_PAD * refCellPx);
-        const offsetY = typeof parsed.offsetY === 'number' ? parsed.offsetY : Math.round(2 * refCellPx);
-        const offsetCellX =
-          typeof parsed.offsetCellX === 'number'
-            ? Math.round(parsed.offsetCellX * colScale * 100) / 100
-            : Math.round((offsetX / refCellPx) * 100) / 100;
-        const offsetCellY =
-          typeof parsed.offsetCellY === 'number'
-            ? Math.round(parsed.offsetCellY * colScale * 100) / 100
-            : Math.round((offsetY / refCellPx) * 100) / 100;
-        const loadedBp: BlueprintOverlayConfig = {
-          dataUrl: parsed.dataUrl,
-          visible: parsed.visible !== false,
-          opacity: typeof parsed.opacity === 'number' ? Math.min(95, Math.max(10, parsed.opacity)) : 15,
-          scale: typeof parsed.scale === 'number' ? Math.min(250, Math.max(25, parsed.scale)) : 100,
-          offsetX: Math.round(offsetCellX * refCellPx),
-          offsetY: Math.round(offsetCellY * refCellPx),
-          offsetCellX,
-          offsetCellY,
-          gridCols: DEFAULT_COLUMNS,
-          aspectRatio: typeof parsed.aspectRatio === 'number' && parsed.aspectRatio > 0 ? parsed.aspectRatio : undefined,
-          rotation: typeof parsed.rotation === 'number' ? ((parsed.rotation % 360) + 360) % 360 : 0,
-        };
-        setBlueprint(loadedBp);
-        editOriginBlueprintRef.current = loadedBp;
-      } else {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed.dataUrl === 'string' && parsed.dataUrl.length > 0) {
+          const refCellPx = Math.max(5, cellPx);
+          const savedGridCols = typeof parsed.gridCols === 'number' && parsed.gridCols > 0 ? parsed.gridCols : 60;
+          const colScale = DEFAULT_COLUMNS / savedGridCols;
+          const offsetX = typeof parsed.offsetX === 'number' ? parsed.offsetX : Math.round(EDIT_LEFT_PAD * refCellPx);
+          const offsetY = typeof parsed.offsetY === 'number' ? parsed.offsetY : Math.round(2 * refCellPx);
+          const offsetCellX =
+            typeof parsed.offsetCellX === 'number'
+              ? Math.round(parsed.offsetCellX * colScale * 100) / 100
+              : Math.round((offsetX / refCellPx) * 100) / 100;
+          const offsetCellY =
+            typeof parsed.offsetCellY === 'number'
+              ? Math.round(parsed.offsetCellY * colScale * 100) / 100
+              : Math.round((offsetY / refCellPx) * 100) / 100;
+          const loadedBp: BlueprintOverlayConfig = {
+            dataUrl: parsed.dataUrl,
+            visible: parsed.visible !== false,
+            opacity: typeof parsed.opacity === 'number' ? Math.min(95, Math.max(10, parsed.opacity)) : 15,
+            scale: typeof parsed.scale === 'number' ? Math.min(250, Math.max(25, parsed.scale)) : 100,
+            offsetX: Math.round(offsetCellX * refCellPx),
+            offsetY: Math.round(offsetCellY * refCellPx),
+            offsetCellX,
+            offsetCellY,
+            gridCols: DEFAULT_COLUMNS,
+            aspectRatio: typeof parsed.aspectRatio === 'number' && parsed.aspectRatio > 0 ? parsed.aspectRatio : undefined,
+            rotation: typeof parsed.rotation === 'number' ? ((parsed.rotation % 360) + 360) % 360 : 0,
+          };
+          setBlueprint(loadedBp);
+          editOriginBlueprintRef.current = loadedBp;
+        } else {
+          setBlueprint(null);
+          editOriginBlueprintRef.current = null;
+        }
+      } catch {
         setBlueprint(null);
         editOriginBlueprintRef.current = null;
       }
+    };
+
+    try {
+      const localRaw = window.localStorage.getItem(key);
+      if (localRaw) {
+        applyRawBlueprint(localRaw);
+        void writeBlueprintToIdb(key, localRaw);
+      } else {
+        setBlueprint(null);
+        editOriginBlueprintRef.current = null;
+        void readBlueprintFromIdb(key).then((idbRaw) => {
+          if (idbRaw && !cancelled) {
+            applyRawBlueprint(idbRaw);
+          }
+        });
+      }
     } catch {
-      setBlueprint(null);
-      editOriginBlueprintRef.current = null;
+      void readBlueprintFromIdb(key).then((idbRaw) => {
+        if (!cancelled) applyRawBlueprint(idbRaw);
+      });
     }
     setAdjustingBlueprint(false);
+    return () => {
+      cancelled = true;
+    };
   }, [floor]);
 
   useEffect(() => {
@@ -1923,15 +2007,17 @@ export default function ShopMapView({
       setDirty(true);
     }
     if (!floor || typeof window === 'undefined') return;
+    const key = getBlueprintStorageKey(floor);
+    const serialized = next ? JSON.stringify({ ...next, gridCols: DEFAULT_COLUMNS }) : null;
+    void writeBlueprintToIdb(key, serialized);
     try {
-      const key = getBlueprintStorageKey(floor);
-      if (!next) {
+      if (!serialized) {
         window.localStorage.removeItem(key);
       } else {
-        window.localStorage.setItem(key, JSON.stringify({ ...next, gridCols: DEFAULT_COLUMNS }));
+        window.localStorage.setItem(key, serialized);
       }
     } catch {
-      // Ignore storage quota errors; keep in-memory state active for the session
+      // If localStorage hits 5MB quota, IndexedDB still persists the blueprint reliably
     }
   };
 
@@ -1943,10 +2029,13 @@ export default function ShopMapView({
       if (!prev) return null;
       const next: BlueprintOverlayConfig = { ...prev, ...patch, gridCols: DEFAULT_COLUMNS };
       if (floor && typeof window !== 'undefined') {
+        const key = getBlueprintStorageKey(floor);
+        const serialized = JSON.stringify(next);
+        void writeBlueprintToIdb(key, serialized);
         try {
-          window.localStorage.setItem(getBlueprintStorageKey(floor), JSON.stringify(next));
+          window.localStorage.setItem(key, serialized);
         } catch {
-          // Ignore quota error
+          // If localStorage hits 5MB quota, IndexedDB still persists the blueprint reliably
         }
       }
       return next;

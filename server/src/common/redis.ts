@@ -7,8 +7,27 @@ import { logger } from './logger';
 // that mimics the ioredis API surface used in this project.
 // This is suitable for single-instance deployments.
 
+const MAX_STORE_ENTRIES = 5000;
+
 class MemoryStore {
   private store = new Map<string, { value: string; expiresAt: number | null }>();
+
+  constructor() {
+    // Periodically purge expired keys every 60 seconds so long-running processes do not leak memory
+    const timer = setInterval(() => this.purgeExpired(), 60_000);
+    if (typeof timer.unref === 'function') {
+      timer.unref();
+    }
+  }
+
+  private purgeExpired(): void {
+    const now = Date.now();
+    for (const [key, entry] of this.store.entries()) {
+      if (entry.expiresAt && now > entry.expiresAt) {
+        this.store.delete(key);
+      }
+    }
+  }
 
   private isExpired(key: string): boolean {
     const entry = this.store.get(key);
@@ -29,6 +48,15 @@ class MemoryStore {
   async set(key: string, value: string, mode?: string, ttl?: number): Promise<'OK'> {
     const prefixedKey = `${config.redis.prefix}${key}`;
     const expiresAt = mode === 'EX' && ttl ? Date.now() + ttl * 1000 : null;
+    if (!this.store.has(prefixedKey) && this.store.size >= MAX_STORE_ENTRIES) {
+      this.purgeExpired();
+      if (this.store.size >= MAX_STORE_ENTRIES) {
+        const oldestKey = this.store.keys().next().value;
+        if (oldestKey !== undefined) {
+          this.store.delete(oldestKey);
+        }
+      }
+    }
     this.store.set(prefixedKey, { value, expiresAt });
     return 'OK';
   }
@@ -116,7 +144,25 @@ export async function cacheGetOrSet<T>(
 export async function invalidateCacheByPrefix(prefix: string): Promise<void> {
   try {
     const redisPrefix = config.redis.prefix || '';
-    const matchedKeys = await redis.keys(`${redisPrefix}${prefix}*`);
+    const matchPattern = `${redisPrefix}${prefix}*`;
+    let matchedKeys: string[] = [];
+
+    if (useRedis && typeof (redis as Redis).scanStream === 'function') {
+      matchedKeys = await new Promise<string[]>((resolve, reject) => {
+        const found: string[] = [];
+        const stream = (redis as Redis).scanStream({ match: matchPattern, count: 100 });
+        stream.on('data', (keys: string[]) => {
+          if (Array.isArray(keys) && keys.length > 0) {
+            found.push(...keys);
+          }
+        });
+        stream.on('end', () => resolve(found));
+        stream.on('error', (err) => reject(err));
+      });
+    } else {
+      matchedKeys = await redis.keys(matchPattern);
+    }
+
     if (matchedKeys.length === 0) return;
     const strippedKeys = matchedKeys.map((k) =>
       redisPrefix && k.startsWith(redisPrefix) ? k.slice(redisPrefix.length) : k,

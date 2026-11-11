@@ -111,8 +111,15 @@ async function bootstrap() {
   app.use(cookieParser());
   app.use(requestContextMiddleware);
 
-  // Serve static files BEFORE auth middleware (public access) with browser caching
-  const staticCacheOpts = { maxAge: '7d', etag: true, lastModified: true };
+  // Serve static files BEFORE auth middleware (public access) with browser caching & nosniff security header
+  const staticCacheOpts = {
+    maxAge: '7d',
+    etag: true,
+    lastModified: true,
+    setHeaders: (res: express.Response) => {
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+    },
+  };
   app.use('/uploads', express.static(path.join(process.cwd(), 'uploads'), staticCacheOpts));
   app.use('/api/v1/uploads', express.static(path.join(process.cwd(), 'uploads'), staticCacheOpts));
   app.use('/seed-photos', express.static(path.join(process.cwd(), 'public/seed-photos'), staticCacheOpts));

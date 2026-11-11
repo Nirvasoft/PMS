@@ -82,42 +82,49 @@ export class ReceiptsService {
     // A Cash receipt is never tied to a tenant / invoice.
     if (isCash) dto = { ...dto, tenantId: null };
 
-    // Auto-allocate if no manual allocations provided
-    if (!isCash && allocations.length === 0 && dto.tenantId) {
-      const outstanding = await prisma.invoice.findMany({
-        where: {
-          companyId,
-          tenantId: ((dto.tenantId as string) || null) as any,
-          invoiceType: 'invoice',
-          status: { in: ['issued', 'sent', 'partially_paid', 'overdue'] },
-        },
-        select: { id: true, totalAmount: true, paidAmount: true },
-        orderBy: { dueDate: 'asc' },
-      });
-
-      let remaining = amount;
-      const autoAllocs: Array<{ invoiceId: string; amount: number }> = [];
-      for (const inv of outstanding) {
-        if (remaining <= 0.01) break;
-        const owed = Number(inv.totalAmount) - Number(inv.paidAmount);
-        if (owed <= 0) continue;
-        const allocAmt = Math.min(remaining, owed);
-        autoAllocs.push({ invoiceId: inv.id, amount: Math.round(allocAmt * 100) / 100 });
-        remaining -= allocAmt;
-      }
-      allocations = autoAllocs;
-    }
-
-    // Validate allocations don't exceed receipt amount
-    const totalAllocated = allocations.reduce((s, a) => s + a.amount, 0);
-    if (totalAllocated > amount + 0.01) {
+    // Validate manual allocations don't exceed receipt amount
+    const manualAllocated = allocations.reduce((s, a) => s + a.amount, 0);
+    if (manualAllocated > amount + 0.01) {
       throw AppError.validation('Total allocations exceed receipt amount');
     }
 
     const receiptNumber = (dto.receiptNumber as string) || (await this.generateReceiptNumber(companyId, dto.propertyId as string | undefined));
 
-    // Create receipt in transaction
+    // Create receipt in transaction (auto-allocation runs inside tx to prevent race conditions)
     const receipt = await prisma.$transaction(async (tx) => {
+      let txAllocations = allocations;
+
+      // Auto-allocate if no manual allocations provided
+      if (!isCash && txAllocations.length === 0 && dto.tenantId) {
+        const outstanding = await tx.invoice.findMany({
+          where: {
+            companyId,
+            tenantId: ((dto.tenantId as string) || null) as any,
+            invoiceType: 'invoice',
+            status: { in: ['issued', 'sent', 'partially_paid', 'overdue'] },
+          },
+          select: { id: true, totalAmount: true, paidAmount: true },
+          orderBy: { dueDate: 'asc' },
+        });
+
+        let remaining = amount;
+        const autoAllocs: Array<{ invoiceId: string; amount: number }> = [];
+        for (const inv of outstanding) {
+          if (remaining <= 0.01) break;
+          const owed = Number(inv.totalAmount) - Number(inv.paidAmount);
+          if (owed <= 0) continue;
+          const allocAmt = Math.min(remaining, owed);
+          autoAllocs.push({ invoiceId: inv.id, amount: Math.round(allocAmt * 100) / 100 });
+          remaining -= allocAmt;
+        }
+        txAllocations = autoAllocs;
+      }
+
+      const totalAllocated = txAllocations.reduce((s, a) => s + a.amount, 0);
+      if (totalAllocated > amount + 0.01) {
+        throw AppError.validation('Total allocations exceed receipt amount');
+      }
+
       const rct = await tx.receipt.create({
         data: {
           companyId,
@@ -143,7 +150,7 @@ export class ReceiptsService {
       });
 
       // Apply allocations
-      for (const alloc of allocations) {
+      for (const alloc of txAllocations) {
         // The user entered/allocated this amount in the receipt's own currency — convert
         // it into the invoice's currency before it touches paidAmount, so a payment in a
         // different currency doesn't get added to the balance 1:1.
@@ -157,8 +164,8 @@ export class ReceiptsService {
         });
 
         // Update invoice paidAmount and status
-        const newPaidAmount = Number(invoice.paidAmount) + convertedAmount;
-        const newStatus = newPaidAmount >= Number(invoice.totalAmount) ? 'paid'
+        const newPaidAmount = Math.round((Number(invoice.paidAmount) + convertedAmount) * 100) / 100;
+        const newStatus = newPaidAmount >= Number(invoice.totalAmount) - 0.005 ? 'paid'
           : newPaidAmount > 0 ? 'partially_paid'
           : invoice.status;
 

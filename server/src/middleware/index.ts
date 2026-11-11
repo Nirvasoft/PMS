@@ -152,7 +152,9 @@ export function errorHandler(err: Error, _req: Request, res: Response, _next: Ne
         statusCode = 404;
         break;
       default:
-        message = (err as any).message ?? 'Database error';
+        message = process.env.NODE_ENV === 'production'
+          ? 'A database error occurred'
+          : ((err as any).message ?? 'Database error');
         statusCode = 500;
     }
 
@@ -166,9 +168,12 @@ export function errorHandler(err: Error, _req: Request, res: Response, _next: Ne
 
   // Unexpected errors
   console.error('Unhandled error:', err);
+  const safeInternalMessage = process.env.NODE_ENV === 'production'
+    ? 'An unexpected internal error occurred'
+    : ((err as any).message || 'An unexpected error occurred');
   res.status(500).json({
     success: false,
-    errors: [{ code: 'INTERNAL_ERROR', message: (err as any).message || 'An unexpected error occurred' }],
+    errors: [{ code: 'INTERNAL_ERROR', message: safeInternalMessage }],
   });
 }
 
