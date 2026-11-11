@@ -131,6 +131,7 @@ export default function InvoiceListPage() {
       prevPropertyFilterRef.current = activePropertyFilter;
       setCurrencyFilter('');
       setPage(1);
+      setSelectedIds(new Set());
     }
   }, [activePropertyFilter]);
 
@@ -153,6 +154,7 @@ export default function InvoiceListPage() {
     const t = setTimeout(() => {
       setDebouncedSearch(search);
       setPage(1);
+      setSelectedIds(new Set());
     }, 300);
     return () => clearTimeout(t);
   }, [search]);
@@ -192,6 +194,26 @@ export default function InvoiceListPage() {
     includeLines: false,
     page, limit: pageSize,
   });
+
+  // Fetch all "issued" invoices across all pages matching current filters so "Select All"
+  // and Bulk / V6 ERP actions operate across all pages rather than only the current page.
+  const { data: allIssuedData, refetch: refetchAllIssued } = useGetInvoicesQuery(
+    {
+      propertyId: activePropertyFilter || undefined,
+      status: 'issued',
+      currency: activeCurrency,
+      billType: billType || undefined,
+      from: fromDate || undefined,
+      to: toDate || undefined,
+      search: debouncedSearch || undefined,
+      sortBy,
+      sortOrder: 'desc',
+      includeLines: false,
+      all: true,
+    },
+    { skip: Boolean(status && status !== 'issued') },
+  );
+
   const [runBilling, { isLoading: runningBilling }] = useRunBillingMutation();
   const [voidInvoice] = useVoidInvoiceMutation();
   const [sendInvoice] = useSendInvoiceMutation();
@@ -202,6 +224,10 @@ export default function InvoiceListPage() {
 
   const invoices = data?.data || [];
   const meta = data?.meta;
+  const allIssuedInvoices = useMemo(
+    () => (status && status !== 'issued' ? [] : (allIssuedData?.data || [])),
+    [allIssuedData, status],
+  );
 
   // V6 ERP result modal state
   const [v6ErpResult, setV6ErpResult] = useState<null | {
@@ -246,7 +272,7 @@ export default function InvoiceListPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [invoices, meta, currencyRates, baseCurrencyCode, displayCurrencyCode]);
 
-  // ── Selection Helpers ──────────────────────
+  // ── Selection Helpers (Issued Invoices Across All Pages) ───────────────────
   const toggleSelect = useCallback((id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setSelectedIds(prev => {
@@ -257,25 +283,30 @@ export default function InvoiceListPage() {
   }, []);
 
   const toggleSelectAll = useCallback(() => {
-    if (selectedIds.size === invoices.length) {
+    if (allIssuedInvoices.length === 0) return;
+    if (allIssuedInvoices.every(inv => selectedIds.has(inv.id))) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(invoices.map(i => i.id)));
+      setSelectedIds(new Set(allIssuedInvoices.map(i => i.id)));
     }
-  }, [invoices, selectedIds.size]);
+  }, [allIssuedInvoices, selectedIds]);
 
   const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
 
-  const selectedInvoices = useMemo(
-    () => invoices.filter(inv => selectedIds.has(inv.id)),
-    [invoices, selectedIds],
-  );
+  const selectedInvoices = useMemo(() => {
+    const byId = new Map<string, typeof invoices[number]>();
+    for (const inv of allIssuedInvoices) byId.set(inv.id, inv);
+    for (const inv of invoices) {
+      if (inv.status === 'issued') byId.set(inv.id, inv);
+    }
+    return Array.from(byId.values()).filter(inv => selectedIds.has(inv.id));
+  }, [allIssuedInvoices, invoices, selectedIds]);
 
   // ── Bulk Actions ───────────────────────────
   const handleBulkSend = async () => {
-    const sendable = selectedInvoices.filter(inv => ['draft', 'issued'].includes(inv.status));
-    if (sendable.length === 0) return toast.error('No sendable invoices selected (must be draft or issued)');
-    if (!(await confirmDialog(`Send ${sendable.length} invoice(s) to tenants via email?`))) return;
+    const sendable = selectedInvoices.filter(inv => inv.status === 'issued');
+    if (sendable.length === 0) return toast.error('No issued invoices selected');
+    if (!(await confirmDialog(`Send ${sendable.length} issued invoice(s) to tenants via email?`))) return;
 
     setBulkProcessing(true);
     let success = 0, failed = 0;
@@ -285,13 +316,15 @@ export default function InvoiceListPage() {
     }
     setBulkProcessing(false);
     clearSelection();
+    refetch();
+    refetchAllIssued();
     toast.success(`Sent ${success} invoice(s)${failed > 0 ? `, ${failed} failed` : ''}`);
   };
 
   const handleBulkVoid = async () => {
-    const voidable = selectedInvoices.filter(inv => ['draft', 'issued', 'sent'].includes(inv.status));
-    if (voidable.length === 0) return toast.error('No voidable invoices selected (must be draft, issued, or sent)');
-    const reason = prompt(`Void ${voidable.length} invoice(s)? Enter reason:`);
+    const voidable = selectedInvoices.filter(inv => inv.status === 'issued');
+    if (voidable.length === 0) return toast.error('No issued invoices selected');
+    const reason = prompt(`Void ${voidable.length} issued invoice(s)? Enter reason:`);
     if (!reason) return;
 
     setBulkProcessing(true);
@@ -302,6 +335,8 @@ export default function InvoiceListPage() {
     }
     setBulkProcessing(false);
     clearSelection();
+    refetch();
+    refetchAllIssued();
     toast.success(`Voided ${success} invoice(s)${failed > 0 ? `, ${failed} failed` : ''}`);
   };
 
@@ -330,6 +365,7 @@ export default function InvoiceListPage() {
         toast.error(`${result.data.errors.length} errors occurred during billing run`);
       }
       setRunBillingModalOpen(false);
+      refetchAllIssued();
     } catch (err: any) {
       toast.error(err?.data?.errors?.[0]?.message || 'Failed to run billing');
     }
@@ -337,19 +373,25 @@ export default function InvoiceListPage() {
 
   // ── V6 ERP Handlers ────────────────────────────────────────────────────────
 
-  /** Send ALL issued invoices to V6 ERP (header button) */
+  /** Send issued invoices across all pages (or currently selected issued invoices) to V6 ERP (header button) */
   const handleSendAllToV6Erp = async () => {
-    const issuedCount = invoices.filter(i => i.status === 'issued').length;
+    const targetIssued = selectedInvoices.length > 0 ? selectedInvoices : allIssuedInvoices;
+    const issuedCount = targetIssued.length;
     if (issuedCount === 0) {
-      return toast.error('No "issued" invoices on this page. Filter by Status = Issued first.');
+      return toast.error('No "issued" invoices found to send.');
     }
     if (!(await confirmDialog(
       `Send ${issuedCount} issued invoice(s) to V6 ERP?\n\nOnly invoices with status "issued" will be sent. Status will change to "sent" upon completion.`,
     ))) return;
     try {
-      const result = await pushInvoicesToV6Erp({ propertyId: activePropertyFilter || undefined }).unwrap();
+      const result = await pushInvoicesToV6Erp({
+        invoiceIds: targetIssued.map(i => i.id),
+        propertyId: activePropertyFilter || undefined,
+      }).unwrap();
       setV6ErpResult(result.data);
+      clearSelection();
       refetch();
+      refetchAllIssued();
       if (result.data.sent > 0) toast.success(`${result.data.sent} invoice(s) sent to V6 ERP (status changed to sent).`);
       if (result.data.failed > 0) toast.error(`${result.data.failed} invoice(s) failed.`);
     } catch (err: any) {
@@ -376,6 +418,7 @@ export default function InvoiceListPage() {
       setV6ErpResult(result.data);
       clearSelection();
       refetch();
+      refetchAllIssued();
       if (result.data.sent > 0) toast.success(`${result.data.sent} invoice(s) sent to V6 ERP (status changed to sent).`);
       if (result.data.failed > 0) toast.error(`${result.data.failed} invoice(s) failed.`);
     } catch (err: any) {
@@ -383,8 +426,8 @@ export default function InvoiceListPage() {
     }
   };
 
-  const allSelected = invoices.length > 0 && selectedIds.size === invoices.length;
-  const someSelected = selectedIds.size > 0;
+  const allSelected = allIssuedInvoices.length > 0 && allIssuedInvoices.every(inv => selectedIds.has(inv.id));
+  const someSelected = selectedInvoices.length > 0;
 
   return (
     <div className="billing-page">
@@ -622,9 +665,14 @@ export default function InvoiceListPage() {
                   type="checkbox"
                   className="inv-checkbox"
                   checked={allSelected}
+                  disabled={allIssuedInvoices.length === 0}
                   ref={el => { if (el) el.indeterminate = someSelected && !allSelected; }}
                   onChange={toggleSelectAll}
-                  title="Select all"
+                  title={
+                    allIssuedInvoices.length > 0
+                      ? `Select all ${allIssuedInvoices.length} issued invoice(s) across all pages`
+                      : 'No issued invoices available to select'
+                  }
                 />
               </th>
               <th style={{ width: 140 }}>Invoice #</th>
@@ -650,7 +698,8 @@ export default function InvoiceListPage() {
               invoices.map(inv => {
                 const paidNum = Number(inv.paidAmount);
                 const totalNum = Number(inv.totalAmount);
-                const isSelected = selectedIds.has(inv.id);
+                const isIssued = inv.status === 'issued';
+                const isSelected = isIssued && selectedIds.has(inv.id);
                 const displayTotal = inv.tenant?.currency && inv.tenant.currency !== inv.currency
                   ? convertCurrency(totalNum, inv.currency, inv.tenant.currency)
                   : totalNum;
@@ -668,8 +717,10 @@ export default function InvoiceListPage() {
                         type="checkbox"
                         className="inv-checkbox"
                         checked={isSelected}
+                        disabled={!isIssued}
                         onChange={() => {}}
-                        onClick={(e) => toggleSelect(inv.id, e)}
+                        onClick={(e) => { if (isIssued) toggleSelect(inv.id, e); }}
+                        title={isIssued ? 'Select issued invoice' : 'Only issued invoices can be selected'}
                       />
                     </td>
                     <td>
@@ -771,8 +822,8 @@ export default function InvoiceListPage() {
       {someSelected && (
         <div className="bulk-actions-bar">
           <div className="bulk-info">
-            <span className="bulk-count">{selectedIds.size}</span>
-            <span>invoice{selectedIds.size !== 1 ? 's' : ''} selected</span>
+            <span className="bulk-count">{selectedInvoices.length}</span>
+            <span>issued invoice{selectedInvoices.length !== 1 ? 's' : ''} selected</span>
           </div>
           <div className="bulk-btns">
             <PermissionGuard permission="billing-invoices.write">
