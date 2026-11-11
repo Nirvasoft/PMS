@@ -21,7 +21,8 @@ const STAGE_META: Record<string, { label: string; color: string }> = {
   lease_signed:       { label: 'Lease Signed',      color: '#10b981' },
 };
 
-const leadDisplayName = (lead: LeadListItem) => lead.lastName || lead.companyName || 'Unknown';
+const leadDisplayName = (lead: LeadListItem) =>
+  [lead.firstName, lead.lastName].filter(Boolean).join(' ').trim() || lead.companyName || 'Unknown';
 
 export default function LeadPipelinePage() {
   const navigate = useNavigate();

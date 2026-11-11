@@ -97,7 +97,7 @@ export default function LeadDetailPage() {
   if (isLoading) return <div className="lead-detail-page"><div className="table-loading"><div className="lp" /><div className="lp" /></div></div>;
   if (!lead) return <div className="lead-detail-page"><p>Lead not found</p></div>;
 
-  const displayName = lead.companyName || `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || 'Unknown Lead';
+  const displayName = [lead.firstName, lead.lastName].filter(Boolean).join(' ').trim() || lead.companyName || 'Unknown Lead';
   const stageMeta = STAGE_META[lead.stage] || { label: lead.stage, color: '#666' };
   const convertDisabled = ['new', 'contacted', 'lost', 'duplicate', 'lease_signed'].includes(lead.stage) || lead.isBlacklisted;
 
@@ -329,10 +329,13 @@ function InfoTab({ lead, leadId }: { lead: any; leadId: string }) {
   const users = usersData?.data || [];
   const unitTypes = unitTypesData?.data || [];
 
+  const fullName = [lead.firstName, lead.lastName].filter(Boolean).join(' ').trim();
+  const displayPhone = lead.phone || lead.mobile || '';
+
   const initForm = () => ({
-    lastName: lead.lastName || '',
+    lastName: fullName,
     email: (lead.email || '').toLowerCase(),
-    phone: lead.phone || '',
+    phone: displayPhone,
     address: lead.loiDetails?.address || '',
     unitTypePreference: lead.unitTypePreference || '',
     budgetMin: lead.budgetMin ? Number(lead.budgetMin) : '',
@@ -368,10 +371,13 @@ function InfoTab({ lead, leadId }: { lead: any; leadId: string }) {
     }
     try {
       const payload: Record<string, unknown> = {};
-      if (form.lastName !== (lead.lastName || ''))     payload.lastName = form.lastName || null;
+      if (form.lastName.trim() !== fullName) {
+        payload.lastName = form.lastName.trim() || null;
+        if (lead.firstName) payload.firstName = null;
+      }
       const normalizedEmail = form.email.trim().toLowerCase();
       if (normalizedEmail !== (lead.email || '').toLowerCase()) payload.email = normalizedEmail || null;
-      if (form.phone !== (lead.phone || ''))            payload.phone = form.phone || null;
+      if (form.phone !== displayPhone)                  payload.phone = form.phone || null;
       if (form.unitTypePreference !== (lead.unitTypePreference || '')) payload.unitTypePreference = form.unitTypePreference || null;
 
       const loiDetails: Record<string, unknown> = {};
@@ -427,9 +433,9 @@ function InfoTab({ lead, leadId }: { lead: any; leadId: string }) {
         <div className="lead-info-grid">
           <div className="lead-info-section">
             <h3>Contact Information</h3>
-            <div className="info-row"><span className="info-label">Name</span><span className="info-value">{lead.lastName || '—'}</span></div>
+            <div className="info-row"><span className="info-label">Name</span><span className="info-value">{fullName || '—'}</span></div>
             <div className="info-row"><span className="info-label">Email</span><span className="info-value">{lead.email?.toLowerCase() || '—'}</span></div>
-            <div className="info-row"><span className="info-label">Phone</span><span className="info-value">{lead.phone || '—'}</span></div>
+            <div className="info-row"><span className="info-label">Phone</span><span className="info-value">{displayPhone || '—'}</span></div>
             <div className="info-row"><span className="info-label">Address</span><span className="info-value">{lead.loiDetails?.address || '—'}</span></div>
           </div>
           <div className="lead-info-section">

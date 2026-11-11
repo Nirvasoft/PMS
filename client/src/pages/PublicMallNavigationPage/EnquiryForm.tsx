@@ -23,15 +23,27 @@ export default function EnquiryForm({ propertyId, propertyName, unit }: Props) {
   const [businessType, setBusinessType] = useState('');
   const [message, setMessage] = useState(() => buildEnquiryMessage(propertyName, unit));
   const [honeypot, setHoneypot] = useState('');
+  const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
   const [sent, setSent] = useState(false);
 
+  const nameInvalid = submitted && !name.trim();
+  const phoneInvalid = submitted && !phone.trim() && !email.trim();
+  const emailInvalid = submitted && Boolean(email.trim()) && !EMAIL_RE.test(email.trim());
+
   const submit = async (e: FormEvent) => {
     e.preventDefault();
+    setSubmitted(true);
     setError('');
-    if (!name.trim()) return setError('Please enter your name.');
-    if (!phone.trim() && !email.trim()) return setError('Please enter a phone number or an email.');
-    if (email.trim() && !EMAIL_RE.test(email.trim())) return setError('Please enter a valid email.');
+    const missingName = !name.trim();
+    const missingContact = !phone.trim() && !email.trim();
+    const badEmail = Boolean(email.trim()) && !EMAIL_RE.test(email.trim());
+    if (missingName || missingContact || badEmail) {
+      if (missingName) setError('Please enter your name.');
+      else if (missingContact) setError('Please enter a phone number or an email.');
+      else setError('Please enter a valid email.');
+      return;
+    }
     try {
       await createEnquiry({
         propertyId,
@@ -69,29 +81,41 @@ export default function EnquiryForm({ propertyId, propertyName, unit }: Props) {
   return (
     <form className="public-enquiry-form" onSubmit={submit} noValidate>
       <input
-        className="public-enquiry-input"
+        className={`public-enquiry-input${nameInvalid ? ' input-error' : ''}`}
         placeholder="Your name *"
         value={name}
-        onChange={(e) => setName(e.target.value)}
+        onChange={(e) => {
+          setName(e.target.value);
+          if (error) setError('');
+        }}
+        aria-invalid={nameInvalid}
         maxLength={120}
         autoComplete="name"
       />
       <div className="public-enquiry-row">
         <input
-          className="public-enquiry-input"
+          className={`public-enquiry-input${phoneInvalid ? ' input-error' : ''}`}
           placeholder="Phone *"
           type="tel"
           value={phone}
-          onChange={(e) => setPhone(e.target.value)}
+          onChange={(e) => {
+            setPhone(e.target.value);
+            if (error) setError('');
+          }}
+          aria-invalid={phoneInvalid}
           maxLength={40}
           autoComplete="tel"
         />
         <input
-          className="public-enquiry-input"
+          className={`public-enquiry-input${emailInvalid ? ' input-error' : ''}`}
           placeholder="Email"
           type="email"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            if (error) setError('');
+          }}
+          aria-invalid={emailInvalid}
           maxLength={255}
           autoComplete="email"
         />

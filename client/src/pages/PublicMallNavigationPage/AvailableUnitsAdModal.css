@@ -284,6 +284,13 @@
   font-family: inherit;
 }
 .public-enquiry-input:focus { outline: none; border-color: #059669; box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.18); }
+.public-enquiry-input.input-error,
+.public-enquiry-input.input-error:focus {
+  border: 1.5px solid #ef4444 !important;
+  border-color: #ef4444 !important;
+  background: #fef2f2 !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.14) !important;
+}
 textarea.public-enquiry-input { resize: vertical; min-height: 64px; }
 .public-enquiry-trap { position: absolute; left: -10000px; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .public-enquiry-error { font-size: 0.78rem; font-weight: 600; color: #dc2626; }

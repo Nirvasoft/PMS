@@ -36,7 +36,7 @@ function reloadOnceOnStaleChunk(error: unknown): boolean {
 
 if (typeof window !== 'undefined') {
   window.addEventListener('vite:preloadError', (event) => {
-    if (reloadOnceOnStaleChunk((event as CustomEvent).payload ?? new Error('fetch dynamically imported module'))) {
+    if (reloadOnceOnStaleChunk(event.payload ?? new Error('fetch dynamically imported module'))) {
       event.preventDefault();
     }
   });

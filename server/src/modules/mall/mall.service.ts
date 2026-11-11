@@ -2114,7 +2114,7 @@ class MallService {
       return { received: true };
     }
 
-    const [firstName, ...rest] = dto.name.trim().split(/\s+/);
+    const fullName = dto.name.trim();
     const notes = [
       dto.message?.trim(),
       unitText ? `Enquiry about ${unitText} at ${property.name}.` : null,
@@ -2127,10 +2127,10 @@ class MallService {
       companyId,
       {
         propertyId,
-        firstName,
-        lastName: rest.join(' ') || undefined,
+        lastName: fullName,
         companyName: dto.companyName || undefined,
         email,
+        phone,
         mobile: phone,
         unitTypePreference: dto.businessType || undefined,
         minAreaSqft: unit?.areaSqft ?? undefined,
