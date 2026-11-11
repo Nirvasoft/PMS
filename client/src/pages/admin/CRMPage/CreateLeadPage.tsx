@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { format } from 'date-fns';
 import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
+import './CRMPage.css';
 import './CreateLeadPage.css';
 
 export default function CreateLeadPage() {

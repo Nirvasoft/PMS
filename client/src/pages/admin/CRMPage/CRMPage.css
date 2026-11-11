@@ -1274,9 +1274,14 @@ select.camp-input option {
   border-top-color: #e2e8f0;
 }
 .camp-form-modal .btn-primary,
-.campaigns-page .btn-primary {
+.campaigns-page .btn-primary,
+.crm-pipeline-page .btn-primary,
+.lead-detail-page .btn-primary,
+.create-lead-page .btn-primary,
+.crm-modal .btn-primary {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   padding: 9px 18px;
   background: var(--gradient-primary);
@@ -1285,15 +1290,119 @@ select.camp-input option {
   border-radius: 9px;
   font-size: 0.84rem;
   font-weight: 600;
+  font-family: inherit;
+  white-space: nowrap;
   cursor: pointer;
   box-shadow: 0 2px 8px var(--accent-glow);
   transition: all 0.15s ease;
 }
 .camp-form-modal .btn-primary:hover:not(:disabled),
-.campaigns-page .btn-primary:hover:not(:disabled) {
+.campaigns-page .btn-primary:hover:not(:disabled),
+.crm-pipeline-page .btn-primary:hover:not(:disabled),
+.lead-detail-page .btn-primary:hover:not(:disabled),
+.create-lead-page .btn-primary:hover:not(:disabled),
+.crm-modal .btn-primary:hover:not(:disabled) {
   background: var(--gradient-accent);
   box-shadow: 0 4px 14px var(--accent-glow);
   transform: translateY(-1px);
+}
+.camp-form-modal .btn-primary:disabled,
+.campaigns-page .btn-primary:disabled,
+.crm-pipeline-page .btn-primary:disabled,
+.lead-detail-page .btn-primary:disabled,
+.create-lead-page .btn-primary:disabled,
+.crm-modal .btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Secondary (Cancel / List) buttons used across the CRM pages */
+.camp-form-modal .btn-secondary,
+.campaigns-page .btn-secondary,
+.crm-pipeline-page .btn-secondary,
+.lead-detail-page .btn-secondary,
+.create-lead-page .btn-secondary,
+.crm-modal .btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 18px;
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  font-family: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.camp-form-modal .btn-secondary:hover:not(:disabled),
+.campaigns-page .btn-secondary:hover:not(:disabled),
+.crm-pipeline-page .btn-secondary:hover:not(:disabled),
+.lead-detail-page .btn-secondary:hover:not(:disabled),
+.create-lead-page .btn-secondary:hover:not(:disabled),
+.crm-modal .btn-secondary:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+.camp-form-modal .btn-secondary:disabled,
+.campaigns-page .btn-secondary:disabled,
+.crm-pipeline-page .btn-secondary:disabled,
+.lead-detail-page .btn-secondary:disabled,
+.create-lead-page .btn-secondary:disabled,
+.crm-modal .btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Compact variant (visit action buttons etc.) */
+.lead-detail-page .btn-sm.btn-primary,
+.lead-detail-page .btn-sm.btn-secondary,
+.crm-modal .btn-sm.btn-primary,
+.crm-modal .btn-sm.btn-secondary {
+  padding: 5px 12px;
+  font-size: 0.76rem;
+  border-radius: 8px;
+}
+
+/* Loading skeleton + empty state (CRM-scoped; previously leaked in from the Leases / Tenants stylesheets) */
+.crm-pipeline-page .table-loading,
+.campaigns-page .table-loading,
+.lead-detail-page .table-loading {
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.crm-pipeline-page .table-loading .lp,
+.campaigns-page .table-loading .lp,
+.lead-detail-page .table-loading .lp {
+  height: 40px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  animation: crmSkeletonPulse 1.4s ease infinite;
+}
+@keyframes crmSkeletonPulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+.crm-pipeline-page .table-empty,
+.campaigns-page .table-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 60px 20px;
+  color: var(--text-muted);
+  text-align: center;
+}
+.crm-pipeline-page .table-empty p,
+.campaigns-page .table-empty p {
+  margin: 0;
+  font-size: 0.9rem;
 }
 
 @keyframes slideUp {
