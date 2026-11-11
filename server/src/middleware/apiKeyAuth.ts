@@ -148,7 +148,7 @@ export function apiKeyAuth(...requiredScopes: string[]) {
 }
 
 // Cleanup stale rate limit entries every 5 minutes
-setInterval(() => {
+const rateLimitCleanupTimer = setInterval(() => {
   const now = Date.now();
   for (const [key, tracker] of rateLimitMap) {
     if (now - tracker.windowStart > 120_000) {
@@ -156,3 +156,5 @@ setInterval(() => {
     }
   }
 }, 5 * 60_000);
+// Do not keep the process alive just for this housekeeping timer
+rateLimitCleanupTimer.unref();
