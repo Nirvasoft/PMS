@@ -726,8 +726,84 @@ export function isTrapezoidUnitMode(
   return Boolean(mode && mode !== 'rect' && mode !== 'circle' && VALID_UNIT_SHAPE_MODES.has(mode));
 }
 
+function sanitizeNormPolygon(
+  rawPts: ReadonlyArray<{ x: number; y: number }>,
+): ReadonlyArray<{ x: number; y: number }> {
+  if (rawPts.length < 3) return rawPts;
+
+  // 1. Remove consecutive near-duplicate vertices
+  let pts: Array<{ x: number; y: number }> = [];
+  for (let i = 0; i < rawPts.length; i++) {
+    const p = rawPts[i];
+    const prev = pts.length > 0 ? pts[pts.length - 1] : rawPts[rawPts.length - 1];
+    if (Math.hypot(p.x - prev.x, p.y - prev.y) >= 0.002) {
+      pts.push(p);
+    }
+  }
+  if (pts.length < 3) return rawPts;
+
+  // 2. Prune accidental ultra-thin needle spikes (1-vertex A->B->C or 2-vertex sliver A->B1->B2->C)
+  // left behind when dragging adjacent edges in CustomShapeEditor
+  let changed = true;
+  let guard = 0;
+  while (changed && pts.length > 4 && guard < 8) {
+    changed = false;
+    guard++;
+    for (let i = 0; i < pts.length; i++) {
+      const n = pts.length;
+      if (n <= 4) break;
+      const pA = pts[(i - 1 + n) % n];
+      const pB = pts[i];
+      const pC = pts[(i + 1) % n];
+      const baseAC = Math.hypot(pC.x - pA.x, pC.y - pA.y);
+      const legAB = Math.hypot(pB.x - pA.x, pB.y - pA.y);
+      const legBC = Math.hypot(pC.x - pB.x, pC.y - pB.y);
+      if (baseAC <= 0.065 && Math.min(legAB, legBC) > Math.max(0.04, baseAC * 1.6)) {
+        pts.splice(i, 1);
+        changed = true;
+        break;
+      }
+      if (n > 5) {
+        const pB2 = pts[(i + 1) % n];
+        const pD = pts[(i + 2) % n];
+        const baseAD = Math.hypot(pD.x - pA.x, pD.y - pA.y);
+        const tipSpan = Math.hypot(pB2.x - pB.x, pB2.y - pB.y);
+        const leg1 = Math.hypot(pB.x - pA.x, pB.y - pA.y);
+        const leg2 = Math.hypot(pD.x - pB2.x, pD.y - pB2.y);
+        if (
+          baseAD <= 0.065 &&
+          tipSpan <= 0.065 &&
+          Math.min(leg1, leg2) > Math.max(0.04, Math.max(baseAD, tipSpan) * 1.6)
+        ) {
+          if (i + 1 < n) {
+            pts.splice(i, 2);
+          } else {
+            pts.splice(i, 1);
+            pts.splice(0, 1);
+          }
+          changed = true;
+          break;
+        }
+      }
+    }
+  }
+
+  // 3. Enforce clockwise winding in screen coordinates (x right, y down => signedArea > 0)
+  let signedArea2 = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i];
+    const b = pts[(i + 1) % pts.length];
+    signedArea2 += a.x * b.y - b.x * a.y;
+  }
+  if (signedArea2 < -1e-6) {
+    pts = [...pts].reverse();
+  }
+
+  return pts;
+}
+
 function buildPolygonUnitGeometryFromNormPoints(
-  normPts: ReadonlyArray<{ x: number; y: number }>,
+  rawNormPts: ReadonlyArray<{ x: number; y: number }>,
   wPx: number,
   hPx: number,
   cellPx: number,
@@ -745,6 +821,7 @@ function buildPolygonUnitGeometryFromNormPoints(
   labelOffsetYPx?: number,
   facingEdge?: 'top' | 'right' | 'bottom' | 'left',
 ): TrapezoidUnitGeometry {
+  const normPts = sanitizeNormPolygon(rawNormPts);
   const rimParts: string[] = [];
   const lipRightParts: string[] = [];
   const lipBottomParts: string[] = [];
@@ -7606,6 +7683,103 @@ interface UnitMergeData extends EdgeMergeGeometry {
   groupBounds: { minX: number; minY: number; spanW: number; spanH: number };
 }
 
+interface TileFlushEdgeIntervals {
+  top: Array<[number, number]>;
+  right: Array<[number, number]>;
+  bottom: Array<[number, number]>;
+  left: Array<[number, number]>;
+}
+
+function getUnitFlushEdgeIntervals(
+  tile: MapItem,
+  allItems: ReadonlyArray<MapItem>,
+): TileFlushEdgeIntervals {
+  const mode = parseUnitShapeMode(tile);
+  if (!isTrapezoidUnitMode(mode)) {
+    return {
+      top: [[0, tile.w]],
+      right: [[0, tile.h]],
+      bottom: [[0, tile.w]],
+      left: [[0, tile.h]],
+    };
+  }
+  const geo = getTrapezoidUnitGeometry(mode, 100, 100, 20, null, tile, allItems);
+  const pts = geo.fillPoints
+    .trim()
+    .split(/\s+/)
+    .map((pair) => {
+      const [xs, ys] = pair.split(',');
+      return { x: Number(xs) / 100, y: Number(ys) / 100 };
+    })
+    .filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y));
+
+  if (pts.length < 3) {
+    return {
+      top: [[0, tile.w]],
+      right: [[0, tile.h]],
+      bottom: [[0, tile.w]],
+      left: [[0, tile.h]],
+    };
+  }
+
+  const top: Array<[number, number]> = [];
+  const right: Array<[number, number]> = [];
+  const bottom: Array<[number, number]> = [];
+  const left: Array<[number, number]> = [];
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i];
+    const b = pts[(i + 1) % pts.length];
+    if (a.y <= 0.006 && b.y <= 0.006) {
+      const u1 = Math.min(a.x, b.x) * tile.w;
+      const u2 = Math.max(a.x, b.x) * tile.w;
+      if (u2 - u1 > 0.02) top.push([u1, u2]);
+    }
+    if (a.x >= 0.994 && b.x >= 0.994) {
+      const v1 = Math.min(a.y, b.y) * tile.h;
+      const v2 = Math.max(a.y, b.y) * tile.h;
+      if (v2 - v1 > 0.02) right.push([v1, v2]);
+    }
+    if (a.y >= 0.994 && b.y >= 0.994) {
+      const u1 = Math.min(a.x, b.x) * tile.w;
+      const u2 = Math.max(a.x, b.x) * tile.w;
+      if (u2 - u1 > 0.02) bottom.push([u1, u2]);
+    }
+    if (a.x <= 0.006 && b.x <= 0.006) {
+      const v1 = Math.min(a.y, b.y) * tile.h;
+      const v2 = Math.max(a.y, b.y) * tile.h;
+      if (v2 - v1 > 0.02) left.push([v1, v2]);
+    }
+  }
+  return { top, right, bottom, left };
+}
+
+function intersectEdgeHitWithFlush(
+  hit: [number, number] | null,
+  ownFlush: ReadonlyArray<[number, number]>,
+  otherFlush: ReadonlyArray<[number, number]>,
+  ownOrigin: number,
+  otherOrigin: number,
+): Array<[number, number]> {
+  if (!hit) return [];
+  const [h1, h2] = hit;
+  const out: Array<[number, number]> = [];
+  for (const [a1, a2] of ownFlush) {
+    const s1 = Math.max(h1, a1);
+    const s2 = Math.min(h2, a2);
+    if (s2 - s1 <= 0.02) continue;
+    for (const [b1, b2] of otherFlush) {
+      const o1 = b1 + (otherOrigin - ownOrigin);
+      const o2 = b2 + (otherOrigin - ownOrigin);
+      const f1 = Math.max(s1, o1);
+      const f2 = Math.min(s2, o2);
+      if (f2 - f1 > 0.02) {
+        out.push([f1, f2]);
+      }
+    }
+  }
+  return out;
+}
+
 /**
  * Computes auto-merge seams, outer borders, gap bridges, primary label block, and union photo bounds
  * for any unit that consists of 2 or more grid blocks (`L`, `T`, `U`, or stepped shapes).
@@ -7623,7 +7797,11 @@ export function computeUnitMergeMap(items: MapItem[]): Map<string, UnitMergeData
   for (const group of byUnit.values()) {
     if (group.length < 2) continue;
     const adj = new Map<string, Set<string>>();
-    for (const b of group) adj.set(b.key, new Set());
+    const flushByKey = new Map<string, TileFlushEdgeIntervals>();
+    for (const b of group) {
+      adj.set(b.key, new Set());
+      flushByKey.set(b.key, getUnitFlushEdgeIntervals(b, items));
+    }
 
     const rawByKey = new Map<string, Omit<UnitMergeData, 'showLabel' | 'groupBounds'>>();
 
@@ -7637,35 +7815,50 @@ export function computeUnitMergeMap(items: MapItem[]): Map<string, UnitMergeData
       const bottomBridges: Array<[number, number]> = [];
       const leftBridges: Array<[number, number]> = [];
       const frame = getLocalTileFrame(it);
+      const itFlush = flushByKey.get(it.key)!;
 
       for (const o of group) {
         if (o.key === it.key) continue;
         const { tHit, rHit, bHit, lHit } = clipFrameEdges(frame, it.w, it.h, o);
+        const oFlush = flushByKey.get(o.key)!;
 
-        if (tHit || bHit || lHit || rHit) {
+        const tiltedPair = Boolean(it.angle || o.angle);
+        const canonicalOwner = it.key < o.key;
+        const tClips = tiltedPair
+          ? tHit ? [tHit] : []
+          : intersectEdgeHitWithFlush(tHit, itFlush.top, oFlush.bottom, it.x, o.x);
+        const bClips = tiltedPair
+          ? bHit ? [bHit] : []
+          : intersectEdgeHitWithFlush(bHit, itFlush.bottom, oFlush.top, it.x, o.x);
+        const lClips = tiltedPair
+          ? lHit ? [lHit] : []
+          : intersectEdgeHitWithFlush(lHit, itFlush.left, oFlush.right, it.y, o.y);
+        const rClips = tiltedPair
+          ? rHit ? [rHit] : []
+          : intersectEdgeHitWithFlush(rHit, itFlush.right, oFlush.left, it.y, o.y);
+
+        if (tClips.length > 0 || bClips.length > 0 || lClips.length > 0 || rClips.length > 0) {
           adj.get(it.key)!.add(o.key);
           adj.get(o.key)!.add(it.key);
         }
 
-        const tiltedPair = Boolean(it.angle || o.angle);
-        const canonicalOwner = it.key < o.key;
-        if (tHit) {
-          topTouched.push(tHit);
-          if (tiltedPair && canonicalOwner) topBridges.push(tHit);
+        for (const clip of tClips) {
+          topTouched.push(clip);
+          if (tiltedPair && canonicalOwner) topBridges.push(clip);
         }
-        if (bHit) {
-          bottomTouched.push(bHit);
+        for (const clip of bClips) {
+          bottomTouched.push(clip);
           const ownsBottom = !tiltedPair ? (o.y !== it.y ? o.y > it.y : canonicalOwner) : canonicalOwner;
-          if (ownsBottom) bottomBridges.push(bHit);
+          if (ownsBottom) bottomBridges.push(clip);
         }
-        if (lHit) {
-          leftTouched.push(lHit);
-          if (tiltedPair && canonicalOwner) leftBridges.push(lHit);
+        for (const clip of lClips) {
+          leftTouched.push(clip);
+          if (tiltedPair && canonicalOwner) leftBridges.push(clip);
         }
-        if (rHit) {
-          rightTouched.push(rHit);
+        for (const clip of rClips) {
+          rightTouched.push(clip);
           const ownsRight = !tiltedPair ? (o.x !== it.x ? o.x > it.x : canonicalOwner) : canonicalOwner;
-          if (ownsRight) rightBridges.push(rHit);
+          if (ownsRight) rightBridges.push(clip);
         }
       }
 

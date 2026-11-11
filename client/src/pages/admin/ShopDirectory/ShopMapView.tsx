@@ -1189,6 +1189,16 @@ function MergedTileBorderSvg({
       ))}
       {merge.bottomSegs.map(([u1, u2], idx) => (
         <line
+          key={`be-${idx}`}
+          x1={u1 <= 0.02 && merge.leftMerged ? -1.5 : u1 * cellPx}
+          y1={hPx - 1.5}
+          x2={u2 >= wU - 0.02 && merge.rightMerged ? wPx + 1.5 : u2 * cellPx}
+          y2={hPx - 1.5}
+          className="lm-border-extrude-b"
+        />
+      ))}
+      {merge.bottomSegs.map(([u1, u2], idx) => (
+        <line
           key={`b-${idx}`}
           x1={u1 <= 0.02 && merge.leftMerged ? -1.5 : u1 * cellPx}
           y1={hPx - 1.5}
@@ -1218,6 +1228,7 @@ function TrapezoidUnitSvg({
       viewBox={`0 0 ${wPx} ${hPx}`}
       preserveAspectRatio="none"
     >
+      {trap.lipBottomPath && <path d={trap.lipBottomPath} className="lm-border-extrude-b" fill="none" />}
       {showFill && <polygon points={trap.fillPoints} className="shop-map-trapezoid-fill" />}
       {trap.rimPath && <path d={trap.rimPath} className="lm-border-rim" fill="none" />}
       {trap.lipRightPath && <path d={trap.lipRightPath} className="lm-border-lip-r" fill="none" />}
@@ -2257,6 +2268,16 @@ export default function ShopMapView({
       describeTile,
     );
   }, [editing, activeStartItem, effectiveTargetItem, displayItems, displayColumns, effectiveSqftPerCell, shopByUnit]);
+
+  const [focusedRouteStepIdx, setFocusedRouteStepIdx] = useState<number | null>(null);
+  useEffect(() => {
+    setFocusedRouteStepIdx(null);
+  }, [floor, activeStartItem?.key, effectiveTargetItem?.key]);
+
+  const focusedRouteStep =
+    !editing && focusedRouteStepIdx !== null && walkwayRoute?.steps[focusedRouteStepIdx]
+      ? walkwayRoute.steps[focusedRouteStepIdx]
+      : null;
 
   const routeRenderData = useMemo(() => {
     if (!walkwayRoute || walkwayRoute.points.length < 2) return null;
@@ -4174,18 +4195,49 @@ export default function ShopMapView({
                     </span>
                     {walkwayRoute.steps.length > 0 && (
                       <div className="shop-map-turn-steps">
-                        {walkwayRoute.steps.map((st, idx) => (
-                          <span key={`step-${idx}`} className={`shop-map-turn-pill dir-${st.direction}`}>
-                            {st.direction === 'left' ? (
-                              <CornerUpLeft size={11} />
-                            ) : st.direction === 'right' ? (
-                              <CornerUpRight size={11} />
-                            ) : (
-                              <MoveUp size={11} />
-                            )}
-                            <span>{st.instruction}</span>
-                          </span>
-                        ))}
+                        {walkwayRoute.steps.map((st, idx) => {
+                          const isStepFocused = focusedRouteStepIdx === idx;
+                          const isClickableStep = Boolean(st.nearTileKey || st.point);
+                          return (
+                            <button
+                              key={`step-${idx}`}
+                              type="button"
+                              className={`shop-map-turn-pill dir-${st.direction}${isStepFocused ? ' is-active' : ''}${isClickableStep ? ' is-clickable' : ''}`}
+                              title={
+                                st.nearLabel
+                                  ? `Click to locate ${st.nearLabel} on the map`
+                                  : 'Click to show turn point on the map'
+                              }
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const nextIdx = focusedRouteStepIdx === idx ? null : idx;
+                                setFocusedRouteStepIdx(nextIdx);
+                                if (nextIdx !== null && st.nearTileKey && containerRef.current) {
+                                  const wrapEl = containerRef.current as unknown as HTMLElement;
+                                  const tileEl = wrapEl.querySelector<HTMLElement>(
+                                    `[data-tile-key="${st.nearTileKey}"]`,
+                                  );
+                                  tileEl?.scrollIntoView({
+                                    behavior: 'smooth',
+                                    block: 'center',
+                                    inline: 'center',
+                                  });
+                                }
+                              }}
+                            >
+                              {st.direction === 'left' ? (
+                                <CornerUpLeft size={11} />
+                              ) : st.direction === 'right' ? (
+                                <CornerUpRight size={11} />
+                              ) : st.direction === 'arrive' ? (
+                                <MapPin size={11} />
+                              ) : (
+                                <MoveUp size={11} />
+                              )}
+                              <span>{st.instruction}</span>
+                            </button>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -4849,6 +4901,12 @@ export default function ShopMapView({
                           (Boolean(it.unitId) && it.unitId === activeStartItem.unitId)),
                     );
                     const isAmenityHighlighted = Boolean(!editing && decor && highlightedAmenityKinds.includes(it.kind));
+                    const isWaypointFocused = Boolean(
+                      !editing &&
+                        focusedRouteStep &&
+                        (focusedRouteStep.nearTileKey === it.key ||
+                          (Boolean(focusedRouteStep.nearUnitId) && it.unitId === focusedRouteStep.nearUnitId)),
+                    );
                     const isUnitHovered = Boolean(!editing && it.unitId && hoveredUnitId === it.unitId);
                     const dim = Boolean(
                       !editing &&
@@ -5040,7 +5098,7 @@ export default function ShopMapView({
                         data-tile-key={it.key}
                         title={title}
                         style={gridItemCssVars}
-                        className={`shop-map-grid-item ${it.kind === 'atrium' ? 'is-atrium-item' : ''} ${isTransitLandmark(it.kind) ? 'is-transit-item' : ''} ${hasInnerItems ? 'has-inner-items' : ''} ${isLayerFocused ? 'is-layer-focused' : ''} ${isGroupSelected ? 'is-group-selected' : ''} ${overlapKeys.has(it.key) ? 'is-overlap-warning' : ''} ${newlyPlacedKey === it.key ? 'is-newly-placed' : ''} ${effectiveAngle ? 'is-rotated-item' : ''} ${isRotatingThisTile ? 'is-rotating-item' : ''} ${editing ? 'editing' : ''} ${isTarget ? 'active-target' : ''} ${isStart ? 'active-start' : ''} ${isAmenityHighlighted ? 'is-amenity-highlighted' : ''}`}
+                        className={`shop-map-grid-item ${it.kind === 'atrium' ? 'is-atrium-item' : ''} ${isTransitLandmark(it.kind) ? 'is-transit-item' : ''} ${hasInnerItems ? 'has-inner-items' : ''} ${isLayerFocused ? 'is-layer-focused' : ''} ${isGroupSelected ? 'is-group-selected' : ''} ${overlapKeys.has(it.key) ? 'is-overlap-warning' : ''} ${newlyPlacedKey === it.key ? 'is-newly-placed' : ''} ${effectiveAngle ? 'is-rotated-item' : ''} ${isRotatingThisTile ? 'is-rotating-item' : ''} ${editing ? 'editing' : ''} ${isTarget ? 'active-target' : ''} ${isStart ? 'active-start' : ''} ${isWaypointFocused ? 'is-waypoint-focused' : ''} ${isAmenityHighlighted ? 'is-amenity-highlighted' : ''}`}
                         onMouseEnter={() => {
                           if (!editing && it.unitId) setHoveredUnitId(it.unitId);
                         }}
@@ -5092,7 +5150,7 @@ export default function ShopMapView({
                       >
                         <div
                           style={tileStyle}
-                          className={`shop-map-tile ${decor ? `st-decor st-decor-${it.kind} ${lmMeta ? `st-variant-${lmMeta.variant}` : ''}` : `${statusClass(shop)} ${unitMergeClasses} ${!it.unitId ? 'is-empty-shape' : ''}`} ${isCircleShape ? 'is-circle-tile' : ''} ${polyAtriumGeo ? 'is-polygon-atrium' : ''} ${trapezoidGeo ? 'is-trapezoid-tile' : ''} ${isEmergencyLandmark ? 'is-emergency-landmark' : ''} ${isUnitHovered ? 'is-unit-hovered' : ''} ${highlightAvailable && !decor && statusNote?.kind === 'available' ? 'is-available-highlight' : ''} ${highlightAvailable && !(!decor && statusNote?.kind === 'available') ? 'is-available-dim' : ''} ${hasUnitPhoto ? 'has-unit-photo' : ''} ${isVerticalTile ? 'is-vertical-tile' : ''} ${editing ? 'editing' : ''} ${dim ? 'dim' : ''} ${isSearchMatch ? 'search-match' : ''} ${tiny ? 'tiny' : ''} ${isTarget ? 'active-target' : ''} ${isStart ? 'active-start' : ''} ${isAmenityHighlighted ? 'is-amenity-highlighted' : ''}`}
+                          className={`shop-map-tile ${decor ? `st-decor st-decor-${it.kind} ${lmMeta ? `st-variant-${lmMeta.variant}` : ''}` : `${statusClass(shop)} ${unitMergeClasses} ${!it.unitId ? 'is-empty-shape' : ''}`} ${isCircleShape ? 'is-circle-tile' : ''} ${polyAtriumGeo ? 'is-polygon-atrium' : ''} ${trapezoidGeo ? 'is-trapezoid-tile' : ''} ${isEmergencyLandmark ? 'is-emergency-landmark' : ''} ${isUnitHovered ? 'is-unit-hovered' : ''} ${highlightAvailable && !decor && statusNote?.kind === 'available' ? 'is-available-highlight' : ''} ${highlightAvailable && !(!decor && statusNote?.kind === 'available') ? 'is-available-dim' : ''} ${hasUnitPhoto ? 'has-unit-photo' : ''} ${isVerticalTile ? 'is-vertical-tile' : ''} ${editing ? 'editing' : ''} ${dim ? 'dim' : ''} ${isSearchMatch ? 'search-match' : ''} ${tiny ? 'tiny' : ''} ${isTarget ? 'active-target' : ''} ${isStart ? 'active-start' : ''} ${isWaypointFocused ? 'is-waypoint-focused' : ''} ${isAmenityHighlighted ? 'is-amenity-highlighted' : ''}`}
                         >
                         {decor ? (
                           <>
@@ -5131,7 +5189,7 @@ export default function ShopMapView({
                           <>
                             {um?.hasMerge ? (
                               <div className="shop-map-unit-box">
-                                {um.topBridges.map(([u1, u2], idx) => (
+                                {!trapezoidGeo && um.topBridges.map(([u1, u2], idx) => (
                                   <span
                                     key={`utb-${idx}`}
                                     className="shop-map-unit-bridge"
@@ -5143,7 +5201,7 @@ export default function ShopMapView({
                                     }}
                                   />
                                 ))}
-                                {um.bottomBridges.map(([u1, u2], idx) => (
+                                {!trapezoidGeo && um.bottomBridges.map(([u1, u2], idx) => (
                                   <span
                                     key={`ubb-${idx}`}
                                     className="shop-map-unit-bridge"
@@ -5155,7 +5213,7 @@ export default function ShopMapView({
                                     }}
                                   />
                                 ))}
-                                {um.leftBridges.map(([v1, v2], idx) => (
+                                {!trapezoidGeo && um.leftBridges.map(([v1, v2], idx) => (
                                   <span
                                     key={`ulb-${idx}`}
                                     className="shop-map-unit-bridge"
@@ -5167,7 +5225,7 @@ export default function ShopMapView({
                                     }}
                                   />
                                 ))}
-                                {um.rightBridges.map(([v1, v2], idx) => (
+                                {!trapezoidGeo && um.rightBridges.map(([v1, v2], idx) => (
                                   <span
                                     key={`urb-${idx}`}
                                     className="shop-map-unit-bridge"
@@ -5183,10 +5241,10 @@ export default function ShopMapView({
                                   <div
                                     className="shop-map-tile-photo-clip"
                                     style={{
-                                      top: um.topMerged && um.topSegs.length === 0 ? -1 : 0,
-                                      right: um.rightMerged && um.rightSegs.length === 0 ? -1 : 0,
-                                      bottom: um.bottomMerged && um.bottomSegs.length === 0 ? -1 : 0,
-                                      left: um.leftMerged && um.leftSegs.length === 0 ? -1 : 0,
+                                      top: !trapezoidGeo && um.topMerged && um.topSegs.length === 0 ? -1 : 0,
+                                      right: !trapezoidGeo && um.rightMerged && um.rightSegs.length === 0 ? -1 : 0,
+                                      bottom: !trapezoidGeo && um.bottomMerged && um.bottomSegs.length === 0 ? -1 : 0,
+                                      left: !trapezoidGeo && um.leftMerged && um.leftSegs.length === 0 ? -1 : 0,
                                       ...(trapezoidGeo ? { clipPath: trapezoidGeo.clipPath } : {}),
                                     }}
                                   >
@@ -5316,6 +5374,16 @@ export default function ShopMapView({
                           </>
                         )}
                         </div>
+                        {isWaypointFocused && showUnitLabel && (
+                          <div className="shop-map-waypoint-callout">
+                            <MapPin size={11} />
+                            <span>{focusedRouteStep?.nearLabel || tileDisplayLabel}</span>
+                            {unitNumberLabel &&
+                              (focusedRouteStep?.nearLabel || tileDisplayLabel) !== unitNumberLabel && (
+                                <span className="shop-map-waypoint-callout-unit">({unitNumberLabel})</span>
+                              )}
+                          </div>
+                        )}
                         {editing && (
                           <div
                             className="shop-map-tile-actions"
@@ -5522,6 +5590,22 @@ export default function ShopMapView({
                       ))}
                       <circle cx={startPt.x} cy={startPt.y} r={8} className="shop-map-nav-pulse start" />
                       <circle cx={startPt.x} cy={startPt.y} r={4.5} className="shop-map-connector-dot start" />
+                      {focusedRouteStep?.point && (
+                        <g className="shop-map-nav-waypoint-group">
+                          <circle
+                            cx={focusedRouteStep.point.x * colStepPx}
+                            cy={focusedRouteStep.point.y * rowStepPx}
+                            r={10}
+                            className="shop-map-nav-pulse waypoint"
+                          />
+                          <circle
+                            cx={focusedRouteStep.point.x * colStepPx}
+                            cy={focusedRouteStep.point.y * rowStepPx}
+                            r={5}
+                            className="shop-map-connector-dot waypoint"
+                          />
+                        </g>
+                      )}
                       <g
                         className="shop-map-nav-end-group"
                         style={{ '--end-delay': `${(drawDurationSec * 0.95).toFixed(2)}s` } as CSSProperties}

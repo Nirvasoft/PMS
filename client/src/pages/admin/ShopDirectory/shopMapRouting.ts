@@ -58,6 +58,10 @@ export interface WalkwayRouteStep {
   instruction: string;
   distanceMeters: number;
   direction: 'start' | 'straight' | 'left' | 'right' | 'arrive';
+  nearTileKey?: string;
+  nearUnitId?: string | null;
+  nearLabel?: string;
+  point?: { x: number; y: number };
 }
 
 export interface WalkwayRouteResult {
@@ -1177,12 +1181,12 @@ export function computeWalkwayPath(
     return DECORATION_LABELS[it.kind as Exclude<TileKind, 'unit'>] || 'Shop';
   };
 
-  const findNearbyWaypointName = (
+  const findNearbyWaypoint = (
     samplePts: ReadonlyArray<{ x: number; y: number }>,
     usedNames: Set<string>,
     allowReuseForTurn = false,
-  ): string | null => {
-    let bestName: string | null = null;
+  ): { name: string; key: string; unitId?: string | null } | null => {
+    let best: { name: string; key: string; unitId?: string | null } | null = null;
     let bestScore = Infinity;
     for (const it of items) {
       if (it.key === fromItem.key || it.key === toItem.key) continue;
@@ -1204,10 +1208,10 @@ export function computeWalkwayPath(
       const score = minDist - (isLandmark ? 0.9 : 0) + (usedNames.has(name) ? 1.5 : 0);
       if (score < bestScore) {
         bestScore = score;
-        bestName = name;
+        best = { name, key: it.key, unitId: it.unitId ?? null };
       }
     }
-    return bestName;
+    return best;
   };
 
   const steps: WalkwayRouteStep[] = [];
@@ -1256,28 +1260,36 @@ export function computeWalkwayPath(
       const segMeters = Math.max(1, Math.round(seg.cells * cellSideFeet * 0.3048));
 
       if (seg.dir === 'straight') {
-        const nearName = findNearbyWaypointName([firstPt, midPt, lastPt], usedNames, false);
-        if (nearName) {
-          usedNames.add(nearName);
+        const near = findNearbyWaypoint([firstPt, midPt, lastPt], usedNames, false);
+        if (near) {
+          usedNames.add(near.name);
           steps.push({
-            instruction: `Pass by ${nearName}`,
+            instruction: `Pass by ${near.name}`,
             distanceMeters: segMeters,
             direction: 'straight',
+            nearTileKey: near.key,
+            nearUnitId: near.unitId ?? null,
+            nearLabel: near.name,
+            point: midPt,
           });
         }
       } else {
         const dirText = seg.dir === 'left' ? 'Turn left' : 'Turn right';
-        const turnNear = findNearbyWaypointName([firstPt, midPt], usedNames, true);
+        const turnNear = findNearbyWaypoint([firstPt, midPt], usedNames, true);
         if (turnNear) {
-          usedNames.add(turnNear);
+          usedNames.add(turnNear.name);
         }
-        const instruction = turnNear ? `${dirText} near ${turnNear}` : dirText;
+        const instruction = turnNear ? `${dirText} near ${turnNear.name}` : dirText;
         const prevStep = steps[steps.length - 1];
         if (!prevStep || prevStep.instruction !== instruction) {
           steps.push({
             instruction,
             distanceMeters: segMeters,
             direction: seg.dir,
+            nearTileKey: turnNear?.key,
+            nearUnitId: turnNear?.unitId ?? null,
+            nearLabel: turnNear?.name,
+            point: firstPt,
           });
         }
       }
@@ -1286,7 +1298,11 @@ export function computeWalkwayPath(
     steps.push({
       instruction: `Arrive at ${destName}`,
       distanceMeters: 0,
-      direction: 'straight',
+      direction: 'arrive',
+      nearTileKey: toItem.key,
+      nearUnitId: toItem.unitId ?? null,
+      nearLabel: destName,
+      point: smoothedPoints[smoothedPoints.length - 1],
     });
   }
 

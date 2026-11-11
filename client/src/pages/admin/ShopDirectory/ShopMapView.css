@@ -452,9 +452,13 @@
   container-type: size;
   padding: 0;
   background: rgba(15, 23, 42, 0.78);
+  --glass-rim: rgba(255, 255, 255, 0.52);
+  --glass-lip: rgba(15, 23, 42, 0.85);
 }
 [data-theme="light"] .shop-map-tile.has-unit-photo {
   background: #f8fafc;
+  --glass-rim: rgba(100, 116, 139, 0.46);
+  --glass-lip: rgba(71, 85, 105, 0.65);
 }
 .shop-map-tile.has-unit-photo .shop-map-tile-name {
   display: none;
@@ -1517,10 +1521,14 @@
   fill: rgba(34, 197, 94, 0.28) !important;
 }
 
-.shop-map-view2 .shop-map-tile:is(.is-merged-unit, .is-trapezoid-tile, .is-polygon-atrium) :is(.shop-map-merged-border-svg, .shop-map-trapezoid-svg, .shop-map-atrium-poly-svg) {
+.shop-map-view2 .shop-map-tile.is-polygon-atrium .shop-map-atrium-poly-svg,
+.shop-map-view2 .shop-map-tile.is-trapezoid-tile:not(.has-unit-photo) .shop-map-trapezoid-svg,
+.shop-map-view2 .shop-map-tile.has-unit-photo.is-trapezoid-tile > .shop-map-unit-box {
   filter: drop-shadow(0 3px 6px rgba(2, 6, 23, 0.28));
 }
-[data-theme="light"] .shop-map-view2 .shop-map-tile:is(.is-merged-unit, .is-trapezoid-tile, .is-polygon-atrium) :is(.shop-map-merged-border-svg, .shop-map-trapezoid-svg, .shop-map-atrium-poly-svg) {
+[data-theme="light"] .shop-map-view2 .shop-map-tile.is-polygon-atrium .shop-map-atrium-poly-svg,
+[data-theme="light"] .shop-map-view2 .shop-map-tile.is-trapezoid-tile:not(.has-unit-photo) .shop-map-trapezoid-svg,
+[data-theme="light"] .shop-map-view2 .shop-map-tile.has-unit-photo.is-trapezoid-tile > .shop-map-unit-box {
   filter: drop-shadow(0 3px 6px rgba(15, 23, 42, 0.14));
 }
 .shop-map-tile:is(.is-merged-unit, .is-trapezoid-tile, .is-polygon-atrium).active-target :is(.shop-map-merged-border-svg, .shop-map-trapezoid-svg, .shop-map-atrium-poly-svg) {
@@ -1532,20 +1540,28 @@
 .shop-map-tile:is(.is-merged-unit, .is-trapezoid-tile, .is-polygon-atrium):is(.active-target, .active-start) :is(.shop-map-merged-border-svg, .shop-map-trapezoid-svg, .shop-map-atrium-poly-svg) :is(.lm-border-rim, .lm-border-lip-r, .lm-border-lip-b) {
   stroke-width: 2.5;
 }
+:is(.shop-map-merged-border-svg, .shop-map-trapezoid-svg, .shop-map-atrium-poly-svg) :is(.lm-border-rim, .lm-border-lip-r, .lm-border-lip-b, .lm-border-extrude-b) {
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+:is(.shop-map-merged-border-svg, .shop-map-trapezoid-svg, .shop-map-atrium-poly-svg) .lm-border-extrude-b {
+  display: none;
+}
 :is(.shop-map-merged-border-svg, .shop-map-trapezoid-svg, .shop-map-atrium-poly-svg) .lm-border-rim {
   stroke: var(--glass-rim, rgba(255, 255, 255, 0.42));
   stroke-width: 1;
-  vector-effect: non-scaling-stroke;
+}
+.shop-map-tile.has-unit-photo :is(.shop-map-merged-border-svg, .shop-map-trapezoid-svg) .lm-border-rim {
+  stroke-width: 1.5;
 }
 :is(.shop-map-merged-border-svg, .shop-map-trapezoid-svg, .shop-map-atrium-poly-svg) .lm-border-lip-r {
   stroke: var(--glass-lip, rgba(2, 6, 23, 0.55));
   stroke-width: 2;
-  vector-effect: non-scaling-stroke;
 }
 :is(.shop-map-merged-border-svg, .shop-map-trapezoid-svg, .shop-map-atrium-poly-svg) .lm-border-lip-b {
   stroke: var(--glass-lip, rgba(2, 6, 23, 0.68));
   stroke-width: 3;
-  vector-effect: non-scaling-stroke;
 }
 
 .shop-map-view2 .shop-map-landmarks-bar,
@@ -2871,20 +2887,25 @@
 }
 
 /* 1b. 3D Extrusion for Curved (ring-curve), Trapezoid, Slanted & Merged (L/T/U) Units in 2.5D */
-.shop-map.is-3d-pitch .shop-map-tile:is(.is-merged-unit, .is-trapezoid-tile) :is(.shop-map-merged-border-svg, .shop-map-trapezoid-svg) {
-  filter:
-    drop-shadow(0 1.5px 0 rgba(15, 23, 42, 0.88))
-    drop-shadow(0 3.5px 0 rgba(2, 6, 23, 0.76))
-    drop-shadow(0 8px 14px rgba(2, 6, 23, 0.38));
+.shop-map.is-3d-pitch .shop-map-tile.is-trapezoid-tile:not(.has-unit-photo) .shop-map-trapezoid-svg,
+.shop-map.is-3d-pitch .shop-map-tile.has-unit-photo.is-trapezoid-tile > .shop-map-unit-box {
+  filter: drop-shadow(0 6px 12px rgba(2, 6, 23, 0.34));
 }
-[data-theme="light"] .shop-map.is-3d-pitch .shop-map-tile:is(.is-merged-unit, .is-trapezoid-tile) :is(.shop-map-merged-border-svg, .shop-map-trapezoid-svg) {
-  filter:
-    drop-shadow(0 1.5px 0 rgba(100, 116, 139, 0.52))
-    drop-shadow(0 3.5px 0 rgba(71, 85, 105, 0.44))
-    drop-shadow(0 8px 14px rgba(15, 23, 42, 0.16));
+[data-theme="light"] .shop-map.is-3d-pitch .shop-map-tile.is-trapezoid-tile:not(.has-unit-photo) .shop-map-trapezoid-svg,
+[data-theme="light"] .shop-map.is-3d-pitch .shop-map-tile.has-unit-photo.is-trapezoid-tile > .shop-map-unit-box {
+  filter: drop-shadow(0 6px 12px rgba(15, 23, 42, 0.15));
+}
+.shop-map.is-3d-pitch .shop-map-tile:is(.is-merged-unit, .is-trapezoid-tile) :is(.shop-map-merged-border-svg, .shop-map-trapezoid-svg) .lm-border-extrude-b {
+  display: inline;
+  stroke: rgba(2, 6, 23, 0.82);
+  stroke-width: 3.5;
+  transform: translateY(2px);
+}
+[data-theme="light"] .shop-map.is-3d-pitch .shop-map-tile:is(.is-merged-unit, .is-trapezoid-tile) :is(.shop-map-merged-border-svg, .shop-map-trapezoid-svg) .lm-border-extrude-b {
+  stroke: rgba(71, 85, 105, 0.56);
 }
 .shop-map.is-3d-pitch .shop-map-tile:is(.is-merged-unit, .is-trapezoid-tile) :is(.shop-map-merged-border-svg, .shop-map-trapezoid-svg) .lm-border-lip-b {
-  stroke-width: 4;
+  stroke-width: 3.5;
 }
 .shop-map.is-3d-pitch .shop-map-tile:is(.is-merged-unit, .is-trapezoid-tile):not(.editing):hover,
 .shop-map.is-3d-pitch .shop-map-tile.is-unit-hovered:not(.editing) {
@@ -2948,19 +2969,19 @@
     0 0 14px rgba(34, 197, 94, 0.52),
     0 12px 22px rgba(2, 6, 23, 0.45) !important;
 }
+.shop-map.is-3d-pitch .shop-map-tile:is(.is-merged-unit, .is-trapezoid-tile).active-target :is(.shop-map-merged-border-svg, .shop-map-trapezoid-svg) .lm-border-extrude-b {
+  stroke: #047857;
+  stroke-width: 4;
+}
+.shop-map.is-3d-pitch .shop-map-tile:is(.is-merged-unit, .is-trapezoid-tile).active-start :is(.shop-map-merged-border-svg, .shop-map-trapezoid-svg) .lm-border-extrude-b {
+  stroke: #15803d;
+  stroke-width: 4;
+}
 .shop-map.is-3d-pitch .shop-map-tile:is(.is-merged-unit, .is-trapezoid-tile).active-target :is(.shop-map-merged-border-svg, .shop-map-trapezoid-svg) {
-  filter:
-    drop-shadow(0 2px 0 #059669)
-    drop-shadow(0 4.5px 0 #064e3b)
-    drop-shadow(0 0 10px rgba(16, 185, 129, 0.68))
-    drop-shadow(0 10px 18px rgba(2, 6, 23, 0.44)) !important;
+  filter: drop-shadow(0 0 8px rgba(16, 185, 129, 0.68)) !important;
 }
 .shop-map.is-3d-pitch .shop-map-tile:is(.is-merged-unit, .is-trapezoid-tile).active-start :is(.shop-map-merged-border-svg, .shop-map-trapezoid-svg) {
-  filter:
-    drop-shadow(0 2px 0 #16a34a)
-    drop-shadow(0 4.5px 0 #14532d)
-    drop-shadow(0 0 10px rgba(34, 197, 94, 0.65))
-    drop-shadow(0 10px 18px rgba(2, 6, 23, 0.44)) !important;
+  filter: drop-shadow(0 0 8px rgba(34, 197, 94, 0.65)) !important;
 }
 
 /* 4. Billboard Upright Counter-Tilt for Pins, Badges & Labels in 2.5D Mode */
@@ -3142,19 +3163,111 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 8px;
+  padding: 3px 9px;
   border-radius: 6px;
+  font-family: inherit;
   font-size: 0.7rem;
   font-weight: 600;
   background: rgba(148, 163, 184, 0.12);
   border: 1px solid rgba(148, 163, 184, 0.24);
   color: var(--text-secondary);
+  transition: all 0.16s ease;
+}
+.shop-map-turn-pill.is-clickable {
+  cursor: pointer;
+}
+.shop-map-turn-pill.is-clickable:hover {
+  transform: translateY(-1px);
+  border-color: rgba(245, 158, 11, 0.55);
+  background: rgba(245, 158, 11, 0.14);
+  color: var(--text-primary);
 }
 .shop-map-turn-pill.dir-left,
 .shop-map-turn-pill.dir-right {
   color: var(--text-primary);
   border-color: rgba(16, 185, 129, 0.35);
   background: rgba(16, 185, 129, 0.08);
+}
+.shop-map-turn-pill.is-active {
+  color: #fffbeb !important;
+  background: linear-gradient(135deg, #f59e0b, #d97706) !important;
+  border-color: #f59e0b !important;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.38);
+}
+[data-theme="light"] .shop-map-turn-pill.is-active {
+  color: #ffffff !important;
+}
+
+/* ── Focused Route Waypoint Tile & Floating Callout ("Turn left near GFL-OS9") ── */
+.shop-map-grid-item.is-waypoint-focused {
+  z-index: 11 !important;
+}
+.shop-map-tile.is-waypoint-focused:not(.is-merged-unit):not(.is-trapezoid-tile):not(.is-polygon-atrium) {
+  border-color: #f59e0b !important;
+  box-shadow:
+    0 0 0 2.5px #f59e0b,
+    0 0 14px rgba(245, 158, 11, 0.65),
+    0 6px 16px rgba(2, 6, 23, 0.35) !important;
+  transform: translateY(-3px);
+}
+.shop-map-tile.is-waypoint-focused:is(.is-merged-unit, .is-trapezoid-tile, .is-polygon-atrium) {
+  --glass-rim: #fbbf24 !important;
+  --glass-lip: #d97706 !important;
+  transform: translateY(-3px);
+}
+.shop-map-tile.is-waypoint-focused:is(.is-merged-unit, .is-trapezoid-tile, .is-polygon-atrium) :is(.shop-map-merged-border-svg, .shop-map-trapezoid-svg, .shop-map-atrium-poly-svg) :is(.lm-border-rim, .lm-border-lip-r, .lm-border-lip-b) {
+  stroke-width: 2.5;
+}
+.shop-map-tile.is-waypoint-focused:is(.is-merged-unit, .is-trapezoid-tile, .is-polygon-atrium) :is(.shop-map-merged-border-svg, .shop-map-trapezoid-svg, .shop-map-atrium-poly-svg) {
+  filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.72)) !important;
+}
+.shop-map-waypoint-callout {
+  position: absolute;
+  bottom: calc(100% + 5px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 15;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #ffffff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow:
+    0 4px 12px rgba(2, 6, 23, 0.42),
+    0 0 0 1.5px rgba(255, 255, 255, 0.85);
+  animation: shopMapWaypointBounce 1.4s ease-in-out infinite;
+}
+.shop-map-waypoint-callout::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 4px solid transparent;
+  border-top-color: #d97706;
+}
+.shop-map-waypoint-callout-unit {
+  opacity: 0.9;
+  font-weight: 600;
+}
+@keyframes shopMapWaypointBounce {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50% { transform: translateX(-50%) translateY(-3px); }
+}
+.shop-map-connector-dot.waypoint {
+  fill: #f59e0b;
+  stroke: #ffffff;
+  stroke-width: 1.8;
+}
+.shop-map-nav-pulse.waypoint {
+  stroke: #f59e0b;
+  stroke-width: 2.5;
 }
 
 /* ── Edit Mode Multi-Select / Group Controls & Bounding Box ── */
