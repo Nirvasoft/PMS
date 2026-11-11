@@ -72,7 +72,7 @@ import { startFootfallSyncJob } from './modules/mall/cron/footfallSync.job';
 import { startSmartMeterPollingJob } from './modules/condo/cron/meterPolling.job';
 import { startWebhookRetryJob } from './common/webhookRetry';
 import { startPermissionOverrideExpiryJob } from './modules/users/cron/permissionOverrideExpiry.job';
-import { startNotificationQueueJob } from './modules/notifications/cron/notificationQueue.job';
+import { startNotificationQueueJob, stopNotificationQueueJob } from './modules/notifications/cron/notificationQueue.job';
 import { startScheduledNotificationJob } from './modules/notifications/cron/scheduledNotification.job';
 import { startViewingReminderJob } from './modules/crm/cron/viewingReminder.job';
 import { securityRoutes } from './modules/security/security.routes';
@@ -394,6 +394,7 @@ async function bootstrap() {
   // Graceful shutdown
   const shutdown = async () => {
     logger.info('Shutting down...');
+    stopNotificationQueueJob();
     await disconnectDatabase();
     await disconnectRedis();
     process.exit(0);

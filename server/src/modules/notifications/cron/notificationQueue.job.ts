@@ -1,22 +1,49 @@
 import { prisma } from '../../../common/database';
 import { logger } from '../../../common/logger';
 
+let queueTimer: NodeJS.Timeout | null = null;
+let isProcessing = false;
+
 /**
  * Notification Queue Processor — runs every 10 seconds.
  * Picks pending items from notification_queue, dispatches them,
  * and handles retry with exponential backoff.
+ *
+ * - Overlap guard: a tick is skipped while the previous run is still in progress,
+ *   so the same pending items are never dispatched twice.
+ * - Idempotent start: calling it again while already running is a no-op.
  */
 export function startNotificationQueueJob() {
+  if (queueTimer) return;
+
   // Run every 10 seconds using setInterval (node-cron min is 1 minute)
-  setInterval(async () => {
+  queueTimer = setInterval(async () => {
+    if (isProcessing) {
+      logger.debug('Notification queue processor still running — skipping this tick');
+      return;
+    }
+    isProcessing = true;
     try {
       await processQueue();
     } catch (err) {
       logger.error('Notification queue processor error:', err);
+    } finally {
+      isProcessing = false;
     }
   }, 10_000);
 
   logger.info('Notification queue processor started (every 10s)');
+}
+
+/**
+ * Stops the notification queue processor (used during graceful shutdown so no tick
+ * fires after the database connection has been closed).
+ */
+export function stopNotificationQueueJob() {
+  if (queueTimer) {
+    clearInterval(queueTimer);
+    queueTimer = null;
+  }
 }
 
 async function processQueue() {
