@@ -3831,23 +3831,21 @@ export default function ShopMapView({
     const saveSource = emptyShapes.length > 0 ? items.filter((i) => !(i.kind === 'unit' && !i.unitId)) : items;
     const hasOverlap = hasAnyOverlap(saveSource);
     if (hasOverlap) {
-      const ok = await confirmDialog(
-        allowOverlap
-          ? {
-              title: 'Overlapping tiles',
-              message: `${overlapKeys.size} tiles overlap (outlined in red). Save anyway?`,
-              confirmText: 'Save Anyway',
-              cancelText: 'Go Back',
-            }
-          : {
-              title: 'Overlapping tiles',
-              message: `${overlapKeys.size} tiles overlap (outlined in red) and Allow Overlap is off.\n\nTurn Allow Overlap on and save with the overlap, or go back and move the tiles apart.`,
-              confirmText: 'Allow Overlap & Save',
-              cancelText: 'Go Back',
-            },
+      const overlapping = new Set<string>();
+      for (let a = 0; a < saveSource.length; a++) {
+        for (let b = a + 1; b < saveSource.length; b++) {
+          if (tilesConflict(saveSource[a], saveSource[b])) {
+            overlapping.add(saveSource[a].key);
+            overlapping.add(saveSource[b].key);
+          }
+        }
+      }
+      const firstKey = overlapping.values().next().value as string | undefined;
+      if (firstKey) setInspectKey(firstKey);
+      toast.error(
+        `Cannot save: ${overlapping.size} shape${overlapping.size === 1 ? ' overlaps' : 's overlap'} another shape (outlined in red). Move them apart and save again.`,
       );
-      if (!ok) return;
-      if (!allowOverlap) setAllowOverlap(true);
+      return;
     }
     const cleanItems = saveSource.map((i) => ({
       ...i,
