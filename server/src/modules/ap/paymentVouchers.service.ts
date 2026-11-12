@@ -2,6 +2,7 @@ import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
 import { logger } from '../../common/logger';
 import { glService } from '../gl/gl.service';
+import { isV6ErpActive } from '../integrations/v6Status.helper';
 
 export class PaymentVouchersService {
   private schemaReady = false;
@@ -159,8 +160,9 @@ export class PaymentVouchersService {
       },
     });
 
-    // ── Cash Voucher GL Auto-Post: Dr Charges' GL Accounts (or 5000) / Cr Accounts Payable (2100) ──
-    if (isCash && computedCashLines.length > 0 && totalAmount > 0) {
+    // ── Cash Voucher GL Auto-Post: Dr Charges' GL Accounts (or 5000) / Cr Payment Method GL Account ──
+    const v6Active = await isV6ErpActive(companyId, resolvedPropertyId);
+    if (v6Active && isCash && computedCashLines.length > 0 && totalAmount > 0) {
       try {
         const chargeTypeIds = Array.from(
           new Set(computedCashLines.map((l) => l.chargeTypeId).filter((id): id is string => Boolean(id)))

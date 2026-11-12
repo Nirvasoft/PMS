@@ -9,6 +9,7 @@ import { useGetChargeTypesQuery } from '../../../store/api/billingApi';
 import { useGetPaymentMethodsQuery } from '../../../store/api/glApi';
 import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
+import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import {
   CreditCard, Plus, X, DollarSign, FileText, Trash2,
   ChevronLeft, ChevronRight, Banknote,
@@ -44,6 +45,9 @@ export default function PaymentVouchersPage() {
 
   // Active property from the sidebar — follows the same pattern as Parking Overview.
   const selectedProperty = useSelectedPropertyFilter();
+  const { isV6PushActive: isV6Active } = useV6IntegrationStatus(selectedProperty || undefined);
+  const effectiveIsCash = !isV6Active ? true : isCash;
+  const tableColCount = isV6Active ? 9 : 8;
   const { data: propertiesData } = useGetMyPropertyScopeQuery();
   const properties = propertiesData?.data || [];
   const selectedPropertyName = properties.find((p) => p.id === selectedProperty)?.name || '';
@@ -53,9 +57,10 @@ export default function PaymentVouchersPage() {
     setPage(1);
     setShowCreate(false);
     setHasAttemptedCreate(false);
+    setIsCash(!isV6Active);
     setAllocations([]);
     setLines([{ chargeTypeId: '', description: '', quantity: 1, unitPrice: 0, taxRate: 0, glAccountCode: '' }]);
-  }, [selectedProperty]);
+  }, [selectedProperty, isV6Active]);
 
   const { data: vouchersData, isLoading } = useGetPaymentVouchersQuery(
     selectedProperty
@@ -68,7 +73,7 @@ export default function PaymentVouchersPage() {
       : skipToken,
   );
   const { data: approvedInvoices } = useGetApInvoicesQuery(
-    selectedProperty
+    selectedProperty && isV6Active
       ? {
           status: 'approved',
           propertyId: selectedProperty,
@@ -143,7 +148,7 @@ export default function PaymentVouchersPage() {
   const lineTotal = Math.round((lineSubtotal + lineTax) * 100) / 100;
 
   const totalAllocated = allocations.reduce((s, a) => s + a.amount, 0);
-  const effectiveAmount = isCash ? lineTotal : (parseFloat(form.amount) || totalAllocated);
+  const effectiveAmount = effectiveIsCash ? lineTotal : (parseFloat(form.amount) || totalAllocated);
 
   const addLine = () => setLines(prev => [
     ...prev,
@@ -172,7 +177,7 @@ export default function PaymentVouchersPage() {
   };
 
   const addAllocation = (invId: string) => {
-    if (isCash) return;
+    if (effectiveIsCash || !isV6Active) return;
     const inv = availableInvoices.find((i: any) => i.id === invId);
     if (!inv || allocations.find(a => a.apInvoiceId === invId)) return;
     const nextAllocations = [...allocations, { apInvoiceId: invId, amount: inv.outstanding }];
@@ -196,15 +201,15 @@ export default function PaymentVouchersPage() {
   const handleCreate = async () => {
     setHasAttemptedCreate(true);
     if (!selectedProperty) return toast.error('Please select a property from the sidebar first');
-    if (isCash) {
+    if (effectiveIsCash) {
       if (lines.some(l => !l.description.trim() || !(l.unitPrice > 0))) {
         return toast.error('All line items must have description and positive unit price');
       }
     }
-    if (!form.voucherDate || !form.paymentMethod || (!isCash && !form.vendorName.trim()) || effectiveAmount <= 0) {
+    if (!form.voucherDate || !form.paymentMethod || (!effectiveIsCash && !form.vendorName.trim()) || effectiveAmount <= 0) {
       return toast.error('Please fill in all required fields');
     }
-    if (!isCash && allocations.length === 0) return toast.error('At least one AP invoice allocation is required');
+    if (!effectiveIsCash && allocations.length === 0) return toast.error('At least one AP invoice allocation is required');
     try {
       const cleanedLines = lines.map((l) => ({
         description: l.description.trim(),
@@ -217,16 +222,16 @@ export default function PaymentVouchersPage() {
       await createPaymentVoucher({
         ...form,
         propertyId: selectedProperty,
-        isCash,
+        isCash: effectiveIsCash,
         amount: effectiveAmount,
-        vendorName: isCash ? '' : form.vendorName.trim(),
-        allocations: isCash ? [] : allocations,
-        lines: isCash ? cleanedLines : [],
+        vendorName: effectiveIsCash ? '' : form.vendorName.trim(),
+        allocations: effectiveIsCash ? [] : allocations,
+        lines: effectiveIsCash ? cleanedLines : [],
       }).unwrap();
       toast.success('Payment Voucher created');
       setShowCreate(false);
       setHasAttemptedCreate(false);
-      setIsCash(false);
+      setIsCash(!isV6Active);
       setForm({ voucherDate: format(new Date(), 'yyyy-MM-dd'), paymentMethod: defaultPaymentMethodCode, vendorName: '', vendorBankName: '', vendorBankAcc: '', amount: '', currency: 'USD', notes: '' });
       setAllocations([]);
       setLines([{ chargeTypeId: '', description: '', quantity: 1, unitPrice: 0, taxRate: 0, glAccountCode: '' }]);
@@ -268,7 +273,7 @@ export default function PaymentVouchersPage() {
             onClick={() => {
               const propertyCurrency = properties.find((p) => p.id === selectedProperty)?.currency;
               setForm((f) => ({ ...f, currency: propertyCurrency || 'USD', paymentMethod: f.paymentMethod || defaultPaymentMethodCode }));
-              setIsCash(false);
+              setIsCash(!isV6Active);
               setHasAttemptedCreate(false);
               setShowCreate(true);
             }}
@@ -307,7 +312,7 @@ export default function PaymentVouchersPage() {
                 <th>Vendor</th>
                 <th>Method</th>
                 <th>Amount</th>
-                <th>AP Invoices</th>
+                {isV6Active && <th>AP Invoices</th>}
                 <th>Status</th>
                 <th>Paid At</th>
                 <th></th>
@@ -315,9 +320,9 @@ export default function PaymentVouchersPage() {
             </thead>
             <tbody>
               {isLoading ? (
-                <TableSkeletonRows columns={9} />
+                <TableSkeletonRows columns={tableColCount} />
               ) : vouchers.length === 0 ? (
-                <tr><td colSpan={9}><div className="ap-empty"><CreditCard size={40} /><p>No payment vouchers found</p></div></td></tr>
+                <tr><td colSpan={tableColCount}><div className="ap-empty"><CreditCard size={40} /><p>No payment vouchers found</p></div></td></tr>
               ) : vouchers.map((pv: any) => (
                 <tr key={pv.id}>
                   <td><strong>{pv.voucherNumber}</strong></td>
@@ -325,7 +330,9 @@ export default function PaymentVouchersPage() {
                   <td>{pv.vendorName || '—'}</td>
                   <td style={{ textTransform: 'capitalize' }}>{formatPaymentMethod(pv.paymentMethod)}</td>
                   <td className="amount-neutral">{fmt(pv.totalAmount)} {pv.currency}</td>
-                  <td>{pv.allocations.map((a: any) => a.apInvoice.apInvoiceNumber).join(', ') || '—'}</td>
+                  {isV6Active && (
+                    <td>{pv.allocations.map((a: any) => a.apInvoice.apInvoiceNumber).join(', ') || '—'}</td>
+                  )}
                   <td><span className={`ap-status ${pv.status}`}>{pv.status}</span></td>
                   <td>{pv.paidAt ? format(new Date(pv.paidAt), 'dd MMM yyyy') : '—'}</td>
                   <td>
@@ -439,60 +446,62 @@ export default function PaymentVouchersPage() {
                 <div className="ap-form-group">
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <label style={{ margin: 0 }}>
-                      Vendor Name {!isCash && <span className="req">*</span>}
+                      Vendor Name {!effectiveIsCash && <span className="req">*</span>}
                     </label>
-                    <label
-                      htmlFor="voucher-cash-checkbox"
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        cursor: 'pointer',
-                        textTransform: 'none',
-                        fontSize: 13,
-                        fontWeight: 600,
-                        color: 'var(--text-primary)',
-                        letterSpacing: 'normal',
-                        userSelect: 'none',
-                        margin: 0,
-                      }}
-                    >
-                      <input
-                        id="voucher-cash-checkbox"
-                        type="checkbox"
-                        checked={isCash}
-                        onChange={e => {
-                          const checked = e.target.checked;
-                          setIsCash(checked);
-                          if (checked) {
-                            setForm(f => ({ ...f, vendorName: '' }));
-                            setAllocations([]);
-                          }
-                        }}
+                    {isV6Active && (
+                      <label
+                        htmlFor="voucher-cash-checkbox"
                         style={{
-                          width: 15,
-                          height: 15,
-                          padding: 0,
-                          border: 'none',
-                          background: 'transparent',
-                          boxShadow: 'none',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
                           cursor: 'pointer',
-                          accentColor: 'var(--primary)',
+                          textTransform: 'none',
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color: 'var(--text-primary)',
+                          letterSpacing: 'normal',
+                          userSelect: 'none',
                           margin: 0,
                         }}
-                      />
-                      Cash
-                    </label>
+                      >
+                        <input
+                          id="voucher-cash-checkbox"
+                          type="checkbox"
+                          checked={isCash}
+                          onChange={e => {
+                            const checked = e.target.checked;
+                            setIsCash(checked);
+                            if (checked) {
+                              setForm(f => ({ ...f, vendorName: '' }));
+                              setAllocations([]);
+                            }
+                          }}
+                          style={{
+                            width: 15,
+                            height: 15,
+                            padding: 0,
+                            border: 'none',
+                            background: 'transparent',
+                            boxShadow: 'none',
+                            cursor: 'pointer',
+                            accentColor: 'var(--primary)',
+                            margin: 0,
+                          }}
+                        />
+                        Cash
+                      </label>
+                    )}
                   </div>
                   <input
-                    disabled={isCash}
-                    placeholder={isCash ? 'Disabled for Cash voucher' : ''}
-                    className={hasAttemptedCreate && !isCash && !form.vendorName.trim() ? 'ap-input-error' : ''}
+                    disabled={effectiveIsCash}
+                    placeholder={effectiveIsCash ? 'Disabled for Cash voucher' : ''}
+                    className={hasAttemptedCreate && !effectiveIsCash && !form.vendorName.trim() ? 'ap-input-error' : ''}
                     value={form.vendorName}
                     onChange={e => setForm(f => ({ ...f, vendorName: e.target.value }))}
-                    style={isCash ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+                    style={effectiveIsCash ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
                   />
-                  {hasAttemptedCreate && !isCash && !form.vendorName.trim() && (
+                  {hasAttemptedCreate && !effectiveIsCash && !form.vendorName.trim() && (
                     <span className="ap-error-text">Vendor name is required</span>
                   )}
                 </div>
@@ -503,11 +512,11 @@ export default function PaymentVouchersPage() {
                     step="0.01"
                     min="0"
                     placeholder="0.00"
-                    disabled={isCash}
+                    disabled={effectiveIsCash}
                     className={hasAttemptedCreate && effectiveAmount <= 0 ? 'ap-input-error' : ''}
-                    value={isCash ? (lineTotal > 0 ? String(lineTotal) : '') : form.amount}
+                    value={effectiveIsCash ? (lineTotal > 0 ? String(lineTotal) : '') : form.amount}
                     onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
-                    style={isCash ? { opacity: 0.7, cursor: 'not-allowed' } : undefined}
+                    style={effectiveIsCash ? { opacity: 0.7, cursor: 'not-allowed' } : undefined}
                   />
                   {hasAttemptedCreate && effectiveAmount <= 0 && (
                     <span className="ap-error-text">Valid amount is required</span>
@@ -533,7 +542,7 @@ export default function PaymentVouchersPage() {
                 </div>
               </div>
 
-              {isCash ? (
+              {effectiveIsCash ? (
                 /* Cash Line Items (same as AP Invoice Line Items) */
                 <div className="ap-line-items">
                   <style>{`
@@ -668,13 +677,14 @@ export default function PaymentVouchersPage() {
                     </div>
                   </div>
                 </div>
-              ) : (
+              ) : isV6Active ? (
                 /* Invoice allocator */
                 <div className="ap-line-items">
                   <h3><DollarSign size={16} /> Allocate AP Invoices</h3>
                   <div className="ap-form-group" style={{ marginBottom: '0.75rem' }}>
                     <label>Select Approved Invoice <span className="req">*</span></label>
                     <select
+                      disabled={!isV6Active}
                       className={hasAttemptedCreate && allocations.length === 0 ? 'ap-input-error' : ''}
                       onChange={e => { addAllocation(e.target.value); e.target.value = ''; }}
                     >
@@ -733,7 +743,7 @@ export default function PaymentVouchersPage() {
                     Total: {fmt(effectiveAmount)} {form.currency}
                   </div>
                 </div>
-              )}
+              ) : null}
             </div>
             <div className="ap-modal-footer">
               <button className="ap-btn ghost" onClick={() => { setShowCreate(false); setHasAttemptedCreate(false); }}>Cancel</button>
