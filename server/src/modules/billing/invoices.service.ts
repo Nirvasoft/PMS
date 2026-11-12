@@ -829,6 +829,7 @@ export class InvoicesService {
         const updatedInv = await prisma.invoice.update({
           where: { id: existingRent.id },
           data: {
+            ...(existingRent.status === 'draft' ? { status: 'issued' } : {}),
             subtotal,
             totalAmount: subtotal,
             ...(existingRent.departmentCenterId == null && existingRent.costCenterId == null
@@ -855,18 +856,25 @@ export class InvoicesService {
 
         created.push(updatedInv);
         logger.info(`[createFromLease] Updated existing invoice ${existingRent.invoiceNumber} with Security Deposit for lease ${lease.leaseNumber}`);
-      } else if (
-        existingRent.departmentCenterId == null &&
-        existingRent.costCenterId == null &&
-        (leaseDeptId || leaseCcId)
-      ) {
-        await prisma.invoice.update({
-          where: { id: existingRent.id },
-          data: {
-            departmentCenterId: leaseDeptId,
-            costCenterId: leaseCcId,
-          },
-        });
+      } else {
+        const patchData: Record<string, any> = {};
+        if (existingRent.status === 'draft') {
+          patchData.status = 'issued';
+        }
+        if (
+          existingRent.departmentCenterId == null &&
+          existingRent.costCenterId == null &&
+          (leaseDeptId || leaseCcId)
+        ) {
+          patchData.departmentCenterId = leaseDeptId;
+          patchData.costCenterId = leaseCcId;
+        }
+        if (Object.keys(patchData).length > 0) {
+          await prisma.invoice.update({
+            where: { id: existingRent.id },
+            data: patchData,
+          });
+        }
       }
     } else {
       const invoiceLines: any[] = [
@@ -1171,16 +1179,6 @@ export class InvoicesService {
           costCenterId: invCcId,
           lines: glLines,
         });
-      }
-      if (await isV6ErpActive(companyId, invoice.propertyId)) {
-        integrationsService
-          .pushInvoicesToV6Erp(companyId, [invoice.id], false, invoice.propertyId || undefined)
-          .catch((err) =>
-            logger.warn('[createFromLease] Failed to push invoice to V6 ERP', {
-              err: err instanceof Error ? err.message : String(err),
-              invoiceId: invoice.id,
-            }),
-          );
       }
     } catch (err: any) {
       logger.warn(`[createFromLease] GL auto-journal skipped: ${err.message}`);
