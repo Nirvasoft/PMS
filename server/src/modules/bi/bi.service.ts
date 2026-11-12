@@ -32,8 +32,8 @@ class BiService {
     const propIds = properties.map(p => p.id);
 
     const [totalUnits, occupiedUnits, invoicesAgg, paidAgg, openTickets, criticalTickets] = await Promise.all([
-      prisma.unit.count({ where: { companyId, propertyId: { in: propIds } } }),
-      prisma.unit.count({ where: { companyId, propertyId: { in: propIds }, status: 'occupied' } }),
+      prisma.unit.count({ where: { companyId, propertyId: { in: propIds }, deletedAt: null } }),
+      prisma.unit.count({ where: { companyId, propertyId: { in: propIds }, status: 'occupied', deletedAt: null } }),
       prisma.invoice.aggregate({
         where: { companyId, propertyId: { in: propIds }, invoiceDate: { gte: fromDate }, status: { not: 'cancelled' } },
         _sum: { totalAmount: true },
@@ -72,8 +72,8 @@ class BiService {
     // ── Per-property breakdown ──
     const propertyStats = await Promise.all(properties.map(async (prop) => {
       const [units, occUnits, propRevenue, propPaid, propTickets] = await Promise.all([
-        prisma.unit.count({ where: { propertyId: prop.id, companyId } }),
-        prisma.unit.count({ where: { propertyId: prop.id, companyId, status: 'occupied' } }),
+        prisma.unit.count({ where: { propertyId: prop.id, companyId, deletedAt: null } }),
+        prisma.unit.count({ where: { propertyId: prop.id, companyId, status: 'occupied', deletedAt: null } }),
         prisma.invoice.aggregate({
           where: { propertyId: prop.id, companyId, invoiceDate: { gte: fromDate }, status: { not: 'cancelled' } },
           _sum: { totalAmount: true },
@@ -430,8 +430,8 @@ class BiService {
     });
 
     for (const prop of properties) {
-      const totalUnits = await prisma.unit.count({ where: { propertyId: prop.id, companyId } });
-      const vacant = await prisma.unit.count({ where: { propertyId: prop.id, companyId, status: 'vacant' } });
+      const totalUnits = await prisma.unit.count({ where: { propertyId: prop.id, companyId, deletedAt: null } });
+      const vacant = await prisma.unit.count({ where: { propertyId: prop.id, companyId, status: 'vacant', deletedAt: null } });
 
       if (totalUnits === 0) continue;
       const vacancyRate = (vacant / totalUnits) * 100;
@@ -606,10 +606,10 @@ class BiService {
 
     const result = await Promise.all(properties.map(async (prop) => {
       const [total, occupied, vacant, underReno] = await Promise.all([
-        prisma.unit.count({ where: { propertyId: prop.id, companyId } }),
-        prisma.unit.count({ where: { propertyId: prop.id, companyId, status: 'occupied' } }),
-        prisma.unit.count({ where: { propertyId: prop.id, companyId, status: 'vacant' } }),
-        prisma.unit.count({ where: { propertyId: prop.id, companyId, status: 'under_renovation' } }),
+        prisma.unit.count({ where: { propertyId: prop.id, companyId, deletedAt: null } }),
+        prisma.unit.count({ where: { propertyId: prop.id, companyId, status: 'occupied', deletedAt: null } }),
+        prisma.unit.count({ where: { propertyId: prop.id, companyId, status: 'vacant', deletedAt: null } }),
+        prisma.unit.count({ where: { propertyId: prop.id, companyId, status: 'under_renovation', deletedAt: null } }),
       ]);
 
       return {

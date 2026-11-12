@@ -72,6 +72,22 @@ export function resolveImageAssetUrl(rawUrl?: string | null): string | null {
   return `/${trimmed}`;
 }
 
+export function resolveUnitAssetHref(rawUrl?: string | null): string {
+  if (!rawUrl) return '';
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return '';
+  if (
+    trimmed.startsWith('http://') ||
+    trimmed.startsWith('https://') ||
+    trimmed.startsWith('blob:') ||
+    trimmed.startsWith('data:') ||
+    trimmed.startsWith('/api/v1/')
+  ) {
+    return trimmed;
+  }
+  return `/api/v1${trimmed.startsWith('/') ? '' : '/'}${trimmed}`;
+}
+
 export function resolveUnitPhotoSrc(rawPhotoUrl?: string | null): string | null {
   if (!rawPhotoUrl || !isUnitPhotoImage(rawPhotoUrl)) return null;
   return resolveImageAssetUrl(rawPhotoUrl);
@@ -82,15 +98,34 @@ export function getUnitPhotoCandidates(rawPhotoUrl?: string | null): string[] {
   if (!src) return [];
   const cached = memoryPhotoCache.get(src);
   const list: string[] = [];
-  if (cached) list.push(cached);
-  if (!list.includes(src)) list.push(src);
-  if (src.startsWith('/uploads/')) {
-    const apiFallback = `/api/v1${src}`;
-    if (!list.includes(apiFallback)) list.push(apiFallback);
-  } else if (src.startsWith('/api/v1/uploads/')) {
-    const directFallback = src.slice('/api/v1'.length);
-    if (!list.includes(directFallback)) list.push(directFallback);
+  const pushUnique = (u?: string | null) => {
+    if (u && !list.includes(u)) list.push(u);
+  };
+
+  pushUnique(cached);
+  pushUnique(src);
+
+  // DigitalOcean Spaces CDN -> direct Spaces origin fallback
+  const cdnMatch = src.match(/^https:\/\/([^/]+)\.cdn\.digitaloceanspaces\.com\/(.+)$/i);
+  if (cdnMatch) {
+    pushUnique(`https://${cdnMatch[1]}.digitaloceanspaces.com/${cdnMatch[2]}`);
   }
+
+  // Spaces / absolute unit URL -> backend Spaces-streaming proxy fallback
+  if (src.startsWith('http://') || src.startsWith('https://')) {
+    const unitMatch = src.match(/(?:^|\/)(units\/[0-9a-f-]+\/[0-9a-f-]+\/[^?#]+)(\?[^#]*)?$/i);
+    if (unitMatch) {
+      const unitPath = unitMatch[1];
+      const query = unitMatch[2] || '';
+      pushUnique(`/api/v1/uploads/${unitPath}${query}`);
+      pushUnique(`/uploads/${unitPath}${query}`);
+    }
+  } else if (src.startsWith('/uploads/')) {
+    pushUnique(`/api/v1${src}`);
+  } else if (src.startsWith('/api/v1/uploads/')) {
+    pushUnique(src.slice('/api/v1'.length));
+  }
+
   return list;
 }
 
@@ -177,9 +212,10 @@ export function primeUnitPhotoCacheFromFile(rawPhotoUrl: string | null | undefin
   memoryPhotoCache.set(src, blobUrl);
 
   if (typeof window !== 'undefined' && 'caches' in window) {
+    const responseInit = file.type ? { headers: { 'Content-Type': file.type } } : undefined;
     window.caches
       .open(PHOTO_CACHE_NAME)
-      .then((cache) => cache.put(src, new Response(file)))
+      .then((cache) => cache.put(src, new Response(file, responseInit)))
       .catch(() => {});
   }
   notifyCacheListeners();
@@ -213,6 +249,19 @@ function loadSingleImageCandidate(candidateUrl: string): Promise<boolean> {
   });
 }
 
+async function readBlobUrlFromCacheResponse(res: Response | undefined): Promise<string | null> {
+  if (!res || !res.ok) return null;
+  const blob = await res.blob();
+  if (blob.size <= 0 || (blob.type && !blob.type.toLowerCase().startsWith('image/'))) {
+    return null;
+  }
+  const blobUrl = URL.createObjectURL(blob);
+  const ok = await loadSingleImageCandidate(blobUrl);
+  if (ok) return blobUrl;
+  URL.revokeObjectURL(blobUrl);
+  return null;
+}
+
 export function preloadUnitPhoto(rawOrResolvedUrl?: string | null): Promise<string | null> {
   const src = resolveUnitPhotoSrc(rawOrResolvedUrl);
   if (!src) return Promise.resolve(null);
@@ -224,8 +273,29 @@ export function preloadUnitPhoto(rawOrResolvedUrl?: string | null): Promise<stri
   const inflight = inflightPhotoCache.get(src);
   if (inflight) return inflight;
 
+  const canUseBrowserCache =
+    typeof window !== 'undefined' &&
+    'caches' in window &&
+    !src.startsWith('blob:') &&
+    !src.startsWith('data:');
+
   const promise = (async () => {
     try {
+      // 1. Exact match in CacheStorage (shared across Admin tab & Public Link tab)
+      if (canUseBrowserCache) {
+        try {
+          const cache = await window.caches.open(PHOTO_CACHE_NAME);
+          const exactBlobUrl = await readBlobUrlFromCacheResponse(await cache.match(src));
+          if (exactBlobUrl) {
+            markUnitPhotoCached(src, exactBlobUrl);
+            return exactBlobUrl;
+          }
+        } catch {
+          /* ignore CacheStorage read errors */
+        }
+      }
+
+      // 2. Network candidates (Spaces CDN -> Spaces origin -> /api/v1/uploads proxy -> /uploads)
       const candidates = getUnitPhotoCandidates(rawOrResolvedUrl);
       for (const candidate of candidates) {
         const ok = await loadSingleImageCandidate(candidate);
@@ -234,6 +304,26 @@ export function preloadUnitPhoto(rawOrResolvedUrl?: string | null): Promise<stri
           return candidate;
         }
       }
+
+      // 3. Fallback match by base path in CacheStorage if network candidates failed
+      if (canUseBrowserCache) {
+        try {
+          const cache = await window.caches.open(PHOTO_CACHE_NAME);
+          const basePath = new URL(src, window.location.origin).href.split('?')[0];
+          const keys = await cache.keys();
+          const matchedReq = keys.find((req) => req.url.split('?')[0] === basePath);
+          if (matchedReq) {
+            const fallbackBlobUrl = await readBlobUrlFromCacheResponse(await cache.match(matchedReq));
+            if (fallbackBlobUrl) {
+              markUnitPhotoCached(src, fallbackBlobUrl);
+              return fallbackBlobUrl;
+            }
+          }
+        } catch {
+          /* ignore CacheStorage fallback errors */
+        }
+      }
+
       markUnitPhotoFailed(src);
       return null;
     } finally {

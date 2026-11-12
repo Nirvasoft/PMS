@@ -9,17 +9,28 @@ export function DatesBillingStep({ form, set }: { form: FormState; set: Function
   const setRA = (key: keyof RentalAgreement, val: string) =>
     set('rentalAgreement', { ...form.rentalAgreement, [key]: val });
 
+  // One-way sync: changing a Contract date auto-fills the matching Advance date.
+  // Advance dates remain freely editable and never write back to the contract dates.
+  const onContractStartChange = (val: string) => {
+    setRA('contractStartDate', val);
+    set('startDate', val);
+  };
+  const onContractEndChange = (val: string) => {
+    setRA('contractEndDate', val);
+    set('endDate', val);
+  };
+
   return (
     <div className="step-content">
       <h3>Lease Dates & Billing</h3>
       <div className="form-grid-2">
         <div className="form-field">
           <label>Contract Start Date</label>
-          <input type="date" value={form.rentalAgreement.contractStartDate || ''} onChange={(e) => setRA('contractStartDate', e.target.value)} />
+          <input type="date" value={form.rentalAgreement.contractStartDate || ''} onChange={(e) => onContractStartChange(e.target.value)} />
         </div>
         <div className="form-field">
           <label>Contract End Date</label>
-          <input type="date" value={form.rentalAgreement.contractEndDate || ''} onChange={(e) => setRA('contractEndDate', e.target.value)} />
+          <input type="date" value={form.rentalAgreement.contractEndDate || ''} onChange={(e) => onContractEndChange(e.target.value)} />
         </div>
         <div className="form-field">
           <label>Advance Start Date *</label>

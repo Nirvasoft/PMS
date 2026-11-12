@@ -24,6 +24,7 @@ import {
   evictUnitPhotoCache,
   isUnitPhotoImage,
   preloadUnitPhoto,
+  resolveUnitAssetHref,
   syncUploadedUnitPhotoCache,
   validateUnitPhotoFile,
 } from '../../../utils/unitPhotoCache';
@@ -1674,7 +1675,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                       <FileImage size={32} />
                       <span>Unit Photo (PDF)</span>
                       <a
-                        href={`/api/v1${unit.floorPlanUrl}`}
+                        href={resolveUnitAssetHref(unit.floorPlanUrl)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="fp-open-link"

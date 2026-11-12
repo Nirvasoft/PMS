@@ -77,11 +77,18 @@ export function CachedUnitPhoto({
     }
   }, [photoUrl]);
 
+  useEffect(() => {
+    if (isCached && cachedSrc) {
+      setCandidateIdx(0);
+      setHasError(false);
+    }
+  }, [isCached, cachedSrc]);
+
   if (!forceLoading && (hasError || isFailed)) {
     return null;
   }
 
-  const src = candidates[candidateIdx] || cachedSrc;
+  const src = (isCached && cachedSrc ? cachedSrc : candidates[candidateIdx]) || cachedSrc;
   const isReady = Boolean(
     photoUrl &&
       !forceLoading &&
@@ -122,11 +129,18 @@ export function CachedUnitPhoto({
             if (src.startsWith('blob:')) {
               evictUnitPhotoCache(photoUrl);
             }
-            if (candidateIdx + 1 < candidates.length) {
+            if (!isCached && candidateIdx + 1 < candidates.length) {
               setCandidateIdx((prev) => prev + 1);
             } else {
-              markUnitPhotoFailed(photoUrl);
-              setHasError(true);
+              preloadUnitPhoto(photoUrl).then((resolved) => {
+                if (resolved && resolved !== src) {
+                  setCandidateIdx(0);
+                  setHasError(false);
+                } else {
+                  markUnitPhotoFailed(photoUrl);
+                  setHasError(true);
+                }
+              });
             }
           }}
         />

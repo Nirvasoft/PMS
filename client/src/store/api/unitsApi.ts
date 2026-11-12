@@ -346,7 +346,7 @@ export const unitsApi = createApi({
       async onQueryStarted({ propertyId }, { dispatch, queryFulfilled }) {
         try {
           await queryFulfilled;
-          dispatch(propertiesApi.util.invalidateTags([{ type: 'PropertyStats', id: propertyId }, 'Properties']));
+          dispatch(propertiesApi.util.invalidateTags([{ type: 'PropertyStats', id: propertyId }, { type: 'Properties', id: propertyId }, 'Properties']));
         } catch { /* mutation failed — nothing to invalidate */ }
       },
     }),
@@ -356,7 +356,7 @@ export const unitsApi = createApi({
       async onQueryStarted({ propertyId }, { dispatch, queryFulfilled }) {
         try {
           await queryFulfilled;
-          dispatch(propertiesApi.util.invalidateTags([{ type: 'PropertyStats', id: propertyId }, 'Properties']));
+          dispatch(propertiesApi.util.invalidateTags([{ type: 'PropertyStats', id: propertyId }, { type: 'Properties', id: propertyId }, 'Properties']));
         } catch { /* mutation failed — nothing to invalidate */ }
       },
     }),
@@ -381,7 +381,7 @@ export const unitsApi = createApi({
       async onQueryStarted({ propertyId }, { dispatch, queryFulfilled }) {
         try {
           await queryFulfilled;
-          dispatch(propertiesApi.util.invalidateTags([{ type: 'PropertyStats', id: propertyId }, 'Properties']));
+          dispatch(propertiesApi.util.invalidateTags([{ type: 'PropertyStats', id: propertyId }, { type: 'Properties', id: propertyId }, 'Properties']));
           dispatch(mallApi.util.invalidateTags(['Shops', 'FloorPlan']));
         } catch { /* mutation failed — nothing to invalidate */ }
       },

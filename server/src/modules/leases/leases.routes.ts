@@ -80,9 +80,16 @@ leasesRouter.post('/:id/cancel', asyncHandler(async (req, res) => {
   res.json({ success: true, data });
 }));
 
+/** GET /leases/:id/termination-preview */
+leasesRouter.get('/:id/termination-preview', asyncHandler(async (req, res) => {
+  const terminationDate = (req.query.terminationDate as string) || new Date().toISOString().slice(0, 10);
+  const data = await leasesLifecycleService.terminationPreview(p(req, 'id'), req.user!.companyId, terminationDate, req.user);
+  res.json({ success: true, data });
+}));
+
 /** POST /leases/:id/terminate */
 leasesRouter.post('/:id/terminate', validateRequest(terminateLeaseSchema), asyncHandler(async (req, res) => {
-  const data = await leasesLifecycleService.terminate(p(req, 'id'), req.user!.companyId, req.body, req.user!.sub);
+  const data = await leasesLifecycleService.terminate(p(req, 'id'), req.user!.companyId, req.body, req.user!.sub, req.user);
   res.json({ success: true, data });
 }));
 

@@ -82,7 +82,7 @@ export class PropertiesService {
           regionProperties: { include: { region: { select: { id: true, name: true } } } },
           manager: { select: { id: true, email: true, profile: { select: { firstName: true, lastName: true } } } },
           photos: { where: { isCover: true }, take: 1 },
-          _count: { select: { facilities: true, contacts: true } },
+          _count: { select: { facilities: true, contacts: true, units: { where: { deletedAt: null } } } },
         },
         orderBy: { name: 'asc' },
         skip: (page - 1) * limit,
@@ -121,6 +121,7 @@ export class PropertiesService {
         photos: { orderBy: [{ isCover: 'desc' }, { sortOrder: 'asc' }] },
         facilities: { include: { facilityType: true }, where: { isActive: true } },
         contacts: { orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }] },
+        _count: { select: { units: { where: { deletedAt: null } } } },
       },
     });
     if (!property || property.deletedAt) throw AppError.notFound('Property');
@@ -225,6 +226,15 @@ export class PropertiesService {
       }
     }
 
+    // Merge settings JSON rather than overwriting other settings keys (e.g. defaultServiceCharge)
+    if (dto.settings && typeof dto.settings === 'object' && !Array.isArray(dto.settings)) {
+      const existingSettings =
+        existing.settings && typeof existing.settings === 'object' && !Array.isArray(existing.settings)
+          ? (existing.settings as Record<string, unknown>)
+          : {};
+      dto.settings = { ...existingSettings, ...(dto.settings as Record<string, unknown>) };
+    }
+
     const updated = await prisma.property.update({ where: { id: propertyId }, data: dto as any });
 
     // If the property currency changed, keep Currency Setup in sync.
@@ -299,7 +309,7 @@ export class PropertiesService {
     const occupancyRate = totalCounted > 0 ? Math.round((unitCounts.occupied / totalCounted) * 100) : 0;
 
     return {
-      totalUnits: property.totalUnits,
+      totalUnits: totalCounted,
       occupiedUnits: unitCounts.occupied,
       availableUnits: unitCounts.available,
       maintenanceUnits: unitCounts.maintenance,
@@ -600,6 +610,7 @@ export class PropertiesService {
   private formatProperty(p: Record<string, any>) {
     return {
       ...p,
+      ...(typeof p._count?.units === 'number' ? { totalUnits: p._count.units } : {}),
       regions: p.regionProperties?.map((rp: any) => rp.region) ?? [],
       regionProperties: undefined,
       coverImageUrl: p.coverImageUrl ?? p.photos?.find((ph: any) => ph.isCover)?.url ?? p.imageUrl,

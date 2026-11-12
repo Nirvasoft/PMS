@@ -265,8 +265,35 @@ export const leasesApi = createApi({
       onQueryStarted: invalidateUnitTagsOnSuccess,
     }),
 
+    getTerminationPreview: builder.query<ApiResponse<{
+      isEarly: boolean;
+      remainingMonths: number;
+      penalty: number;
+      breakdown: string;
+      policy: {
+        enabled: boolean;
+        mode: 'formula' | 'fixed' | 'percent';
+        maxMonths: number;
+        remainingPercent: number;
+        fixedAmount: number;
+      };
+      canAdjust: boolean;
+    }>, { id: string; terminationDate: string }>({
+      query: ({ id, terminationDate }) => ({
+        url: `/leases/${id}/termination-preview`,
+        params: { terminationDate },
+      }),
+      keepUnusedDataFor: 0,
+    }),
+
     terminateLease: builder.mutation<ApiResponse<{ earlyTerminationPenalty: number; penaltyBreakdown: string }>, {
-      id: string; terminationDate: string; reason: string; terminateSchedules?: boolean;
+      id: string;
+      terminationDate: string;
+      reason: string;
+      terminateSchedules?: boolean;
+      waivePenalty?: boolean;
+      penaltyOverride?: number;
+      penaltyAdjustReason?: string;
     }>({
       query: ({ id, ...data }) => ({ url: `/leases/${id}/terminate`, method: 'POST', body: data }),
       invalidatesTags: (_, __, { id }) => [{ type: 'Leases', id }, 'Leases'],
@@ -349,6 +376,7 @@ export const {
   useSubmitLeaseMutation,
   useActivateLeaseMutation,
   useCancelLeaseMutation,
+  useGetTerminationPreviewQuery,
   useTerminateLeaseMutation,
   useCreateRenewalMutation,
   useAcceptRenewalMutation,

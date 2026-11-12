@@ -32,6 +32,7 @@ import {
   isImageFileName,
   isUnitPhotoImage,
   preloadUnitPhotosBatch,
+  resolveUnitAssetHref,
   syncUploadedUnitPhotoCache,
   validateUnitPhotoFile,
 } from '../../utils/unitPhotoCache';
@@ -183,7 +184,7 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
   const [removeExistingUnitPhotoOnCreate, setRemoveExistingUnitPhotoOnCreate] = useState(false);
 
   const { data: shopsData, isLoading } = useGetShopsQuery(
-    { propertyId },
+    { propertyId, limit: 5000 },
     { skip: !propertyId }
   );
   const { data: mixData } = useGetTenantMixQuery({ propertyId }, { skip: !propertyId });
@@ -976,7 +977,7 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
                         <FileImage size={24} />
                         <span>Unit Photo (PDF)</span>
                         <a
-                          href={`/api/v1${photoUrl}`}
+                          href={resolveUnitAssetHref(photoUrl)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="btn btn-sm btn-outline"

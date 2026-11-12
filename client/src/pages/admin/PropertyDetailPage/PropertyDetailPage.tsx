@@ -179,7 +179,7 @@ export default function PropertyDetailPage() {
 
       {/* Quick stats bar */}
       <div className="stats-bar">
-        <div className="stat-item"><span className="stat-val">{property.totalUnits}</span><span className="stat-lbl">Total Units</span></div>
+        <div className="stat-item"><span className="stat-val">{unitStats?.total ?? property.totalUnits}</span><span className="stat-lbl">Total Units</span></div>
         <div className="stat-item"><span className="stat-val">{unitStats?.occupied ?? 0}</span><span className="stat-lbl">Occupied</span></div>
         <div className="stat-item"><span className="stat-val">{unitStats?.occupancyRate ?? 0}%</span><span className="stat-lbl">Occupancy</span></div>
         <div className="stat-item"><span className="stat-val">{property.currency}</span><span className="stat-lbl">Currency</span></div>
@@ -1091,17 +1091,50 @@ const BILLING_CYCLES = [
 ];
 const TIMEZONES  = ['UTC','America/New_York','America/Chicago','America/Los_Angeles','Europe/London','Europe/Paris','Asia/Singapore','Asia/Tokyo','Asia/Bangkok','Asia/Yangon','Asia/Dubai','Australia/Sydney'];
 
+const PENALTY_MODES = [
+  { value: 'formula', label: 'Formula — Min(Max Months, Remaining × %)' },
+  { value: 'fixed',   label: 'Fixed Amount' },
+  { value: 'percent', label: 'Percentage of Monthly Rent' },
+] as const;
+
+type PenaltyMode = typeof PENALTY_MODES[number]['value'];
+
 function SettingsTab({ property }: { property: any }) {
   const [updateProperty, { isLoading }] = useUpdatePropertyMutation();
+  const rawPolicy = property.settings?.earlyTerminationPolicy || {};
+
   const [form, setForm] = useState({
-    billingCycle: property.billingCycle || 'monthly',
-    billingDay:   String(property.billingDay || 1),
-    currency:     property.currency || 'USD',
-    timezone:     property.timezone || 'UTC',
+    billingCycle:        property.billingCycle || 'monthly',
+    billingDay:          String(property.billingDay || 1),
+    currency:            property.currency || 'USD',
+    timezone:            property.timezone || 'UTC',
+    penaltyEnabled:      rawPolicy.enabled === undefined ? true : Boolean(rawPolicy.enabled),
+    penaltyMode:         (['formula', 'fixed', 'percent'].includes(rawPolicy.mode) ? rawPolicy.mode : 'formula') as PenaltyMode,
+    penaltyMaxMonths:    String(rawPolicy.maxMonths ?? 3),
+    penaltyRemainingPct: String(rawPolicy.remainingPercent ?? 50),
+    penaltyFixedAmount:  String(rawPolicy.fixedAmount ?? 0),
   });
   const [saved, setSaved] = useState(false);
 
-  const set = (k: keyof typeof form, v: string) => { setForm(f => ({ ...f, [k]: v })); setSaved(false); };
+  useEffect(() => {
+    const p = property.settings?.earlyTerminationPolicy || {};
+    setForm({
+      billingCycle:        property.billingCycle || 'monthly',
+      billingDay:          String(property.billingDay || 1),
+      currency:            property.currency || 'USD',
+      timezone:            property.timezone || 'UTC',
+      penaltyEnabled:      p.enabled === undefined ? true : Boolean(p.enabled),
+      penaltyMode:         (['formula', 'fixed', 'percent'].includes(p.mode) ? p.mode : 'formula') as PenaltyMode,
+      penaltyMaxMonths:    String(p.maxMonths ?? 3),
+      penaltyRemainingPct: String(p.remainingPercent ?? 50),
+      penaltyFixedAmount:  String(p.fixedAmount ?? 0),
+    });
+  }, [property.id, property.billingCycle, property.billingDay, property.currency, property.timezone, property.settings]);
+
+  const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => {
+    setForm(f => ({ ...f, [k]: v }));
+    setSaved(false);
+  };
 
   const handleSave = async () => {
     const day = Number(form.billingDay);
@@ -1109,6 +1142,22 @@ function SettingsTab({ property }: { property: any }) {
       toast.error('Billing day must be between 1 and 28');
       return;
     }
+    const maxMonths = Number(form.penaltyMaxMonths);
+    const remainingPercent = Number(form.penaltyRemainingPct);
+    const fixedAmount = Number(form.penaltyFixedAmount);
+    if (!Number.isFinite(maxMonths) || maxMonths < 0) {
+      toast.error('Max months of rent must be 0 or greater');
+      return;
+    }
+    if (!Number.isFinite(remainingPercent) || remainingPercent < 0 || remainingPercent > 1000) {
+      toast.error('Percentage must be between 0 and 1000');
+      return;
+    }
+    if (!Number.isFinite(fixedAmount) || fixedAmount < 0) {
+      toast.error('Fixed penalty amount must be 0 or greater');
+      return;
+    }
+
     try {
       await updateProperty({
         id: property.id,
@@ -1117,6 +1166,16 @@ function SettingsTab({ property }: { property: any }) {
           billingDay:   day,
           currency:     form.currency,
           timezone:     form.timezone,
+          settings: {
+            ...(property.settings || {}),
+            earlyTerminationPolicy: {
+              enabled:          form.penaltyEnabled,
+              mode:             form.penaltyMode,
+              maxMonths,
+              remainingPercent,
+              fixedAmount,
+            },
+          },
         },
       }).unwrap();
       toast.success('Settings saved');
@@ -1125,6 +1184,22 @@ function SettingsTab({ property }: { property: any }) {
       toast.error(e?.data?.errors?.[0]?.message || 'Failed to save settings');
     }
   };
+
+  const savedPolicy = {
+    enabled:          rawPolicy.enabled === undefined ? true : Boolean(rawPolicy.enabled),
+    mode:             (['formula', 'fixed', 'percent'].includes(rawPolicy.mode) ? rawPolicy.mode : 'formula') as PenaltyMode,
+    maxMonths:        Number(rawPolicy.maxMonths ?? 3),
+    remainingPercent: Number(rawPolicy.remainingPercent ?? 50),
+    fixedAmount:      Number(rawPolicy.fixedAmount ?? 0),
+  };
+
+  const policySummaryText = !savedPolicy.enabled
+    ? 'Disabled (No penalty)'
+    : savedPolicy.mode === 'fixed'
+      ? `Fixed (${property.currency || 'USD'} ${savedPolicy.fixedAmount.toLocaleString()})`
+      : savedPolicy.mode === 'percent'
+        ? `${savedPolicy.remainingPercent}% of monthly rent`
+        : `Min(${savedPolicy.maxMonths} mo rent, Remaining × ${savedPolicy.remainingPercent}%)`;
 
   return (
     <div className="tab-section settings-tab">
@@ -1205,6 +1280,104 @@ function SettingsTab({ property }: { property: any }) {
         </div>
       </div>
 
+      {/* Early Termination Policy */}
+      <div className="finance-sub-title" style={{ marginTop: 24 }}>
+        <Shield size={15} /> Early Termination Policy
+      </div>
+      <div className="settings-form">
+        {/* Penalty Enabled */}
+        <div className="settings-field">
+          <label className="settings-field-label">
+            <AlertCircle size={14} /> Early Termination Penalty
+          </label>
+          <div className="settings-field-desc">Charge a penalty when an active lease is terminated before its end date</div>
+          <select
+            className="settings-select"
+            value={form.penaltyEnabled ? 'enabled' : 'disabled'}
+            onChange={e => set('penaltyEnabled', e.target.value === 'enabled')}
+          >
+            <option value="enabled">Enabled</option>
+            <option value="disabled">Disabled (No Penalty)</option>
+          </select>
+        </div>
+
+        {/* Calculation Mode */}
+        <div className="settings-field">
+          <label className="settings-field-label">
+            <FileText size={14} /> Calculation Mode
+          </label>
+          <div className="settings-field-desc">How the early termination penalty is calculated</div>
+          <select
+            className="settings-select"
+            value={form.penaltyMode}
+            disabled={!form.penaltyEnabled}
+            onChange={e => set('penaltyMode', e.target.value as PenaltyMode)}
+          >
+            {PENALTY_MODES.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+          </select>
+        </div>
+
+        {/* Max Months of Rent */}
+        <div className="settings-field">
+          <label className="settings-field-label">
+            <Calendar size={14} /> Max Months of Rent
+          </label>
+          <div className="settings-field-desc">
+            Maximum cap in months of rent (used in Formula mode, default: 3)
+          </div>
+          <input
+            type="number"
+            className="settings-input"
+            min={0}
+            step="0.5"
+            disabled={!form.penaltyEnabled || form.penaltyMode !== 'formula'}
+            value={form.penaltyMaxMonths}
+            onChange={e => set('penaltyMaxMonths', e.target.value)}
+          />
+        </div>
+
+        {/* Remaining-Month % / Rent % */}
+        <div className="settings-field">
+          <label className="settings-field-label">
+            <DollarSign size={14} /> {form.penaltyMode === 'percent' ? 'Rent Percentage (%)' : 'Remaining-Month Percentage (%)'}
+          </label>
+          <div className="settings-field-desc">
+            {form.penaltyMode === 'percent'
+              ? 'Percentage of monthly rent charged as penalty (default: 50%)'
+              : 'Percentage of rent charged per remaining month in Formula mode (default: 50%)'}
+          </div>
+          <input
+            type="number"
+            className="settings-input"
+            min={0}
+            max={1000}
+            step="1"
+            disabled={!form.penaltyEnabled || form.penaltyMode === 'fixed'}
+            value={form.penaltyRemainingPct}
+            onChange={e => set('penaltyRemainingPct', e.target.value)}
+          />
+        </div>
+
+        {/* Fixed Amount */}
+        <div className="settings-field">
+          <label className="settings-field-label">
+            <DollarSign size={14} /> Fixed Penalty Amount ({form.currency})
+          </label>
+          <div className="settings-field-desc">
+            Flat penalty amount charged when Calculation Mode is Fixed Amount
+          </div>
+          <input
+            type="number"
+            className="settings-input"
+            min={0}
+            step="0.01"
+            disabled={!form.penaltyEnabled || form.penaltyMode !== 'fixed'}
+            value={form.penaltyFixedAmount}
+            onChange={e => set('penaltyFixedAmount', e.target.value)}
+          />
+        </div>
+      </div>
+
       {/* Current values summary */}
       <div className="settings-summary">
         <div className="settings-summary-title">Current Settings</div>
@@ -1213,8 +1386,9 @@ function SettingsTab({ property }: { property: any }) {
           <div className="setting-row"><span className="setting-label">Billing Day</span><span>{property.billingDay}</span></div>
           <div className="setting-row"><span className="setting-label">Timezone</span><span>{property.timezone}</span></div>
           <div className="setting-row"><span className="setting-label">Currency</span><span>{property.currency}</span></div>
+          <div className="setting-row"><span className="setting-label">Early Termination Penalty</span><span>{policySummaryText}</span></div>
         </div>
-        <p className="settings-note">Changes take effect on the next billing cycle.</p>
+        <p className="settings-note">Changes take effect on the next billing cycle / lease termination.</p>
       </div>
     </div>
   );

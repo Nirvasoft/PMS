@@ -6,10 +6,27 @@ import { redis } from '../../common/redis';
 import {
   UNIT_TYPES, UNIT_STATUS_TRANSITIONS, SQM_TO_SQFT,
 } from './seeds/seedData';
-import { calcLeaseTermMonths, calcEarlyTermPenalty } from '../leases/services/helpers';
+import { resolveTerminationPolicy, computeTerminationPenalty } from '../leases/services/helpers';
 import { webhookLeaseTerminated } from '../../common/webhookHooks';
 import { clearShopIdentityOp, shouldClearShopIdentity } from '../mall/shopProfileReset';
 import { invalidateMallPublicCache } from '../mall/publicCache';
+import { isSpacesEnabled, uploadToSpaces, deleteFromSpaces, getSpacesCdnUrl } from '../../common/spaces';
+
+const ALLOWED_UNIT_PHOTO_EXTS: Record<string, string> = {
+  '.pdf': 'application/pdf',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+};
+
+function extractUnitStorageKey(rawUrl?: string | null): string | null {
+  if (!rawUrl) return null;
+  const clean = rawUrl.split('?')[0].split('#')[0];
+  const m = clean.match(/(?:^|\/)(units\/[0-9a-f-]+\/[0-9a-f-]+\/[^/]+)$/i);
+  return m ? m[1] : null;
+}
 
 // ══════════════════════════════════════════════
 // SEED
@@ -396,13 +413,22 @@ export class UnitsService {
       data: { unitId: unit.id, toStatus: 'available', changedBy: userId },
     });
 
-    // Increment property totalUnits
-    await prisma.property.update({ where: { id: propertyId }, data: { totalUnits: { increment: 1 } } });
+    // Sync property totalUnits with actual non-deleted unit count
+    await this.syncPropertyTotalUnits(propertyId);
 
     // Invalidate cached stats
     await this.invalidateStatsCache(propertyId);
 
     return unit;
+  }
+
+  /** Recompute and store the exact non-deleted unit count on the parent Property row. */
+  async syncPropertyTotalUnits(
+    propertyId: string,
+    client: Prisma.TransactionClient | typeof prisma = prisma,
+  ) {
+    const totalUnits = await client.unit.count({ where: { propertyId, deletedAt: null } });
+    await client.property.update({ where: { id: propertyId }, data: { totalUnits } });
   }
 
   // ── Bulk create ────────────────────────────
@@ -483,8 +509,8 @@ export class UnitsService {
         await tx.unitStatusHistory.createMany({
           data: createdUnits.map((u) => ({ unitId: u.id, toStatus: 'available', changedBy: userId })),
         });
-        // Update property totalUnits
-        await tx.property.update({ where: { id: propertyId }, data: { totalUnits: { increment: createdUnits.length } } });
+        // Sync property totalUnits with actual non-deleted unit count
+        await this.syncPropertyTotalUnits(propertyId, tx);
         return createdUnits;
       });
     } catch (e) {
@@ -603,6 +629,7 @@ export class UnitsService {
       );
     }
 
+    invalidateMallPublicCache(propertyId);
     return updatedUnit;
   }
 
@@ -626,20 +653,17 @@ export class UnitsService {
     if (unit.status === 'occupied' && dto.status === 'available') {
       const activeLease = await prisma.lease.findFirst({
         where: { unitId, propertyId, status: 'active', deletedAt: null },
+        include: { unit: { include: { property: { select: { settings: true } } } } },
       });
 
       if (activeLease) {
         const termDate = new Date();
         const endDate = new Date(activeLease.endDate);
-        const isEarly = termDate < endDate;
-
-        let penalty = 0;
-        let penaltyBreakdown = '';
-        if (isEarly) {
-          const remainingMonths = Math.max(0, calcLeaseTermMonths(termDate, endDate));
-          penalty = calcEarlyTermPenalty(Number(activeLease.rentAmount), remainingMonths);
-          penaltyBreakdown = `Min(3 months rent, ${remainingMonths} remaining months × 50%)`;
-        }
+        const policy = resolveTerminationPolicy((activeLease as any).unit?.property?.settings);
+        const calc = computeTerminationPenalty(Number(activeLease.rentAmount), termDate, endDate, policy);
+        const isEarly = calc.isEarly;
+        const penalty = calc.penalty;
+        const penaltyBreakdown = calc.breakdown;
 
         const terminationReason = dto.reason?.trim()
           ? dto.reason.trim()
@@ -826,6 +850,7 @@ export class UnitsService {
 
   /** Invalidate the unit stats cache for a property */
   async invalidateStatsCache(propertyId: string) {
+    invalidateMallPublicCache(propertyId);
     try {
       await redis.del(`unit_stats:${propertyId}`);
     } catch (e) {
@@ -854,7 +879,7 @@ export class UnitsService {
     await prisma.unit.update({ where: { id: unitId }, data: { deletedAt: new Date(), isActive: false, unitNumber: archivedNumber } });
     // Free up meter serial numbers so they can be reassigned to another unit
     await prisma.utilityMeter.updateMany({ where: { unitId, isActive: true }, data: { isActive: false } });
-    await prisma.property.update({ where: { id: propertyId }, data: { totalUnits: { decrement: 1 } } });
+    await this.syncPropertyTotalUnits(propertyId);
 
     // Invalidate cached stats
     await this.invalidateStatsCache(propertyId);
@@ -866,17 +891,47 @@ export class UnitsService {
     if (!unit) throw AppError.notFound('Unit');
     this.assertFloorAllowed(floorScope, unit.floorNumber);
 
-    // Store using local storage (same as documents pattern)
     const fs = await import('fs/promises');
     const path = await import('path');
-    const uploadDir = path.join(process.cwd(), 'uploads', 'units', propertyId, unitId);
-    await fs.mkdir(uploadDir, { recursive: true });
-    const ext = path.extname(file.originalname);
-    const filename = `floor-plan${ext}`;
-    await fs.writeFile(path.join(uploadDir, filename), file.buffer);
-    const floorPlanUrl = `/uploads/units/${propertyId}/${unitId}/${filename}?v=${Date.now()}`;
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    const fallbackMime = ALLOWED_UNIT_PHOTO_EXTS[ext];
+    if (!fallbackMime) {
+      throw new AppError(400, 'INVALID_FILE_TYPE', 'Only PDF, PNG, JPEG, WEBP, or GIF files are allowed');
+    }
 
-    return prisma.unit.update({ where: { id: unitId }, data: { floorPlanUrl } });
+    const filename = `floor-plan${ext}`;
+    const storageKey = `units/${propertyId}/${unitId}/${filename}`;
+    const prevKey = extractUnitStorageKey(unit.floorPlanUrl);
+    const contentType = file.mimetype && file.mimetype !== 'application/octet-stream' ? file.mimetype : fallbackMime;
+    const version = Date.now();
+
+    let floorPlanUrl: string | null = null;
+
+    if (isSpacesEnabled()) {
+      try {
+        await uploadToSpaces(storageKey, file.buffer, contentType, { isPublic: true });
+        floorPlanUrl = `${getSpacesCdnUrl(storageKey)}?v=${version}`;
+        if (prevKey && prevKey !== storageKey) {
+          await deleteFromSpaces(prevKey).catch(() => {});
+        }
+      } catch (err) {
+        logger.warn(`Spaces upload failed for ${storageKey}; falling back to local storage`, err);
+      }
+    }
+
+    if (!floorPlanUrl) {
+      const uploadDir = path.join(process.cwd(), 'uploads', 'units', propertyId, unitId);
+      await fs.mkdir(uploadDir, { recursive: true });
+      await fs.writeFile(path.join(uploadDir, filename), file.buffer);
+      if (prevKey && prevKey !== storageKey) {
+        await fs.unlink(path.join(process.cwd(), 'uploads', prevKey)).catch(() => {});
+      }
+      floorPlanUrl = `/uploads/${storageKey}?v=${version}`;
+    }
+
+    const updated = await prisma.unit.update({ where: { id: unitId }, data: { floorPlanUrl } });
+    invalidateMallPublicCache(propertyId);
+    return updated;
   }
 
   async deleteFloorPlan(propertyId: string, unitId: string, floorScope?: number[] | null) {
@@ -884,7 +939,19 @@ export class UnitsService {
     if (!unit) throw AppError.notFound('Unit');
     this.assertFloorAllowed(floorScope, unit.floorNumber);
 
-    return prisma.unit.update({ where: { id: unitId }, data: { floorPlanUrl: null } });
+    const prevKey = extractUnitStorageKey(unit.floorPlanUrl);
+    if (prevKey) {
+      if (isSpacesEnabled()) {
+        await deleteFromSpaces(prevKey).catch(() => {});
+      }
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      await fs.unlink(path.join(process.cwd(), 'uploads', prevKey)).catch(() => {});
+    }
+
+    const updated = await prisma.unit.update({ where: { id: unitId }, data: { floorPlanUrl: null } });
+    invalidateMallPublicCache(propertyId);
+    return updated;
   }
 
   // ── Amenities ──────────────────────────────

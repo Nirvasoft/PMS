@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-// Strict date string — rejects rolled-over dates like '2024-02-30'
+// Strict date string â€” rejects rolled-over dates like '2024-02-30'
 const dateString = z.string().regex(
   /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/,
   'Invalid date format (expected YYYY-MM-DD)'
@@ -22,7 +22,7 @@ const rentalAgreementObject = z.object({
   shopName:            z.string().max(255).optional(),
 }).passthrough();
 
-// Shared sub-schemas — defined once, reused in create/update to avoid copy-paste drift
+// Shared sub-schemas â€” defined once, reused in create/update to avoid copy-paste drift
 const clauseItemSchema = z.object({
   title:   z.string(),
   content: z.string(),
@@ -122,6 +122,9 @@ export const terminateLeaseSchema = z.object({
     terminationDate: dateString,
     reason: z.string().min(1, 'Termination reason is required'),
     terminateSchedules: z.boolean().optional(),
+    waivePenalty: z.boolean().optional(),
+    penaltyOverride: z.number().min(0).optional(),
+    penaltyAdjustReason: z.string().optional(),
   }),
 });
 
@@ -167,3 +170,4 @@ export const createLeaseClauseSchema = z.object({
     isStandard: z.boolean().optional(),
   }),
 });
+

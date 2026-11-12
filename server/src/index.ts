@@ -8,6 +8,7 @@ import { config } from './common/config';
 import { logger } from './common/logger';
 import { prisma, connectDatabase, disconnectDatabase } from './common/database';
 import { disconnectRedis } from './common/redis';
+import { isSpacesEnabled, downloadFromSpaces } from './common/spaces';
 import { authMiddleware, requestContextMiddleware, errorHandler, tenantContextMiddleware } from './middleware';
 import { apiKeyAuth } from './middleware/apiKeyAuth';
 import { initSocketIO } from './common/socket';
@@ -100,6 +101,12 @@ async function bootstrap() {
   // Global middleware
   app.use(helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' },
+    contentSecurityPolicy: {
+      directives: {
+        ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+        'img-src': ["'self'", 'data:', 'blob:', 'https:'],
+      },
+    },
   }));
   app.use(cors({
     origin: config.frontendUrl,
@@ -126,6 +133,57 @@ async function bootstrap() {
   app.use('/api/v1/seed-photos', express.static(path.join(process.cwd(), 'public/seed-photos'), staticCacheOpts));
   app.use('/storage', express.static(path.join(process.cwd(), 'storage'), staticCacheOpts));
   app.use('/api/v1/storage', express.static(path.join(process.cwd(), 'storage'), staticCacheOpts));
+
+  // Fallback to DigitalOcean Spaces for unit/shop photos & PDFs when local container disk doesn't have the file
+  const SAFE_PATH_SEGMENT = /^[a-zA-Z0-9._-]+$/;
+  const UNIT_UPLOAD_MIME_BY_EXT: Record<string, string> = {
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.webp': 'image/webp',
+    '.gif': 'image/gif',
+    '.svg': 'image/svg+xml',
+    '.avif': 'image/avif',
+    '.pdf': 'application/pdf',
+  };
+  app.get(
+    ['/uploads/units/:propertyId/:unitId/:filename', '/api/v1/uploads/units/:propertyId/:unitId/:filename'],
+    async (req, res, next) => {
+      if (!isSpacesEnabled()) {
+        next();
+        return;
+      }
+      const propertyId = String(req.params.propertyId || '');
+      const unitId = String(req.params.unitId || '');
+      const filename = String(req.params.filename || '');
+      if (
+        !SAFE_PATH_SEGMENT.test(propertyId) ||
+        !SAFE_PATH_SEGMENT.test(unitId) ||
+        !SAFE_PATH_SEGMENT.test(filename) ||
+        filename.includes('..')
+      ) {
+        next();
+        return;
+      }
+      try {
+        const buf = await downloadFromSpaces(`units/${propertyId}/${unitId}/${filename}`);
+        const ext = path.extname(filename).toLowerCase();
+        res.setHeader('Content-Type', UNIT_UPLOAD_MIME_BY_EXT[ext] || 'application/octet-stream');
+        res.setHeader('Cache-Control', 'public, max-age=604800');
+        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.setHeader('Content-Length', String(buf.length));
+        if (req.method === 'HEAD') {
+          res.status(200).end();
+        } else {
+          res.status(200).send(buf);
+        }
+      } catch {
+        next();
+      }
+    },
+  );
+
   app.use(['/uploads', '/api/v1/uploads', '/seed-photos', '/api/v1/seed-photos'], (_req, res) => {
     res.status(404).end();
   });

@@ -165,6 +165,7 @@ export interface CreatePropertyDto {
   description?: string;
   branchId?: string;
   businessUnitId?: string;
+  settings?: Record<string, unknown>;
 }
 
 interface PaginatedResponse<T> {

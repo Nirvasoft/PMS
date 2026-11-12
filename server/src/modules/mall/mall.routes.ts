@@ -361,7 +361,7 @@ publicRouter.get('/properties/:propertyId/directory', asyncHandler(async (req, r
   const data = await cachedPublic(`mall:${propertyId}:directory`, PUBLIC_DATA_TTL_MS, () =>
     mallService.getPublicDirectory(propertyId),
   );
-  res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
+  res.set('Cache-Control', 'no-cache');
   res.json({ success: true, data });
 }));
 
@@ -378,7 +378,7 @@ publicRouter.get('/properties/:propertyId/floor-plan', asyncHandler(async (req, 
   const data = await cachedPublic(`mall:${propertyId}:floor:${floor}`, PUBLIC_DATA_TTL_MS, () =>
     mallService.getPublicFloorPlan(propertyId, floor),
   );
-  res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
+  res.set('Cache-Control', 'no-cache');
   res.json({ success: true, data });
 }));
 

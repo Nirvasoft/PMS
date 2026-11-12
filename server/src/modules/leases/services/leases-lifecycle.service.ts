@@ -1,7 +1,7 @@
 import { prisma } from '../../../common/database';
 import { AppError } from '../../../common/errors';
 import { logger } from '../../../common/logger';
-import { calcLeaseTermMonths, nextLeaseNumber, calcEarlyTermPenalty } from './helpers';
+import { calcLeaseTermMonths, nextLeaseNumber, resolveTerminationPolicy, computeTerminationPenalty } from './helpers';
 import { escalationService } from './escalation.service';
 import { workflowEngine } from '../../workflow/services/engine.service';
 import { billingSchedulesService } from '../../billing/billingSchedules.service';
@@ -197,26 +197,58 @@ export class LeasesLifecycleService {
     return { leaseId: id, status: 'cancelled' };
   }
 
+  private canAdjustPenalty(actor?: { roles?: string[]; permissions?: string[] }): boolean {
+    const isAdmin = (actor?.roles || []).some((r) => ['admin', 'super_admin'].includes(r.toLowerCase().replace(/\s+/g, '_')));
+    return isAdmin || (actor?.permissions || []).includes('leases.approve');
+  }
+
+  // ── Terminate preview (server-side penalty using the property's policy) ──
+  async terminationPreview(id: string, companyId: string, terminationDate: string, actor?: { roles?: string[]; permissions?: string[] }) {
+    const lease = await prisma.lease.findFirst({
+      where: { id, companyId, deletedAt: null },
+      include: { unit: { include: { property: { select: { settings: true } } } } },
+    });
+    if (!lease) throw AppError.notFound('Lease');
+    const policy = resolveTerminationPolicy((lease as any).unit?.property?.settings);
+    const calc = computeTerminationPenalty(Number(lease.rentAmount), new Date(terminationDate), new Date(lease.endDate), policy);
+    return { ...calc, policy, canAdjust: this.canAdjustPenalty(actor) };
+  }
+
   // ── Terminate ────────────────────────────
-  async terminate(id: string, companyId: string, dto: { terminationDate: string; reason: string; terminateSchedules?: boolean }, _terminatedBy: string) {
-    const lease = await prisma.lease.findFirst({ where: { id, companyId, deletedAt: null } });
+  async terminate(
+    id: string, companyId: string,
+    dto: { terminationDate: string; reason: string; terminateSchedules?: boolean; waivePenalty?: boolean; penaltyOverride?: number; penaltyAdjustReason?: string },
+    _terminatedBy: string,
+    actor?: { roles?: string[]; permissions?: string[] },
+  ) {
+    const lease = await prisma.lease.findFirst({
+      where: { id, companyId, deletedAt: null },
+      include: { unit: { include: { property: { select: { settings: true } } } } },
+    });
     if (!lease) throw AppError.notFound('Lease');
     if (lease.status !== 'active') throw new AppError(400, 'NOT_ACTIVE', 'Only active leases can be terminated');
 
     const termDate = new Date(dto.terminationDate);
     const endDate  = new Date(lease.endDate);
-    const isEarly  = termDate < endDate;
+    const policy   = resolveTerminationPolicy((lease as any).unit?.property?.settings);
+    const calc     = computeTerminationPenalty(Number(lease.rentAmount), termDate, endDate, policy);
+    const isEarly  = calc.isEarly;
 
-    let penalty = 0;
-    let penaltyBreakdown = '';
-    if (isEarly) {
-      const remainingMonths = Math.max(0, calcLeaseTermMonths(termDate, endDate));
-      penalty = calcEarlyTermPenalty(Number(lease.rentAmount), remainingMonths);
-      penaltyBreakdown = `Min(3 months rent, ${remainingMonths} remaining months × 50%)`;
+    let penalty = calc.penalty;
+    let penaltyBreakdown = calc.breakdown;
+    let reasonText = dto.reason;
+    const wantsAdjust = isEarly && (dto.waivePenalty || dto.penaltyOverride !== undefined);
+    if (wantsAdjust) {
+      if (!this.canAdjustPenalty(actor)) throw AppError.forbidden('You do not have permission to waive or change the termination penalty');
+      if (!dto.penaltyAdjustReason?.trim()) throw new AppError(400, 'REASON_REQUIRED', 'A reason is required to waive or change the penalty');
+      const original = calc.penalty;
+      if (dto.waivePenalty) { penalty = 0; penaltyBreakdown = `Waived (original ${original})`; }
+      else { penalty = Math.round((dto.penaltyOverride as number) * 100) / 100; penaltyBreakdown = `Manual override (original ${original})`; }
+      reasonText = `${dto.reason} | Penalty ${dto.waivePenalty ? 'waived' : `changed to ${penalty}`} (calculated ${original}): ${dto.penaltyAdjustReason.trim()}`;
     }
 
     await prisma.$transaction([
-      prisma.lease.update({ where: { id }, data: { status: 'terminated', terminationDate: termDate, terminationReason: dto.reason, terminationType: isEarly ? 'early' : 'normal', earlyTerminationPenalty: penalty } }),
+      prisma.lease.update({ where: { id }, data: { status: 'terminated', terminationDate: termDate, terminationReason: reasonText, terminationType: isEarly ? 'early' : 'normal', earlyTerminationPenalty: penalty } }),
       prisma.unit.update({ where: { id: lease.unitId }, data: { status: 'available' } }),
       clearShopIdentityOp([lease.unitId]),
       ...(dto.terminateSchedules
@@ -232,6 +264,7 @@ export class LeasesLifecycleService {
     webhookLeaseTerminated(result, companyId);
     return result;
   }
+
 
   // ── Create renewal ───────────────────────
   async createRenewal(id: string, companyId: string, dto: { startDate: string; endDate: string; rentAmount?: number; securityDeposit?: number; offerExpiresAt?: string }, createdBy: string) {

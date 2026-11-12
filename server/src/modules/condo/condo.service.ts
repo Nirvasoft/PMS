@@ -541,7 +541,7 @@ class CondoService {
     });
     if (!meeting) throw AppError.notFound('Meeting');
 
-    const totalUnits = await prisma.unit.count({ where: { propertyId: meeting.propertyId, companyId } });
+    const totalUnits = await prisma.unit.count({ where: { propertyId: meeting.propertyId, companyId, deletedAt: null } });
 
     return {
       meetingId: meeting.id,
