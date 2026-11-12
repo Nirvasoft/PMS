@@ -47,7 +47,7 @@ export default function PaymentVouchersPage() {
   const selectedProperty = useSelectedPropertyFilter();
   const { isV6PushActive: isV6Active } = useV6IntegrationStatus(selectedProperty || undefined);
   const effectiveIsCash = !isV6Active ? true : isCash;
-  const tableColCount = isV6Active ? 9 : 8;
+  const tableColCount = isV6Active ? 9 : 7;
   const { data: propertiesData } = useGetMyPropertyScopeQuery();
   const properties = propertiesData?.data || [];
   const selectedPropertyName = properties.find((p) => p.id === selectedProperty)?.name || '';
@@ -309,7 +309,7 @@ export default function PaymentVouchersPage() {
               <tr>
                 <th>Voucher No.</th>
                 <th>Date</th>
-                <th>Vendor</th>
+                {isV6Active && <th>Vendor</th>}
                 <th>Method</th>
                 <th>Amount</th>
                 {isV6Active && <th>AP Invoices</th>}
@@ -327,7 +327,7 @@ export default function PaymentVouchersPage() {
                 <tr key={pv.id}>
                   <td><strong>{pv.voucherNumber}</strong></td>
                   <td>{format(new Date(pv.voucherDate), 'dd MMM yyyy')}</td>
-                  <td>{pv.vendorName || '—'}</td>
+                  {isV6Active && <td>{pv.vendorName || '—'}</td>}
                   <td style={{ textTransform: 'capitalize' }}>{formatPaymentMethod(pv.paymentMethod)}</td>
                   <td className="amount-neutral">{fmt(pv.totalAmount)} {pv.currency}</td>
                   {isV6Active && (
@@ -443,12 +443,12 @@ export default function PaymentVouchersPage() {
                     )}
                   </select>
                 </div>
-                <div className="ap-form-group">
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <label style={{ margin: 0 }}>
-                      Vendor Name {!effectiveIsCash && <span className="req">*</span>}
-                    </label>
-                    {isV6Active && (
+                {isV6Active && (
+                  <div className="ap-form-group">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <label style={{ margin: 0 }}>
+                        Vendor Name {!effectiveIsCash && <span className="req">*</span>}
+                      </label>
                       <label
                         htmlFor="voucher-cash-checkbox"
                         style={{
@@ -491,20 +491,20 @@ export default function PaymentVouchersPage() {
                         />
                         Cash
                       </label>
+                    </div>
+                    <input
+                      disabled={effectiveIsCash}
+                      placeholder={effectiveIsCash ? 'Disabled for Cash voucher' : ''}
+                      className={hasAttemptedCreate && !effectiveIsCash && !form.vendorName.trim() ? 'ap-input-error' : ''}
+                      value={form.vendorName}
+                      onChange={e => setForm(f => ({ ...f, vendorName: e.target.value }))}
+                      style={effectiveIsCash ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+                    />
+                    {hasAttemptedCreate && !effectiveIsCash && !form.vendorName.trim() && (
+                      <span className="ap-error-text">Vendor name is required</span>
                     )}
                   </div>
-                  <input
-                    disabled={effectiveIsCash}
-                    placeholder={effectiveIsCash ? 'Disabled for Cash voucher' : ''}
-                    className={hasAttemptedCreate && !effectiveIsCash && !form.vendorName.trim() ? 'ap-input-error' : ''}
-                    value={form.vendorName}
-                    onChange={e => setForm(f => ({ ...f, vendorName: e.target.value }))}
-                    style={effectiveIsCash ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
-                  />
-                  {hasAttemptedCreate && !effectiveIsCash && !form.vendorName.trim() && (
-                    <span className="ap-error-text">Vendor name is required</span>
-                  )}
-                </div>
+                )}
                 <div className="ap-form-group">
                   <label>Amount <span className="req">*</span></label>
                   <input
@@ -529,11 +529,11 @@ export default function PaymentVouchersPage() {
                   </select>
                 </div>
                 <div className="ap-form-group">
-                  <label>Vendor Bank Name</label>
+                  <label>{isV6Active ? 'Vendor Bank Name' : 'Bank Name'}</label>
                   <input value={form.vendorBankName} onChange={e => setForm(f => ({ ...f, vendorBankName: e.target.value }))} placeholder="OCBC Bank" />
                 </div>
                 <div className="ap-form-group">
-                  <label>Vendor Bank Acc</label>
+                  <label>{isV6Active ? 'Vendor Bank Acc' : 'Bank Acc'}</label>
                   <input value={form.vendorBankAcc} onChange={e => setForm(f => ({ ...f, vendorBankAcc: e.target.value }))} placeholder="500-123456-001" />
                 </div>
                 <div className="ap-form-group full-width">
