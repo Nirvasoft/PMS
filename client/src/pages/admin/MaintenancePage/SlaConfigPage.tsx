@@ -14,6 +14,7 @@ import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import TableScrollWrapper from '../../../components/TableScrollWrapper';
+import './MaintenancePage.css';
 
 const PRIORITIES = ['P1', 'P2', 'P3', 'P4'];
 const PRIORITY_COLORS: Record<string, string> = {

@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   useGetVisitorPassesQuery, useIssueVisitorPassMutation, useCancelVisitorPassMutation,
   type VisitorPass,
 } from '../../../store/api/parkingApi';
+import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { QRCode, useQRDownload } from '../../../components/QRCode';
 import { useConfirm } from '../../../components/DialogProvider';
@@ -287,21 +288,38 @@ function getCurrentDateTimeLocalString(): string {
 
 function IssuePassModal({ activeProperty, onClose }: { activeProperty: string; onClose: () => void }) {
   const [issuePass, { isLoading }] = useIssueVisitorPassMutation();
-  const propertyId = activeProperty;
+  const { data: scopeData } = useGetMyPropertyScopeQuery();
+  const scopeProperties = scopeData?.data || [];
+  const propertyLocked = !!activeProperty;
+  const lockedPropertyName = scopeProperties.find((p) => p.id === activeProperty)?.name;
 
   const [form, setForm] = useState({
+    propertyId: activeProperty || '',
     visitorName: '', visitorVehiclePlate: '',
     validFrom: getCurrentDateTimeLocalString(), validTo: '', maxHours: '4',
   });
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
+  const prevPropertyLockedRef = useRef(propertyLocked);
+  useEffect(() => {
+    if (propertyLocked) {
+      if (form.propertyId !== activeProperty) setForm(f => ({ ...f, propertyId: activeProperty }));
+    } else if (prevPropertyLockedRef.current) {
+      setForm(f => ({ ...f, propertyId: '' }));
+    }
+    prevPropertyLockedRef.current = propertyLocked;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeProperty, propertyLocked]);
+
+  const effectivePropertyId = propertyLocked ? activeProperty : form.propertyId;
+
   const handleSubmit = async () => {
     setHasAttemptedSubmit(true);
-    if (!propertyId || !form.visitorName.trim() || !form.validFrom || !form.validTo) return;
+    if (!effectivePropertyId || !form.visitorName.trim() || !form.validFrom || !form.validTo) return;
     try {
       await issuePass({
-        propertyId,
+        propertyId: effectivePropertyId,
         data: {
           visitorName: form.visitorName,
           visitorVehiclePlate: form.visitorVehiclePlate || undefined,
@@ -329,6 +347,29 @@ function IssuePassModal({ activeProperty, onClose }: { activeProperty: string; o
           >
             <X size={18} />
           </button>
+        </div>
+        <div className="form-group">
+          <label>Property *</label>
+          <select
+            className={`form-input ${hasAttemptedSubmit && !effectivePropertyId ? 'input-error' : ''}`}
+            value={effectivePropertyId}
+            disabled={propertyLocked}
+            onChange={e => set('propertyId', e.target.value)}
+          >
+            {propertyLocked ? (
+              <option value={activeProperty}>{lockedPropertyName || 'Selected Property'}</option>
+            ) : (
+              <>
+                <option value="">Select property...</option>
+                {scopeProperties.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </>
+            )}
+          </select>
+          {hasAttemptedSubmit && !effectivePropertyId && (
+            <span className="field-error-text">Property is required</span>
+          )}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <div className="form-group">

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import './MaintenancePage.css';
 
 const WO_COLORS: Record<string, string> = {
   pending: '#94a3b8',

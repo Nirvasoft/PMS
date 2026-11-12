@@ -14,6 +14,7 @@ import {
 import { useState, useRef, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import './MaintenancePage.css';
 
 const PRIORITIES: Record<string, { label: string; color: string }> = {
   P1: { label: 'P1 — Emergency', color: '#ef4444' },

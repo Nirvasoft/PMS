@@ -120,6 +120,26 @@
 .merge-page .btn-primary:disabled { opacity: 0.5; cursor: default; }
 .merge-page .btn-danger { display: flex; align-items: center; gap: 5px; padding: 8px 16px; background: #e74c3c; color: white; border: none; border-radius: 8px; font-size: 0.82rem; font-weight: 600; cursor: pointer; }
 .merge-page .btn-danger:disabled { opacity: 0.5; cursor: default; }
+
+.merge-page .type-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 600; text-transform: capitalize;
+  white-space: nowrap;
+}
+.merge-page .type-badge.individual { background: rgba(16, 185, 129, 0.12); color: var(--accent, #10b981); }
+.merge-page .type-badge.company,
+.merge-page .type-badge.corporate  { background: rgba(9, 132, 227, 0.12); color: #74b9ff; }
+[data-theme="light"] .merge-page .type-badge.company,
+[data-theme="light"] .merge-page .type-badge.corporate { background: rgba(9, 132, 227, 0.12); color: #0284c7; }
+
+.merge-page .bl-badge {
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 1px 6px; border-radius: 4px;
+  background: rgba(231, 76, 60, 0.15); color: #e74c3c;
+  font-size: 0.65rem; font-weight: 700;
+  flex-shrink: 0; white-space: nowrap;
+}
+
 /* Light mode */
 [data-theme="light"] .merge-side .combobox-control {
   background: #ffffff;

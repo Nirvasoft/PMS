@@ -1,10 +1,11 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   useGetAllocationsQuery, useCreateAllocationMutation, useCancelAllocationMutation,
   useUpdateAllocationMutation, useGetVehiclesQuery,
   useGetSlotsQuery, useGetParkingTypesQuery, useGetZonesQuery, type ParkingAllocation, type ParkingUnitType,
 } from '../../../store/api/parkingApi';
 import { useGetTenantsQuery, type TenantListItem } from '../../../store/api/tenantsApi';
+import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { useConfirm } from '../../../components/DialogProvider';
 import ComboBox from '../../../components/ComboBox';
@@ -352,7 +353,24 @@ function EditAllocationModal({ allocation, onClose }: { allocation: ParkingAlloc
 
 function CreateAllocationModal({ activeProperty, onClose }: { activeProperty: string; onClose: () => void }) {
   const [createAllocation, { isLoading }] = useCreateAllocationMutation();
-  const propertyId = activeProperty;
+  const { data: scopeData } = useGetMyPropertyScopeQuery();
+  const scopeProperties = scopeData?.data || [];
+  const propertyLocked = !!activeProperty;
+  const lockedPropertyName = scopeProperties.find((p) => p.id === activeProperty)?.name;
+
+  const [selectedPropertyId, setSelectedPropertyId] = useState(activeProperty || '');
+  const prevPropertyLockedRef = useRef(propertyLocked);
+  useEffect(() => {
+    if (propertyLocked) {
+      if (selectedPropertyId !== activeProperty) setSelectedPropertyId(activeProperty);
+    } else if (prevPropertyLockedRef.current) {
+      setSelectedPropertyId('');
+    }
+    prevPropertyLockedRef.current = propertyLocked;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeProperty, propertyLocked]);
+
+  const propertyId = propertyLocked ? activeProperty : selectedPropertyId;
 
   const [parkingType, setParkingType] = useState('');
   const [zoneId, setZoneId] = useState('');
@@ -420,7 +438,7 @@ function CreateAllocationModal({ activeProperty, onClose }: { activeProperty: st
 
   const handleSubmit = async () => {
     setHasAttemptedSubmit(true);
-    if (!form.slotId || !form.tenantId || !form.startDate || !form.monthlyRate) return;
+    if (!propertyId || !form.slotId || !form.tenantId || !form.startDate || !form.monthlyRate) return;
     try {
       await createAllocation({
         slotId: form.slotId,
@@ -448,6 +466,29 @@ function CreateAllocationModal({ activeProperty, onClose }: { activeProperty: st
           >
             <X size={18} />
           </button>
+        </div>
+        <div className="form-group">
+          <label>Property *</label>
+          <select
+            className={`form-input ${hasAttemptedSubmit && !propertyId ? 'input-error' : ''}`}
+            value={propertyId}
+            disabled={propertyLocked}
+            onChange={e => setSelectedPropertyId(e.target.value)}
+          >
+            {propertyLocked ? (
+              <option value={activeProperty}>{lockedPropertyName || 'Selected Property'}</option>
+            ) : (
+              <>
+                <option value="">Select property...</option>
+                {scopeProperties.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </>
+            )}
+          </select>
+          {hasAttemptedSubmit && !propertyId && (
+            <span className="field-error-text">Property is required</span>
+          )}
         </div>
         <div className="form-row">
           <div className="form-group">
@@ -481,8 +522,9 @@ function CreateAllocationModal({ activeProperty, onClose }: { activeProperty: st
             className={`form-input ${hasAttemptedSubmit && !form.slotId ? 'input-error' : ''}`}
             value={form.slotId}
             onChange={e => set('slotId', e.target.value)}
+            disabled={!propertyId}
           >
-            <option value="">— Select slot —</option>
+            <option value="">{propertyId ? '— Select slot —' : '— Select property first —'}</option>
             {slots.map((s: any) => <option key={s.id} value={s.id}>{s.slotNumber} ({s.zone?.name || 'No zone'})</option>)}
           </select>
           {hasAttemptedSubmit && !form.slotId && (
