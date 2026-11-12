@@ -1,6 +1,7 @@
 import { Router, Request } from 'express';
-import { asyncHandler } from '../../middleware';
+import { asyncHandler, getUserPropertyScope } from '../../middleware';
 import { validateRequest } from '../../middleware/validateRequest';
+import { AppError } from '../../common/errors';
 import { receiptsService } from './receipts.service';
 import { refundsService } from './refunds.service';
 import { tenantCreditsService } from './tenantCredits.service';
@@ -51,17 +52,31 @@ receiptsRouter.post('/:id/reverse', validateRequest(reverseReceiptSchema), async
 export const arReportsRouter = Router();
 
 arReportsRouter.get('/aging-report', asyncHandler(async (req, res) => {
+  const propertyScope = await getUserPropertyScope(req.user!.sub);
+  const propertyId = (req.query.propertyId as string) || undefined;
+  if (propertyScope && propertyId && !propertyScope.includes(propertyId)) {
+    throw new AppError(403, 'PROPERTY_ACCESS_DENIED', 'You do not have access to this property');
+  }
   const data = await receiptsService.getAgingReport(req.user!.companyId, {
-    propertyId: req.query.propertyId as string,
+    propertyId,
+    propertyIds: propertyScope ?? undefined,
     asOfDate: req.query.asOfDate as string,
+    currency: (req.query.currency as string) || undefined,
   });
   res.json({ success: true, data });
 }));
 
 arReportsRouter.get('/aging-report/csv', asyncHandler(async (req, res) => {
+  const propertyScope = await getUserPropertyScope(req.user!.sub);
+  const propertyId = (req.query.propertyId as string) || undefined;
+  if (propertyScope && propertyId && !propertyScope.includes(propertyId)) {
+    throw new AppError(403, 'PROPERTY_ACCESS_DENIED', 'You do not have access to this property');
+  }
   const data = await receiptsService.getAgingReport(req.user!.companyId, {
-    propertyId: req.query.propertyId as string,
+    propertyId,
+    propertyIds: propertyScope ?? undefined,
     asOfDate: req.query.asOfDate as string,
+    currency: (req.query.currency as string) || undefined,
   });
   const csv = receiptsService.generateAgingCsv(data);
   res.setHeader('Content-Type', 'text/csv');

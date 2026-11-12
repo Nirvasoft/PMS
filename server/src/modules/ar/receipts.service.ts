@@ -416,29 +416,78 @@ export class ReceiptsService {
 
   // ── Aging Report ────────────────────────────
 
-  async getAgingReport(companyId: string, params: { propertyId?: string; asOfDate?: string }) {
+  async getAgingReport(
+    companyId: string,
+    params: { propertyId?: string; propertyIds?: string[]; asOfDate?: string; currency?: string },
+  ) {
     const today = params.asOfDate ? new Date(params.asOfDate) : new Date();
     const d30 = new Date(today); d30.setDate(d30.getDate() - 30);
     const d60 = new Date(today); d60.setDate(d60.getDate() - 60);
     const d90 = new Date(today); d90.setDate(d90.getDate() - 90);
+
+    const requestedCurrency =
+      params.currency && params.currency.toUpperCase() !== 'ALL'
+        ? params.currency.trim().toUpperCase()
+        : undefined;
 
     const where: any = {
       companyId,
       status: { in: ['issued', 'sent', 'partially_paid', 'overdue'] },
       invoiceType: 'invoice',
     };
-    if (params.propertyId) where.propertyId = params.propertyId;
+    if (params.propertyId) {
+      where.propertyId = params.propertyId;
+    } else if (params.propertyIds && params.propertyIds.length > 0) {
+      where.propertyId = { in: params.propertyIds };
+    }
+    if (requestedCurrency) {
+      where.currency = requestedCurrency;
+    }
 
-    const invoices = await prisma.invoice.findMany({
-      where,
-      select: {
-        tenantId: true,
-        totalAmount: true,
-        paidAmount: true,
-        dueDate: true,
-        tenant: { select: { id: true, firstName: true, lastName: true, companyName: true, tenantType: true } },
-      },
-    });
+    const [invoices, currencyRates] = await Promise.all([
+      prisma.invoice.findMany({
+        where,
+        select: {
+          tenantId: true,
+          totalAmount: true,
+          paidAmount: true,
+          currency: true,
+          dueDate: true,
+          tenant: { select: { id: true, firstName: true, lastName: true, companyName: true, tenantType: true } },
+        },
+      }),
+      prisma.currencyRate.findMany({
+        where: {
+          companyId,
+          ...(params.propertyId
+            ? { propertyId: params.propertyId }
+            : params.propertyIds && params.propertyIds.length > 0
+            ? { propertyId: { in: params.propertyIds } }
+            : {}),
+        },
+        orderBy: { effectiveDate: 'desc' },
+      }),
+    ]);
+
+    const baseCurrency =
+      currencyRates.find((r) => r.isBaseCurrency)?.currency || 'MMK';
+    const displayCurrency = requestedCurrency || baseCurrency;
+
+    const rateMap = new Map<string, { operator: string; rate: number }>();
+    for (const r of currencyRates) {
+      if (!rateMap.has(r.currency)) {
+        rateMap.set(r.currency, { operator: r.operator || 'multiply', rate: Number(r.rate) });
+      }
+    }
+
+    const toDisplayAmount = (amount: number, invCurrency: string): number => {
+      if (requestedCurrency) return amount;
+      const code = (invCurrency || '').toUpperCase();
+      if (!code || code === baseCurrency) return amount;
+      const entry = rateMap.get(code);
+      if (!entry || !entry.rate || entry.rate <= 0) return amount;
+      return entry.operator === 'divide' ? amount / entry.rate : amount * entry.rate;
+    };
 
     // Group by tenant and bucket
     const tenantMap = new Map<string, {
@@ -447,13 +496,16 @@ export class ReceiptsService {
     }>();
 
     for (const inv of invoices) {
-      const outstanding = Number(inv.totalAmount) - Number(inv.paidAmount);
-      if (outstanding <= 0) continue;
+      const rawOutstanding = Number(inv.totalAmount) - Number(inv.paidAmount);
+      if (rawOutstanding <= 0) continue;
+      const outstanding = toDisplayAmount(rawOutstanding, inv.currency);
 
       const due = new Date(inv.dueDate);
-      const tenantName = inv.tenant.tenantType === 'corporate'
-        ? inv.tenant.companyName || ''
-        : `${inv.tenant.firstName || ''} ${inv.tenant.lastName || ''}`.trim();
+      const fullName = `${inv.tenant.firstName || ''} ${inv.tenant.lastName || ''}`.trim();
+      const tenantName =
+        inv.tenant.tenantType === 'corporate' || inv.tenant.tenantType === 'company'
+          ? inv.tenant.companyName || fullName
+          : fullName || inv.tenant.companyName || '';
 
       if (!tenantMap.has(inv.tenantId)) {
         tenantMap.set(inv.tenantId, {
@@ -491,7 +543,7 @@ export class ReceiptsService {
       { current: 0, days1to30: 0, days31to60: 0, days61to90: 0, over90: 0, total: 0 },
     );
 
-    return { summary, rows, generatedAt: today.toISOString() };
+    return { summary, rows, currency: displayCurrency, baseCurrency, generatedAt: today.toISOString() };
   }
 
   // ── Collection Summary ──────────────────────
@@ -674,9 +726,9 @@ export class ReceiptsService {
 
   // ── Aging Report CSV ─────────────────────────
 
-  generateAgingCsv(report: { summary: any; rows: any[]; generatedAt: string }): string {
+  generateAgingCsv(report: { summary: any; rows: any[]; currency?: string; generatedAt: string }): string {
     const lines: string[] = [];
-    lines.push(`AR Aging Report — Generated ${report.generatedAt}`);
+    lines.push(`AR Aging Report${report.currency ? ` (${report.currency})` : ''} — Generated ${report.generatedAt}`);
     lines.push('');
     lines.push('Tenant,Current,1-30 Days,31-60 Days,61-90 Days,Over 90 Days,Total');
 

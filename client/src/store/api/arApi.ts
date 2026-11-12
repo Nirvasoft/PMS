@@ -48,6 +48,8 @@ export interface AgingRow {
 export interface AgingReport {
   summary: { current: number; days1to30: number; days31to60: number; days61to90: number; over90: number; total: number };
   rows: AgingRow[];
+  currency?: string;
+  baseCurrency?: string;
   generatedAt: string;
 }
 
@@ -188,7 +190,7 @@ export const arApi = createApi({
     }),
 
     // ── AR Reports ────────────────────────
-    getAgingReport: builder.query<ApiResponse<AgingReport>, { propertyId?: string; asOfDate?: string }>({
+    getAgingReport: builder.query<ApiResponse<AgingReport>, { propertyId?: string; asOfDate?: string; currency?: string }>({
       query: (params) => ({ url: '/ar/aging-report', params }),
       providesTags: ['AgingReport'],
     }),

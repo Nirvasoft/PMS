@@ -1,21 +1,71 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { skipToken } from '@reduxjs/toolkit/query/react';
 import { useGetAgingReportQuery } from '../../../store/api/arApi';
-import { Clock, Search, Download, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
+import { useSelectedPropertyId, useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
+import { useAppSelector } from '../../../store';
+import { Clock, Search, Download, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
+import { formatCurrency as formatCurrencyHelper } from '../../../utils/formatCurrency';
 import './ARPage.css';
 
-import { formatCurrency } from '../../../utils/formatCurrency';
-
 export default function AgingReportPage() {
+  const propertyId = useSelectedPropertyId();
+  const propertyFilter = useSelectedPropertyFilter();
+  const accessToken = useAppSelector((s) => s.auth.accessToken);
+
   const [asOfDate, setAsOfDate] = useState('');
+  const [currencyFilter, setCurrencyFilter] = useState<string>('ALL');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [exportingCsv, setExportingCsv] = useState(false);
 
-  const { data, isFetching } = useGetAgingReportQuery({ asOfDate: asOfDate || undefined });
+  const { data: currencyRatesData } = useGetCurrencyRatesQuery(
+    propertyId ? { propertyId } : skipToken,
+  );
+  const currencyRates = currencyRatesData?.data ?? [];
+  const baseCurrencyCode = currencyRates.find((r) => r.isBaseCurrency)?.currency || 'MMK';
+
+  const currencyOptions = useMemo(() => {
+    const map = new Map<string, boolean>();
+    for (const r of currencyRates) {
+      if (!r.currency) continue;
+      map.set(r.currency, Boolean(map.get(r.currency) || r.isBaseCurrency));
+    }
+    if (map.size === 0) {
+      map.set(baseCurrencyCode, true);
+    }
+    return Array.from(map.entries())
+      .sort((a, b) => (b[1] ? 1 : 0) - (a[1] ? 1 : 0) || a[0].localeCompare(b[0]))
+      .map(([code, isBase]) => ({ code, isBase }));
+  }, [currencyRates, baseCurrencyCode]);
+
+  const prevPropertyRef = useRef(propertyFilter);
+  useEffect(() => {
+    if (prevPropertyRef.current !== propertyFilter) {
+      prevPropertyRef.current = propertyFilter;
+      setCurrencyFilter('ALL');
+      setPage(1);
+    }
+  }, [propertyFilter]);
+
+  const activeCurrencyParam = currencyFilter === 'ALL' ? undefined : currencyFilter;
+
+  const { data, isFetching } = useGetAgingReportQuery({
+    propertyId: propertyFilter || undefined,
+    asOfDate: asOfDate || undefined,
+    currency: activeCurrencyParam,
+  });
   const report = data?.data;
   const summary = report?.summary || { current: 0, days1to30: 0, days31to60: 0, days61to90: 0, over90: 0, total: 0 };
   const rows = report?.rows || [];
+  const displayCurrency =
+    report?.currency || (currencyFilter !== 'ALL' ? currencyFilter : baseCurrencyCode);
+
+  const fmtAmount = (amount: number) =>
+    formatCurrencyHelper(amount, displayCurrency, 'code');
 
   const filtered = search
     ? rows.filter(r => r.tenantName.toLowerCase().includes(search.toLowerCase()))
@@ -25,6 +75,41 @@ export default function AgingReportPage() {
   const totalPages = Math.ceil(totalItems / pageSize) || 1;
   const startIndex = (page - 1) * pageSize;
   const paginatedRows = filtered.slice(startIndex, startIndex + pageSize);
+
+  const handleExportCsv = async () => {
+    if (exportingCsv) return;
+    setExportingCsv(true);
+    try {
+      const params = new URLSearchParams();
+      if (propertyFilter) params.set('propertyId', propertyFilter);
+      if (asOfDate) params.set('asOfDate', asOfDate);
+      if (activeCurrencyParam) params.set('currency', activeCurrencyParam);
+      const url = `/api/v1/ar/aging-report/csv${params.toString() ? '?' + params.toString() : ''}`;
+      const res = await fetch(url, {
+        credentials: 'include',
+        headers: {
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+      });
+      if (!res.ok) {
+        throw new Error('Failed to export CSV');
+      }
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `aging-report-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to export aging report CSV');
+    } finally {
+      setExportingCsv(false);
+    }
+  };
 
   return (
     <div className="ar-page">
@@ -37,13 +122,16 @@ export default function AgingReportPage() {
           <div>
             <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>AR Aging Report</h1>
             <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
-              {`${rows.length} total tenants`}
+              {`${rows.length} total tenants · ${displayCurrency}`}
             </p>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <label style={{ fontSize: 12, color: 'var(--text-tertiary)', fontWeight: 600 }}>As of:</label>
-          <input type="date" className="filter-date" value={asOfDate}
+          <input
+            type="date"
+            className="filter-date"
+            value={asOfDate}
             onChange={e => { setAsOfDate(e.target.value); setPage(1); }}
             style={{
               padding: '8px 12px', background: 'rgba(255,255,255,0.04)',
@@ -51,16 +139,14 @@ export default function AgingReportPage() {
               color: 'var(--text-primary)', fontSize: 13,
             }}
           />
-          <button className="btn btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}
-            onClick={() => {
-              const params = new URLSearchParams();
-              if (asOfDate) params.set('asOfDate', asOfDate);
-              const url = `/api/v1/ar/aging-report/csv${params.toString() ? '?' + params.toString() : ''}`;
-              const a = document.createElement('a');
-              a.href = url; a.download = 'aging-report.csv'; a.click();
-            }}
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={exportingCsv}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}
+            onClick={handleExportCsv}
           >
-            <Download size={14} /> Export CSV
+            <Download size={14} /> {exportingCsv ? 'Exporting…' : 'Export CSV'}
           </button>
         </div>
       </div>
@@ -69,23 +155,23 @@ export default function AgingReportPage() {
       <div className="aging-bucket-cards">
         <div className="aging-bucket current">
           <div className="ab-label">Current</div>
-          <div className="ab-amount">{formatCurrency(summary.current)}</div>
+          <div className="ab-amount">{fmtAmount(summary.current)}</div>
         </div>
         <div className="aging-bucket d1-30">
           <div className="ab-label">1–30 Days</div>
-          <div className="ab-amount">{formatCurrency(summary.days1to30)}</div>
+          <div className="ab-amount">{fmtAmount(summary.days1to30)}</div>
         </div>
         <div className="aging-bucket d31-60">
           <div className="ab-label">31–60 Days</div>
-          <div className="ab-amount">{formatCurrency(summary.days31to60)}</div>
+          <div className="ab-amount">{fmtAmount(summary.days31to60)}</div>
         </div>
         <div className="aging-bucket d61-90">
           <div className="ab-label">61–90 Days</div>
-          <div className="ab-amount">{formatCurrency(summary.days61to90)}</div>
+          <div className="ab-amount">{fmtAmount(summary.days61to90)}</div>
         </div>
         <div className="aging-bucket over90">
           <div className="ab-label">Over 90 Days</div>
-          <div className="ab-amount">{formatCurrency(summary.over90)}</div>
+          <div className="ab-amount">{fmtAmount(summary.over90)}</div>
         </div>
       </div>
 
@@ -96,19 +182,50 @@ export default function AgingReportPage() {
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
       }}>
         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
-          Total Outstanding
+          Total Outstanding ({displayCurrency})
         </span>
         <span style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: -0.5 }}>
-          {formatCurrency(summary.total)}
+          {fmtAmount(summary.total)}
         </span>
       </div>
 
-      {/* Search */}
+      {/* Search & Currency Filter */}
       <div className="ar-filters">
         <div className="search-wrap">
           <Search size={15} className="search-icon" />
-          <input type="text" placeholder="Search tenants…" value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} />
+          <input
+            type="text"
+            placeholder="Search tenants…"
+            value={search}
+            onChange={e => { setSearch(e.target.value); setPage(1); }}
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => { setSearch(''); setPage(1); }}
+              title="Clear search"
+              style={{
+                position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                background: 'transparent', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', padding: 2, display: 'flex',
+              }}
+            >
+              <X size={13} />
+            </button>
+          )}
         </div>
+        <select
+          className="filter-select"
+          value={currencyFilter}
+          onChange={e => { setCurrencyFilter(e.target.value); setPage(1); }}
+          title="Currency"
+        >
+          <option value="ALL">All Currencies ({baseCurrencyCode})</option>
+          {currencyOptions.map((c) => (
+            <option key={c.code} value={c.code}>
+              {c.code}{c.isBase ? ' (Base)' : ''}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Table */}
@@ -140,22 +257,22 @@ export default function AgingReportPage() {
                   <tr key={row.tenantId}>
                     <td><span className="cell-primary">{row.tenantName}</span></td>
                     <td className="text-right">
-                      <span className={`cell-amount ${row.current > 0 ? '' : 'zero'}`}>{formatCurrency(row.current)}</span>
+                      <span className={`cell-amount ${row.current > 0 ? '' : 'zero'}`}>{fmtAmount(row.current)}</span>
                     </td>
                     <td className="text-right">
-                      <span className={`cell-amount ${row.days1to30 > 0 ? '' : 'zero'}`}>{formatCurrency(row.days1to30)}</span>
+                      <span className={`cell-amount ${row.days1to30 > 0 ? '' : 'zero'}`}>{fmtAmount(row.days1to30)}</span>
                     </td>
                     <td className="text-right">
-                      <span className={`cell-amount ${row.days31to60 > 0 ? '' : 'zero'}`}>{formatCurrency(row.days31to60)}</span>
+                      <span className={`cell-amount ${row.days31to60 > 0 ? '' : 'zero'}`}>{fmtAmount(row.days31to60)}</span>
                     </td>
                     <td className="text-right">
-                      <span className={`cell-amount ${row.days61to90 > 0 ? '' : 'zero'}`}>{formatCurrency(row.days61to90)}</span>
+                      <span className={`cell-amount ${row.days61to90 > 0 ? '' : 'zero'}`}>{fmtAmount(row.days61to90)}</span>
                     </td>
                     <td className="text-right">
-                      <span className={`cell-amount ${row.over90 > 0 ? 'overdue' : 'zero'}`}>{formatCurrency(row.over90)}</span>
+                      <span className={`cell-amount ${row.over90 > 0 ? 'overdue' : 'zero'}`}>{fmtAmount(row.over90)}</span>
                     </td>
                     <td className="text-right">
-                      <span className="cell-amount" style={{ fontWeight: 800 }}>{formatCurrency(row.total)}</span>
+                      <span className="cell-amount" style={{ fontWeight: 800 }}>{fmtAmount(row.total)}</span>
                     </td>
                   </tr>
                 ))
