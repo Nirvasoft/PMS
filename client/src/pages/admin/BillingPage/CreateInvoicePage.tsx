@@ -7,6 +7,7 @@ import { useGetPropertiesQuery, useGetMyPropertyScopeQuery } from '../../../stor
 import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
 import { useGetLeasesQuery } from '../../../store/api/leasesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
+import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import { ArrowLeft, Plus, Trash2, FileText, ClipboardList, Building2, Send, Table2 } from 'lucide-react';
 import { InvoiceRecapModal } from './components/InvoiceRecapModal';
 import { useAlertDialog } from '../../../components/DialogProvider';
@@ -57,21 +58,29 @@ export default function CreateInvoicePage() {
   const [showRecapModal, setShowRecapModal] = useState(false);
 
   const resolvedPropertyId = form.propertyId || effectivePropertyId;
+  const { isAccountingIntegrationActive } = useV6IntegrationStatus(resolvedPropertyId || undefined);
 
   const { data: chargeTypesData } = useGetChargeTypesQuery(
     resolvedPropertyId ? { propertyId: resolvedPropertyId } : undefined,
   );
   const { data: glAccounts = [] } = useGetGlAccountsQuery(
     resolvedPropertyId ? { propertyId: resolvedPropertyId } : {},
+    { skip: !isAccountingIntegrationActive },
   );
-  const { data: departmentCentersData = [] } = useGetDepartmentCentersQuery({
-    isActive: true,
-    propertyId: resolvedPropertyId || undefined,
-  });
-  const { data: costCentersData = [] } = useGetCostCentersQuery({
-    isActive: true,
-    propertyId: resolvedPropertyId || undefined,
-  });
+  const { data: departmentCentersData = [] } = useGetDepartmentCentersQuery(
+    {
+      isActive: true,
+      propertyId: resolvedPropertyId || undefined,
+    },
+    { skip: !isAccountingIntegrationActive },
+  );
+  const { data: costCentersData = [] } = useGetCostCentersQuery(
+    {
+      isActive: true,
+      propertyId: resolvedPropertyId || undefined,
+    },
+    { skip: !isAccountingIntegrationActive },
+  );
 
   const chargeTypes = chargeTypesData?.data || [];
   const departmentCenters = departmentCentersData;
@@ -163,6 +172,9 @@ export default function CreateInvoicePage() {
   }, [form.tenantId]);
 
   const filteredChargeTypes = useMemo(() => {
+    if (!isAccountingIntegrationActive) {
+      return chargeTypes.filter((ct) => ct.isActive !== false);
+    }
     if (!form.departmentCenterId && !form.costCenterId) return [];
     return chargeTypes.filter((ct) => {
       const ctDeptId = ct.departmentCenterId || ct.departmentCenter?.id || '';
@@ -171,7 +183,7 @@ export default function CreateInvoicePage() {
       if (form.costCenterId && ctCcId !== form.costCenterId) return false;
       return true;
     });
-  }, [chargeTypes, glAccountByCode, form.departmentCenterId, form.costCenterId]);
+  }, [isAccountingIntegrationActive, chargeTypes, glAccountByCode, form.departmentCenterId, form.costCenterId]);
 
   const [lines, setLines] = useState<LineItem[]>([
     { chargeTypeId: '', description: '', quantity: 1, unitPrice: 0, taxRate: 0 },
@@ -477,30 +489,34 @@ export default function CreateInvoicePage() {
                 onChange={e => setForm({ ...form, secondRef: e.target.value })}
               />
             </div>
-            <div className="inv-field">
-              <label>Department <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span></label>
-              <select
-                value={form.departmentCenterId}
-                onChange={e => setForm({ ...form, departmentCenterId: e.target.value })}
-              >
-                <option value="">— None —</option>
-                {departmentCenters.map((d) => (
-                  <option key={d.id} value={d.id}>{d.code}</option>
-                ))}
-              </select>
-            </div>
-            <div className="inv-field">
-              <label>Cost Center <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span></label>
-              <select
-                value={form.costCenterId}
-                onChange={e => setForm({ ...form, costCenterId: e.target.value })}
-              >
-                <option value="">— None —</option>
-                {costCenters.map((c) => (
-                  <option key={c.id} value={c.id}>{c.code}</option>
-                ))}
-              </select>
-            </div>
+            {isAccountingIntegrationActive && (
+              <>
+                <div className="inv-field">
+                  <label>Department <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span></label>
+                  <select
+                    value={form.departmentCenterId}
+                    onChange={e => setForm({ ...form, departmentCenterId: e.target.value })}
+                  >
+                    <option value="">— None —</option>
+                    {departmentCenters.map((d) => (
+                      <option key={d.id} value={d.id}>{d.code}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="inv-field">
+                  <label>Cost Center <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span></label>
+                  <select
+                    value={form.costCenterId}
+                    onChange={e => setForm({ ...form, costCenterId: e.target.value })}
+                  >
+                    <option value="">— None —</option>
+                    {costCenters.map((c) => (
+                      <option key={c.id} value={c.id}>{c.code}</option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
           </div>
 
           <div className="inv-form-grid cols-1" style={{ marginTop: 16 }}>
@@ -560,7 +576,7 @@ export default function CreateInvoicePage() {
                         onChange={e => updateLine(idx, 'chargeTypeId', e.target.value)}
                       >
                         <option value="">
-                          {!form.departmentCenterId && !form.costCenterId
+                          {isAccountingIntegrationActive && !form.departmentCenterId && !form.costCenterId
                             ? 'Select Dept / CC first…'
                             : filteredChargeTypes.length === 0
                             ? 'No matching charge types'
@@ -623,14 +639,16 @@ export default function CreateInvoicePage() {
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => setShowRecapModal(true)}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, height: 42, padding: '0 18px' }}
-            >
-              <Table2 size={15} /> Recap
-            </button>
+            {isAccountingIntegrationActive && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setShowRecapModal(true)}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, height: 42, padding: '0 18px' }}
+              >
+                <Table2 size={15} /> Recap
+              </button>
+            )}
             <PermissionGuard permission="billing-invoices.write">
             <button type="submit" className="inv-submit-btn" disabled={isLoading}>
               <Send size={16} />
@@ -641,33 +659,35 @@ export default function CreateInvoicePage() {
         </div>
       </form>
 
-      <InvoiceRecapModal
-        open={showRecapModal}
-        onClose={() => setShowRecapModal(false)}
-        propertyId={resolvedPropertyId || undefined}
-        invoiceNumber={null}
-        currency={effectiveCurrency}
-        currencyRate={effectiveRate}
-        tenantGlAccountCode={selectedTenant?.glAccountCode}
-        departmentCenter={departmentCenters.find((d) => d.id === form.departmentCenterId) || null}
-        costCenter={costCenters.find((c) => c.id === form.costCenterId) || null}
-        totalAmount={total}
-        taxAmount={tax}
-        lines={lines.map((line) => {
-          const ct = chargeTypes.find((c) => c.id === line.chargeTypeId);
-          const lineAmt = line.quantity * line.unitPrice;
-          const lineTax = lineAmt * line.taxRate;
-          return {
-            description: line.description,
-            amount: lineAmt,
-            lineTotal: lineAmt + lineTax,
-            glAccountCode: ct?.glAccountCode ?? null,
-            chargeTypeName: ct?.name ?? null,
-            departmentCenter: ct?.departmentCenter || departmentCenters.find((d) => d.id === form.departmentCenterId) || null,
-            costCenter: ct?.costCenter || costCenters.find((c) => c.id === form.costCenterId) || null,
-          };
-        })}
-      />
+      {isAccountingIntegrationActive && (
+        <InvoiceRecapModal
+          open={showRecapModal}
+          onClose={() => setShowRecapModal(false)}
+          propertyId={resolvedPropertyId || undefined}
+          invoiceNumber={null}
+          currency={effectiveCurrency}
+          currencyRate={effectiveRate}
+          tenantGlAccountCode={selectedTenant?.glAccountCode}
+          departmentCenter={departmentCenters.find((d) => d.id === form.departmentCenterId) || null}
+          costCenter={costCenters.find((c) => c.id === form.costCenterId) || null}
+          totalAmount={total}
+          taxAmount={tax}
+          lines={lines.map((line) => {
+            const ct = chargeTypes.find((c) => c.id === line.chargeTypeId);
+            const lineAmt = line.quantity * line.unitPrice;
+            const lineTax = lineAmt * line.taxRate;
+            return {
+              description: line.description,
+              amount: lineAmt,
+              lineTotal: lineAmt + lineTax,
+              glAccountCode: ct?.glAccountCode ?? null,
+              chargeTypeName: ct?.name ?? null,
+              departmentCenter: ct?.departmentCenter || departmentCenters.find((d) => d.id === form.departmentCenterId) || null,
+              costCenter: ct?.costCenter || costCenters.find((c) => c.id === form.costCenterId) || null,
+            };
+          })}
+        />
+      )}
     </div>
   );
 }

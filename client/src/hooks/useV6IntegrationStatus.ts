@@ -1,6 +1,15 @@
 import { useGetIntegrationsQuery } from '../store/api/integrationsApi';
 import { useSelectedPropertyId } from './useSelectedPropertyId';
 
+const ACCOUNTING_INTEGRATION_TYPES = new Set([
+  'v6erp',
+  'sap',
+  'netsuite',
+  'dynamics365',
+  'quickbooks',
+  'xero',
+]);
+
 export function useV6IntegrationStatus(overridePropertyId?: string) {
   const selectedPropertyId = useSelectedPropertyId();
   const propertyId = overridePropertyId ?? selectedPropertyId;
@@ -24,9 +33,24 @@ export function useV6IntegrationStatus(overridePropertyId?: string) {
     v6 && v6.isActive !== false && v6.status !== 'disabled'
   );
 
+  const acctExact = integrations.find(
+    (i: any) =>
+      ACCOUNTING_INTEGRATION_TYPES.has(i.integrationType) &&
+      i.isActive !== false &&
+      i.status !== 'disabled',
+  );
+  const acctAny = companyIntegrations.find(
+    (i: any) =>
+      ACCOUNTING_INTEGRATION_TYPES.has(i.integrationType) &&
+      i.isActive !== false &&
+      i.status !== 'disabled',
+  );
+  const isAccountingIntegrationActive = Boolean(acctExact || acctAny);
+
   return {
     isV6Active: isV6PushActive,
     isV6PushActive,
+    isAccountingIntegrationActive,
     v6Config: v6,
     isLoading: isLoading || isFetching || companyLoading,
   };

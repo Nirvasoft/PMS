@@ -6,7 +6,7 @@ import { ensurePropertySetupScope, resolveEffectivePropertyId } from '../../comm
 import { unitsService, metersService } from '../units/units.service';
 import { calcLeaseTermMonths, nextLeaseNumber } from '../leases/services/helpers';
 import { billingSchedulesService } from '../billing/billingSchedules.service';
-import { isV6ErpActive } from '../integrations/v6Status.helper';
+import { isV6ErpActive, isAccountingIntegrationActive } from '../integrations/v6Status.helper';
 
 export type ImportType = 'meter' | 'unit' | 'lease' | 'tenant' | 'lead' | 'invoice' | 'charge' | 'coa';
 export const IMPORT_TYPES: ImportType[] = ['meter', 'unit', 'lease', 'tenant', 'lead', 'invoice', 'charge', 'coa'];
@@ -1865,6 +1865,7 @@ export const generalImportService = {
       const INVOICE_BATCH_SIZE = 500;
       let pendingBatch: PreparedInvoice[] = [];
       const v6Active = await isV6ErpActive(companyId, propertyId);
+      const accountingActive = await isAccountingIntegrationActive(companyId, propertyId);
 
       const flushInvoiceBatch = async (batch: PreparedInvoice[]) => {
         if (batch.length === 0) return;
@@ -1898,7 +1899,7 @@ export const generalImportService = {
           }
         }
 
-        if (insertedBatch.length > 0 && openPeriods.length > 0 && arAccId && revAccId) {
+        if (accountingActive && insertedBatch.length > 0 && openPeriods.length > 0 && arAccId && revAccId) {
           try {
             const jeRows: any[] = [];
             const jelRows: any[] = [];

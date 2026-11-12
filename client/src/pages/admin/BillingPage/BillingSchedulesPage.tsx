@@ -16,6 +16,7 @@ import { CalendarClock, Pause, Play, X, ChevronLeft, ChevronRight, CircleDot, Pl
 import { format } from 'date-fns';
 import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
 import { useSelectedPropertyFilter, useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
+import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import ComboBox from '../../../components/ComboBox';
 import { TableScrollWrapper } from './components/TableScrollWrapper';
@@ -118,21 +119,29 @@ export default function BillingSchedulesPage() {
     limit: pageSize,
   });
   const setupPropertyId = form.propertyId || selectedProperty || defaultPropertyId || undefined;
+  const { isAccountingIntegrationActive } = useV6IntegrationStatus(setupPropertyId);
   const { data: chargeTypesData } = useGetChargeTypesQuery(
     setupPropertyId ? { propertyId: setupPropertyId } : undefined,
   );
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
   const { data: glAccounts = [] } = useGetGlAccountsQuery(
     setupPropertyId ? { propertyId: setupPropertyId } : {},
+    { skip: !isAccountingIntegrationActive },
   );
-  const { data: departmentCentersData = [] } = useGetDepartmentCentersQuery({
-    isActive: true,
-    propertyId: setupPropertyId,
-  });
-  const { data: costCentersData = [] } = useGetCostCentersQuery({
-    isActive: true,
-    propertyId: setupPropertyId,
-  });
+  const { data: departmentCentersData = [] } = useGetDepartmentCentersQuery(
+    {
+      isActive: true,
+      propertyId: setupPropertyId,
+    },
+    { skip: !isAccountingIntegrationActive },
+  );
+  const { data: costCentersData = [] } = useGetCostCentersQuery(
+    {
+      isActive: true,
+      propertyId: setupPropertyId,
+    },
+    { skip: !isAccountingIntegrationActive },
+  );
   // /properties requires properties.read, which a billing-only role may lack — use the
   // permission-free /properties/my-scope endpoint so the locked field still resolves
   // a name instead of silently rendering as unselected. See useSelectedPropertyId.ts.
@@ -177,6 +186,9 @@ export default function BillingSchedulesPage() {
   }, [glAccounts]);
 
   const filteredChargeTypes = useMemo(() => {
+    if (!isAccountingIntegrationActive) {
+      return chargeTypes.filter((ct) => ct.isActive);
+    }
     if (!form.departmentCenterId && !form.costCenterId) return [];
     return chargeTypes.filter((ct) => {
       if (!ct.isActive) return false;
@@ -186,7 +198,7 @@ export default function BillingSchedulesPage() {
       if (form.costCenterId && ctCcId !== form.costCenterId) return false;
       return true;
     });
-  }, [chargeTypes, glAccountByCode, form.departmentCenterId, form.costCenterId]);
+  }, [isAccountingIntegrationActive, chargeTypes, glAccountByCode, form.departmentCenterId, form.costCenterId]);
 
   useEffect(() => {
     if (!showForm || !form.chargeTypeId) return;
@@ -791,30 +803,34 @@ export default function BillingSchedulesPage() {
                   </div>
 
                   {/* Row 2: Department | Cost Center */}
-                  <div className="inv-field">
-                    <label>Department <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span></label>
-                    <select
-                      value={form.departmentCenterId}
-                      onChange={e => setForm({ ...form, departmentCenterId: e.target.value })}
-                    >
-                      <option value="">— None —</option>
-                      {departmentCenters.map((d) => (
-                        <option key={d.id} value={d.id}>{d.code}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="inv-field">
-                    <label>Cost Center <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span></label>
-                    <select
-                      value={form.costCenterId}
-                      onChange={e => setForm({ ...form, costCenterId: e.target.value })}
-                    >
-                      <option value="">— None —</option>
-                      {costCenters.map((c) => (
-                        <option key={c.id} value={c.id}>{c.code}</option>
-                      ))}
-                    </select>
-                  </div>
+                  {isAccountingIntegrationActive && (
+                    <>
+                      <div className="inv-field">
+                        <label>Department <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span></label>
+                        <select
+                          value={form.departmentCenterId}
+                          onChange={e => setForm({ ...form, departmentCenterId: e.target.value })}
+                        >
+                          <option value="">— None —</option>
+                          {departmentCenters.map((d) => (
+                            <option key={d.id} value={d.id}>{d.code}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="inv-field">
+                        <label>Cost Center <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span></label>
+                        <select
+                          value={form.costCenterId}
+                          onChange={e => setForm({ ...form, costCenterId: e.target.value })}
+                        >
+                          <option value="">— None —</option>
+                          {costCenters.map((c) => (
+                            <option key={c.id} value={c.id}>{c.code}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </>
+                  )}
 
                   {/* Row 3: Tenant * | Charge Type * */}
                   <div className={`inv-field ${isTenantMissing ? 'inv-field-error' : ''}`}>
@@ -921,7 +937,7 @@ export default function BillingSchedulesPage() {
                       }}
                     >
                       <option value="">
-                        {!form.departmentCenterId && !form.costCenterId
+                        {isAccountingIntegrationActive && !form.departmentCenterId && !form.costCenterId
                           ? 'Select Dept / CC first…'
                           : filteredChargeTypes.length === 0
                           ? 'No matching charge types'

@@ -8,7 +8,7 @@ import { workflowEngine } from '../workflow/services/engine.service';
 import { glService } from '../gl/gl.service';
 import { webhookInvoiceIssued } from '../../common/webhookHooks';
 import { calcLeaseTermMonths } from '../leases/services/helpers';
-import { isV6ErpActive } from '../integrations/v6Status.helper';
+import { isV6ErpActive, isAccountingIntegrationActive } from '../integrations/v6Status.helper';
 import { integrationsService } from '../integrations/integrations.service';
 
 /** Adds computed `outstandingAmount` to an invoice object */
@@ -616,7 +616,7 @@ export class InvoicesService {
       null;
 
     // GL auto-posting: Dr Accounts Receivable (linked to Invoice Dept/CC) / Cr per ChargeType GL Account / Cr Tax Payable
-    if (Boolean(true)) {
+    if (await isAccountingIntegrationActive(companyId, invoice.propertyId)) {
       const glLines: Array<{
         accountCode: string;
         debit: number;
@@ -1088,7 +1088,7 @@ export class InvoicesService {
    */
   private async _postInvoiceGlAndNotify(invoice: any, companyId: string, invoiceDate: Date, currency: string): Promise<void> {
     try {
-      if (Boolean(true)) {
+      if (await isAccountingIntegrationActive(companyId, invoice.propertyId)) {
         const subtotal    = Number(invoice.subtotal);
         const totalAmount = Number(invoice.totalAmount);
         const taxAmount   = Number(invoice.taxAmount);
@@ -1419,7 +1419,7 @@ export class InvoicesService {
     );
 
     // GL auto-posting: Dr AR (linked to Invoice Dept/CC) / Cr per ChargeType GL Account / Cr Tax Payable
-    if (Boolean(true)) {
+    if (await isAccountingIntegrationActive(first.companyId, first.propertyId)) {
       const glLines: Array<{
         accountCode: string;
         debit: number;

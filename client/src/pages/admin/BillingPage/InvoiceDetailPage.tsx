@@ -42,11 +42,10 @@ export default function InvoiceDetailPage() {
   const [sendInvoice, { isLoading: sending }] = useSendInvoiceMutation();
   const [createCreditNote, { isLoading: creatingCN }] = useCreateCreditNoteMutation();
   const [pushInvoicesToV6Erp, { isLoading: pushingToV6 }] = usePushInvoicesToV6ErpMutation();
-  const { isV6PushActive: isV6Active } = useV6IntegrationStatus();
+  const inv = data?.data;
+  const { isV6PushActive: isV6Active, isAccountingIntegrationActive } = useV6IntegrationStatus(inv?.property?.id);
   const confirmDialog = useConfirm();
   const alertDialog = useAlertDialog();
-
-  const inv = data?.data;
   const effectivePropertyId = inv?.property?.id || selectedPropertyId || undefined;
   const { data: chargeTypesData } = useGetChargeTypesQuery(
     effectivePropertyId ? { propertyId: effectivePropertyId } : undefined,
@@ -62,8 +61,8 @@ export default function InvoiceDetailPage() {
   // Prefetch GL accounts (same query args as InvoiceRecapModal) so the Recap modal
   // can read them straight from the RTK Query cache and open without a "Loading..." state.
   const recapPropertyId = inv?.property?.id;
-  useGetGlAccountsQuery(recapPropertyId ? { propertyId: recapPropertyId } : {}, { skip: !inv });
-  useGetGlAccountsQuery({}, { skip: !inv || !recapPropertyId });
+  useGetGlAccountsQuery(recapPropertyId ? { propertyId: recapPropertyId } : {}, { skip: !inv || !isAccountingIntegrationActive });
+  useGetGlAccountsQuery({}, { skip: !inv || !recapPropertyId || !isAccountingIntegrationActive });
 
   /**
    * Convert `amount` (expressed in `fromCurrency`) into `toCurrency` using the
@@ -269,14 +268,16 @@ export default function InvoiceDetailPage() {
             style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <Eye size={14} /> View PDF
           </button>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => setShowRecapModal(true)}
-            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-          >
-            <Table2 size={14} /> Recap
-          </button>
+          {isAccountingIntegrationActive && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setShowRecapModal(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              <Table2 size={14} /> Recap
+            </button>
+          )}
           <PermissionGuard permission="billing-invoices.write">
             {['draft', 'issued'].includes(inv.status) && (
               <button className="btn btn-primary" onClick={handleSend} disabled={sending}
@@ -334,18 +335,22 @@ export default function InvoiceDetailPage() {
           <div className="imi-label">Second Ref.</div>
           <div className="imi-value">{inv.secondRef || '—'}</div>
         </div>
-        <div className="invoice-meta-item">
-          <div className="imi-label">Department</div>
-          <div className="imi-value">
-            {inv.departmentCenter ? inv.departmentCenter.code : '—'}
-          </div>
-        </div>
-        <div className="invoice-meta-item">
-          <div className="imi-label">Cost Center</div>
-          <div className="imi-value">
-            {inv.costCenter ? inv.costCenter.code : '—'}
-          </div>
-        </div>
+        {isAccountingIntegrationActive && (
+          <>
+            <div className="invoice-meta-item">
+              <div className="imi-label">Department</div>
+              <div className="imi-value">
+                {inv.departmentCenter ? inv.departmentCenter.code : '—'}
+              </div>
+            </div>
+            <div className="invoice-meta-item">
+              <div className="imi-label">Cost Center</div>
+              <div className="imi-value">
+                {inv.costCenter ? inv.costCenter.code : '—'}
+              </div>
+            </div>
+          </>
+        )}
         <div className="invoice-meta-item">
           <div className="imi-label">Currency</div>
           <div className="imi-value" style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
@@ -621,31 +626,33 @@ export default function InvoiceDetailPage() {
       )}
 
       {/* ═══ Credit Note Modal ═══ */}
-      <InvoiceRecapModal
-        open={showRecapModal}
-        onClose={() => setShowRecapModal(false)}
-        propertyId={inv.property?.id}
-        invoiceNumber={inv.invoiceNumber}
-        currency={inv.currency}
-        currencyRate={inv.currencyRate ?? effectiveRate}
-        tenantGlAccountCode={inv.tenant?.glAccountCode}
-        departmentCenter={inv.departmentCenter}
-        costCenter={inv.costCenter}
-        totalAmount={Number(inv.totalAmount) || 0}
-        taxAmount={Number(inv.taxAmount) || 0}
-        lines={inv.lines.map((line) => {
-          const fullCt = chargeTypes.find((c) => c.id === line.chargeType?.id);
-          return {
-            description: line.description,
-            amount: Number(line.amount) || 0,
-            lineTotal: Number(line.lineTotal) || Number(line.amount) || 0,
-            glAccountCode: line.chargeType?.glAccountCode ?? fullCt?.glAccountCode ?? null,
-            chargeTypeName: line.chargeType?.name ?? fullCt?.name ?? null,
-            departmentCenter: line.chargeType?.departmentCenter ?? fullCt?.departmentCenter ?? inv.departmentCenter,
-            costCenter: line.chargeType?.costCenter ?? fullCt?.costCenter ?? inv.costCenter,
-          };
-        })}
-      />
+      {isAccountingIntegrationActive && (
+        <InvoiceRecapModal
+          open={showRecapModal}
+          onClose={() => setShowRecapModal(false)}
+          propertyId={inv.property?.id}
+          invoiceNumber={inv.invoiceNumber}
+          currency={inv.currency}
+          currencyRate={inv.currencyRate ?? effectiveRate}
+          tenantGlAccountCode={inv.tenant?.glAccountCode}
+          departmentCenter={inv.departmentCenter}
+          costCenter={inv.costCenter}
+          totalAmount={Number(inv.totalAmount) || 0}
+          taxAmount={Number(inv.taxAmount) || 0}
+          lines={inv.lines.map((line) => {
+            const fullCt = chargeTypes.find((c) => c.id === line.chargeType?.id);
+            return {
+              description: line.description,
+              amount: Number(line.amount) || 0,
+              lineTotal: Number(line.lineTotal) || Number(line.amount) || 0,
+              glAccountCode: line.chargeType?.glAccountCode ?? fullCt?.glAccountCode ?? null,
+              chargeTypeName: line.chargeType?.name ?? fullCt?.name ?? null,
+              departmentCenter: line.chargeType?.departmentCenter ?? fullCt?.departmentCenter ?? inv.departmentCenter,
+              costCenter: line.chargeType?.costCenter ?? fullCt?.costCenter ?? inv.costCenter,
+            };
+          })}
+        />
+      )}
       {/* ═══ Void Modal ═══ */}
       {showVoidModal && (
         <div className="modal-overlay" onClick={() => !voiding && setShowVoidModal(false)}>

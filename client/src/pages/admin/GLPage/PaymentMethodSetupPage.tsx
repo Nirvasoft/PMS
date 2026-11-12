@@ -13,6 +13,7 @@ import {
   type GlAccount,
 } from '../../../store/api/glApi';
 import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
+import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import {
   CreditCard, Plus, X, Check, Pencil, Trash2, Search, RotateCcw,
   ChevronLeft, ChevronRight, BookOpen, Filter,
@@ -25,17 +26,18 @@ import '../BillingPage/BillingPage.css';
 
 export default function PaymentMethodSetupPage() {
   const propertyId = useSelectedPropertyId();
+  const { isAccountingIntegrationActive } = useV6IntegrationStatus(propertyId || undefined);
   const { data: paymentMethods = [], isFetching } = useGetPaymentMethodsQuery(
     propertyId ? { propertyId } : skipToken
   );
   const { data: glAccounts = [], isLoading: loadingGlAccounts } = useGetGlAccountsQuery(
-    propertyId ? { propertyId } : skipToken
+    propertyId && isAccountingIntegrationActive ? { propertyId } : skipToken
   );
   const { data: departmentCenters = [] } = useGetDepartmentCentersQuery(
-    propertyId ? { propertyId } : skipToken
+    propertyId && isAccountingIntegrationActive ? { propertyId } : skipToken
   );
   const { data: costCenters = [] } = useGetCostCentersQuery(
-    propertyId ? { propertyId } : skipToken
+    propertyId && isAccountingIntegrationActive ? { propertyId } : skipToken
   );
   const [createPaymentMethod, { isLoading: creating }] = useCreatePaymentMethodMutation();
   const [updatePaymentMethod, { isLoading: updating }] = useUpdatePaymentMethodMutation();
@@ -324,21 +326,25 @@ export default function PaymentMethodSetupPage() {
               <tr>
                 <th style={{ width: 140 }}>Code</th>
                 <th style={{ width: 200 }}>Name</th>
-                <th style={{ width: 130 }}>GL Account</th>
-                <th style={{ width: 130 }}>Department</th>
-                <th style={{ width: 130 }}>Cost Center</th>
+                {isAccountingIntegrationActive && (
+                  <>
+                    <th style={{ width: 130 }}>GL Account</th>
+                    <th style={{ width: 130 }}>Department</th>
+                    <th style={{ width: 130 }}>Cost Center</th>
+                  </>
+                )}
                 <th style={{ width: 110 }}>Status</th>
                 <th className="text-center" style={{ width: 90 }}></th>
               </tr>
             </thead>
             <tbody>
               {isFetching && paymentMethods.length === 0 ? (
-                <TableSkeletonRows columns={7} />
+                <TableSkeletonRows columns={isAccountingIntegrationActive ? 7 : 4} />
               ) : paymentMethods.length === 0 ? (
-                <tr><td colSpan={7} className="billing-empty">No payment methods found</td></tr>
+                <tr><td colSpan={isAccountingIntegrationActive ? 7 : 4} className="billing-empty">No payment methods found</td></tr>
               ) : filteredPaymentMethods.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="billing-empty" style={{ padding: '36px 16px', textAlign: 'center' }}>
+                  <td colSpan={isAccountingIntegrationActive ? 7 : 4} className="billing-empty" style={{ padding: '36px 16px', textAlign: 'center' }}>
                     <div style={{ marginBottom: 12, fontSize: 14, color: 'var(--text-secondary)' }}>
                       No payment methods match your search or filter criteria.
                     </div>
@@ -359,21 +365,25 @@ export default function PaymentMethodSetupPage() {
                   <tr key={pm.id}>
                     <td><span className="cell-mono">{pm.code}</span></td>
                     <td><div className="cell-primary">{pm.name}</div></td>
-                    <td>
-                      <span style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>
-                        {pm.glAccountCode || '—'}
-                      </span>
-                    </td>
-                    <td>
-                      <span className="cell-mono" style={{ fontSize: 13, color: deptCode ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>
-                        {deptCode || '—'}
-                      </span>
-                    </td>
-                    <td>
-                      <span className="cell-mono" style={{ fontSize: 13, color: ccCode ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>
-                        {ccCode || '—'}
-                      </span>
-                    </td>
+                    {isAccountingIntegrationActive && (
+                      <>
+                        <td>
+                          <span style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>
+                            {pm.glAccountCode || '—'}
+                          </span>
+                        </td>
+                        <td>
+                          <span className="cell-mono" style={{ fontSize: 13, color: deptCode ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>
+                            {deptCode || '—'}
+                          </span>
+                        </td>
+                        <td>
+                          <span className="cell-mono" style={{ fontSize: 13, color: ccCode ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>
+                            {ccCode || '—'}
+                          </span>
+                        </td>
+                      </>
+                    )}
                     <td>
                       {pm.isActive
                         ? <span className="sched-status sched-status--active">Active</span>
@@ -486,106 +496,110 @@ export default function PaymentMethodSetupPage() {
                     />
                     {isNameMissing && <span className="inv-error-text">Name is required</span>}
                   </div>
-                  <div className="inv-field">
-                    <label>GL Account Code</label>
-                    <div className="coa-input-group">
-                      <input
-                        className="coa-bound-input"
-                        placeholder="Select from Chart of Accounts…"
-                        value={form.glAccountCode}
-                        readOnly
-                        tabIndex={-1}
-                        onClick={() => {
-                          setCoaSearch('');
-                          setCoaTypeFilter('');
-                          setShowCoaModal(true);
-                        }}
-                      />
-                      {form.glAccountCode && (
-                        <button
-                          type="button"
-                          className="coa-clear-inline-btn"
-                          onClick={(e) => {
-                            e.stopPropagation();
+                  {isAccountingIntegrationActive && (
+                    <>
+                      <div className="inv-field">
+                        <label>GL Account Code</label>
+                        <div className="coa-input-group">
+                          <input
+                            className="coa-bound-input"
+                            placeholder="Select from Chart of Accounts…"
+                            value={form.glAccountCode}
+                            readOnly
+                            tabIndex={-1}
+                            onClick={() => {
+                              setCoaSearch('');
+                              setCoaTypeFilter('');
+                              setShowCoaModal(true);
+                            }}
+                          />
+                          {form.glAccountCode && (
+                            <button
+                              type="button"
+                              className="coa-clear-inline-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setForm({
+                                  ...form,
+                                  glAccountCode: '',
+                                  departmentCenterId: '',
+                                  costCenterId: '',
+                                });
+                              }}
+                              title="Clear GL Account Code"
+                              aria-label="Clear GL Account Code"
+                            >
+                              <X size={13} />
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="coa-lookup-btn"
+                            onClick={() => {
+                              setCoaSearch('');
+                              setCoaTypeFilter('');
+                              setShowCoaModal(true);
+                            }}
+                            title="Search Chart of Accounts"
+                            aria-label="Search Chart of Accounts"
+                          >
+                            <Search size={15} />
+                          </button>
+                        </div>
+                        {selectedGlAccount && (
+                          <span className="coa-selected-hint">
+                            {selectedGlAccount.name} ({selectedGlAccount.accountType})
+                          </span>
+                        )}
+                      </div>
+                      <div className="inv-field">
+                        <label>Department</label>
+                        <select
+                          value={form.departmentCenterId}
+                          onChange={(e) =>
                             setForm({
                               ...form,
-                              glAccountCode: '',
-                              departmentCenterId: '',
+                              departmentCenterId: e.target.value,
                               costCenterId: '',
-                            });
-                          }}
-                          title="Clear GL Account Code"
-                          aria-label="Clear GL Account Code"
+                            })
+                          }
                         >
-                          <X size={13} />
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        className="coa-lookup-btn"
-                        onClick={() => {
-                          setCoaSearch('');
-                          setCoaTypeFilter('');
-                          setShowCoaModal(true);
-                        }}
-                        title="Search Chart of Accounts"
-                        aria-label="Search Chart of Accounts"
-                      >
-                        <Search size={15} />
-                      </button>
-                    </div>
-                    {selectedGlAccount && (
-                      <span className="coa-selected-hint">
-                        {selectedGlAccount.name} ({selectedGlAccount.accountType})
-                      </span>
-                    )}
-                  </div>
-                  <div className="inv-field">
-                    <label>Department</label>
-                    <select
-                      value={form.departmentCenterId}
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          departmentCenterId: e.target.value,
-                          costCenterId: '',
-                        })
-                      }
-                    >
-                      <option value="">— None —</option>
-                      {departmentCenters
-                        .filter((d) => d.isActive)
-                        .map((d) => (
-                          <option key={d.id} value={d.id}>
-                            {d.code}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                  <div className="inv-field">
-                    <label>Cost Center</label>
-                    <select
-                      value={form.costCenterId}
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          costCenterId: e.target.value,
-                        })
-                      }
-                    >
-                      <option value="">— None —</option>
-                      {costCenters
-                        .filter((c) => {
-                          if (!c.isActive) return false;
-                          return !form.departmentCenterId || !c.departmentCenterId || c.departmentCenterId === form.departmentCenterId;
-                        })
-                        .map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.code}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
+                          <option value="">— None —</option>
+                          {departmentCenters
+                            .filter((d) => d.isActive)
+                            .map((d) => (
+                              <option key={d.id} value={d.id}>
+                                {d.code}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                      <div className="inv-field">
+                        <label>Cost Center</label>
+                        <select
+                          value={form.costCenterId}
+                          onChange={(e) =>
+                            setForm({
+                              ...form,
+                              costCenterId: e.target.value,
+                            })
+                          }
+                        >
+                          <option value="">— None —</option>
+                          {costCenters
+                            .filter((c) => {
+                              if (!c.isActive) return false;
+                              return !form.departmentCenterId || !c.departmentCenterId || c.departmentCenterId === form.departmentCenterId;
+                            })
+                            .map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.code}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                    </>
+                  )}
                   <div className="inv-field" style={{ justifyContent: 'flex-end' }}>
                     <label style={{ visibility: 'hidden' }} aria-hidden="true">Status</label>
                     <label className="ct-taxable-toggle">
@@ -611,7 +625,7 @@ export default function PaymentMethodSetupPage() {
       )}
 
       {/* Chart of Accounts Lookup Modal */}
-      {showCoaModal && (
+      {isAccountingIntegrationActive && showCoaModal && (
         <div className="modal-overlay coa-lookup-overlay">
           <div className="modal-content coa-lookup-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
