@@ -10,23 +10,7 @@ import { resolveTerminationPolicy, computeTerminationPenalty } from '../leases/s
 import { webhookLeaseTerminated } from '../../common/webhookHooks';
 import { clearShopIdentityOp, shouldClearShopIdentity } from '../mall/shopProfileReset';
 import { invalidateMallPublicCache } from '../mall/publicCache';
-import { isSpacesEnabled, uploadToSpaces, deleteFromSpaces, getSpacesCdnUrl } from '../../common/spaces';
-
-const ALLOWED_UNIT_PHOTO_EXTS: Record<string, string> = {
-  '.pdf': 'application/pdf',
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.webp': 'image/webp',
-  '.gif': 'image/gif',
-};
-
-function extractUnitStorageKey(rawUrl?: string | null): string | null {
-  if (!rawUrl) return null;
-  const clean = rawUrl.split('?')[0].split('#')[0];
-  const m = clean.match(/(?:^|\/)(units\/[0-9a-f-]+\/[0-9a-f-]+\/[^/]+)$/i);
-  return m ? m[1] : null;
-}
+import { saveUnitPhotoBlob, deleteUnitPhotoBlob } from '../../common/unitPhotoStore';
 
 // ══════════════════════════════════════════════
 // SEED
@@ -850,12 +834,12 @@ export class UnitsService {
 
   /** Invalidate the unit stats cache for a property */
   async invalidateStatsCache(propertyId: string) {
-    invalidateMallPublicCache(propertyId);
     try {
       await redis.del(`unit_stats:${propertyId}`);
     } catch (e) {
       logger.warn('Failed to invalidate stats cache', e);
     }
+    invalidateMallPublicCache(propertyId);
   }
 
   // ── Soft delete ─────────────────────────────
@@ -893,42 +877,14 @@ export class UnitsService {
 
     const fs = await import('fs/promises');
     const path = await import('path');
-    const ext = path.extname(file.originalname || '').toLowerCase();
-    const fallbackMime = ALLOWED_UNIT_PHOTO_EXTS[ext];
-    if (!fallbackMime) {
-      throw new AppError(400, 'INVALID_FILE_TYPE', 'Only PDF, PNG, JPEG, WEBP, or GIF files are allowed');
-    }
-
+    const uploadDir = path.join(process.cwd(), 'uploads', 'units', propertyId, unitId);
+    await fs.mkdir(uploadDir, { recursive: true });
+    const ext = (path.extname(file.originalname) || '.jpg').toLowerCase();
     const filename = `floor-plan${ext}`;
-    const storageKey = `units/${propertyId}/${unitId}/${filename}`;
-    const prevKey = extractUnitStorageKey(unit.floorPlanUrl);
-    const contentType = file.mimetype && file.mimetype !== 'application/octet-stream' ? file.mimetype : fallbackMime;
-    const version = Date.now();
+    await fs.writeFile(path.join(uploadDir, filename), file.buffer);
+    await saveUnitPhotoBlob(propertyId, unitId, filename, file.mimetype, file.buffer);
 
-    let floorPlanUrl: string | null = null;
-
-    if (isSpacesEnabled()) {
-      try {
-        await uploadToSpaces(storageKey, file.buffer, contentType, { isPublic: true });
-        floorPlanUrl = `${getSpacesCdnUrl(storageKey)}?v=${version}`;
-        if (prevKey && prevKey !== storageKey) {
-          await deleteFromSpaces(prevKey).catch(() => {});
-        }
-      } catch (err) {
-        logger.warn(`Spaces upload failed for ${storageKey}; falling back to local storage`, err);
-      }
-    }
-
-    if (!floorPlanUrl) {
-      const uploadDir = path.join(process.cwd(), 'uploads', 'units', propertyId, unitId);
-      await fs.mkdir(uploadDir, { recursive: true });
-      await fs.writeFile(path.join(uploadDir, filename), file.buffer);
-      if (prevKey && prevKey !== storageKey) {
-        await fs.unlink(path.join(process.cwd(), 'uploads', prevKey)).catch(() => {});
-      }
-      floorPlanUrl = `/uploads/${storageKey}?v=${version}`;
-    }
-
+    const floorPlanUrl = `/uploads/units/${propertyId}/${unitId}/${filename}?v=${Date.now()}`;
     const updated = await prisma.unit.update({ where: { id: unitId }, data: { floorPlanUrl } });
     invalidateMallPublicCache(propertyId);
     return updated;
@@ -939,14 +895,14 @@ export class UnitsService {
     if (!unit) throw AppError.notFound('Unit');
     this.assertFloorAllowed(floorScope, unit.floorNumber);
 
-    const prevKey = extractUnitStorageKey(unit.floorPlanUrl);
-    if (prevKey) {
-      if (isSpacesEnabled()) {
-        await deleteFromSpaces(prevKey).catch(() => {});
-      }
+    await deleteUnitPhotoBlob(unitId);
+    try {
       const fs = await import('fs/promises');
       const path = await import('path');
-      await fs.unlink(path.join(process.cwd(), 'uploads', prevKey)).catch(() => {});
+      const uploadDir = path.join(process.cwd(), 'uploads', 'units', propertyId, unitId);
+      await fs.rm(uploadDir, { recursive: true, force: true });
+    } catch {
+      /* ignore missing local directory */
     }
 
     const updated = await prisma.unit.update({ where: { id: unitId }, data: { floorPlanUrl: null } });

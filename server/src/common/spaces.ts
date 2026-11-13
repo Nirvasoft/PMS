@@ -14,11 +14,11 @@ import { logger } from './logger';
 const STORAGE_PROVIDER = process.env.STORAGE_PROVIDER || 'local';
 
 const spacesConfig = {
-  key: (process.env.DO_SPACES_KEY || '').trim(),
-  secret: (process.env.DO_SPACES_SECRET || '').trim(),
-  endpoint: (process.env.DO_SPACES_ENDPOINT || 'https://sgp1.digitaloceanspaces.com').trim().replace(/\/+$/, ''),
-  bucket: (process.env.DO_SPACES_BUCKET || 'pms-uploads').trim(),
-  cdnUrl: (process.env.DO_SPACES_CDN_URL || '').trim().replace(/\/+$/, ''),
+  key: process.env.DO_SPACES_KEY || '',
+  secret: process.env.DO_SPACES_SECRET || '',
+  endpoint: process.env.DO_SPACES_ENDPOINT || 'https://sgp1.digitaloceanspaces.com',
+  bucket: process.env.DO_SPACES_BUCKET || 'pms-uploads',
+  cdnUrl: process.env.DO_SPACES_CDN_URL || '',
 };
 
 let s3Client: S3Client | null = null;
@@ -43,13 +43,7 @@ function getS3Client(): S3Client {
 // ─── Public API ─────────────────────────────────────────
 
 export function isSpacesEnabled(): boolean {
-  return (
-    STORAGE_PROVIDER === 'spaces' &&
-    Boolean(spacesConfig.key) &&
-    !spacesConfig.key.startsWith('PASTE_YOUR_') &&
-    Boolean(spacesConfig.secret) &&
-    !spacesConfig.secret.startsWith('PASTE_YOUR_')
-  );
+  return STORAGE_PROVIDER === 'spaces' && !!spacesConfig.key;
 }
 
 /**
@@ -65,33 +59,16 @@ export async function uploadToSpaces(
   const client = getS3Client();
   const checksum = crypto.createHash('sha256').update(buffer).digest('hex');
 
-  try {
-    await client.send(new PutObjectCommand({
-      Bucket: spacesConfig.bucket,
-      Key: storageKey,
-      Body: buffer,
-      ContentType: contentType,
-      ACL: options?.isPublic ? 'public-read' : 'private',
-      Metadata: {
-        checksum,
-      },
-    }));
-  } catch (err: any) {
-    // Some buckets enforce bucket-owner-enforced / block public ACLs; retry without ACL so upload still succeeds.
-    const errName = String(err?.name || err?.Code || '');
-    if (options?.isPublic && /AccessControlList|AccessDenied|InvalidRequest/i.test(errName)) {
-      logger.warn(`Spaces rejected public-read ACL for ${storageKey} (${errName}); retrying without explicit ACL`);
-      await client.send(new PutObjectCommand({
-        Bucket: spacesConfig.bucket,
-        Key: storageKey,
-        Body: buffer,
-        ContentType: contentType,
-        Metadata: { checksum },
-      }));
-    } else {
-      throw err;
-    }
-  }
+  await client.send(new PutObjectCommand({
+    Bucket: spacesConfig.bucket,
+    Key: storageKey,
+    Body: buffer,
+    ContentType: contentType,
+    ACL: options?.isPublic ? 'public-read' : 'private',
+    Metadata: {
+      checksum,
+    },
+  }));
 
   const url = options?.isPublic && spacesConfig.cdnUrl
     ? `${spacesConfig.cdnUrl}/${storageKey}`

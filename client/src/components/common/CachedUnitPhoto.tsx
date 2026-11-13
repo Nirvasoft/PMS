@@ -129,11 +129,19 @@ export function CachedUnitPhoto({
             if (src.startsWith('blob:')) {
               evictUnitPhotoCache(photoUrl);
             }
-            if (!isCached && candidateIdx + 1 < candidates.length) {
+            if (hasCachedUnitPhoto(photoUrl)) {
+              const working = getCachedUnitPhotoSrc(photoUrl);
+              if (working && working !== src) {
+                setCandidateIdx(0);
+                setHasError(false);
+                return;
+              }
+            }
+            if (candidateIdx + 1 < candidates.length) {
               setCandidateIdx((prev) => prev + 1);
             } else {
               preloadUnitPhoto(photoUrl).then((resolved) => {
-                if (resolved && resolved !== src) {
+                if (resolved) {
                   setCandidateIdx(0);
                   setHasError(false);
                 } else {
