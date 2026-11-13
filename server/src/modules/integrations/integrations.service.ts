@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
 import { logger } from '../../common/logger';
+import { invalidateCacheByPrefix } from '../../common/redis';
 import { ensurePropertySetupScope, resolveEffectivePropertyId } from '../../common/propertySetupScope';
 
 // ═════════════════════════════════════════
@@ -1058,8 +1059,9 @@ class IntegrationsService {
   }): { code: string; name: string } {
     const isIndividual = (tenant.tenantType || 'individual') === 'individual';
     const code = (
+      tenant.firstName ||
       tenant.code ||
-      (isIndividual ? tenant.firstName : tenant.companyRegNo || tenant.companyName || tenant.firstName) ||
+      (isIndividual ? '' : tenant.companyRegNo || tenant.companyName) ||
       ''
     ).trim();
     const name = (
@@ -1410,7 +1412,6 @@ class IntegrationsService {
     }
 
     const targetPropertyId = inferredPropertyId || config.propertyId || null;
-    const cfg = (config.config || {}) as Record<string, string>;
     const t0 = Date.now();
 
     const whereClause: any = {
@@ -1512,9 +1513,9 @@ class IntegrationsService {
     }> = [];
 
     for (const inv of invoices) {
-      const { code: customerCode } = inv.tenant
-        ? this.deriveTenantV6CodeAndName(inv.tenant)
-        : { code: '' };
+      const customerCode =
+        String(inv.tenant?.firstName || '').trim() ||
+        (inv.tenant ? this.deriveTenantV6CodeAndName(inv.tenant).code : '');
 
       if (!customerCode) {
         results.push({
@@ -1522,7 +1523,7 @@ class IntegrationsService {
           invoiceNumber: inv.invoiceNumber,
           customerCode: '',
           status: 'skipped',
-          error: 'Tenant code is empty — cannot map to V6 customerCode',
+          error: 'Tenant First Name (customerCode) is empty — cannot map to V6 customerCode',
         });
         continue;
       }
@@ -1553,7 +1554,7 @@ class IntegrationsService {
             : skMatch?.[1] || '0';
         const syskeyValue = existingSyskeyStr !== '0' ? existingSyskeyStr : 0;
 
-        const unitNumber = (inv.unit?.unitNumber || (inv as any).unitNumber || '').trim();
+        const unitNumber = String(inv.unit?.unitNumber || (inv as any).unitNumber || '').trim();
         const currencyCode = (inv.currency || 'MMK').trim() || 'MMK';
         const currRate = Number(inv.currencyRate) > 0 ? Number(inv.currencyRate) : 1;
         const docDate = this.formatV6DateDdMmYyyy(inv.invoiceDate);
@@ -1564,48 +1565,39 @@ class IntegrationsService {
         // For ARINV => transType = 231, subType = 0; For ARDN => transType = 231, subType = 1
         const subType = inv.invoiceType === 'debit_note' ? 1 : 0;
 
-        const lineDescriptions =
-          (inv.lines || [])
-            .map((l: any) => l.description || l.chargeType?.name || '')
-            .filter(Boolean)
-            .join(', ') || `Invoice ${inv.invoiceNumber}`;
+        const dtls = (inv.lines || []).map((line: any, idx: number) => {
+          const qty = Number(line.quantity) || 1;
+          const unitPrice = Math.round((Number(line.unitPrice) || 0) * 100) / 100;
+          const b4TaxAmt =
+            Math.round((Number(line.amount) || qty * unitPrice) * 100) / 100;
+          const lineTax = Math.round((Number(line.taxAmount) || 0) * 100) / 100;
+          const totAmount = Math.round((b4TaxAmt + lineTax) * 100) / 100;
 
-        const buildDtls = (lineTypeValue: number) =>
-          (inv.lines || []).map((line: any, idx: number) => {
-            const qty = Number(line.quantity) || 1;
-            const unitPrice = Math.round((Number(line.unitPrice) || 0) * 100) / 100;
-            const b4TaxAmt =
-              Math.round((Number(line.amount) || qty * unitPrice) * 100) / 100;
-            const lineTax = Math.round((Number(line.taxAmount) || 0) * 100) / 100;
-            const totAmount = Math.round((b4TaxAmt + lineTax) * 100) / 100;
+          return {
+            lineNo: String((idx + 1) * 1000000),
+            lineType: 2,
+            stockCode: '',
+            stockDesc: String(
+              line.chargeType?.name || line.description || 'Invoice Charge',
+            ).trim(),
+            locationCode: '',
+            uomCode: '',
+            lvlQty: 1,
+            unitRatio: 1,
+            qty,
+            unitPrice,
+            unitDiscAmt: 0.0,
+            lineDiscAmt: 0.0,
+            distDiscAmt: 0.0,
+            totDiscAmt: 0.0,
+            taxAmt: lineTax,
+            isTaxInc: 0,
+            totAmount,
+            b4TaxAmt,
+          };
+        });
 
-            return {
-              lineNo: String((idx + 1) * 1000000),
-              lineType: lineTypeValue,
-              stockCode: String(
-                line.chargeType?.code || unitNumber || cfg.defaultStockCode || 'C0012',
-              ).trim(),
-              stockDesc: String(
-                line.description || line.chargeType?.name || 'Invoice Charge',
-              ).trim(),
-              locationCode: String(cfg.locationCode || 'HO').trim(),
-              uomCode: String(line.unit || cfg.uomCode || 'Pcs').trim(),
-              lvlQty: 1,
-              unitRatio: 1,
-              qty,
-              unitPrice,
-              unitDiscAmt: 0.0,
-              lineDiscAmt: 0.0,
-              distDiscAmt: 0.0,
-              totDiscAmt: 0.0,
-              taxAmt: lineTax,
-              isTaxInc: 0,
-              totAmount,
-              b4TaxAmt,
-            };
-          });
-
-        const buildPayload = (lineTypeValue: number) => ({
+        const payload = {
           domain: auth.domain,
           list: [
             {
@@ -1621,32 +1613,32 @@ class IntegrationsService {
                 currencyRate: currRate,
                 docDate,
                 dueDate,
-                remark: String((inv as any).notes || lineDescriptions).trim(),
+                remark: unitNumber,
                 hdrDiscAmt: discAmt,
                 isSingleRateTax: 1,
                 taxAmt,
                 netAmount: totalAmt,
               },
-              dtls: buildDtls(lineTypeValue),
+              dtls,
             },
           ],
-        });
+        };
 
         logger.info(
           `V6 ERP: Posting ${subType === 1 ? 'AR Debit Note' : 'AR Invoice'} ${inv.invoiceNumber} via postARInvoice | customer=${customerCode} | netAmount=${totalAmt}`,
         );
 
-        let resp = await fetch(endpoint, {
+        const resp = await fetch(endpoint, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Content-Over': auth.codex,
           },
-          body: JSON.stringify(buildPayload(0)),
+          body: JSON.stringify(payload),
           signal: AbortSignal.timeout(30000),
         });
 
-        let respText = await resp.text().catch(() => '');
+        const respText = await resp.text().catch(() => '');
         let v6Json: any = null;
         try {
           v6Json = JSON.parse(respText);
@@ -1654,35 +1646,10 @@ class IntegrationsService {
           // not JSON
         }
 
-        let itemRes =
+        const itemRes =
           Array.isArray(v6Json?.list) && v6Json.list.length > 0 ? v6Json.list[0] : v6Json;
-        let v6Status = String(itemRes?.status || v6Json?.status || '').toUpperCase();
-        let v6Msg = String(itemRes?.message || v6Json?.message || '').trim();
-
-        // If V6 ERP rejects lineType 0 because the PMS Charge Type code is not in V6 physical Stock Master,
-        // automatically retry with lineType = 1 (V6 ERP Non-Stock / Service Charge line).
-        if (v6Status === 'FAIL' && /Invalid Stock Code|Stock does not exist/i.test(v6Msg)) {
-          resp = await fetch(endpoint, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Content-Over': auth.codex,
-            },
-            body: JSON.stringify(buildPayload(1)),
-            signal: AbortSignal.timeout(30000),
-          });
-          respText = await resp.text().catch(() => '');
-          v6Json = null;
-          try {
-            v6Json = JSON.parse(respText);
-          } catch {
-            // not JSON
-          }
-          itemRes =
-            Array.isArray(v6Json?.list) && v6Json.list.length > 0 ? v6Json.list[0] : v6Json;
-          v6Status = String(itemRes?.status || v6Json?.status || '').toUpperCase();
-          v6Msg = String(itemRes?.message || v6Json?.message || '').trim();
-        }
+        const v6Status = String(itemRes?.status || v6Json?.status || '').toUpperCase();
+        const v6Msg = String(itemRes?.message || v6Json?.message || '').trim();
 
         const isSuccess =
           resp.ok &&
@@ -1784,6 +1751,10 @@ class IntegrationsService {
     const failedResults = results.filter((r) => r.status === 'failed');
     const failedCount = failedResults.length;
     const skippedCount = results.filter((r) => r.status === 'skipped').length;
+
+    if (sentCount > 0) {
+      await invalidateCacheByPrefix(`invoices:${companyId}:`).catch(() => {});
+    }
 
     if (!skipLog) {
       await prisma.integrationSyncLog
