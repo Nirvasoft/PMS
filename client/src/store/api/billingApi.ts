@@ -1,6 +1,8 @@
 import { createApi } from '@reduxjs/toolkit/query/react';
 import { baseQueryWithReauth } from './baseQuery';
 import { unitsApi } from './unitsApi';
+import { sequenceApi } from './sequenceApi';
+import { tenantsApi } from './tenantsApi';
 
 // ─── Types ───────────────────────────────────
 
@@ -437,6 +439,13 @@ export const billingApi = createApi({
     createInvoice: builder.mutation<ApiResponse<InvoiceDetail>, Record<string, unknown>>({
       query: (body) => ({ url: '/invoices', method: 'POST', body }),
       invalidatesTags: ['Invoices'],
+      async onQueryStarted(_, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          dispatch(sequenceApi.util.invalidateTags([{ type: 'Sequence', id: 'LIST' }]));
+          dispatch(tenantsApi.util.invalidateTags(['Tenants']));
+        } catch {}
+      },
     }),
 
     voidInvoice: builder.mutation<ApiResponse<InvoiceDetail>, { id: string; reason: string }>({
@@ -447,6 +456,12 @@ export const billingApi = createApi({
     createCreditNote: builder.mutation<ApiResponse<InvoiceDetail>, { id: string; data: Record<string, unknown> }>({
       query: ({ id, data }) => ({ url: `/invoices/${id}/credit-note`, method: 'POST', body: data }),
       invalidatesTags: ['Invoices'],
+      async onQueryStarted(_, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          dispatch(sequenceApi.util.invalidateTags([{ type: 'Sequence', id: 'LIST' }]));
+        } catch {}
+      },
     }),
 
     getInvoicePdf: builder.query<string, string>({
@@ -474,6 +489,12 @@ export const billingApi = createApi({
     runBilling: builder.mutation<ApiResponse<{ processed: number; generated: number; errors: string[] }>, { propertyId?: string; asOfDate?: string } | void>({
       query: (body) => ({ url: '/billing/run', method: 'POST', body: body || {} }),
       invalidatesTags: ['Invoices', 'BillingSchedules'],
+      async onQueryStarted(_, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          dispatch(sequenceApi.util.invalidateTags([{ type: 'Sequence', id: 'LIST' }]));
+        } catch {}
+      },
     }),
 
     // ── Penalty Configs ───────────────────

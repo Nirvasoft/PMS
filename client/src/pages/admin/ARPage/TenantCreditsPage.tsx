@@ -40,7 +40,7 @@ export default function TenantCreditsPage() {
     sourceType: sourceFilter || undefined, page, limit: pageSize,
   });
   const { data: summaryRes } = useGetCreditsSummaryQuery();
-  const { data: tenantsRes } = useGetTenantsQuery({ page: 1, limit: 200 });
+  const { data: tenantsRes } = useGetTenantsQuery({ page: 1, limit: 5000 });
   const [createCredit, { isLoading: creating }] = useCreateCreditMutation();
   const [applyCredit, { isLoading: applying }] = useApplyCreditMutation();
 

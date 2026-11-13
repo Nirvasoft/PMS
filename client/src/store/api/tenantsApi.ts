@@ -1,5 +1,22 @@
 import { createApi } from '@reduxjs/toolkit/query/react';
 import { baseQueryWithReauth } from './baseQuery';
+import { billingApi } from './billingApi';
+import { leasesApi } from './leasesApi';
+import { sequenceApi } from './sequenceApi';
+
+async function invalidateTenantDependents(
+  _arg: unknown,
+  { dispatch, queryFulfilled }: { dispatch: (action: unknown) => void; queryFulfilled: Promise<unknown> }
+) {
+  try {
+    await queryFulfilled;
+    dispatch(billingApi.util.invalidateTags(['Invoices', 'BillingSchedules']));
+    dispatch(leasesApi.util.invalidateTags(['Leases']));
+    dispatch(sequenceApi.util.invalidateTags([{ type: 'Sequence', id: 'LIST' }]));
+  } catch {
+    // request failed — nothing to invalidate
+  }
+}
 
 // ─── Types ──────────────────────────────────────
 
@@ -201,14 +218,17 @@ export const tenantsApi = createApi({
     createTenant: builder.mutation<ApiResponse<TenantDetail>, Record<string, unknown>>({
       query: (body) => ({ url: '/tenants', method: 'POST', body }),
       invalidatesTags: ['Tenants'],
+      onQueryStarted: invalidateTenantDependents,
     }),
     updateTenant: builder.mutation<ApiResponse<TenantDetail>, { id: string; data: Record<string, unknown> }>({
       query: ({ id, data }) => ({ url: `/tenants/${id}`, method: 'PUT', body: data }),
       invalidatesTags: (_, __, { id }) => [{ type: 'Tenants', id }, 'Tenants'],
+      onQueryStarted: invalidateTenantDependents,
     }),
     deleteTenant: builder.mutation<void, string>({
       query: (id) => ({ url: `/tenants/${id}`, method: 'DELETE' }),
       invalidatesTags: ['Tenants'],
+      onQueryStarted: invalidateTenantDependents,
     }),
     uploadAvatar: builder.mutation<ApiResponse<{ avatarUrl: string }>, { id: string; file: File }>({
       query: ({ id, file }) => {
@@ -233,6 +253,7 @@ export const tenantsApi = createApi({
     mergeTenants: builder.mutation<ApiResponse<{ mergedInto: string; message: string }>, { primaryTenantId: string; duplicateTenantId: string; confirmActiveLeasesTransfer?: boolean }>({
       query: (body) => ({ url: '/tenants/merge', method: 'POST', body }),
       invalidatesTags: ['Tenants'],
+      onQueryStarted: invalidateTenantDependents,
     }),
 
     // ── Lease History ──

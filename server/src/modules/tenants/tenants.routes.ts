@@ -42,7 +42,7 @@ tenantsRouter.get('/', asyncHandler(async (req, res) => {
     tags:         req.query.tags ? (req.query.tags as string).split(',') : undefined,
     propertyId:   req.query.propertyId as string | undefined,
     page:         parseInt(req.query.page as string) || 1,
-    limit:        Math.min(parseInt(req.query.limit as string) || 20, 100),
+    limit:        Math.min(parseInt(req.query.limit as string) || 20, 5000),
   });
   res.json({ success: true, ...result });
 }));

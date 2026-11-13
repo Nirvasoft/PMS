@@ -11,6 +11,7 @@ import {
 import { webhookTenantCreated, webhookTenantBlacklisted } from '../../common/webhookHooks';
 import { isV6ErpActive } from '../integrations/v6Status.helper';
 import { integrationsService } from '../integrations/integrations.service';
+import { invalidateCacheByPrefix } from '../../common/redis';
 
 // ══════════════════════════════════════════════
 // HELPERS
@@ -97,6 +98,7 @@ export class TenantsService {
     if (search) {
       // When propertyId is also active, combine both filters without overwriting OR
       const searchOr = [
+        { code:        { contains: search, mode: 'insensitive' } },
         { firstName:   { contains: search, mode: 'insensitive' } },
         { lastName:    { contains: search, mode: 'insensitive' } },
         { companyName: { contains: search, mode: 'insensitive' } },
@@ -120,7 +122,7 @@ export class TenantsService {
       prisma.tenant.findMany({
         where,
         select: {
-          id: true, tenantType: true, firstName: true, lastName: true,
+          id: true, code: true, tenantType: true, firstName: true, lastName: true,
           companyName: true, email: true, mobile: true, kycStatus: true,
           isBlacklisted: true, avatarUrl: true, tags: true, source: true,
           idNumber: true, fatherName: true, notes: true, currency: true,
@@ -200,15 +202,17 @@ export class TenantsService {
     const companyRegNo = rest.companyRegNo as string | undefined;
     const tenantType = (rest.tenantType as string) || 'individual';
 
+    const propScope = propertyId ? { propertyId } : {};
+
     if (email) {
-      const dup = await prisma.tenant.findFirst({ where: { companyId, email, deletedAt: null } });
+      const dup = await prisma.tenant.findFirst({ where: { companyId, ...propScope, email, deletedAt: null } });
       if (dup) throw new AppError(409, 'DUPLICATE_TENANT', 'A tenant with this email already exists', { existingId: dup.id });
     }
 
     if (tenantType === 'individual') {
       const firstName = typeof rest.firstName === 'string' && rest.firstName.trim() ? rest.firstName.trim() : null;
       if (firstName) {
-        const dup = await prisma.tenant.findFirst({ where: { companyId, firstName, deletedAt: null } });
+        const dup = await prisma.tenant.findFirst({ where: { companyId, ...propScope, firstName, deletedAt: null } });
         if (dup) throw new AppError(409, 'DUPLICATE_TENANT', `Code "${firstName}" is already used by another tenant`, { existingId: dup.id });
         (rest as any).code = firstName;
       } else {
@@ -235,12 +239,12 @@ export class TenantsService {
     }
 
     if (tenantType === 'individual' && idNumber) {
-      const dup = await prisma.tenant.findFirst({ where: { companyId, idNumber, deletedAt: null } });
+      const dup = await prisma.tenant.findFirst({ where: { companyId, ...propScope, idNumber, deletedAt: null } });
       if (dup) throw new AppError(409, 'DUPLICATE_TENANT', 'A tenant with this ID number already exists', { existingId: dup.id });
     }
 
     if (tenantType === 'company' && companyRegNo) {
-      const dup = await prisma.tenant.findFirst({ where: { companyId, companyRegNo, deletedAt: null } });
+      const dup = await prisma.tenant.findFirst({ where: { companyId, ...propScope, companyRegNo, deletedAt: null } });
       if (dup) throw new AppError(409, 'DUPLICATE_TENANT', 'A tenant with this company registration already exists', { existingId: dup.id });
     }
 
@@ -283,6 +287,7 @@ export class TenantsService {
         );
     }
 
+    await invalidateCacheByPrefix(`invoices:${companyId}:`);
     return { ...tenant, glAccountCode: glAccountCode || null, displayName: displayName(tenant) };
   }
 
@@ -300,17 +305,21 @@ export class TenantsService {
 
     const v6Active = await isV6ErpActive(companyId, tenant.propertyId);
 
-    // Duplicate code (firstName) check — exclude self
+    // Duplicate code (firstName) check — scoped by property, exclude self
     if (tenant.tenantType === 'individual' && rest.firstName) {
+      const cleanCode = (rest.firstName as string).trim();
       const dup = await prisma.tenant.findFirst({
         where: {
           companyId,
-          firstName: rest.firstName as string,
+          ...(tenant.propertyId ? { propertyId: tenant.propertyId } : {}),
+          firstName: cleanCode,
           deletedAt: null,
           NOT: { id },
         },
       });
-      if (dup) throw new AppError(409, 'DUPLICATE_TENANT', `A tenant with code "${rest.firstName}" already exists`, { existingId: dup.id });
+      if (dup) throw new AppError(409, 'DUPLICATE_TENANT', `A tenant with code "${cleanCode}" already exists`, { existingId: dup.id });
+      (rest as any).firstName = cleanCode;
+      (rest as any).code = cleanCode;
     }
 
     const updated = await prisma.tenant.update({
@@ -341,6 +350,7 @@ export class TenantsService {
         );
     }
 
+    await invalidateCacheByPrefix(`invoices:${companyId}:`);
     return {
       ...updated,
       glAccountCode: glAccountCode !== undefined ? (glAccountCode || null) : ((updated as any).glAccountCode ?? null),
@@ -360,6 +370,7 @@ export class TenantsService {
     }
 
     await prisma.tenant.update({ where: { id }, data: { deletedAt: new Date(), isActive: false } });
+    await invalidateCacheByPrefix(`invoices:${companyId}:`);
   }
 
   // ── Lease history ──────────────────────────
@@ -423,6 +434,9 @@ export class TenantsService {
       await tx.tenantBlacklistLog.updateMany({ where: { tenantId: duplicateId }, data: { tenantId: primaryId } });
       await tx.tenantNote.updateMany({ where: { tenantId: duplicateId }, data: { tenantId: primaryId } });
       await tx.lease.updateMany({ where: { tenantId: duplicateId }, data: { tenantId: primaryId } });
+      await tx.invoice.updateMany({ where: { tenantId: duplicateId }, data: { tenantId: primaryId } });
+      await tx.billingSchedule.updateMany({ where: { tenantId: duplicateId }, data: { tenantId: primaryId } });
+      await tx.receipt.updateMany({ where: { tenantId: duplicateId }, data: { tenantId: primaryId } });
 
       // Soft-delete duplicate
       await tx.tenant.update({
@@ -431,6 +445,7 @@ export class TenantsService {
       });
     });
 
+    await invalidateCacheByPrefix(`invoices:${companyId}:`);
     return { mergedInto: primaryId, message: 'Tenant records merged successfully.' };
   }
 

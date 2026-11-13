@@ -95,7 +95,7 @@ export default function CreateInvoicePage() {
   // Tenants scoped to the selected property
   const { data: tenantsData } = useGetTenantsQuery(
     resolvedPropertyId
-      ? { propertyId: resolvedPropertyId, page: 1, limit: 200 }
+      ? { propertyId: resolvedPropertyId, page: 1, limit: 5000 }
       : skipToken,
   );
   const tenants = tenantsData?.data || [];

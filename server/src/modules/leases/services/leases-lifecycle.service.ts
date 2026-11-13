@@ -1,7 +1,8 @@
 import { prisma } from '../../../common/database';
 import { AppError } from '../../../common/errors';
 import { logger } from '../../../common/logger';
-import { calcLeaseTermMonths, nextLeaseNumber, resolveTerminationPolicy, computeTerminationPenalty } from './helpers';
+import { sequenceService } from '../../../common/sequence.service';
+import { calcLeaseTermMonths, resolveTerminationPolicy, computeTerminationPenalty } from './helpers';
 import { escalationService } from './escalation.service';
 import { workflowEngine } from '../../workflow/services/engine.service';
 import { billingSchedulesService } from '../../billing/billingSchedules.service';
@@ -275,12 +276,13 @@ export class LeasesLifecycleService {
     // If startDate is omitted, default to original lease end date + 1 day (natural renewal start)
     const start = dto.startDate ? new Date(dto.startDate) : new Date(original.endDate.getTime() + 86_400_000);
     const end   = new Date(dto.endDate);
+    const leaseNumber = await sequenceService.next(companyId, 'lease', { propertyId: original.propertyId });
 
     const renewal = await prisma.lease.create({
       data: {
         companyId, propertyId: original.propertyId, unitId: original.unitId,
         tenantId: original.tenantId, parentLeaseId: id,
-        leaseNumber: nextLeaseNumber(), status: 'draft',
+        leaseNumber, status: 'draft',
         startDate: start, endDate: end, leaseTermMonths: calcLeaseTermMonths(start, end),
         rentAmount: dto.rentAmount ?? original.rentAmount,
         securityDeposit: dto.securityDeposit ?? original.securityDeposit,

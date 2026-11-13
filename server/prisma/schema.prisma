@@ -1617,7 +1617,7 @@ model Tenant {
   camReconciliations CamReconciliation[] @relation("CamReconTenant")
   boothRentals       BoothRental[]       @relation("BoothTenant")
 
-  @@unique([companyId, code], name: "uq_tenant_code_company")
+  @@unique([companyId, propertyId, code], name: "uq_tenant_code_company_property")
   @@index([companyId])
   @@index([propertyId])
   @@index([email])

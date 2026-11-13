@@ -104,6 +104,8 @@ async function runPropertySetupScopeMigration(): Promise<void> {
     { table: 'integration_configs', name: 'integration_configs_company_id_integration_type_key' },
     { table: 'invoices', name: 'invoices_invoice_number_key' },
     { table: 'receipts', name: 'receipts_receipt_number_key' },
+    { table: 'tenants', name: 'uq_tenant_code_company' },
+    { table: 'tenants', name: 'tenants_company_id_code_key' },
   ];
 
   for (const item of legacyConstraints) {
@@ -142,6 +144,9 @@ async function runPropertySetupScopeMigration(): Promise<void> {
   );
   await prisma.$executeRawUnsafe(
     `CREATE UNIQUE INDEX IF NOT EXISTS "receipts_company_id_property_id_receipt_number_key" ON "receipts"("company_id", "property_id", "receipt_number")`,
+  );
+  await prisma.$executeRawUnsafe(
+    `CREATE UNIQUE INDEX IF NOT EXISTS "tenants_company_id_property_id_code_key" ON "tenants"("company_id", "property_id", "code")`,
   );
 
   // Backfill existing company-scoped records with property_id IS NULL to the company's first active property
