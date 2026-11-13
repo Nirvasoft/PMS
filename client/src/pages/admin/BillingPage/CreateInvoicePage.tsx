@@ -285,12 +285,15 @@ export default function CreateInvoicePage() {
   const isTenantMissing = hasAttemptedSubmit && !form.tenantId;
   const isInvoiceDateMissing = hasAttemptedSubmit && !form.invoiceDate;
   const isDueDateMissing = hasAttemptedSubmit && !form.dueDate;
+  const isDeptMissing = hasAttemptedSubmit && isAccountingIntegrationActive && !form.departmentCenterId;
+  const isCostCenterMissing = hasAttemptedSubmit && isAccountingIntegrationActive && !form.costCenterId;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setHasAttemptedSubmit(true);
     const hasLineErrors = lines.length === 0 || lines.some(l => !l.chargeTypeId || !l.description.trim());
-    if (!resolvedPropertyId || !form.tenantId || !form.invoiceDate || !form.dueDate || hasLineErrors) {
+    const hasAccountingErrors = isAccountingIntegrationActive && (!form.departmentCenterId || !form.costCenterId);
+    if (!resolvedPropertyId || !form.tenantId || !form.invoiceDate || !form.dueDate || hasAccountingErrors || hasLineErrors) {
       toast.error(!resolvedPropertyId ? 'Please select a property from the sidebar first' : 'Please fill in all required fields');
       return;
     }
@@ -336,14 +339,16 @@ export default function CreateInvoicePage() {
             <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>Create a manual ad-hoc invoice for a tenant</p>
           </div>
         </div>
-        <button
-          type="button"
-          className="btn btn-secondary"
-          onClick={() => setShowRecapModal(true)}
-          style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-        >
-          <Table2 size={14} /> Recap
-        </button>
+        {isAccountingIntegrationActive && (
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => setShowRecapModal(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+          >
+            <Table2 size={14} /> Recap
+          </button>
+        )}
       </div>
 
       <form onSubmit={handleSubmit} noValidate>
@@ -491,29 +496,38 @@ export default function CreateInvoicePage() {
             </div>
             {isAccountingIntegrationActive && (
               <>
-                <div className="inv-field">
-                  <label>Department <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span></label>
+                <div className={`inv-field ${isDeptMissing ? 'inv-field-error' : ''}`}>
+                  <label>Department <span className="req">*</span></label>
                   <select
+                    className={isDeptMissing ? 'inv-input-error' : ''}
                     value={form.departmentCenterId}
-                    onChange={e => setForm({ ...form, departmentCenterId: e.target.value })}
+                    onChange={e => setForm({ ...form, departmentCenterId: e.target.value, costCenterId: '' })}
                   >
-                    <option value="">— None —</option>
-                    {departmentCenters.map((d) => (
+                    <option value="">— Select —</option>
+                    {departmentCenters.filter((d) => d.isActive !== false).map((d) => (
                       <option key={d.id} value={d.id}>{d.code}</option>
                     ))}
                   </select>
+                  {isDeptMissing && <span className="inv-error-text">Department is required</span>}
                 </div>
-                <div className="inv-field">
-                  <label>Cost Center <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span></label>
+                <div className={`inv-field ${isCostCenterMissing ? 'inv-field-error' : ''}`}>
+                  <label>Cost Center <span className="req">*</span></label>
                   <select
+                    className={isCostCenterMissing ? 'inv-input-error' : ''}
                     value={form.costCenterId}
                     onChange={e => setForm({ ...form, costCenterId: e.target.value })}
                   >
-                    <option value="">— None —</option>
-                    {costCenters.map((c) => (
-                      <option key={c.id} value={c.id}>{c.code}</option>
-                    ))}
+                    <option value="">— Select —</option>
+                    {costCenters
+                      .filter((c) => {
+                        if (c.isActive === false) return false;
+                        return !form.departmentCenterId || !c.departmentCenterId || c.departmentCenterId === form.departmentCenterId;
+                      })
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>{c.code}</option>
+                      ))}
                   </select>
+                  {isCostCenterMissing && <span className="inv-error-text">Cost Center is required</span>}
                 </div>
               </>
             )}

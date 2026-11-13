@@ -4,6 +4,7 @@ import { AppError } from '../../common/errors';
 import { logger } from '../../common/logger';
 import { invalidateCacheByPrefix } from '../../common/redis';
 import { ensurePropertySetupScope, resolveEffectivePropertyId } from '../../common/propertySetupScope';
+import { disablePropertyAccountAndJournalFlag } from './v6Status.helper';
 
 // ═════════════════════════════════════════
 // INTEGRATION TYPES REGISTRY
@@ -380,6 +381,7 @@ class IntegrationsService {
     });
 
     if (created.integrationType === 'v6erp' && created.isActive && created.status !== 'disabled') {
+      await disablePropertyAccountAndJournalFlag(companyId, effectivePropertyId).catch(() => {});
       try {
         await this.syncV6ChartOfAccounts(companyId, effectivePropertyId || undefined, userId);
       } catch (err: any) {
@@ -423,12 +425,14 @@ class IntegrationsService {
       const wasActive = existing.isActive && existing.status !== 'disabled';
       const nowActive = updated.isActive && updated.status !== 'disabled';
       if (wasActive && !nowActive) {
+        await disablePropertyAccountAndJournalFlag(companyId, updated.propertyId).catch(() => {});
         await this.restorePmsChartOfAccountsOnV6Disable(
           companyId,
           updated.propertyId || undefined,
           existing.id,
         );
       } else if (nowActive) {
+        await disablePropertyAccountAndJournalFlag(companyId, updated.propertyId).catch(() => {});
         try {
           await this.syncV6ChartOfAccounts(companyId, updated.propertyId || undefined, _userId);
         } catch (err: any) {
@@ -450,6 +454,9 @@ class IntegrationsService {
     const existing = await prisma.integrationConfig.findFirst({ where: { id, companyId } });
     if (!existing) throw AppError.notFound('Integration');
     if (existing.integrationType === 'v6erp') {
+      if (existing.isActive && existing.status !== 'disabled') {
+        await disablePropertyAccountAndJournalFlag(companyId, existing.propertyId).catch(() => {});
+      }
       await this.restorePmsChartOfAccountsOnV6Disable(
         companyId,
         existing.propertyId || undefined,
@@ -473,6 +480,7 @@ class IntegrationsService {
           where: { id },
           data: { status: 'active', isActive: true, lastError: null },
         });
+        await disablePropertyAccountAndJournalFlag(companyId, _propertyId || config.propertyId).catch(() => {});
 
         let coaSyncResult: any = null;
         try {

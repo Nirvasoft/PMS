@@ -1,6 +1,7 @@
 import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
 import { ensurePropertySetupScope, resolveEffectivePropertyId } from '../../common/propertySetupScope';
+import { isAccountingIntegrationActive } from '../integrations/v6Status.helper';
 
 const chargeTypeInclude = {
   departmentCenter: { select: { id: true, code: true, name: true } },
@@ -64,6 +65,16 @@ export class ChargeTypesService {
       await this.assertCodeAvailable(companyId, propertyId, code);
     }
 
+    if (await isAccountingIntegrationActive(companyId, propertyId)) {
+      if (
+        !((dto.glAccountCode as string) || '').trim() ||
+        !((dto.departmentCenterId as string) || '').trim() ||
+        !((dto.costCenterId as string) || '').trim()
+      ) {
+        throw AppError.validation('GL Account, Department, and Cost Center are required');
+      }
+    }
+
     return prisma.chargeType.create({
       data: {
         companyId,
@@ -91,6 +102,18 @@ export class ChargeTypesService {
 
     const targetPropertyId =
       dto.propertyId !== undefined ? ((dto.propertyId as string) || null) : chargeType.propertyId;
+
+    if (
+      (dto.glAccountCode !== undefined || dto.departmentCenterId !== undefined || dto.costCenterId !== undefined) &&
+      (await isAccountingIntegrationActive(companyId, targetPropertyId))
+    ) {
+      const nextGl = dto.glAccountCode !== undefined ? ((dto.glAccountCode as string) || '').trim() : (chargeType.glAccountCode || '').trim();
+      const nextDept = dto.departmentCenterId !== undefined ? ((dto.departmentCenterId as string) || '').trim() : (chargeType.departmentCenterId || '').trim();
+      const nextCc = dto.costCenterId !== undefined ? ((dto.costCenterId as string) || '').trim() : (chargeType.costCenterId || '').trim();
+      if (!nextGl || !nextDept || !nextCc) {
+        throw AppError.validation('GL Account, Department, and Cost Center are required');
+      }
+    }
 
     const updateData: Record<string, unknown> = {};
     if (dto.code !== undefined) {

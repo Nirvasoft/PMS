@@ -2,6 +2,7 @@ import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
 import { unitsService } from '../units/units.service';
 import { clearShopIdentityOp } from '../mall/shopProfileReset';
+import { isAccountingIntegrationActive } from '../integrations/v6Status.helper';
 
 export class BillingSchedulesService {
   // Fields every schedule spawned from an activated lease shares (RENT, SERVICE_CHARGE,
@@ -118,6 +119,14 @@ export class BillingSchedulesService {
   }
 
   async create(companyId: string, dto: Record<string, unknown>, userId: string) {
+    if (await isAccountingIntegrationActive(companyId, (dto.propertyId as string) || null)) {
+      if (
+        !((dto.departmentCenterId as string) || '').trim() ||
+        !((dto.costCenterId as string) || '').trim()
+      ) {
+        throw AppError.validation('Department and Cost Center are required');
+      }
+    }
     const startDate = new Date(dto.startDate as string);
     const billingDay = (dto.billingDay as number) || 1;
     const billingCycle = (dto.billingCycle as string) || 'monthly';
@@ -590,6 +599,18 @@ export class BillingSchedulesService {
     if (!schedule) throw AppError.notFound('Billing schedule');
     if (['cancelled', 'completed'].includes(schedule.status)) {
       throw AppError.validation('Cannot update a cancelled or completed schedule');
+    }
+
+    const targetPropertyId = (dto.propertyId as string) || schedule.propertyId;
+    if (
+      (dto.departmentCenterId !== undefined || dto.costCenterId !== undefined) &&
+      (await isAccountingIntegrationActive(companyId, targetPropertyId))
+    ) {
+      const nextDept = dto.departmentCenterId !== undefined ? ((dto.departmentCenterId as string) || '').trim() : (schedule.departmentCenterId || '').trim();
+      const nextCc = dto.costCenterId !== undefined ? ((dto.costCenterId as string) || '').trim() : (schedule.costCenterId || '').trim();
+      if (!nextDept || !nextCc) {
+        throw AppError.validation('Department and Cost Center are required');
+      }
     }
 
     const updateData: any = {};

@@ -2,6 +2,7 @@ import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
 import { logger } from '../../common/logger';
 import { glService } from '../gl/gl.service';
+import { isAccountingIntegrationActive } from '../integrations/v6Status.helper';
 
 export class ApInvoicesService {
   // ── Number Generation ────────────────────────
@@ -180,6 +181,7 @@ export class ApInvoicesService {
     });
 
     // ── GL Auto-Post: Dr Expense accounts / Cr Accounts Payable ──
+    if (await isAccountingIntegrationActive(companyId, invoice.propertyId)) {
     try {
       const glLines: Array<{
         accountCode: string;
@@ -236,6 +238,7 @@ export class ApInvoicesService {
       });
     } catch (err: any) {
       logger.warn(`GL auto-post for AP invoice ${invoice.apInvoiceNumber} failed: ${err.message}`);
+    }
     }
 
     logger.info(`Approved AP invoice ${invoice.apInvoiceNumber}`);

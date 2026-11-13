@@ -204,7 +204,7 @@ export const propertiesApi = createApi({
     // Lightweight, scope-only list for the sidebar's "Active Property" context switcher —
     // not gated by properties.read, so a property-scoped user with no admin access to the
     // Properties module still sees their own scope here.
-    getMyPropertyScope: builder.query<ApiResponse<{ id: string; name: string; code: string; currency: string }[]>, void>({
+    getMyPropertyScope: builder.query<ApiResponse<{ id: string; name: string; code: string; currency: string; settings?: Record<string, unknown> }[]>, void>({
       query: () => '/properties/my-scope',
       providesTags: ['Properties'],
     }),

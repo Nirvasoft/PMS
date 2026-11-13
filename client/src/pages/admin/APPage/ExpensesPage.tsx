@@ -5,6 +5,7 @@ import {
 } from '../../../store/api/apApi';
 import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
+import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import {
   Receipt, Plus, X, Clock, CheckCircle, DollarSign,
   ChevronLeft, ChevronRight, Tag,
@@ -33,6 +34,7 @@ export default function ExpensesPage() {
 
   // Active property from the sidebar — follows the same pattern as Parking Overview.
   const selectedProperty = useSelectedPropertyFilter();
+  const { isAccountingIntegrationActive } = useV6IntegrationStatus(selectedProperty || undefined);
   const { data: propertiesData } = useGetMyPropertyScopeQuery();
   const properties = propertiesData?.data || [];
   const selectedPropertyName = properties.find((p) => p.id === selectedProperty)?.name || '';
@@ -71,7 +73,7 @@ export default function ExpensesPage() {
   const handleCreate = async () => {
     setHasAttemptedCreate(true);
     if (!form.propertyId) return toast.error('Please select a property from the sidebar first');
-    if (!form.expenseDate || !(parseFloat(form.amount) > 0) || !form.description.trim()) {
+    if (!form.expenseDate || !(parseFloat(form.amount) > 0) || !form.description.trim() || (isAccountingIntegrationActive && !form.glAccountCode.trim())) {
       return toast.error('Please fill in all required fields');
     }
     try {
@@ -288,10 +290,20 @@ export default function ExpensesPage() {
                     {form.propertyId && <option value={form.propertyId}>{selectedPropertyName || 'Loading…'}</option>}
                   </select>
                 </div>
-                <div className="ap-form-group">
-                  <label>GL Account Code</label>
-                  <input value={form.glAccountCode} onChange={e => setForm(f => ({ ...f, glAccountCode: e.target.value }))} placeholder="5200" />
-                </div>
+                {isAccountingIntegrationActive && (
+                  <div className="ap-form-group">
+                    <label>GL Account Code <span className="req">*</span></label>
+                    <input
+                      className={hasAttemptedCreate && !form.glAccountCode.trim() ? 'ap-input-error' : ''}
+                      value={form.glAccountCode}
+                      onChange={e => setForm(f => ({ ...f, glAccountCode: e.target.value }))}
+                      placeholder="5200"
+                    />
+                    {hasAttemptedCreate && !form.glAccountCode.trim() && (
+                      <span className="ap-error-text">GL account code is required</span>
+                    )}
+                  </div>
+                )}
                 <div className="ap-form-group full-width">
                   <label>Description <span className="req">*</span></label>
                   <textarea

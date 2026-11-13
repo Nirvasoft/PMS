@@ -146,11 +146,19 @@ export default function ChargeTypesPage() {
   const isCodeMissing = hasAttemptedSubmit && !form.code.trim();
   const isNameMissing = hasAttemptedSubmit && !form.name.trim();
   const isCategoryMissing = hasAttemptedSubmit && !form.category.trim();
+  const isGlAccountMissing = hasAttemptedSubmit && isAccountingIntegrationActive && !form.glAccountCode.trim();
+  const isDeptMissing = hasAttemptedSubmit && isAccountingIntegrationActive && !form.departmentCenterId;
+  const isCostCenterMissing = hasAttemptedSubmit && isAccountingIntegrationActive && !form.costCenterId;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setHasAttemptedSubmit(true);
-    if (!form.code.trim() || !form.name.trim() || !form.category.trim()) {
+    if (
+      !form.code.trim() ||
+      !form.name.trim() ||
+      !form.category.trim() ||
+      (isAccountingIntegrationActive && (!form.glAccountCode.trim() || !form.departmentCenterId || !form.costCenterId))
+    ) {
       toast.error('Please fill in all required fields');
       return;
     }
@@ -512,11 +520,11 @@ export default function ChargeTypesPage() {
                   </div>
                   {isAccountingIntegrationActive && (
                     <>
-                      <div className="inv-field">
-                        <label>GL Account Code</label>
+                      <div className={`inv-field ${isGlAccountMissing ? 'inv-field-error' : ''}`}>
+                        <label>GL Account Code <span className="req">*</span></label>
                         <div className="coa-input-group">
                           <input
-                            className="coa-bound-input"
+                            className={`coa-bound-input ${isGlAccountMissing ? 'inv-input-error' : ''}`}
                             placeholder="Select from Chart of Accounts…"
                             value={form.glAccountCode}
                             readOnly
@@ -565,10 +573,12 @@ export default function ChargeTypesPage() {
                             {selectedGlAccount.name} ({selectedGlAccount.accountType})
                           </span>
                         )}
+                        {isGlAccountMissing && <span className="inv-error-text">GL Account Code is required</span>}
                       </div>
-                      <div className="inv-field">
-                        <label>Department</label>
+                      <div className={`inv-field ${isDeptMissing ? 'inv-field-error' : ''}`}>
+                        <label>Department <span className="req">*</span></label>
                         <select
+                          className={isDeptMissing ? 'inv-input-error' : ''}
                           value={form.departmentCenterId}
                           onChange={(e) =>
                             setForm({
@@ -587,10 +597,12 @@ export default function ChargeTypesPage() {
                               </option>
                             ))}
                         </select>
+                        {isDeptMissing && <span className="inv-error-text">Department is required</span>}
                       </div>
-                      <div className="inv-field">
-                        <label>Cost Center</label>
+                      <div className={`inv-field ${isCostCenterMissing ? 'inv-field-error' : ''}`}>
+                        <label>Cost Center <span className="req">*</span></label>
                         <select
+                          className={isCostCenterMissing ? 'inv-input-error' : ''}
                           value={form.costCenterId}
                           onChange={(e) =>
                             setForm({
@@ -611,6 +623,7 @@ export default function ChargeTypesPage() {
                               </option>
                             ))}
                         </select>
+                        {isCostCenterMissing && <span className="inv-error-text">Cost Center is required</span>}
                       </div>
                     </>
                   )}

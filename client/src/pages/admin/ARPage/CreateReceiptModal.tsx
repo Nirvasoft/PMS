@@ -5,6 +5,7 @@ import { useGetInvoicesQuery, useGetCurrencyRatesQuery, useGetChargeTypesQuery }
 import { useGetPaymentMethodsQuery } from '../../../store/api/glApi';
 import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
 import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
+import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import { Banknote, X, AlertTriangle, Plus, Trash2, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ComboBox from '../../../components/ComboBox';
@@ -30,6 +31,7 @@ const emptyLine = (): LineItem => ({ chargeTypeId: '', description: '', quantity
 export default function CreateReceiptModal({ onClose }: Props) {
   // Active property — tenants and payment methods are scoped to this property.
   const activePropertyId = useSelectedPropertyId();
+  const { isAccountingIntegrationActive } = useV6IntegrationStatus(activePropertyId || undefined);
   const { data: paymentMethods = [] } = useGetPaymentMethodsQuery(
     activePropertyId ? { isActive: true, propertyId: activePropertyId } : skipToken,
   );
@@ -178,6 +180,22 @@ export default function CreateReceiptModal({ onClose }: Props) {
     if (invalidLines) {
       toast.error('Each line item needs a charge, description, quantity and unit price greater than 0');
       return;
+    }
+    if (isAccountingIntegrationActive) {
+      const selectedPm = activePaymentMethods.find((pm) => pm.code === paymentMethod);
+      if (!selectedPm?.glAccountCode?.trim() || !selectedPm?.departmentCenterId || !selectedPm?.costCenterId) {
+        toast.error('Selected payment method must have GL Account, Department, and Cost Center configured');
+        return;
+      }
+      if (isCash) {
+        const missingAcctCt = lines
+          .map((l) => chargeTypes.find((ct) => ct.id === l.chargeTypeId))
+          .find((ct) => !ct?.glAccountCode?.trim() || !ct?.departmentCenterId || !ct?.costCenterId);
+        if (missingAcctCt) {
+          toast.error(`Charge "${missingAcctCt.name}" must have GL Account, Department, and Cost Center configured`);
+          return;
+        }
+      }
     }
     if (totalAllocated > amountNum + 0.01) {
       toast.error('Allocations exceed receipt amount');

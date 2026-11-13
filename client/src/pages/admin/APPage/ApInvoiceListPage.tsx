@@ -7,6 +7,7 @@ import {
 import { useGetChargeTypesQuery } from '../../../store/api/billingApi';
 import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
+import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import {
   FileText, Plus, X, Clock, CheckCircle, AlertTriangle,
   DollarSign, Trash2, ChevronLeft, ChevronRight,
@@ -92,6 +93,7 @@ export default function ApInvoiceListPage() {
   }, [propertyLocked, selectedProperty]);
 
   const resolvedPropertyId = form.propertyId || selectedProperty || '';
+  const { isAccountingIntegrationActive } = useV6IntegrationStatus(resolvedPropertyId || undefined);
   const { data: chargeTypesData } = useGetChargeTypesQuery(
     resolvedPropertyId ? { propertyId: resolvedPropertyId } : undefined,
   );
@@ -444,10 +446,12 @@ export default function ApInvoiceListPage() {
                   <label>PO Reference</label>
                   <input value={form.poReference} onChange={e => setForm(f => ({ ...f, poReference: e.target.value }))} placeholder="PO-2025-001" />
                 </div>
-                <div className="ap-form-group">
-                  <label>Cost Center</label>
-                  <input value={form.costCenter} onChange={e => setForm(f => ({ ...f, costCenter: e.target.value }))} placeholder="OP-TOWER-A" />
-                </div>
+                {isAccountingIntegrationActive && (
+                  <div className="ap-form-group">
+                    <label>Cost Center</label>
+                    <input value={form.costCenter} onChange={e => setForm(f => ({ ...f, costCenter: e.target.value }))} placeholder="OP-TOWER-A" />
+                  </div>
+                )}
                 <div className="ap-form-group full-width">
                   <label>Description</label>
                   <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Building maintenance services — January 2025" />

@@ -2,10 +2,16 @@ import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
 import { logger } from '../../common/logger';
 import { glService } from '../gl/gl.service';
+import { isAccountingIntegrationActive } from '../integrations/v6Status.helper';
 
 export class ExpensesService {
   // ── Create ───────────────────────────────────
   async create(companyId: string, dto: Record<string, unknown>, userId: string) {
+    if (await isAccountingIntegrationActive(companyId, (dto.propertyId as string) || null)) {
+      if (!((dto.glAccountCode as string) || '').trim()) {
+        throw AppError.validation('GL Account Code is required');
+      }
+    }
     const expense = await prisma.expense.create({
       data: {
         companyId,
@@ -82,6 +88,7 @@ export class ExpensesService {
     });
 
     // ── GL Auto-Post: Dr Expense / Cr AP (or Cash) ──
+    if (await isAccountingIntegrationActive(companyId, expense.propertyId)) {
     try {
       const expenseCode = expense.glAccountCode || '5000'; // Default operating expense
       await glService.postAutoJournal({
@@ -109,6 +116,7 @@ export class ExpensesService {
       });
     } catch (err: any) {
       logger.warn(`GL auto-post for expense ${id} failed: ${err.message}`);
+    }
     }
 
     logger.info(`Approved expense ${id} for ${expense.amount} ${expense.currency}`);

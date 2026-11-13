@@ -7,6 +7,7 @@ import { PROPERTY_TYPES, FACILITY_TYPES } from './seeds/seedData';
 import { currencyRatesService } from '../billing/currencyRates.service';
 import { validateContactChannels, legacyColumnsFromChannels } from './contactChannels';
 import { invalidateMallPublicCache } from '../mall/publicCache';
+import { isV6ErpActive } from '../integrations/v6Status.helper';
 
 // ── Allowed status transitions ────────────────
 const STATUS_TRANSITIONS: Record<string, string[]> = {
@@ -103,7 +104,7 @@ export class PropertiesService {
     if (propertyIds && propertyIds.length > 0) where.id = { in: propertyIds };
     return prisma.property.findMany({
       where,
-      select: { id: true, name: true, code: true, currency: true },
+      select: { id: true, name: true, code: true, currency: true, settings: true },
       orderBy: { name: 'asc' },
     });
   }
@@ -232,7 +233,14 @@ export class PropertiesService {
         existing.settings && typeof existing.settings === 'object' && !Array.isArray(existing.settings)
           ? (existing.settings as Record<string, unknown>)
           : {};
-      dto.settings = { ...existingSettings, ...(dto.settings as Record<string, unknown>) };
+      const mergedSettings: Record<string, unknown> = {
+        ...existingSettings,
+        ...(dto.settings as Record<string, unknown>),
+      };
+      if (await isV6ErpActive(companyId, propertyId)) {
+        mergedSettings.useAccountAndJournalEntry = false;
+      }
+      dto.settings = mergedSettings;
     }
 
     const updated = await prisma.property.update({ where: { id: propertyId }, data: dto as any });

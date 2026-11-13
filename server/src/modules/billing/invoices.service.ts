@@ -541,6 +541,33 @@ export class InvoicesService {
     const propertyId = dto.propertyId as string;
     const currency = (dto.currency as string) || 'USD';
 
+    if (await isAccountingIntegrationActive(companyId, propertyId)) {
+      if (
+        !((dto.departmentCenterId as string) || '').trim() ||
+        !((dto.costCenterId as string) || '').trim()
+      ) {
+        throw AppError.validation('Department and Cost Center are required');
+      }
+      const lineChargeIds = Array.from(
+        new Set(lines.map((l) => l.chargeTypeId).filter((id): id is string => Boolean(id))),
+      );
+      if (lineChargeIds.length > 0) {
+        const cts = await prisma.chargeType.findMany({
+          where: { id: { in: lineChargeIds }, companyId },
+          select: { id: true, name: true, glAccountCode: true },
+        });
+        const ctMap = new Map(cts.map((ct) => [ct.id, ct]));
+        for (const l of lines) {
+          const ct = ctMap.get(l.chargeTypeId);
+          if (!ct?.glAccountCode?.trim()) {
+            throw AppError.validation(
+              `Charge "${ct?.name || 'selected'}" must have GL Account Code configured`,
+            );
+          }
+        }
+      }
+    }
+
     let currencyRate: number | null = dto.currencyRate != null ? Number(dto.currencyRate) : null;
     if (currencyRate == null && propertyId && currency) {
       const rateRow = await prisma.currencyRate.findFirst({

@@ -11,6 +11,7 @@ import {
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 import './APPage.css';
 
@@ -28,6 +29,7 @@ export default function ApInvoiceDetailPage() {
   const [hasAttemptedReject, setHasAttemptedReject] = useState(false);
 
   const inv = res?.data;
+  const { isAccountingIntegrationActive } = useV6IntegrationStatus(inv?.property?.id || undefined);
 
   const handleApprove = async () => {
     try { await approveApInvoice(id!).unwrap(); toast.success('AP Invoice approved'); } catch { toast.error('Approval failed'); }
@@ -98,7 +100,7 @@ export default function ApInvoiceDetailPage() {
           <div className="field-row"><span className="label">Invoice Date</span><span className="val">{format(new Date(inv.invoiceDate), 'dd MMM yyyy')}</span></div>
           <div className="field-row"><span className="label">Due Date</span><span className="val">{format(new Date(inv.dueDate), 'dd MMM yyyy')}</span></div>
           <div className="field-row"><span className="label">PO Reference</span><span className="val">{inv.poReference || '—'}</span></div>
-          <div className="field-row"><span className="label">Cost Center</span><span className="val">{inv.costCenter || '—'}</span></div>
+          {isAccountingIntegrationActive && <div className="field-row"><span className="label">Cost Center</span><span className="val">{inv.costCenter || '—'}</span></div>}
           {inv.description && <div className="field-row"><span className="label">Description</span><span className="val">{inv.description}</span></div>}
         </div>
 
@@ -116,7 +118,7 @@ export default function ApInvoiceDetailPage() {
         <div className="ap-detail-card">
           <h3><Building2 size={16} /> Allocation</h3>
           <div className="field-row"><span className="label">Property</span><span className="val">{inv.property?.name || 'All Properties'}</span></div>
-          <div className="field-row"><span className="label">Department</span><span className="val">{inv.department?.name || '—'}</span></div>
+          {isAccountingIntegrationActive && <div className="field-row"><span className="label">Department</span><span className="val">{inv.department?.name || '—'}</span></div>}
           <div className="field-row"><span className="label">Created By</span><span className="val">{creatorName}</span></div>
           <div className="field-row"><span className="label">Created At</span><span className="val">{format(new Date(inv.createdAt), 'dd MMM yyyy HH:mm')}</span></div>
         </div>

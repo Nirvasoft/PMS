@@ -5,7 +5,7 @@ import { logger } from '../../common/logger';
 import { invalidateCacheByPrefix } from '../../common/redis';
 import { glService } from '../gl/gl.service';
 import { webhookPaymentReceived, webhookRefundProcessed } from '../../common/webhookHooks';
-import { isV6ErpActive } from '../integrations/v6Status.helper';
+import { isV6ErpActive, isAccountingIntegrationActive } from '../integrations/v6Status.helper';
 import { integrationsService } from '../integrations/integrations.service';
 
 export class ReceiptsService {
@@ -86,6 +86,48 @@ export class ReceiptsService {
     const manualAllocated = allocations.reduce((s, a) => s + a.amount, 0);
     if (manualAllocated > amount + 0.01) {
       throw AppError.validation('Total allocations exceed receipt amount');
+    }
+
+    const accountingActive = await isAccountingIntegrationActive(
+      companyId,
+      (dto.propertyId as string) || null,
+    );
+    if (accountingActive) {
+      const pmCheck = await glService.resolvePaymentMethodConfig(
+        companyId,
+        dto.paymentMethod as string,
+        (dto.propertyId as string) || undefined,
+      );
+      if (
+        !pmCheck?.glAccountCode?.trim() ||
+        !pmCheck?.departmentCenterId ||
+        !pmCheck?.costCenterId
+      ) {
+        throw AppError.validation(
+          'Selected payment method must have GL Account, Department, and Cost Center configured',
+        );
+      }
+      if (isCash) {
+        if (computedCashLines.some((l) => !l.chargeTypeId)) {
+          throw AppError.validation('Each line item requires a Charge Type');
+        }
+        const ctIds = Array.from(
+          new Set(computedCashLines.map((l) => l.chargeTypeId).filter((id): id is string => Boolean(id))),
+        );
+        const cts = await prisma.chargeType.findMany({
+          where: { id: { in: ctIds }, companyId },
+          select: { id: true, name: true, glAccountCode: true, departmentCenterId: true, costCenterId: true },
+        });
+        const ctMap = new Map(cts.map((ct) => [ct.id, ct]));
+        for (const l of computedCashLines) {
+          const ct = l.chargeTypeId ? ctMap.get(l.chargeTypeId) : undefined;
+          if (!ct?.glAccountCode?.trim() || !ct?.departmentCenterId || !ct?.costCenterId) {
+            throw AppError.validation(
+              `Charge "${ct?.name || 'selected'}" must have GL Account, Department, and Cost Center configured`,
+            );
+          }
+        }
+      }
     }
 
     const receiptNumber = (dto.receiptNumber as string) || (await this.generateReceiptNumber(companyId, dto.propertyId as string | undefined));
@@ -200,11 +242,12 @@ export class ReceiptsService {
     logger.info(`Created receipt ${receiptNumber} for amount ${amount}`);
 
     // GL auto-posting: Dr Bank / Cr Accounts Receivable
+    if (await isAccountingIntegrationActive(companyId, receipt.propertyId)) {
     try {
       const pmConfig = await glService.resolvePaymentMethodConfig(
         companyId,
         dto.paymentMethod as string,
-        (dto.propertyId as string) || undefined,
+        receipt.propertyId || undefined,
       );
       const debitAccountCode = pmConfig?.glAccountCode || '1210';
 
@@ -271,7 +314,7 @@ export class ReceiptsService {
           description: `Cash Receipt ${receiptNumber}`,
           referenceType: 'receipt',
           referenceId: receipt.id,
-          propertyId: (dto.propertyId as string) || undefined,
+          propertyId: receipt.propertyId || undefined,
           lines: glLines,
         });
         if (journal) {
@@ -280,28 +323,37 @@ export class ReceiptsService {
             data: { glPosted: true, glJournalId: (journal as any).id },
           });
         }
-      } else await glService.postAutoJournal({
-        companyId,
-        entryDate: dto.receiptDate as string || new Date().toISOString().split('T')[0],
-        entryType: 'ar_receipt',
-        description: `AR Receipt ${receiptNumber}`,
-        referenceType: 'receipt',
-        referenceId: receipt.id,
-        propertyId: (dto.propertyId as string) || undefined,
-        lines: [
-          {
-            accountCode: debitAccountCode,
-            debit: amount,
-            credit: 0,
-            description: `Bank deposit — ${receiptNumber}`,
-            departmentCenterId: pmConfig?.departmentCenterId || undefined,
-            costCenterId: pmConfig?.costCenterId || undefined,
-          },
-          { accountCode: '1-2210', debit: 0, credit: amount, description: `AR cleared — ${receiptNumber}` },
-        ],
-      });
+      } else {
+        const journal = await glService.postAutoJournal({
+          companyId,
+          entryDate: (dto.receiptDate as string) || new Date().toISOString().split('T')[0],
+          entryType: 'ar_receipt',
+          description: `AR Receipt ${receiptNumber}`,
+          referenceType: 'receipt',
+          referenceId: receipt.id,
+          propertyId: receipt.propertyId || undefined,
+          lines: [
+            {
+              accountCode: debitAccountCode,
+              debit: amount,
+              credit: 0,
+              description: `Bank deposit — ${receiptNumber}`,
+              departmentCenterId: pmConfig?.departmentCenterId || undefined,
+              costCenterId: pmConfig?.costCenterId || undefined,
+            },
+            { accountCode: '1-2210', debit: 0, credit: amount, description: `AR cleared — ${receiptNumber}` },
+          ],
+        });
+        if (journal) {
+          await prisma.receipt.update({
+            where: { id: receipt.id },
+            data: { glPosted: true, glJournalId: (journal as any).id },
+          });
+        }
+      }
     } catch (err: any) {
       logger.warn(`GL auto-post for receipt ${receiptNumber} failed: ${err.message}`);
+    }
     }
 
     webhookPaymentReceived(receipt);

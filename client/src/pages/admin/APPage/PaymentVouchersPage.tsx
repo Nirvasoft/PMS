@@ -45,7 +45,7 @@ export default function PaymentVouchersPage() {
 
   // Active property from the sidebar — follows the same pattern as Parking Overview.
   const selectedProperty = useSelectedPropertyFilter();
-  const { isV6PushActive: isV6Active } = useV6IntegrationStatus(selectedProperty || undefined);
+  const { isV6PushActive: isV6Active, isAccountingIntegrationActive } = useV6IntegrationStatus(selectedProperty || undefined);
   const effectiveIsCash = !isV6Active ? true : isCash;
   const tableColCount = isV6Active ? 9 : 7;
   const { data: propertiesData } = useGetMyPropertyScopeQuery();
@@ -202,12 +202,30 @@ export default function PaymentVouchersPage() {
     setHasAttemptedCreate(true);
     if (!selectedProperty) return toast.error('Please select a property from the sidebar first');
     if (effectiveIsCash) {
-      if (lines.some(l => !l.description.trim() || !(l.unitPrice > 0))) {
-        return toast.error('All line items must have description and positive unit price');
+      if (lines.some(l => (isAccountingIntegrationActive && !l.chargeTypeId) || !l.description.trim() || !(l.unitPrice > 0))) {
+        return toast.error(
+          isAccountingIntegrationActive
+            ? 'All line items must have a charge type, description, and positive unit price'
+            : 'All line items must have description and positive unit price',
+        );
       }
     }
     if (!form.voucherDate || !form.paymentMethod || (!effectiveIsCash && !form.vendorName.trim()) || effectiveAmount <= 0) {
       return toast.error('Please fill in all required fields');
+    }
+    if (isAccountingIntegrationActive) {
+      const selectedPm = activePaymentMethods.find((pm) => pm.code === form.paymentMethod);
+      if (!selectedPm?.glAccountCode?.trim() || !selectedPm?.departmentCenterId || !selectedPm?.costCenterId) {
+        return toast.error('Selected payment method must have GL Account, Department, and Cost Center configured');
+      }
+      if (effectiveIsCash) {
+        const missingAcctCt = lines
+          .map((l) => chargeTypes.find((ct) => ct.id === l.chargeTypeId))
+          .find((ct) => !ct?.glAccountCode?.trim() || !ct?.departmentCenterId || !ct?.costCenterId);
+        if (missingAcctCt) {
+          return toast.error(`Charge "${missingAcctCt.name}" must have GL Account, Department, and Cost Center configured`);
+        }
+      }
     }
     if (!effectiveIsCash && allocations.length === 0) return toast.error('At least one AP invoice allocation is required');
     try {
@@ -574,7 +592,7 @@ export default function PaymentVouchersPage() {
                   <table className="ap-lines-table">
                     <thead>
                       <tr>
-                        <th style={{ width: '22%' }}>Charge Type</th>
+                        <th style={{ width: '22%' }}>Charge Type {isAccountingIntegrationActive && <span className="req">*</span>}</th>
                         <th style={{ width: '28%' }}>Description <span className="req">*</span></th>
                         <th style={{ width: '10%', textAlign: 'right' }}>Qty</th>
                         <th style={{ width: '15%', textAlign: 'right' }}>Unit Price <span className="req">*</span></th>
@@ -592,11 +610,11 @@ export default function PaymentVouchersPage() {
                           <tr key={idx}>
                             <td>
                               <select
-                                className="ap-line-select"
+                                className={`ap-line-select ${hasAttemptedCreate && isAccountingIntegrationActive && !line.chargeTypeId ? 'ap-input-error' : ''}`}
                                 value={line.chargeTypeId || ''}
                                 onChange={e => updateLine(idx, 'chargeTypeId', e.target.value)}
                               >
-                                <option value="">— Select charge (optional) —</option>
+                                <option value="">{isAccountingIntegrationActive ? '— Select charge —' : '— Select charge (optional) —'}</option>
                                 {chargeTypes.map(ct => (
                                   <option key={ct.id} value={ct.id}>{ct.name}</option>
                                 ))}
@@ -663,9 +681,11 @@ export default function PaymentVouchersPage() {
                       })}
                     </tbody>
                   </table>
-                  {hasAttemptedCreate && lines.some(l => !l.description.trim() || !(l.unitPrice > 0)) && (
+                  {hasAttemptedCreate && lines.some(l => (isAccountingIntegrationActive && !l.chargeTypeId) || !l.description.trim() || !(l.unitPrice > 0)) && (
                     <span className="ap-error-text" style={{ marginTop: 8 }}>
-                      Each line item requires a description and a unit price greater than 0
+                      {isAccountingIntegrationActive
+                        ? 'Each line item requires a charge type, description, and a unit price greater than 0'
+                        : 'Each line item requires a description and a unit price greater than 0'}
                     </span>
                   )}
 

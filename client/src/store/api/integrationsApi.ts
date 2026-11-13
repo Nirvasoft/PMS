@@ -2,6 +2,7 @@ import { createApi } from '@reduxjs/toolkit/query/react';
 import { baseQueryWithReauth } from './baseQuery';
 import { glApi } from './glApi';
 import { tenantsApi } from './tenantsApi';
+import { propertiesApi } from './propertiesApi';
 
 export const integrationsApi = createApi({
   reducerPath: 'integrationsApi',
@@ -24,6 +25,7 @@ export const integrationsApi = createApi({
         try {
           await queryFulfilled;
           dispatch(glApi.util.invalidateTags(['GlAccounts', 'DepartmentCenters', 'CostCenters']));
+          dispatch(propertiesApi.util.invalidateTags(['Properties']));
         } catch { /* ignore */ }
       },
     }),
@@ -34,6 +36,7 @@ export const integrationsApi = createApi({
         try {
           await queryFulfilled;
           dispatch(glApi.util.invalidateTags(['GlAccounts', 'DepartmentCenters', 'CostCenters']));
+          dispatch(propertiesApi.util.invalidateTags(['Properties']));
         } catch { /* ignore */ }
       },
     }),
@@ -44,6 +47,7 @@ export const integrationsApi = createApi({
         try {
           await queryFulfilled;
           dispatch(glApi.util.invalidateTags(['GlAccounts', 'DepartmentCenters', 'CostCenters']));
+          dispatch(propertiesApi.util.invalidateTags(['Properties']));
         } catch { /* ignore */ }
       },
     }),
@@ -58,6 +62,7 @@ export const integrationsApi = createApi({
         try {
           await queryFulfilled;
           dispatch(glApi.util.invalidateTags(['GlAccounts', 'DepartmentCenters', 'CostCenters']));
+          dispatch(propertiesApi.util.invalidateTags(['Properties']));
         } catch { /* ignore */ }
       },
     }),

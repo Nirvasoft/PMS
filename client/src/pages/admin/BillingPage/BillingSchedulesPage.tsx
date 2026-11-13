@@ -374,6 +374,8 @@ export default function BillingSchedulesPage() {
   const isBillingCycleMissing = hasAttemptedSubmit && !form.billingCycle;
   const isBillingDayMissing = hasAttemptedSubmit && (!form.billingDay || form.billingDay < 1 || form.billingDay > 28);
   const isStartDateMissing = hasAttemptedSubmit && !form.startDate;
+  const isDeptMissing = hasAttemptedSubmit && isAccountingIntegrationActive && !form.departmentCenterId;
+  const isCostCenterMissing = hasAttemptedSubmit && isAccountingIntegrationActive && !form.costCenterId;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -381,6 +383,7 @@ export default function BillingSchedulesPage() {
     if (
       !form.chargeTypeId ||
       !form.propertyId ||
+      (isAccountingIntegrationActive && (!form.departmentCenterId || !form.costCenterId)) ||
       (form.isTemporary ? !form.tenantId : !form.leaseId) ||
       form.amount === undefined || form.amount === null || isNaN(form.amount) || form.amount <= 0 || String(form.amount).trim() === '' ||
       !form.billingCycle ||
@@ -805,29 +808,38 @@ export default function BillingSchedulesPage() {
                   {/* Row 2: Department | Cost Center */}
                   {isAccountingIntegrationActive && (
                     <>
-                      <div className="inv-field">
-                        <label>Department <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span></label>
+                      <div className={`inv-field ${isDeptMissing ? 'inv-field-error' : ''}`}>
+                        <label>Department <span className="req">*</span></label>
                         <select
+                          className={isDeptMissing ? 'inv-input-error' : ''}
                           value={form.departmentCenterId}
-                          onChange={e => setForm({ ...form, departmentCenterId: e.target.value })}
+                          onChange={e => setForm({ ...form, departmentCenterId: e.target.value, costCenterId: '' })}
                         >
-                          <option value="">— None —</option>
-                          {departmentCenters.map((d) => (
+                          <option value="">— Select —</option>
+                          {departmentCenters.filter((d) => d.isActive !== false).map((d) => (
                             <option key={d.id} value={d.id}>{d.code}</option>
                           ))}
                         </select>
+                        {isDeptMissing && <span className="inv-error-text">Department is required</span>}
                       </div>
-                      <div className="inv-field">
-                        <label>Cost Center <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span></label>
+                      <div className={`inv-field ${isCostCenterMissing ? 'inv-field-error' : ''}`}>
+                        <label>Cost Center <span className="req">*</span></label>
                         <select
+                          className={isCostCenterMissing ? 'inv-input-error' : ''}
                           value={form.costCenterId}
                           onChange={e => setForm({ ...form, costCenterId: e.target.value })}
                         >
-                          <option value="">— None —</option>
-                          {costCenters.map((c) => (
-                            <option key={c.id} value={c.id}>{c.code}</option>
-                          ))}
+                          <option value="">— Select —</option>
+                          {costCenters
+                            .filter((c) => {
+                              if (c.isActive === false) return false;
+                              return !form.departmentCenterId || !c.departmentCenterId || c.departmentCenterId === form.departmentCenterId;
+                            })
+                            .map((c) => (
+                              <option key={c.id} value={c.id}>{c.code}</option>
+                            ))}
                         </select>
+                        {isCostCenterMissing && <span className="inv-error-text">Cost Center is required</span>}
                       </div>
                     </>
                   )}

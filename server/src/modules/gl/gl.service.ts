@@ -2,7 +2,7 @@ import { prisma } from '../../common/database';
 import { logger } from '../../common/logger';
 import { AppError } from '../../common/errors';
 import { ensurePropertySetupScope, resolveEffectivePropertyId } from '../../common/propertySetupScope';
-import { isV6ErpActive } from '../integrations/v6Status.helper';
+import { isV6ErpActive, isAccountingIntegrationActive } from '../integrations/v6Status.helper';
 
 const DEFAULT_PAYMENT_METHODS = [
   { code: 'BANK_TRANSFER', name: 'Bank Transfer', isSystem: true, isActive: true },
@@ -365,6 +365,12 @@ class GlService {
       throw AppError.conflict(`Payment method code "${code}" already exists`);
     }
 
+    if (await isAccountingIntegrationActive(companyId, propertyId)) {
+      if (!data.glAccountCode?.trim() || !data.departmentCenterId?.trim() || !data.costCenterId?.trim()) {
+        throw AppError.validation('GL Account, Department, and Cost Center are required');
+      }
+    }
+
     return prisma.paymentMethod.create({
       data: {
         companyId,
@@ -389,6 +395,18 @@ class GlService {
 
     const targetPropertyId =
       data.propertyId !== undefined ? (data.propertyId || null) : existing.propertyId;
+
+    if (
+      (data.glAccountCode !== undefined || data.departmentCenterId !== undefined || data.costCenterId !== undefined) &&
+      (await isAccountingIntegrationActive(companyId, targetPropertyId))
+    ) {
+      const nextGl = data.glAccountCode !== undefined ? (data.glAccountCode?.trim() || '') : (existing.glAccountCode?.trim() || '');
+      const nextDept = data.departmentCenterId !== undefined ? (data.departmentCenterId?.trim() || '') : (existing.departmentCenterId?.trim() || '');
+      const nextCc = data.costCenterId !== undefined ? (data.costCenterId?.trim() || '') : (existing.costCenterId?.trim() || '');
+      if (!nextGl || !nextDept || !nextCc) {
+        throw AppError.validation('GL Account, Department, and Cost Center are required');
+      }
+    }
 
     if (data.code !== undefined) {
       const nextCode = data.code.trim().toUpperCase();

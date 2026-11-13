@@ -2,7 +2,7 @@ import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
 import { logger } from '../../common/logger';
 import { glService } from '../gl/gl.service';
-import { isV6ErpActive } from '../integrations/v6Status.helper';
+import { isAccountingIntegrationActive } from '../integrations/v6Status.helper';
 
 export class PaymentVouchersService {
   private schemaReady = false;
@@ -104,6 +104,45 @@ export class PaymentVouchersService {
       resolvedPropertyId = await this.resolveEffectivePropertyId(companyId);
     }
 
+    const accountingActivePrecheck = await isAccountingIntegrationActive(companyId, resolvedPropertyId);
+    if (accountingActivePrecheck) {
+      const pmCheck = await glService.resolvePaymentMethodConfig(
+        companyId,
+        dto.paymentMethod as string,
+        resolvedPropertyId,
+      );
+      if (
+        !pmCheck?.glAccountCode?.trim() ||
+        !pmCheck?.departmentCenterId ||
+        !pmCheck?.costCenterId
+      ) {
+        throw AppError.validation(
+          'Selected payment method must have GL Account, Department, and Cost Center configured',
+        );
+      }
+      if (isCash) {
+        if (cashLines.some((l) => !l.chargeTypeId)) {
+          throw AppError.validation('Each line item requires a Charge Type');
+        }
+        const ctIds = Array.from(
+          new Set(cashLines.map((l) => l.chargeTypeId).filter((id): id is string => Boolean(id))),
+        );
+        const cts = await prisma.chargeType.findMany({
+          where: { id: { in: ctIds }, companyId },
+          select: { id: true, name: true, glAccountCode: true, departmentCenterId: true, costCenterId: true },
+        });
+        const ctMap = new Map(cts.map((ct) => [ct.id, ct]));
+        for (const l of cashLines) {
+          const ct = l.chargeTypeId ? ctMap.get(l.chargeTypeId) : undefined;
+          if (!ct?.glAccountCode?.trim() || !ct?.departmentCenterId || !ct?.costCenterId) {
+            throw AppError.validation(
+              `Charge "${ct?.name || 'selected'}" must have GL Account, Department, and Cost Center configured`,
+            );
+          }
+        }
+      }
+    }
+
     // Calculate Cash line totals if Cash mode with lines
     let cashSubtotal = 0;
     let cashTotalTax = 0;
@@ -161,8 +200,8 @@ export class PaymentVouchersService {
     });
 
     // ── Cash Voucher GL Auto-Post: Dr Charges' GL Accounts (or 5000) / Cr Payment Method GL Account ──
-    const v6Active = await isV6ErpActive(companyId, resolvedPropertyId);
-    if (v6Active && isCash && computedCashLines.length > 0 && totalAmount > 0) {
+    const accountingActive = await isAccountingIntegrationActive(companyId, resolvedPropertyId);
+    if (accountingActive && isCash && computedCashLines.length > 0 && totalAmount > 0) {
       try {
         const chargeTypeIds = Array.from(
           new Set(computedCashLines.map((l) => l.chargeTypeId).filter((id): id is string => Boolean(id)))

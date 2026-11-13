@@ -25,7 +25,7 @@ import {
   AlertCircle, Wrench, ChevronRight, ChevronLeft, X, Camera, Edit3, GripVertical,
   Waves, Dumbbell, Flame, TreePine, Lock, Zap, Car, Coffee, FileText, DollarSign, Briefcase,
   Wifi, Shield, ArrowUp, ShoppingBag, UtensilsCrossed, MonitorSmartphone, Download, Gauge,
-  Smartphone, MessageCircle, MessageSquare, Send, MoreHorizontal, ChevronDown, Check, type LucideIcon,
+  Smartphone, MessageCircle, MessageSquare, Send, MoreHorizontal, ChevronDown, Check, BookOpen, type LucideIcon,
 } from 'lucide-react';
 import {
   CONTACT_CHANNEL_OPTIONS, channelOption, contactChannelsOf, validateChannelEntry,
@@ -38,6 +38,7 @@ import { CURRENCIES } from '../../../constants/currencies';
 import { useAppDispatch, useAppSelector } from '../../../store';
 import { setSelectedProperty } from '../../../store/slices/propertiesSlice';
 import { ALL_PROPERTIES } from '../../../hooks/useSelectedPropertyId';
+import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import './PropertyDetailPage.css';
 
 type Tab = 'overview' | 'floorSetup' | 'units' | 'leases' | 'documents' | 'photos' | 'finance' | 'meters' | 'history' | 'settings';
@@ -1101,35 +1102,38 @@ type PenaltyMode = typeof PENALTY_MODES[number]['value'];
 
 function SettingsTab({ property }: { property: any }) {
   const [updateProperty, { isLoading }] = useUpdatePropertyMutation();
+  const { isV6Active } = useV6IntegrationStatus(property.id);
   const rawPolicy = property.settings?.earlyTerminationPolicy || {};
 
   const [form, setForm] = useState({
-    billingCycle:        property.billingCycle || 'monthly',
-    billingDay:          String(property.billingDay || 1),
-    currency:            property.currency || 'USD',
-    timezone:            property.timezone || 'UTC',
-    penaltyEnabled:      rawPolicy.enabled === undefined ? true : Boolean(rawPolicy.enabled),
-    penaltyMode:         (['formula', 'fixed', 'percent'].includes(rawPolicy.mode) ? rawPolicy.mode : 'formula') as PenaltyMode,
-    penaltyMaxMonths:    String(rawPolicy.maxMonths ?? 3),
-    penaltyRemainingPct: String(rawPolicy.remainingPercent ?? 50),
-    penaltyFixedAmount:  String(rawPolicy.fixedAmount ?? 0),
+    billingCycle:               property.billingCycle || 'monthly',
+    billingDay:                 String(property.billingDay || 1),
+    currency:                   property.currency || 'USD',
+    timezone:                   property.timezone || 'UTC',
+    useAccountAndJournalEntry:  isV6Active ? false : property.settings?.useAccountAndJournalEntry === true,
+    penaltyEnabled:             rawPolicy.enabled === undefined ? true : Boolean(rawPolicy.enabled),
+    penaltyMode:                (['formula', 'fixed', 'percent'].includes(rawPolicy.mode) ? rawPolicy.mode : 'formula') as PenaltyMode,
+    penaltyMaxMonths:           String(rawPolicy.maxMonths ?? 3),
+    penaltyRemainingPct:        String(rawPolicy.remainingPercent ?? 50),
+    penaltyFixedAmount:         String(rawPolicy.fixedAmount ?? 0),
   });
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     const p = property.settings?.earlyTerminationPolicy || {};
     setForm({
-      billingCycle:        property.billingCycle || 'monthly',
-      billingDay:          String(property.billingDay || 1),
-      currency:            property.currency || 'USD',
-      timezone:            property.timezone || 'UTC',
-      penaltyEnabled:      p.enabled === undefined ? true : Boolean(p.enabled),
-      penaltyMode:         (['formula', 'fixed', 'percent'].includes(p.mode) ? p.mode : 'formula') as PenaltyMode,
-      penaltyMaxMonths:    String(p.maxMonths ?? 3),
-      penaltyRemainingPct: String(p.remainingPercent ?? 50),
-      penaltyFixedAmount:  String(p.fixedAmount ?? 0),
+      billingCycle:               property.billingCycle || 'monthly',
+      billingDay:                 String(property.billingDay || 1),
+      currency:                   property.currency || 'USD',
+      timezone:                   property.timezone || 'UTC',
+      useAccountAndJournalEntry:  isV6Active ? false : property.settings?.useAccountAndJournalEntry === true,
+      penaltyEnabled:             p.enabled === undefined ? true : Boolean(p.enabled),
+      penaltyMode:                (['formula', 'fixed', 'percent'].includes(p.mode) ? p.mode : 'formula') as PenaltyMode,
+      penaltyMaxMonths:           String(p.maxMonths ?? 3),
+      penaltyRemainingPct:        String(p.remainingPercent ?? 50),
+      penaltyFixedAmount:         String(p.fixedAmount ?? 0),
     });
-  }, [property.id, property.billingCycle, property.billingDay, property.currency, property.timezone, property.settings]);
+  }, [property.id, property.billingCycle, property.billingDay, property.currency, property.timezone, property.settings, isV6Active]);
 
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => {
     setForm(f => ({ ...f, [k]: v }));
@@ -1168,6 +1172,7 @@ function SettingsTab({ property }: { property: any }) {
           timezone:     form.timezone,
           settings: {
             ...(property.settings || {}),
+            useAccountAndJournalEntry: isV6Active ? false : form.useAccountAndJournalEntry,
             earlyTerminationPolicy: {
               enabled:          form.penaltyEnabled,
               mode:             form.penaltyMode,
@@ -1280,6 +1285,33 @@ function SettingsTab({ property }: { property: any }) {
         </div>
       </div>
 
+      {/* Accounting & Journal Settings — visible when V6 integration is disabled or inactive */}
+      {!isV6Active && (
+        <>
+          <div className="finance-sub-title" style={{ marginTop: 24 }}>
+            <BookOpen size={15} /> Accounting &amp; Journal Settings
+          </div>
+          <div className="settings-form">
+            <div className="settings-field">
+              <label className="settings-field-label">
+                <BookOpen size={14} /> Use Account and Journal Entry
+              </label>
+              <div className="settings-field-desc">
+                Require Account, Department, and Cost Center checks and auto-generate Journal Entries from Invoices, Receipts, and Payments
+              </div>
+              <select
+                className="settings-select"
+                value={form.useAccountAndJournalEntry ? 'enabled' : 'disabled'}
+                onChange={e => set('useAccountAndJournalEntry', e.target.value === 'enabled')}
+              >
+                <option value="disabled">Disabled (Off)</option>
+                <option value="enabled">Enabled (On)</option>
+              </select>
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Early Termination Policy */}
       <div className="finance-sub-title" style={{ marginTop: 24 }}>
         <Shield size={15} /> Early Termination Policy
@@ -1386,6 +1418,12 @@ function SettingsTab({ property }: { property: any }) {
           <div className="setting-row"><span className="setting-label">Billing Day</span><span>{property.billingDay}</span></div>
           <div className="setting-row"><span className="setting-label">Timezone</span><span>{property.timezone}</span></div>
           <div className="setting-row"><span className="setting-label">Currency</span><span>{property.currency}</span></div>
+          {!isV6Active && (
+            <div className="setting-row">
+              <span className="setting-label">Use Account and Journal Entry</span>
+              <span>{property.settings?.useAccountAndJournalEntry === true ? 'Enabled' : 'Disabled'}</span>
+            </div>
+          )}
           <div className="setting-row"><span className="setting-label">Early Termination Penalty</span><span>{policySummaryText}</span></div>
         </div>
         <p className="settings-note">Changes take effect on the next billing cycle / lease termination.</p>
