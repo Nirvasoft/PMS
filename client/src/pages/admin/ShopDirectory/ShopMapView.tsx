@@ -37,6 +37,7 @@ import {
   type MapItem, type TileKind, type MapRotationAngle, type SharpCorners, type EdgeMergeGeometry, type UnitShapeMode, type UnitShapeCategoryId, type TrapezoidUnitGeometry, type MagneticSnapGuide, type GroupResizeHandle,
 } from './shopMapLayout';
 import {
+  getUnitPhotoEdgeMeta,
   hasFailedUnitPhoto,
   isUnitPhotoImage,
   preloadUnitPhotosBatch,
@@ -5038,10 +5039,10 @@ export default function ShopMapView({
                     const shortSidePx = Math.min(wPx, hPx);
                     const tiny = !decor && (longSidePx < 18 || shortSidePx < 14);
                     const minSidePx = Math.min(wPx, hPx);
-                    const maxBadgeForTile = Math.max(10, minSidePx - (isMobile ? 3 : 5));
-                    const minBadgePx = isMobile ? 12 : isTablet ? 14 : 16;
+                    const maxBadgeForTile = Math.max(10, minSidePx - (isMobile ? 6 : 8));
+                    const minBadgePx = isMobile ? 11 : isTablet ? 13 : 15;
                     const maxBadgePx = isMobile ? 42 : isTablet ? 64 : 88;
-                    const badgeScale = isMobile ? 0.60 : isTablet ? 0.64 : 0.68;
+                    const badgeScale = isMobile ? 0.56 : isTablet ? 0.60 : 0.62;
                     const badgePx = Math.min(
                       maxBadgeForTile,
                       Math.max(minBadgePx, Math.min(maxBadgePx, Math.round(minSidePx * badgeScale))),
@@ -5078,6 +5079,7 @@ export default function ShopMapView({
                       : shop?.unit?.floorPlanUrl || shop?.shopfrontUrl || shop?.logoUrl) as string | undefined;
                     const hasPhotoImage = isUnitPhotoImage(rawPhotoUrl) && !hasFailedUnitPhoto(rawPhotoUrl);
                     const hasUnitPhoto = showPhotoMode && hasPhotoImage;
+                    const photoEdgeMeta = hasUnitPhoto ? getUnitPhotoEdgeMeta(rawPhotoUrl) : null;
                     const showStatusDefault = Boolean(photoStatusNote && shortSidePx >= 22);
                     const StatusDefaultIcon =
                       photoStatusNote?.kind === 'maintenance' ? Wrench : photoStatusNote?.kind === 'notrent' ? Ban : KeyRound;
@@ -5158,7 +5160,7 @@ export default function ShopMapView({
                     const hasTotalNudge = totalNudgeDx !== 0 || totalNudgeDy !== 0;
                     const hasSizeOverride = !editing && (wPx !== gridItemWPx || hPx !== gridItemHPx);
                     const tileStyle: CSSProperties | undefined =
-                      effectiveAngle || hasTotalNudge || hasSizeOverride
+                      effectiveAngle || hasTotalNudge || hasSizeOverride || hasUnitPhoto
                         ? ({
                             ...(hasSizeOverride
                               ? {
@@ -5174,6 +5176,11 @@ export default function ShopMapView({
                                   translate: `${(totalNudgeDx * colStepPx).toFixed(1)}px ${(totalNudgeDy * rowStepPx).toFixed(1)}px`,
                                 }
                               : {}),
+                            ...(hasUnitPhoto
+                              ? {
+                                  '--unit-photo-bg': photoEdgeMeta?.bgColor ?? '#ffffff',
+                                }
+                              : {}),
                           } as CSSProperties)
                         : undefined;
                     const isVerticalPhoto = um?.hasMerge
@@ -5181,7 +5188,10 @@ export default function ShopMapView({
                       : isVerticalTile && !isCircleShape;
                     const worldPhotoAngle = ((((effectiveAngle) + (isVerticalPhoto ? -90 : 0)) % 360) + 360) % 360;
                     const isPhotoUpsideDown = worldPhotoAngle > 90 && worldPhotoAngle < 270;
-                    const photoImgClass = `shop-map-tile-photo${isPhotoUpsideDown ? ' is-photo-flipped' : ''}`;
+                    const isContainPhoto = Boolean(
+                      hasUnitPhoto && (photoEdgeMeta?.isUniformBg || um?.hasMerge || trapezoidGeo),
+                    );
+                    const photoImgClass = `shop-map-tile-photo${isContainPhoto ? ' is-contain-photo' : ''}${isPhotoUpsideDown ? ' is-photo-flipped' : ''}`;
                     const isSmartUprightLabel = Boolean(effectiveAngle !== 0 && !isVerticalTile);
                     const worldLabelAngle = ((((effectiveAngle) + (isVerticalTile ? -90 : 0)) % 360) + 360) % 360;
                     const isLabelUpsideDown = !isSmartUprightLabel && worldLabelAngle > 90 && worldLabelAngle < 270;
@@ -5214,7 +5224,7 @@ export default function ShopMapView({
                         data-tile-key={it.key}
                         title={title}
                         style={gridItemCssVars}
-                        className={`shop-map-grid-item ${it.kind === 'atrium' ? 'is-atrium-item' : ''} ${isTransitLandmark(it.kind) ? 'is-transit-item' : ''} ${hasInnerItems ? 'has-inner-items' : ''} ${isLayerFocused ? 'is-layer-focused' : ''} ${isGroupSelected ? 'is-group-selected' : ''} ${overlapKeys.has(it.key) ? 'is-overlap-warning' : ''} ${newlyPlacedKey === it.key ? 'is-newly-placed' : ''} ${effectiveAngle ? 'is-rotated-item' : ''} ${isRotatingThisTile ? 'is-rotating-item' : ''} ${editing ? 'editing' : ''} ${isTarget ? 'active-target' : ''} ${isStart ? 'active-start' : ''} ${isWaypointFocused ? 'is-waypoint-focused' : ''} ${isAmenityHighlighted ? 'is-amenity-highlighted' : ''}`}
+                        className={`shop-map-grid-item ${decor ? 'is-decor-item' : ''} ${it.kind === 'atrium' ? 'is-atrium-item' : ''} ${isTransitLandmark(it.kind) ? 'is-transit-item' : ''} ${hasInnerItems ? 'has-inner-items' : ''} ${isLayerFocused ? 'is-layer-focused' : ''} ${isGroupSelected ? 'is-group-selected' : ''} ${overlapKeys.has(it.key) ? 'is-overlap-warning' : ''} ${newlyPlacedKey === it.key ? 'is-newly-placed' : ''} ${effectiveAngle ? 'is-rotated-item' : ''} ${isRotatingThisTile ? 'is-rotating-item' : ''} ${editing ? 'editing' : ''} ${isTarget ? 'active-target' : ''} ${isStart ? 'active-start' : ''} ${isWaypointFocused ? 'is-waypoint-focused' : ''} ${isAmenityHighlighted ? 'is-amenity-highlighted' : ''}`}
                         onMouseEnter={() => {
                           if (!editing && it.unitId) setHoveredUnitId(it.unitId);
                         }}
@@ -5303,93 +5313,99 @@ export default function ShopMapView({
                           </>
                         ) : (
                           <>
-                            {um?.hasMerge ? (
-                              <div className="shop-map-unit-box">
-                                {!trapezoidGeo && um.topBridges.map(([u1, u2], idx) => (
-                                  <span
-                                    key={`utb-${idx}`}
-                                    className="shop-map-unit-bridge"
-                                    style={{
-                                      left: `${(u1 / it.w) * 100}%`,
-                                      width: `${((u2 - u1) / it.w) * 100}%`,
-                                      bottom: '100%',
-                                      height: 2,
-                                    }}
-                                  />
-                                ))}
-                                {!trapezoidGeo && um.bottomBridges.map(([u1, u2], idx) => (
-                                  <span
-                                    key={`ubb-${idx}`}
-                                    className="shop-map-unit-bridge"
-                                    style={{
-                                      left: `${(u1 / it.w) * 100}%`,
-                                      width: `${((u2 - u1) / it.w) * 100}%`,
-                                      top: '100%',
-                                      height: it.angle ? 2 : 1.5,
-                                    }}
-                                  />
-                                ))}
-                                {!trapezoidGeo && um.leftBridges.map(([v1, v2], idx) => (
-                                  <span
-                                    key={`ulb-${idx}`}
-                                    className="shop-map-unit-bridge"
-                                    style={{
-                                      top: `${(v1 / it.h) * 100}%`,
-                                      height: `${((v2 - v1) / it.h) * 100}%`,
-                                      right: '100%',
-                                      width: 2,
-                                    }}
-                                  />
-                                ))}
-                                {!trapezoidGeo && um.rightBridges.map(([v1, v2], idx) => (
-                                  <span
-                                    key={`urb-${idx}`}
-                                    className="shop-map-unit-bridge"
-                                    style={{
-                                      top: `${(v1 / it.h) * 100}%`,
-                                      height: `${((v2 - v1) / it.h) * 100}%`,
-                                      left: '100%',
-                                      width: it.angle ? 2 : 1.5,
-                                    }}
-                                  />
-                                ))}
-                                {hasPhotoImage && (
-                                  <div
-                                    className="shop-map-tile-photo-clip"
-                                    style={{
-                                      top: !trapezoidGeo && um.topMerged && um.topSegs.length === 0 ? -1 : 0,
-                                      right: !trapezoidGeo && um.rightMerged && um.rightSegs.length === 0 ? -1 : 0,
-                                      bottom: !trapezoidGeo && um.bottomMerged && um.bottomSegs.length === 0 ? -1 : 0,
-                                      left: !trapezoidGeo && um.leftMerged && um.leftSegs.length === 0 ? -1 : 0,
-                                      ...(trapezoidGeo ? { clipPath: trapezoidGeo.clipPath } : {}),
-                                    }}
-                                  >
-                                    <div
-                                      className={`shop-map-group-photo-frame ${um.groupBounds.spanH > um.groupBounds.spanW ? 'is-vertical-group' : ''}`}
+                            {um?.hasMerge ? (() => {
+                              const bleedTop = !trapezoidGeo && um.topMerged && um.topSegs.length === 0 ? 1 : 0;
+                              const bleedRight = !trapezoidGeo && um.rightMerged && um.rightSegs.length === 0 ? 1 : 0;
+                              const bleedBottom = !trapezoidGeo && um.bottomMerged && um.bottomSegs.length === 0 ? 1 : 0;
+                              const bleedLeft = !trapezoidGeo && um.leftMerged && um.leftSegs.length === 0 ? 1 : 0;
+                              return (
+                                <div className="shop-map-unit-box">
+                                  {um.topBridges.map(([u1, u2], idx) => (
+                                    <span
+                                      key={`utb-${idx}`}
+                                      className="shop-map-unit-bridge"
                                       style={{
-                                        left: `${-((it.x - um.groupBounds.minX) / it.w) * 100}%`,
-                                        top: `${-((it.y - um.groupBounds.minY) / it.h) * 100}%`,
-                                        width: `${(um.groupBounds.spanW / it.w) * 100}%`,
-                                        height: `${(um.groupBounds.spanH / it.h) * 100}%`,
+                                        left: `${(u1 / it.w) * 100}%`,
+                                        width: `${((u2 - u1) / it.w) * 100}%`,
+                                        bottom: '100%',
+                                        height: 2,
+                                      }}
+                                    />
+                                  ))}
+                                  {um.bottomBridges.map(([u1, u2], idx) => (
+                                    <span
+                                      key={`ubb-${idx}`}
+                                      className="shop-map-unit-bridge"
+                                      style={{
+                                        left: `${(u1 / it.w) * 100}%`,
+                                        width: `${((u2 - u1) / it.w) * 100}%`,
+                                        top: '100%',
+                                        height: it.angle ? 2 : 1.5,
+                                      }}
+                                    />
+                                  ))}
+                                  {um.leftBridges.map(([v1, v2], idx) => (
+                                    <span
+                                      key={`ulb-${idx}`}
+                                      className="shop-map-unit-bridge"
+                                      style={{
+                                        top: `${(v1 / it.h) * 100}%`,
+                                        height: `${((v2 - v1) / it.h) * 100}%`,
+                                        right: '100%',
+                                        width: 2,
+                                      }}
+                                    />
+                                  ))}
+                                  {um.rightBridges.map(([v1, v2], idx) => (
+                                    <span
+                                      key={`urb-${idx}`}
+                                      className="shop-map-unit-bridge"
+                                      style={{
+                                        top: `${(v1 / it.h) * 100}%`,
+                                        height: `${((v2 - v1) / it.h) * 100}%`,
+                                        left: '100%',
+                                        width: it.angle ? 2 : 1.5,
+                                      }}
+                                    />
+                                  ))}
+                                  {hasPhotoImage && (
+                                    <div
+                                      className="shop-map-tile-photo-clip"
+                                      style={{
+                                        top: -bleedTop,
+                                        right: -bleedRight,
+                                        bottom: -bleedBottom,
+                                        left: -bleedLeft,
+                                        ...(trapezoidGeo ? { clipPath: trapezoidGeo.clipPath } : {}),
                                       }}
                                     >
-                                      <CachedUnitPhoto
-                                        photoUrl={rawPhotoUrl}
-                                        alt={tileDisplayLabel}
-                                        imgClassName={photoImgClass}
-                                        skeletonClassName={hasUnitPhoto ? 'shop-map-tile-skeleton' : undefined}
-                                        loading="eager"
-                                      />
+                                      <div
+                                        className={`shop-map-group-photo-frame ${um.groupBounds.spanH > um.groupBounds.spanW ? 'is-vertical-group' : ''}`}
+                                        style={{
+                                          left: `${-((it.x - um.groupBounds.minX) * cellPx - bleedLeft).toFixed(2)}px`,
+                                          top: `${-((it.y - um.groupBounds.minY) * cellPx - bleedTop).toFixed(2)}px`,
+                                          width: `${(um.groupBounds.spanW * cellPx).toFixed(2)}px`,
+                                          height: `${(um.groupBounds.spanH * cellPx).toFixed(2)}px`,
+                                        }}
+                                      >
+                                        <CachedUnitPhoto
+                                          photoUrl={rawPhotoUrl}
+                                          alt={tileDisplayLabel}
+                                          imgClassName={photoImgClass}
+                                          skeletonClassName={hasUnitPhoto ? 'shop-map-tile-skeleton' : undefined}
+                                          loading="eager"
+                                        />
+                                      </div>
                                     </div>
-                                  </div>
-                                )}
-                                {trapezoidGeo ? (
-                                  <TrapezoidUnitSvg trap={trapezoidGeo} wPx={wPx} hPx={hPx} showFill={!hasUnitPhoto} />
-                                ) : (
-                                  <MergedTileBorderSvg merge={um} cellPx={cellPx} wPx={wPx} hPx={hPx} />
-                                )}
-                              </div>
-                            ) : trapezoidGeo ? (
+                                  )}
+                                  {trapezoidGeo ? (
+                                    <TrapezoidUnitSvg trap={trapezoidGeo} wPx={wPx} hPx={hPx} showFill={!hasUnitPhoto} />
+                                  ) : (
+                                    <MergedTileBorderSvg merge={um} cellPx={cellPx} wPx={wPx} hPx={hPx} />
+                                  )}
+                                </div>
+                              );
+                            })() : trapezoidGeo ? (
                               <div className="shop-map-unit-box">
                                 {hasPhotoImage && (
                                   <div

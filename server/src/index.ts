@@ -157,6 +157,42 @@ async function bootstrap() {
       }
     },
   );
+  app.put(
+    ['/uploads/units/:propertyId/:unitId/:filename', '/api/v1/uploads/units/:propertyId/:unitId/:filename'],
+    express.raw({ type: ['image/*', 'application/octet-stream'], limit: '10mb' }),
+    async (req, res) => {
+      try {
+        const propertyId = String(req.params.propertyId || '');
+        const unitId = String(req.params.unitId || '');
+        const filename = path.basename(String(req.params.filename || ''));
+        const body = req.body;
+        if (
+          !propertyId ||
+          !unitId ||
+          !filename ||
+          !/^floor-plan\.(jpe?g|png|webp|gif|svg|avif)$/i.test(filename) ||
+          !Buffer.isBuffer(body) ||
+          body.length === 0
+        ) {
+          res.status(400).end();
+          return;
+        }
+        const { getUnitPhotoBlob, saveUnitPhotoBlob } = await import('./common/unitPhotoStore');
+        const existing = await getUnitPhotoBlob(unitId, filename);
+        if (!existing) {
+          const contentType = String(req.headers['content-type'] || '');
+          await saveUnitPhotoBlob(propertyId, unitId, filename, contentType, body);
+        }
+        const fs = await import('fs/promises');
+        const uploadDir = path.join(process.cwd(), 'uploads', 'units', propertyId, unitId);
+        await fs.mkdir(uploadDir, { recursive: true });
+        await fs.writeFile(path.join(uploadDir, filename), existing ? existing.buffer : body);
+        res.status(200).json({ ok: true });
+      } catch {
+        res.status(500).end();
+      }
+    },
+  );
   app.use(['/uploads', '/api/v1/uploads', '/seed-photos', '/api/v1/seed-photos'], (_req, res) => {
     res.status(404).end();
   });

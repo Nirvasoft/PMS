@@ -850,7 +850,7 @@ function buildPolygonUnitGeometryFromNormPoints(
         for (const [u1, u2] of merge.topSegs) {
           const a = Math.max(minU, u1);
           const b = Math.min(maxU, u2);
-          if (b - a > 0.02) {
+          if (b - a > 0.15) {
             rimParts.push(`M ${(a * cellPx).toFixed(1)} 0.5 L ${(b * cellPx).toFixed(1)} 0.5`);
           }
         }
@@ -868,7 +868,7 @@ function buildPolygonUnitGeometryFromNormPoints(
         for (const [v1, v2] of merge.leftSegs) {
           const a = Math.max(minV, v1);
           const b = Math.min(maxV, v2);
-          if (b - a > 0.02) {
+          if (b - a > 0.15) {
             rimParts.push(`M 0.5 ${(a * cellPx).toFixed(1)} L 0.5 ${(b * cellPx).toFixed(1)}`);
           }
         }
@@ -886,7 +886,7 @@ function buildPolygonUnitGeometryFromNormPoints(
         for (const [v1, v2] of merge.rightSegs) {
           const a = Math.max(minV, v1);
           const b = Math.min(maxV, v2);
-          if (b - a > 0.02) {
+          if (b - a > 0.15) {
             lipRightParts.push(`M ${(wPx - 1).toFixed(1)} ${(a * cellPx).toFixed(1)} L ${(wPx - 1).toFixed(1)} ${(b * cellPx).toFixed(1)}`);
           }
         }
@@ -904,7 +904,7 @@ function buildPolygonUnitGeometryFromNormPoints(
         for (const [u1, u2] of merge.bottomSegs) {
           const a = Math.max(minU, u1);
           const b = Math.min(maxU, u2);
-          if (b - a > 0.02) {
+          if (b - a > 0.15) {
             lipBottomParts.push(`M ${(a * cellPx).toFixed(1)} ${(hPx - 1.5).toFixed(1)} L ${(b * cellPx).toFixed(1)} ${(hPx - 1.5).toFixed(1)}`);
           }
         }
@@ -7788,6 +7788,85 @@ function intersectEdgeHitWithFlush(
 }
 
 /**
+ * Computes the inscribed axis-aligned core sub-rectangle `[u0, u1] × [v0, v1]` (`0..1`) of a non-rectangular
+ * polygon unit tile so unit photos/logos center cleanly inside the full-height (or full-width) rectangular body
+ * rather than shifting into a one-sided sloped wing or corner cutout.
+ */
+export function computeUnitCorePhotoSubRect(
+  tile: MapItem,
+  allItems: ReadonlyArray<MapItem>,
+): { u0: number; v0: number; u1: number; v1: number } {
+  const mode = parseUnitShapeMode(tile);
+  if (!isTrapezoidUnitMode(mode)) {
+    return { u0: 0, v0: 0, u1: 1, v1: 1 };
+  }
+  const geo = getTrapezoidUnitGeometry(mode, 100, 100, 20, null, tile, allItems);
+  const pts = geo.fillPoints
+    .trim()
+    .split(/\s+/)
+    .map((pair) => {
+      const [xs, ys] = pair.split(',');
+      return { x: Number(xs) / 100, y: Number(ys) / 100 };
+    })
+    .filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y));
+
+  if (pts.length < 3) {
+    return { u0: 0, v0: 0, u1: 1, v1: 1 };
+  }
+
+  const N = 20;
+  const isVertical = tile.h >= tile.w;
+  if (isVertical) {
+    let maxLeft = 0;
+    let minRight = 1;
+    for (let k = 1; k < N; k++) {
+      const v = k / N;
+      const xs: number[] = [];
+      for (let i = 0; i < pts.length; i++) {
+        const a = pts[i];
+        const b = pts[(i + 1) % pts.length];
+        if ((a.y <= v && b.y > v) || (b.y <= v && a.y > v)) {
+          const t = (v - a.y) / (b.y - a.y);
+          xs.push(a.x + t * (b.x - a.x));
+        }
+      }
+      if (xs.length >= 2) {
+        xs.sort((a, b) => a - b);
+        maxLeft = Math.max(maxLeft, xs[0]);
+        minRight = Math.min(minRight, xs[xs.length - 1]);
+      }
+    }
+    if (minRight - maxLeft >= 0.48) {
+      return { u0: maxLeft, v0: 0, u1: minRight, v1: 1 };
+    }
+  } else {
+    let maxTop = 0;
+    let minBottom = 1;
+    for (let k = 1; k < N; k++) {
+      const u = k / N;
+      const ys: number[] = [];
+      for (let i = 0; i < pts.length; i++) {
+        const a = pts[i];
+        const b = pts[(i + 1) % pts.length];
+        if ((a.x <= u && b.x > u) || (b.x <= u && a.x > u)) {
+          const t = (u - a.x) / (b.x - a.x);
+          ys.push(a.y + t * (b.y - a.y));
+        }
+      }
+      if (ys.length >= 2) {
+        ys.sort((a, b) => a - b);
+        maxTop = Math.max(maxTop, ys[0]);
+        minBottom = Math.min(minBottom, ys[ys.length - 1]);
+      }
+    }
+    if (minBottom - maxTop >= 0.48) {
+      return { u0: 0, v0: maxTop, u1: 1, v1: minBottom };
+    }
+  }
+  return { u0: 0, v0: 0, u1: 1, v1: 1 };
+}
+
+/**
  * Computes auto-merge seams, outer borders, gap bridges, primary label block, and union photo bounds
  * for any unit that consists of 2 or more grid blocks (`L`, `T`, `U`, or stepped shapes).
  */
@@ -7909,10 +7988,26 @@ export function computeUnitMergeMap(items: MapItem[]): Map<string, UnitMergeData
       }
 
       const primary = [...comp].sort(comparePrimaryTile)[0];
-      const minX = Math.min(...comp.map((b) => b.x));
-      const minY = Math.min(...comp.map((b) => b.y));
-      const maxX = Math.max(...comp.map((b) => b.x + b.w));
-      const maxY = Math.max(...comp.map((b) => b.y + b.h));
+      const coreBlocks = comp.filter(
+        (b) =>
+          b.w * b.h >= primary.w * primary.h * 0.25 &&
+          b.w >= primary.w * 0.45 &&
+          b.h >= primary.h * 0.45,
+      );
+      const photoBlocks = coreBlocks.length > 0 ? coreBlocks : [primary];
+      let minX = Math.min(...photoBlocks.map((b) => b.x));
+      let minY = Math.min(...photoBlocks.map((b) => b.y));
+      let maxX = Math.max(...photoBlocks.map((b) => b.x + b.w));
+      let maxY = Math.max(...photoBlocks.map((b) => b.y + b.h));
+
+      if (photoBlocks.length === 1) {
+        const sub = computeUnitCorePhotoSubRect(primary, items);
+        minX = primary.x + sub.u0 * primary.w;
+        maxX = primary.x + sub.u1 * primary.w;
+        minY = primary.y + sub.v0 * primary.h;
+        maxY = primary.y + sub.v1 * primary.h;
+      }
+
       const groupBounds = {
         minX,
         minY,

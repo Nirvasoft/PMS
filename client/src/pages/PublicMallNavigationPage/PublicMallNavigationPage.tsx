@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Store, Search, X } from 'lucide-react';
-import { useGetPublicDirectoryQuery } from '../../store/api/mallApi';
-import { resolveImageAssetUrl } from '../../utils/unitPhotoCache';
+import { useGetPublicDirectoryQuery, useGetPublicFloorPlanQuery } from '../../store/api/mallApi';
+import { preloadUnitPhotosBatch, resolveImageAssetUrl } from '../../utils/unitPhotoCache';
 import { useUnitPhotoCache } from '../../components/common/CachedUnitPhoto';
 import ShopMapView from '../admin/ShopDirectory/ShopMapView';
 import AvailableUnitsAdModal from './AvailableUnitsAdModal';
@@ -42,6 +42,12 @@ export default function PublicMallNavigationPage() {
     { skip: !propertyId },
   );
 
+  // Prefetch the floor plan in parallel with the directory query to avoid a serial waterfall on initial load
+  useGetPublicFloorPlanQuery(
+    { propertyId, floor: mapFloor || 'Ground Floor' },
+    { skip: !propertyId },
+  );
+
   useEffect(() => {
     if (propertyId && Array.isArray(data?.data?.shops)) {
       saveCachedDirectory(propertyId, {
@@ -54,6 +60,12 @@ export default function PublicMallNavigationPage() {
   const cachedDir = useMemo(() => getCachedDirectory(propertyId), [propertyId, data]);
   const property = data?.data?.property ?? cachedDir?.property;
   const allShops = data?.data?.shops ?? cachedDir?.shops ?? [];
+
+  useEffect(() => {
+    if (!allShops.length) return;
+    const urls = allShops.map((s: any) => s?.unit?.floorPlanUrl || s?.logoUrl || null);
+    void preloadUnitPhotosBatch(urls);
+  }, [allShops]);
 
   // "Units available for lease" ad: only when at least one unit is Available.
   // Shown on every page load/refresh, but only once per load (closing it keeps it closed until refresh).

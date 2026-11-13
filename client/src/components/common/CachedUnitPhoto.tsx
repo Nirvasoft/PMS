@@ -8,6 +8,7 @@ import {
   markUnitPhotoCached,
   markUnitPhotoFailed,
   preloadUnitPhoto,
+  sampleAndCacheUnitPhotoEdgeMeta,
   subscribeUnitPhotoCache,
 } from '../../utils/unitPhotoCache';
 
@@ -107,6 +108,7 @@ export function CachedUnitPhoto({
         <img
           ref={(el) => {
             if (el && el.complete && el.naturalWidth > 0 && photoUrl) {
+              sampleAndCacheUnitPhotoEdgeMeta(el, photoUrl);
               markUnitPhotoCached(photoUrl, src);
               if (domLoadedUrl !== photoUrl) {
                 setDomLoadedUrl(photoUrl);
@@ -118,8 +120,9 @@ export function CachedUnitPhoto({
           className={`${imgClassName} ${isReady ? 'is-ready' : 'is-loading'}`}
           loading={loading}
           decoding="async"
-          onLoad={() => {
+          onLoad={(e) => {
             if (photoUrl) {
+              sampleAndCacheUnitPhotoEdgeMeta(e.currentTarget, photoUrl);
               markUnitPhotoCached(photoUrl, src);
               setDomLoadedUrl(photoUrl);
             }
