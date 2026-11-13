@@ -81,10 +81,11 @@ export async function isV6ErpActive(companyId: string, propertyId?: string | nul
 }
 
 /**
- * Checks whether Account, Department, Cost Center, and Journal Entry features should be active
- * for the given property:
- * - True when any ERP/Accounting integration (e.g. V6 ERP) is active for that property, OR
- * - True when V6/ERP integration is disabled/inactive and Property Settings ->
+ * Checks whether PMS Account, Department, Cost Center, and Auto Journal Entry features
+ * should be active for the given property:
+ * - False whenever V6 ERP integration is active for that property (V6 handles accounting externally;
+ *   PMS hides Account/Dept/CC fields, skips checks, and skips local Auto Journal Entry generation).
+ * - True ONLY when V6 ERP integration is disabled/inactive AND Property Settings ->
  *   "Use Account and Journal Entry" (`property.settings.useAccountAndJournalEntry`) is enabled.
  */
 export async function isAccountingIntegrationActive(
@@ -95,21 +96,19 @@ export async function isAccountingIntegrationActive(
   const effectivePropertyId = await resolveEffectivePropertyId(companyId, propertyId);
 
   if (effectivePropertyId) {
-    const exactConfig = await prisma.integrationConfig.findFirst({
+    const v6Config = await prisma.integrationConfig.findFirst({
       where: {
         companyId,
         OR: [{ propertyId: effectivePropertyId }, { propertyId: null }],
-        integrationType: { in: [...ACCOUNTING_INTEGRATION_TYPES] },
+        integrationType: 'v6erp',
         status: { not: 'disabled' },
         isActive: true,
       },
-      select: { id: true, integrationType: true },
+      select: { id: true },
     });
-    if (exactConfig) {
-      if (exactConfig.integrationType === 'v6erp') {
-        await disablePropertyAccountAndJournalFlag(companyId, effectivePropertyId).catch(() => {});
-      }
-      return true;
+    if (v6Config) {
+      await disablePropertyAccountAndJournalFlag(companyId, effectivePropertyId).catch(() => {});
+      return false;
     }
 
     const prop = await prisma.property.findFirst({
@@ -123,14 +122,5 @@ export async function isAccountingIntegrationActive(
     return propSettings.useAccountAndJournalEntry === true;
   }
 
-  const anyActiveConfig = await prisma.integrationConfig.findFirst({
-    where: {
-      companyId,
-      integrationType: { in: [...ACCOUNTING_INTEGRATION_TYPES] },
-      status: { not: 'disabled' },
-      isActive: true,
-    },
-    select: { id: true },
-  });
-  return Boolean(anyActiveConfig);
+  return false;
 }
