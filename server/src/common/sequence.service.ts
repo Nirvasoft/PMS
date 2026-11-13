@@ -12,6 +12,7 @@
  */
 import { prisma } from './database';
 import { logger } from './logger';
+import { ensurePropertySetupScope } from './propertySetupScope';
 
 export type Prefix2Format = 'none' | 'yymm' | 'mmyy';
 export type PrefixMode = 'auto' | 'manual';
@@ -146,6 +147,8 @@ class SequenceService {
       padLength?: number;
     },
   ): Promise<string> {
+    await ensurePropertySetupScope();
+
     const docDef = DOC_TYPE_MAP[key] || {
       typeKey: key,
       label: key,
@@ -156,24 +159,28 @@ class SequenceService {
     };
 
     const docDate = options?.date || new Date();
-    const propertyId = options?.propertyId;
+    const propertyId = options?.propertyId && options.propertyId !== 'all' ? options.propertyId.trim() : null;
 
-    // Check if property-specific sequence exists
-    let targetKey = key;
-    if (propertyId) {
-      const propSpecificKey = `${key}:${propertyId}`;
-      const propRow = await prisma.companySequence.findUnique({
-        where: { companyId_sequenceKey: { companyId, sequenceKey: propSpecificKey } },
+    // Always use property-scoped sequence key when propertyId is provided so each property starts from 1 independently
+    const targetKey = propertyId ? `${key}:${propertyId}` : key;
+
+    let inheritedPrefix: string | null = null;
+    let inheritedPad: number | null = null;
+    if (propertyId && options?.prefix === undefined) {
+      const companyTemplateRow = await prisma.companySequence.findUnique({
+        where: { companyId_sequenceKey: { companyId, sequenceKey: key } },
+        select: { prefix: true, padLength: true },
       });
-      if (propRow) {
-        targetKey = propSpecificKey;
+      if (companyTemplateRow) {
+        inheritedPrefix = companyTemplateRow.prefix;
+        inheritedPad = companyTemplateRow.padLength;
       }
     }
 
     const defaultCombined = options?.prefix !== undefined
       ? encodePrefix(options.prefix, 'none')
-      : encodePrefix(docDef.defaultPrefix1, docDef.defaultPrefix2);
-    const defaultPadLength = options?.padLength ?? docDef.defaultPad;
+      : (inheritedPrefix ?? encodePrefix(docDef.defaultPrefix1, docDef.defaultPrefix2, docDef.defaultMode));
+    const defaultPadLength = options?.padLength ?? inheritedPad ?? docDef.defaultPad;
 
     // Atomic upsert + increment
     const result = await prisma.$queryRaw<Array<{ current_val: bigint; prefix: string | null; pad_length: number | null }>>`
@@ -217,8 +224,12 @@ class SequenceService {
 
     const isAll = !locationId || locationId === 'all';
     const rowMap = new Map<string, (typeof rows)[0]>();
+    const companyTemplateMap = new Map<string, (typeof rows)[0]>();
 
     for (const r of rows) {
+      if (!r.sequenceKey.includes(':')) {
+        companyTemplateMap.set(r.sequenceKey, r);
+      }
       if (isAll) {
         // Company-wide keys do NOT have a colon
         if (!r.sequenceKey.includes(':')) {
@@ -243,10 +254,12 @@ class SequenceService {
 
     for (const doc of targetTypes) {
       const stored = rowMap.get(doc.typeKey);
+      const fallbackTemplate = !stored && !isAll ? companyTemplateMap.get(doc.typeKey) : undefined;
       const isCustom = !!stored;
-      const { prefix1, prefix2, mode } = parseStoredPrefix(stored ? stored.prefix : encodePrefix(doc.defaultPrefix1, doc.defaultPrefix2, doc.defaultMode));
-      const resolvedPrefix1 = isCustom ? prefix1 : (prefix1 || doc.defaultPrefix1);
-      const padLength = stored?.padLength || doc.defaultPad;
+      const rawPrefixSource = stored?.prefix ?? fallbackTemplate?.prefix ?? encodePrefix(doc.defaultPrefix1, doc.defaultPrefix2, doc.defaultMode);
+      const { prefix1, prefix2, mode } = parseStoredPrefix(rawPrefixSource);
+      const resolvedPrefix1 = (stored || fallbackTemplate) ? prefix1 : (prefix1 || doc.defaultPrefix1);
+      const padLength = stored?.padLength || fallbackTemplate?.padLength || doc.defaultPad;
       const currentVal = stored ? Number(stored.currentVal) : 0;
       const samplePreview = formatSequence(resolvedPrefix1, prefix2, currentVal + 1, padLength, now);
 

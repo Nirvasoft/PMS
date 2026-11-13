@@ -908,7 +908,7 @@ export class InvoicesService {
         });
       }
 
-      const invoiceNumber = await this.generateInvoiceNumber(lease.companyId);
+      const invoiceNumber = await this.generateInvoiceNumber(lease.companyId, lease.propertyId);
       const inv = await prisma.invoice.create({
         data: {
           companyId: lease.companyId,
@@ -1691,7 +1691,7 @@ export class InvoicesService {
     const needsApproval = workflowDef != null;
     const creditNoteStatus = needsApproval ? 'draft' : 'issued';
 
-    const invoiceNumber = await this.generateInvoiceNumber(companyId);
+    const invoiceNumber = await this.generateInvoiceNumber(companyId, original.propertyId);
 
     const creditNote = await prisma.invoice.create({
       data: {

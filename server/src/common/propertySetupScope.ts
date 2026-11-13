@@ -102,6 +102,8 @@ async function runPropertySetupScopeMigration(): Promise<void> {
     { table: 'gl_accounts', name: 'gl_accounts_code_company_id_department_center_id_cost_cente_key' },
     { table: 'gl_accounts', name: 'gl_accounts_code_company_id_property_id_dept_cc_key' },
     { table: 'integration_configs', name: 'integration_configs_company_id_integration_type_key' },
+    { table: 'invoices', name: 'invoices_invoice_number_key' },
+    { table: 'receipts', name: 'receipts_receipt_number_key' },
   ];
 
   for (const item of legacyConstraints) {
@@ -134,6 +136,12 @@ async function runPropertySetupScopeMigration(): Promise<void> {
   );
   await prisma.$executeRawUnsafe(
     `CREATE UNIQUE INDEX IF NOT EXISTS "integration_configs_company_id_property_id_integration_type_key" ON "integration_configs"("company_id", "property_id", "integration_type")`,
+  );
+  await prisma.$executeRawUnsafe(
+    `CREATE UNIQUE INDEX IF NOT EXISTS "invoices_company_id_property_id_invoice_number_key" ON "invoices"("company_id", "property_id", "invoice_number")`,
+  );
+  await prisma.$executeRawUnsafe(
+    `CREATE UNIQUE INDEX IF NOT EXISTS "receipts_company_id_property_id_receipt_number_key" ON "receipts"("company_id", "property_id", "receipt_number")`,
   );
 
   // Backfill existing company-scoped records with property_id IS NULL to the company's first active property

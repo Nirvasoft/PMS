@@ -3098,7 +3098,7 @@ model Invoice {
   leaseId            String?   @map("lease_id") @db.Uuid
   departmentCenterId String?   @map("department_center_id") @db.Uuid
   costCenterId       String?   @map("cost_center_id") @db.Uuid
-  invoiceNumber      String    @unique @map("invoice_number") @db.VarChar(50)
+  invoiceNumber      String    @map("invoice_number") @db.VarChar(50)
   secondRef          String?   @map("second_ref") @db.VarChar(100)
   externalRef        String    @default("0") @map("external_ref") @db.VarChar(100)
   invoiceType        String    @default("invoice") @map("invoice_type") @db.VarChar(50)
@@ -3165,6 +3165,7 @@ model Invoice {
   // Relations â€” Banking (Module 3.6)
   paymentGatewayTxns PaymentGatewayTransaction[]
 
+  @@unique([companyId, propertyId, invoiceNumber])
   @@index([tenantId])
   @@index([leaseId])
   @@index([departmentCenterId])
@@ -3250,7 +3251,7 @@ model Receipt {
   companyId          String   @map("company_id") @db.Uuid
   propertyId         String?  @map("property_id") @db.Uuid
   tenantId           String?  @map("tenant_id") @db.Uuid
-  receiptNumber      String   @unique @map("receipt_number") @db.VarChar(50)
+  receiptNumber      String   @map("receipt_number") @db.VarChar(50)
   receiptDate        DateTime @map("receipt_date") @db.Date
   paymentMethod      String   @map("payment_method") @db.VarChar(30)
   // 'bank_transfer'|'cheque'|'cash'|'online'|'giro'|'credit_card'
@@ -3277,6 +3278,7 @@ model Receipt {
   allocations    ReceiptAllocation[]
   refundRequests RefundRequest[]     @relation("RefundReceipt")
 
+  @@unique([companyId, propertyId, receiptNumber])
   @@index([tenantId])
   @@index([companyId, receiptDate(sort: Desc)])
   @@map("receipts")
