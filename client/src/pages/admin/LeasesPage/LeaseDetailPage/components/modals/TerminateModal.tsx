@@ -85,11 +85,10 @@ export function TerminateModal({ leaseId, currency, onClose }: {
       <Modal title="Terminate active Schedule?" onClose={onClose}>
         <div className="modal-body">
           <p>Do you terminate active Schedule?</p>
-          <p className="penalty-calc">Note: If All schedule are terminate, Not Include monthly billing.</p>
         </div>
         <div className="modal-footer">
           <button className="btn-ghost-sm" onClick={() => setShowScheduleConfirm(false)} disabled={isLoading}>Back</button>
-          <button className="btn-ghost-sm" onClick={() => submitTermination(false)} disabled={isLoading}>No</button>
+          <button className="btn-ghost-sm" onClick={onClose} disabled={isLoading}>No</button>
           <button className="btn-danger" onClick={() => submitTermination(true)} disabled={isLoading}>{isLoading ? '…' : 'Yes, Terminate'}</button>
         </div>
       </Modal>

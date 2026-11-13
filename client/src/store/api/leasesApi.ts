@@ -189,6 +189,7 @@ async function invalidateUnitTagsOnSuccess(
   try {
     await queryFulfilled;
     dispatch(unitsApi.util.invalidateTags(['Units', 'FloorPlan', 'UnitStats']));
+    dispatch(billingApi.util.invalidateTags(['BillingSchedules', 'Invoices']));
     dispatch(tenantsApi.util.invalidateTags(['Tenants']));
   } catch {
     // request failed — nothing to invalidate

@@ -193,6 +193,10 @@ export class LeasesLifecycleService {
       prisma.lease.update({ where: { id }, data: { status: 'cancelled', terminationReason: reason ?? null } }),
       prisma.unit.update({ where: { id: lease.unitId }, data: { status: 'available' } }),
       clearShopIdentityOp([lease.unitId]),
+      prisma.billingSchedule.updateMany({
+        where: { leaseId: id, status: { in: ['draft', 'active', 'paused'] } },
+        data: { status: 'cancelled', nextBillingDate: null },
+      }),
     ]);
     await unitsService.invalidateStatsCache(lease.propertyId);
     return { leaseId: id, status: 'cancelled' };
@@ -252,10 +256,10 @@ export class LeasesLifecycleService {
       prisma.lease.update({ where: { id }, data: { status: 'terminated', terminationDate: termDate, terminationReason: reasonText, terminationType: isEarly ? 'early' : 'normal', earlyTerminationPenalty: penalty } }),
       prisma.unit.update({ where: { id: lease.unitId }, data: { status: 'available' } }),
       clearShopIdentityOp([lease.unitId]),
-      ...(dto.terminateSchedules
+      ...(dto.terminateSchedules !== false
         ? [prisma.billingSchedule.updateMany({
-            where: { leaseId: id, status: 'active', billingCycle: { not: 'monthly' } },
-            data: { status: 'cancelled' },
+            where: { leaseId: id, status: { in: ['active', 'paused', 'draft'] } },
+            data: { status: 'cancelled', endDate: termDate, nextBillingDate: null },
           })]
         : []),
     ]);

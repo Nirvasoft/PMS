@@ -741,6 +741,10 @@ export class BillingSchedulesService {
     const where: any = {
       status: 'active',
       nextBillingDate: { lte: asOfDate },
+      OR: [
+        { leaseId: null },
+        { lease: { status: 'active', deletedAt: null } },
+      ],
     };
     if (propertyId) where.propertyId = propertyId;
 

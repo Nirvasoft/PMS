@@ -273,6 +273,8 @@ function parseV6CoaDescription(rawDescription: string): {
 
 class IntegrationsService {
   private v6TokenCache = new Map<string, { codex: string; expiresAt: number }>();
+  private v6WebTokenCache = new Map<string, { oid: string; webRoot: string; expiresAt: number }>();
+  private v6CurrencySyskeyCache = new Map<string, string>();
   private activeCoaSyncs = new Map<string, Promise<any>>();
 
   private resolveV6Config(config: any): {
@@ -1047,6 +1049,241 @@ class IntegrationsService {
   }
 
   /**
+   * Obtain or refresh V6 ERP Web API token (`oid`) via POST {webRoot}/main/loginRefreshToken
+   * so PMS can update Customer currency (`UVM002.t4` / `multicurList`) and Currency Master
+   * when `mDisRepository/integrationAPI/createCustomerMaster` defaults to MMK.
+   */
+  private async getV6WebToken(
+    repoRoot: string,
+    domain: string,
+    forceRefresh = false,
+  ): Promise<{ oid: string; webRoot: string } | null> {
+    const webRoot = repoRoot.replace(/\/mDisRepository\/?$/i, '');
+    const cacheKey = `${webRoot}|${domain}`;
+    const now = Date.now();
+    const cached = this.v6WebTokenCache.get(cacheKey);
+    if (!forceRefresh && cached && cached.expiresAt > now + 30 * 60 * 1000) {
+      return { oid: cached.oid, webRoot: cached.webRoot };
+    }
+
+    try {
+      const resp = await fetch(`${webRoot}/main/loginRefreshToken`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'APP-CALLER': '1',
+        },
+        body: JSON.stringify({
+          syskey: '1',
+          u12Syskey: '200605010640272518',
+          userId: 'v6admin',
+          userName: 'V6Admin',
+          orgId: domain,
+        }),
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!resp.ok) return null;
+      const json = (await resp.json().catch(() => null)) as any;
+      const oid = String(json?.oid || json?.token || '').trim();
+      if (!oid) return null;
+
+      this.v6WebTokenCache.set(cacheKey, {
+        oid,
+        webRoot,
+        expiresAt: now + 23 * 60 * 60 * 1000,
+      });
+      return { oid, webRoot };
+    } catch (err: any) {
+      logger.warn(`V6 ERP getV6WebToken warning: ${err?.message || err}`);
+      return null;
+    }
+  }
+
+  /**
+   * Ensure the given PMS currency code exists in V6 ERP Currency Master (`main/currencydatas/`),
+   * creating it via `currency/saveCurrency` with PMS's CurrencyRate if missing.
+   */
+  private async ensureV6CurrencyOnWeb(
+    repoRoot: string,
+    domain: string,
+    currencyCode: string,
+    companyId?: string,
+    propertyId?: string | null,
+  ): Promise<string | null> {
+    const code = String(currencyCode || '').trim().toUpperCase();
+    if (!code) return null;
+
+    const webAuth = await this.getV6WebToken(repoRoot, domain);
+    if (!webAuth) return null;
+
+    const cacheKey = `${webAuth.webRoot}|${domain}|${code}`;
+    const cachedSk = this.v6CurrencySyskeyCache.get(cacheKey);
+    if (cachedSk) return cachedSk;
+
+    const hdrs = {
+      'Content-Type': 'application/json',
+      'Content-Over': webAuth.oid,
+      'APP-CALLER': '1',
+    };
+
+    try {
+      const listResp = await fetch(`${webAuth.webRoot}/main/currencydatas/`, {
+        method: 'GET',
+        headers: hdrs,
+        signal: AbortSignal.timeout(10000),
+      });
+      if (listResp.ok) {
+        const list = (await listResp.json().catch(() => [])) as any[];
+        if (Array.isArray(list)) {
+          for (const item of list) {
+            const c = String(item?.t1 || '').trim().toUpperCase();
+            const sk = String(item?.syskey || '').trim();
+            if (c && sk && sk !== '0') {
+              this.v6CurrencySyskeyCache.set(`${webAuth.webRoot}|${domain}|${c}`, sk);
+            }
+          }
+        }
+      }
+
+      const foundSk = this.v6CurrencySyskeyCache.get(cacheKey);
+      if (foundSk) return foundSk;
+
+      // Currency not in V6 ERP yet — look up rate & operator from PMS CurrencyRate
+      let rateNum = 1;
+      let operatorSym = '*';
+      if (companyId) {
+        const pmsRate =
+          (propertyId
+            ? await prisma.currencyRate.findFirst({
+                where: { companyId, propertyId, currency: code, isActive: true },
+                orderBy: { effectiveDate: 'desc' },
+              })
+            : null) ||
+          (await prisma.currencyRate.findFirst({
+            where: { companyId, currency: code, isActive: true },
+            orderBy: { effectiveDate: 'desc' },
+          }));
+        if (pmsRate) {
+          rateNum = Number(pmsRate.rate) > 0 ? Number(pmsRate.rate) : 1;
+          operatorSym = pmsRate.operator === 'divide' ? '/' : '*';
+        }
+      }
+
+      const saveResp = await fetch(`${webAuth.webRoot}/currency/saveCurrency`, {
+        method: 'POST',
+        headers: hdrs,
+        body: JSON.stringify({
+          syskey: '0',
+          userId: 'v6admin',
+          t1: code,
+          t2: code,
+          t3: operatorSym,
+          t4: code,
+          n2: rateNum.toFixed(2),
+          n3: '0.00',
+          convertRate: '0.00',
+          userSyskey: '1',
+        }),
+        signal: AbortSignal.timeout(10000),
+      });
+      if (saveResp.ok) {
+        // Re-fetch currencydatas to get the UVM currency syskey
+        const refreshResp = await fetch(`${webAuth.webRoot}/main/currencydatas/`, {
+          method: 'GET',
+          headers: hdrs,
+          signal: AbortSignal.timeout(10000),
+        });
+        if (refreshResp.ok) {
+          const list = (await refreshResp.json().catch(() => [])) as any[];
+          if (Array.isArray(list)) {
+            for (const item of list) {
+              const c = String(item?.t1 || '').trim().toUpperCase();
+              const sk = String(item?.syskey || '').trim();
+              if (c && sk && sk !== '0') {
+                this.v6CurrencySyskeyCache.set(`${webAuth.webRoot}|${domain}|${c}`, sk);
+              }
+            }
+          }
+        }
+      }
+      return this.v6CurrencySyskeyCache.get(cacheKey) || null;
+    } catch (err: any) {
+      logger.warn(`V6 ERP ensureV6CurrencyOnWeb warning (${code}): ${err?.message || err}`);
+      return null;
+    }
+  }
+
+  /**
+   * Persist PMS Tenant currency (`UVM002.t4` and `multicurList`) on V6 ERP Customer Master
+   * via `Customer/GetBizPartnerInfoByRoleAllowed` + `Customer/SaveBizPartner`.
+   */
+  private async syncV6CustomerCurrency(
+    repoRoot: string,
+    domain: string,
+    customerSyskey: string,
+    currencyCode: string,
+    companyId?: string,
+    propertyId?: string | null,
+  ): Promise<void> {
+    const sk = String(customerSyskey || '').trim();
+    const code = String(currencyCode || '').trim().toUpperCase();
+    if (!sk || sk === '0' || !code) return;
+
+    try {
+      const webAuth = await this.getV6WebToken(repoRoot, domain);
+      if (!webAuth) return;
+
+      const currencySk = await this.ensureV6CurrencyOnWeb(
+        repoRoot,
+        domain,
+        code,
+        companyId,
+        propertyId,
+      );
+
+      const hdrs = {
+        'Content-Type': 'application/json',
+        'Content-Over': webAuth.oid,
+        'APP-CALLER': '1',
+      };
+
+      const bpResp = await fetch(`${webAuth.webRoot}/Customer/GetBizPartnerInfoByRoleAllowed`, {
+        method: 'POST',
+        headers: hdrs,
+        body: JSON.stringify({ syskey: sk }),
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!bpResp.ok) return;
+
+      const bp = (await bpResp.json().catch(() => null)) as any;
+      if (!bp || !bp.syskey || bp.syskey === '0') return;
+
+      const multiList: string[] = Array.isArray(bp.multicurList)
+        ? bp.multicurList.map((x: any) => String(x))
+        : [];
+      const needsMultiAdd = Boolean(currencySk && !multiList.includes(currencySk));
+      if (String(bp.t4 || '').trim().toUpperCase() === code && !needsMultiAdd) {
+        return;
+      }
+
+      bp.t4 = code;
+      if (currencySk && !multiList.includes(currencySk)) {
+        multiList.push(currencySk);
+      }
+      bp.multicurList = multiList;
+
+      await fetch(`${webAuth.webRoot}/Customer/SaveBizPartner`, {
+        method: 'POST',
+        headers: hdrs,
+        body: JSON.stringify(bp),
+        signal: AbortSignal.timeout(12000),
+      });
+    } catch (err: any) {
+      logger.warn(`V6 ERP syncV6CustomerCurrency warning (${sk} -> ${code}): ${err?.message || err}`);
+    }
+  }
+
+  /**
    * Derive customer code and name from a PMS Tenant record.
    */
   private deriveTenantV6CodeAndName(tenant: {
@@ -1219,6 +1456,17 @@ class IntegrationsService {
     const wasUpdatedOnV6 = isUpdate || /updated/i.test(msg);
 
     if (isSuccess) {
+      if (syskey && syskey !== '0') {
+        await this.syncV6CustomerCurrency(
+          auth.repoRoot,
+          auth.domain,
+          syskey,
+          payload.currency,
+          companyId,
+          propertyId || tenant.propertyId,
+        );
+      }
+
       const extRef = `${code} — ${name}`.substring(0, 255);
       const extIdParts = [erpcode || code];
       if (syskey && syskey !== '0') extIdParts.push(`Syskey: ${syskey}`);
@@ -1437,6 +1685,7 @@ class IntegrationsService {
             companyName: true,
             companyRegNo: true,
             tenantType: true,
+            currency: true,
           },
         },
         unit: { select: { id: true, unitNumber: true } },
@@ -1555,8 +1804,32 @@ class IntegrationsService {
         const syskeyValue = existingSyskeyStr !== '0' ? existingSyskeyStr : 0;
 
         const unitNumber = String(inv.unit?.unitNumber || (inv as any).unitNumber || '').trim();
-        const currencyCode = (inv.currency || 'MMK').trim() || 'MMK';
-        const currRate = Number(inv.currencyRate) > 0 ? Number(inv.currencyRate) : 1;
+        const currencyCode = (inv.currency || inv.tenant?.currency || 'MMK').trim() || 'MMK';
+        let currRate = Number(inv.currencyRate) > 0 ? Number(inv.currencyRate) : 1;
+        if (currencyCode.toUpperCase() !== 'MMK' && currRate <= 1) {
+          const effPropId = inv.propertyId || targetPropertyId;
+          const rateRow =
+            (effPropId
+              ? await prisma.currencyRate.findFirst({
+                  where: { companyId, propertyId: effPropId, currency: currencyCode, isActive: true },
+                  orderBy: { effectiveDate: 'desc' },
+                })
+              : null) ||
+            (await prisma.currencyRate.findFirst({
+              where: { companyId, currency: currencyCode, isActive: true },
+              orderBy: { effectiveDate: 'desc' },
+            }));
+          if (rateRow && Number(rateRow.rate) > 0) {
+            currRate = Number(rateRow.rate);
+          }
+        }
+        await this.ensureV6CurrencyOnWeb(
+          auth.repoRoot,
+          auth.domain,
+          currencyCode,
+          companyId,
+          inv.propertyId || targetPropertyId,
+        );
         const docDate = this.formatV6DateDdMmYyyy(inv.invoiceDate);
         const dueDate = this.formatV6DateDdMmYyyy(inv.dueDate || inv.invoiceDate);
         const totalAmt = Math.round((Number(inv.totalAmount) || 0) * 100) / 100;
@@ -1848,6 +2121,7 @@ class IntegrationsService {
             companyName: true,
             companyRegNo: true,
             tenantType: true,
+            currency: true,
           },
         },
         allocations: {
@@ -1925,8 +2199,32 @@ class IntegrationsService {
         const pm = pmByCode.get(String(rct.paymentMethod || '').trim().toLowerCase());
         const cashbook = String(cfg.defaultCashbook || pm?.code || rct.paymentMethod || 'CB-0003').trim();
         const accCode = String(pm?.glAccountCode || cfg.defaultAccCode || '7-23340').trim();
-        const curr = String(rct.currency || 'MMK').trim() || 'MMK';
-        const currRate = Number(rct.exchangeRate) > 0 ? Number(rct.exchangeRate) : 1;
+        const curr = String(rct.currency || rct.tenant?.currency || 'MMK').trim() || 'MMK';
+        let currRate = Number(rct.exchangeRate) > 0 ? Number(rct.exchangeRate) : 1;
+        if (curr.toUpperCase() !== 'MMK' && currRate <= 1) {
+          const effPropId = rct.propertyId || targetPropertyId;
+          const rateRow =
+            (effPropId
+              ? await prisma.currencyRate.findFirst({
+                  where: { companyId, propertyId: effPropId, currency: curr, isActive: true },
+                  orderBy: { effectiveDate: 'desc' },
+                })
+              : null) ||
+            (await prisma.currencyRate.findFirst({
+              where: { companyId, currency: curr, isActive: true },
+              orderBy: { effectiveDate: 'desc' },
+            }));
+          if (rateRow && Number(rateRow.rate) > 0) {
+            currRate = Number(rateRow.rate);
+          }
+        }
+        await this.ensureV6CurrencyOnWeb(
+          auth.repoRoot,
+          auth.domain,
+          curr,
+          companyId,
+          rct.propertyId || targetPropertyId,
+        );
         const netAmount = Math.round((Number(rct.amount) || 0) * 100) / 100;
         const docDate = this.formatV6DateDdMmYyyy(rct.receiptDate);
         // Type = 0 Account, 1 = CustomerReceipt, 2 = Vendor Receipt

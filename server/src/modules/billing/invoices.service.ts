@@ -727,8 +727,24 @@ export class InvoicesService {
     const dueDate      = new Date(invoiceDate);
     dueDate.setDate(dueDate.getDate() + (lease.paymentDueDays || 7));
     const periodTo     = lease.endDate ? new Date(lease.endDate) : null;
-    const currencyRate: number | null = lease.currencyRate ? Number(lease.currencyRate) : null;
     const currency     = lease.currency || 'USD';
+    let currencyRate: number | null = lease.currencyRate ? Number(lease.currencyRate) : null;
+    if ((currencyRate == null || currencyRate <= 1) && lease.companyId && currency) {
+      const rateRow =
+        (lease.propertyId
+          ? await prisma.currencyRate.findFirst({
+              where: { companyId: lease.companyId, propertyId: lease.propertyId, currency, isActive: true },
+              orderBy: { effectiveDate: 'desc' },
+            })
+          : null) ||
+        (await prisma.currencyRate.findFirst({
+          where: { companyId: lease.companyId, currency, isActive: true },
+          orderBy: { effectiveDate: 'desc' },
+        }));
+      if (rateRow) {
+        currencyRate = Number(rateRow.rate);
+      }
+    }
     const unitLabel    = lease.unit?.unitNumber || '';
 
     // ── 1. Combined Rent + Security Deposit invoice ────────────────────────────
@@ -1354,6 +1370,24 @@ export class InvoicesService {
       lineInputs.find((l) => l.schedule.chargeType?.costCenterId)?.schedule.chargeType?.costCenterId ||
       null;
 
+    let scheduleCurrencyRate: number | null = null;
+    if (first.companyId && first.currency) {
+      const rateRow =
+        (first.propertyId
+          ? await prisma.currencyRate.findFirst({
+              where: { companyId: first.companyId, propertyId: first.propertyId, currency: first.currency, isActive: true },
+              orderBy: { effectiveDate: 'desc' },
+            })
+          : null) ||
+        (await prisma.currencyRate.findFirst({
+          where: { companyId: first.companyId, currency: first.currency, isActive: true },
+          orderBy: { effectiveDate: 'desc' },
+        }));
+      if (rateRow) {
+        scheduleCurrencyRate = Number(rateRow.rate);
+      }
+    }
+
     const invoice = await prisma.invoice.create({
       data: {
         companyId: first.companyId,
@@ -1375,6 +1409,7 @@ export class InvoicesService {
         totalAmount,
         paidAmount: 0,
         currency: first.currency,
+        currencyRate: scheduleCurrencyRate,
         gracePeriodDays: penaltyConfig?.gracePeriodDays || 0,
         lines: {
           create: lineInputs.map((l, idx) => {
