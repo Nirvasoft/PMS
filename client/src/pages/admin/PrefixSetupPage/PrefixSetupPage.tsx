@@ -159,7 +159,7 @@ export default function PrefixSetupPage() {
   // Fetch sequences from server for the active property
   const { data: serverSequences = [], isLoading, refetch } = useGetSequencesQuery(
     activePropertyId ? { locationId: activePropertyId } : undefined,
-    { skip: !activePropertyId }
+    { skip: !activePropertyId, refetchOnMountOrArgChange: true }
   );
 
   const [bulkSaveSequences, { isLoading: isSaving }] = useBulkSaveSequencesMutation();

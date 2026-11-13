@@ -2,6 +2,8 @@ import { createApi } from '@reduxjs/toolkit/query/react';
 import { baseQueryWithReauth } from './baseQuery';
 import { unitsApi } from './unitsApi';
 import { billingApi } from './billingApi';
+import { tenantsApi } from './tenantsApi';
+import { sequenceApi } from './sequenceApi';
 
 
 // ─── Types ───────────────────────────────────
@@ -187,6 +189,8 @@ async function invalidateUnitTagsOnSuccess(
   try {
     await queryFulfilled;
     dispatch(unitsApi.util.invalidateTags(['Units', 'FloorPlan', 'UnitStats']));
+    dispatch(billingApi.util.invalidateTags(['BillingSchedules', 'Invoices']));
+    dispatch(tenantsApi.util.invalidateTags(['Tenants']));
   } catch {
     // request failed — nothing to invalidate
   }
@@ -203,6 +207,8 @@ async function invalidateOnActivate(
     await queryFulfilled;
     dispatch(unitsApi.util.invalidateTags(['Units', 'FloorPlan', 'UnitStats']));
     dispatch(billingApi.util.invalidateTags(['Invoices', 'BillingSchedules']));
+    dispatch(tenantsApi.util.invalidateTags(['Tenants']));
+    dispatch(sequenceApi.util.invalidateTags([{ type: 'Sequence', id: 'LIST' }]));
   } catch {
     // request failed — nothing to invalidate
   }

@@ -1,6 +1,7 @@
 import { prisma } from '../../../common/database';
 import { AppError } from '../../../common/errors';
-import { calcLeaseTermMonths, nextLeaseNumber, daysUntilExpiry } from './helpers';
+import { sequenceService } from '../../../common/sequence.service';
+import { calcLeaseTermMonths, daysUntilExpiry } from './helpers';
 import { webhookLeaseCreated } from '../../../common/webhookHooks';
 import { unitsService } from '../../units/units.service';
 
@@ -249,12 +250,13 @@ export class LeasesService {
     }
 
     const currencyRate = rest.currency ? await this.latestCurrencyRate(companyId, propertyId, rest.currency) : null;
+    const leaseNumber = await sequenceService.next(companyId, 'lease', { propertyId });
 
     const lease = await prisma.lease.create({
       data: {
         companyId, propertyId, unitId, tenantId,
         templateId: templateId || null,
-        leaseNumber: nextLeaseNumber(),
+        leaseNumber,
         startDate: start, endDate: end,
         leaseTermMonths: calcLeaseTermMonths(start, end),
         createdBy,

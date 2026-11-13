@@ -74,7 +74,7 @@ export default function CreateReceiptModal({ onClose }: Props) {
 
   const { data: tenantsData } = useGetTenantsQuery({
     page: 1,
-    limit: 200,
+    limit: 5000,
     propertyId: activePropertyId || undefined,
     kycStatus: 'verified',
   });
