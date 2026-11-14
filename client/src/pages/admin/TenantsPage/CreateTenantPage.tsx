@@ -4,9 +4,7 @@ import { useCreateTenantMutation } from '../../../store/api/tenantsApi';
 import { useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
 import { useGetSequencesQuery } from '../../../store/api/sequenceApi';
 import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
-import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
-import { useSyncV6CustomersMutation } from '../../../store/api/integrationsApi';
-import { ArrowLeft, User, Building2, RefreshCw } from 'lucide-react';
+import { ArrowLeft, User, Building2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './CreateTenantPage.css';
@@ -16,8 +14,6 @@ type TenantType = 'individual' | 'company';
 export default function CreateTenantPage() {
   const navigate = useNavigate();
   const [createTenant, { isLoading }] = useCreateTenantMutation();
-  const { isV6PushActive: isV6Active } = useV6IntegrationStatus();
-  const [syncV6Customers, { isLoading: isSyncingCustomers }] = useSyncV6CustomersMutation();
   const [tenantType, setTenantType] = useState<TenantType>('individual');
 
   const activePropertyId = useSelectedPropertyId();
@@ -59,17 +55,6 @@ export default function CreateTenantPage() {
   const isNameMissing = hasAttemptedSubmit && tenantType === 'individual' && !form.lastName.trim();
   const isCompanyNameMissing = hasAttemptedSubmit && tenantType === 'company' && !form.companyName.trim();
   const isCurrencyMissing = hasAttemptedSubmit && !form.currency;
-
-  const handleSyncV6Customers = async () => {
-    if (!isV6Active || isSyncingCustomers) return;
-    try {
-      const res = await syncV6Customers(activePropertyId ? { propertyId: activePropertyId } : {}).unwrap();
-      toast.success(res?.data?.message || 'Customers synced from V6 ERP');
-      navigate('/admin/tenants');
-    } catch (err: any) {
-      toast.error(err?.data?.message || err?.data?.errors?.[0]?.message || err?.message || 'Failed to sync customers from V6 ERP');
-    }
-  };
 
   const handleSubmit = async () => {
     setHasAttemptedSubmit(true);
@@ -145,36 +130,6 @@ export default function CreateTenantPage() {
         </button>
         <h1>New Tenant</h1>
       </div>
-
-      {isV6Active && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px',
-          borderRadius: 10, background: 'rgba(234, 179, 8, 0.1)',
-          border: '1px solid rgba(234, 179, 8, 0.3)', marginBottom: 20,
-          fontSize: 13, color: '#d97706'
-        }}>
-          <span style={{ fontSize: 20 }}>⚠️</span>
-          <div>
-            <strong style={{ display: 'block', fontSize: 14, color: '#b45309', marginBottom: 2 }}>
-              V6 ERP Integration Active
-            </strong>
-            You can create a new tenant manually below or sync existing customers from V6 ERP.
-          </div>
-          <PermissionGuard permission="tenants.create">
-            <button
-              type="button"
-              className="btn-ghost"
-              disabled={isSyncingCustomers || !activePropertyId}
-              onClick={handleSyncV6Customers}
-              title="Sync Customers from V6 ERP for the active property"
-              style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', cursor: isSyncingCustomers ? 'wait' : 'pointer' }}
-            >
-              <RefreshCw size={14} className={isSyncingCustomers ? 'spin' : undefined} />
-              {isSyncingCustomers ? 'Syncing V6 Customers...' : 'Sync V6 Customers'}
-            </button>
-          </PermissionGuard>
-        </div>
-      )}
 
       {/* Type toggle */}
       <div className="ct-type-toggle">

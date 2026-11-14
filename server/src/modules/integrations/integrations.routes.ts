@@ -207,13 +207,3 @@ developerRouter.post('/v6erp/push-customer', asyncHandler(async (req, res) => {
   );
   res.json({ success: true, data });
 }));
-
-developerRouter.post('/v6erp/sync-customers', asyncHandler(async (req, res) => {
-  const { propertyId } = (req.body || {}) as { propertyId?: string };
-  const data = await integrationsService.syncV6Customers(
-    getCompanyId(req),
-    propertyId,
-    getUserId(req),
-  );
-  res.json({ success: true, data });
-}));

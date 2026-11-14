@@ -1518,126 +1518,6 @@ class IntegrationsService {
   }
 
   /**
-   * Sync PMS tenants for the active property to V6 ERP Customer Master
-   * via POST {repoRoot}/integrationAPI/createCustomerMaster in parallel batches.
-   */
-  async syncV6Customers(companyId: string, propertyId?: string, userId?: string) {
-    await ensurePropertySetupScope();
-    const config = await this.findActiveV6Config(companyId, propertyId);
-
-    if (!config) {
-      throw new AppError(
-        400,
-        'V6ERP_NOT_ACTIVE',
-        'V6 ERP integration is not active. Turn ON the V6 ERP flag in Integrations first.',
-      );
-    }
-
-    const targetPropertyId =
-      (propertyId && propertyId.trim()) || config.propertyId || null;
-
-    const t0 = Date.now();
-    const auth = await this.getV6CodexToken(config);
-
-    const [tenants, existingMaps] = await Promise.all([
-      prisma.tenant.findMany({
-        where: {
-          companyId,
-          deletedAt: null,
-          ...(targetPropertyId ? { propertyId: targetPropertyId } : {}),
-        },
-        orderBy: { createdAt: 'asc' },
-      }),
-      prisma.integrationEntityMap.findMany({
-        where: {
-          companyId,
-          integrationId: config.id,
-          entityType: 'tenant',
-        },
-      }),
-    ]);
-
-    const mapByTenantId = new Map(existingMaps.map((m) => [m.pmsId, m]));
-
-    let created = 0;
-    let updated = 0;
-    let failed = 0;
-    const errors: Array<{ code: string; error: string }> = [];
-
-    const CONCURRENCY = 10;
-    for (let i = 0; i < tenants.length; i += CONCURRENCY) {
-      const batch = tenants.slice(i, i + CONCURRENCY);
-      await Promise.all(
-        batch.map(async (tenant) => {
-          try {
-            const existingMap = mapByTenantId.get(tenant.id) || null;
-            const res = await this.pushCustomerToV6Erp(
-              companyId,
-              tenant.id,
-              targetPropertyId,
-              config,
-              auth,
-              tenant,
-              existingMap,
-            );
-            if (res.ok) {
-              if (res.isUpdate) updated++;
-              else created++;
-            } else {
-              failed++;
-              errors.push({ code: res.code || tenant.id, error: res.message });
-            }
-          } catch (err: any) {
-            failed++;
-            errors.push({
-              code: tenant.code || tenant.firstName || tenant.id,
-              error: err?.message || String(err),
-            });
-          }
-        }),
-      );
-    }
-
-    await prisma.integrationSyncLog
-      .create({
-        data: {
-          companyId,
-          integrationId: config.id,
-          syncType: 'customer_sync',
-          direction: 'push',
-          status: failed === 0 ? 'success' : created + updated > 0 ? 'partial' : 'failed',
-          recordsProcessed: tenants.length,
-          recordsCreated: created,
-          recordsUpdated: updated,
-          recordsFailed: failed,
-          errorDetails: errors,
-          durationMs: Date.now() - t0,
-          initiatedBy: 'user',
-          initiatedUserId: userId || null,
-          completedAt: new Date(),
-        },
-      })
-      .catch(() => {});
-
-    await prisma.integrationConfig
-      .update({
-        where: { id: config.id },
-        data: { lastSyncAt: new Date(), lastError: errors[0]?.error || null },
-      })
-      .catch(() => {});
-
-    return {
-      success: failed === 0 || created + updated > 0,
-      totalV6Customers: tenants.length,
-      created,
-      updated,
-      failed,
-      errors,
-      message: `Synced ${created + updated}/${tenants.length} customer(s) to V6 ERP (${created} created, ${updated} updated${failed > 0 ? `, ${failed} failed` : ''}).`,
-    };
-  }
-
-  /**
    * Push PMS Invoices and Debit Notes to V6 ERP
    * via POST {repoRoot}/integrationAPI/postARInvoice.
    */
@@ -3278,20 +3158,7 @@ class IntegrationsService {
       errors.push({ error: `COA sync warning: ${coaErr.message}` });
     }
 
-    // 2. Outbound Customer Master Sync (createCustomerMaster)
-    try {
-      const custRes = await this.syncV6Customers(companyId, effectivePropertyId || undefined, userId);
-      customersImported += custRes.created || 0;
-      customersUpdated += custRes.updated || 0;
-      if (custRes.errors?.length) {
-        errors.push(...custRes.errors);
-      }
-    } catch (cErr: any) {
-      logger.warn(`V6 ERP customer sync warning: ${cErr.message}`);
-      errors.push({ error: `Customer sync warning: ${cErr.message}` });
-    }
-
-    // 3. Outbound AR Invoice / Debit Note Push (postARInvoice)
+    // 2. Outbound AR Invoice / Debit Note Push (postARInvoice)
     let invoiceRes: any = { sent: 0, failed: 0, skipped: 0, results: [] };
     try {
       invoiceRes = await this.pushInvoicesToV6Erp(
@@ -3311,7 +3178,7 @@ class IntegrationsService {
       errors.push(...failedInvoices);
     }
 
-    // 4. Outbound Cash Receipt Push (postCashReceipt)
+    // 3. Outbound Cash Receipt Push (postCashReceipt)
     let receiptRes: any = { sent: 0, failed: 0, results: [] };
     try {
       receiptRes = await this.pushReceiptsToV6Erp(
@@ -3335,8 +3202,6 @@ class IntegrationsService {
     const totalProcessed =
       coaCreated +
       coaUpdated +
-      customersImported +
-      customersUpdated +
       (invoiceRes.results?.length || 0) +
       (receiptRes.results?.length || 0);
     const totalFailed = (invoiceRes.failed || 0) + (receiptRes.failed || 0) + (errors.length > 0 ? 1 : 0);
@@ -3349,8 +3214,8 @@ class IntegrationsService {
         direction: 'push',
         status: totalFailed === 0 ? 'success' : totalProcessed > 0 ? 'partial' : 'failed',
         recordsProcessed: totalProcessed,
-        recordsCreated: coaCreated + customersImported + (invoiceRes.sent || 0) + (receiptRes.sent || 0),
-        recordsUpdated: coaUpdated + customersUpdated,
+        recordsCreated: coaCreated + (invoiceRes.sent || 0) + (receiptRes.sent || 0),
+        recordsUpdated: coaUpdated,
         recordsFailed: totalFailed,
         errorDetails: errors,
         durationMs,
@@ -3381,7 +3246,7 @@ class IntegrationsService {
       receiptsSent: receiptRes.sent || 0,
       receiptsFailed: receiptRes.failed || 0,
       log,
-      message: `Sync completed: ${coaCreated + coaUpdated} COA account(s) synced, ${customersImported + customersUpdated} customer(s) synced, ${invoiceRes.sent || 0} invoice(s) sent, ${receiptRes.sent || 0} receipt(s) sent.`,
+      message: `Sync completed: ${coaCreated + coaUpdated} COA account(s) synced, ${invoiceRes.sent || 0} invoice(s) sent, ${receiptRes.sent || 0} receipt(s) sent.`,
     };
   }
 }

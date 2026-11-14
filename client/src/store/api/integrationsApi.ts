@@ -1,7 +1,6 @@
 import { createApi } from '@reduxjs/toolkit/query/react';
 import { baseQueryWithReauth } from './baseQuery';
 import { glApi } from './glApi';
-import { tenantsApi } from './tenantsApi';
 import { propertiesApi } from './propertiesApi';
 
 export const integrationsApi = createApi({
@@ -183,20 +182,6 @@ export const integrationsApi = createApi({
         body,
       }),
     }),
-    syncV6Customers: builder.mutation<any, { propertyId?: string } | void>({
-      query: (body) => ({
-        url: '/developer/v6erp/sync-customers',
-        method: 'POST',
-        body: body ?? {},
-      }),
-      invalidatesTags: ['Integrations', 'SyncLogs', 'EntityMap'],
-      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
-        try {
-          await queryFulfilled;
-          dispatch(tenantsApi.util.invalidateTags(['Tenants']));
-        } catch { /* ignore */ }
-      },
-    }),
 
     // ── BMS (Building Management System) ──
     getBmsSummary: builder.query<any, void>({
@@ -296,7 +281,6 @@ export const {
   useSyncV6CoaMutation,
   usePushReceiptsToV6ErpMutation,
   usePushCustomerToV6ErpMutation,
-  useSyncV6CustomersMutation,
   // BMS
   useGetBmsSummaryQuery,
   useGetBmsMetaQuery,
