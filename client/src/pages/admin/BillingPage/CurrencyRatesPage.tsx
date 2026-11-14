@@ -306,8 +306,8 @@ export default function CurrencyRatesPage() {
             </h1>
             <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
               {viewMode === 'history'
-                ? (isFetchingHistory && historyList.length === 0 ? <span className="pms-skeleton-line" style={{ display: 'inline-block', width: 96, height: 12, verticalAlign: 'middle' }} /> : `${historyList.length} total update records`)
-                : (isFetching && rates.length === 0 ? <span className="pms-skeleton-line" style={{ display: 'inline-block', width: 96, height: 12, verticalAlign: 'middle' }} /> : `${rates.length} total currencies`)}
+                ? (isFetchingHistory && historyList.length === 0 ? <span className="pms-skeleton-line" style={{ display: 'inline-block', width: 96, height: 12, verticalAlign: 'middle' }} /> : `${filteredHistory.length} total update records`)
+                : (isFetching && rates.length === 0 ? <span className="pms-skeleton-line" style={{ display: 'inline-block', width: 96, height: 12, verticalAlign: 'middle' }} /> : `${filteredRates.length} total currencies`)}
             </p>
           </div>
           {viewMode === 'list' ? (

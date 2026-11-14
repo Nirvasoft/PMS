@@ -150,7 +150,7 @@ export default function AnomalyDashboardPage() {
           </div>
           <div>
             <h1>Anomaly Dashboard</h1>
-            <p>{total} total anomalies · AI-powered anomaly detection across billing, occupancy, and payments</p>
+            <p>{typeFilter || statusFilter === 'false_positive' || searchQuery ? anomalies.length : total} total anomalies · AI-powered anomaly detection across billing, occupancy, and payments</p>
           </div>
         </div>
         <PermissionGuard permission="reports-anomalies.write">

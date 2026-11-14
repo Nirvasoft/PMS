@@ -260,7 +260,7 @@ export default function CronJobsPage() {
           <div>
             <h1>Background Cron Jobs</h1>
             <p>
-              {totalJobs} total job{totalJobs !== 1 ? 's' : ''} · Monitor, reschedule, pause/resume, and manually trigger system background tasks
+              {filteredJobs.length} total job{filteredJobs.length !== 1 ? 's' : ''} · Monitor, reschedule, pause/resume, and manually trigger system background tasks
             </p>
           </div>
         </div>

@@ -106,7 +106,7 @@ export default function ScheduleManagementPage() {
           <div className="page-icon-lg"><Calendar size={22} /></div>
           <div>
             <h1>Schedule Management</h1>
-            <p>{schedules.length} total schedules</p>
+            <p>{filtered.length} total schedules</p>
           </div>
         </div>
         <PermissionGuard permission="housekeeping-schedules.write">

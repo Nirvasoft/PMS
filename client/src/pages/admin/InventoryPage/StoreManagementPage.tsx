@@ -148,7 +148,7 @@ export default function StoreManagementPage() {
                 </span>
               )}
             </div>
-            <p>{stores.length} total stores across {Object.keys(grouped).length} propert{Object.keys(grouped).length !== 1 ? 'ies' : 'y'}</p>
+            <p>{filtered.length} total stores across {Object.keys(grouped).length} propert{Object.keys(grouped).length !== 1 ? 'ies' : 'y'}</p>
           </div>
         </div>
         <div className="header-actions">

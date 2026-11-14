@@ -89,7 +89,7 @@ export default function GatewayTransactionsPage() {
           </div>
           <div style={{ flex: 1 }}>
             <h1>Payment Gateway Transactions</h1>
-            <p>{meta?.total ?? filtered.length} total transactions</p>
+            <p>{search ? filtered.length : (meta?.total ?? filtered.length)} total transactions</p>
           </div>
         </div>
       </div>

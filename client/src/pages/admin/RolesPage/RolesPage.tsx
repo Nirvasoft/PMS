@@ -138,7 +138,7 @@ export default function RolesPage() {
             <div>
               <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Roles & Permissions</h1>
               <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
-                {isLoading ? <span className="pms-skeleton-line" style={{ display: 'inline-block', width: 96, height: 12, verticalAlign: 'middle' }} /> : `${roles.length} total roles`}
+                {isLoading ? <span className="pms-skeleton-line" style={{ display: 'inline-block', width: 96, height: 12, verticalAlign: 'middle' }} /> : `${filteredRoles.length} total roles`}
               </p>
             </div>
           </div>

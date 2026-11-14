@@ -68,7 +68,7 @@ export default function LeaseClausesPage() {
             <p>
               {isLoading
                 ? <span className="pms-skeleton-line" style={{ display: 'inline-block', width: 96, height: 12, verticalAlign: 'middle' }} />
-                : `${clauses.length} total clauses`}
+                : `${filtered.length} total clauses`}
             </p>
           </div>
         </div>

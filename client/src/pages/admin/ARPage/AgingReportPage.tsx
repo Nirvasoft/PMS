@@ -122,7 +122,7 @@ export default function AgingReportPage() {
           <div>
             <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>AR Aging Report</h1>
             <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
-              {`${rows.length} total tenants · ${displayCurrency}`}
+              {`${filtered.length} total tenants · ${displayCurrency}`}
             </p>
           </div>
         </div>

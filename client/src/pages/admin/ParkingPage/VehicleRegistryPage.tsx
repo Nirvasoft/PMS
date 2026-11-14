@@ -127,7 +127,7 @@ export default function VehicleRegistryPage() {
     return [...filtered].sort((a, b) => Number(b.isActive) - Number(a.isActive));
   }, [allVehicles, vehicleSearch]);
 
-  const activeCount = useMemo(() => allVehicles.filter(v => v.isActive).length, [allVehicles]);
+  const activeCount = useMemo(() => vehicles.filter(v => v.isActive).length, [vehicles]);
   const totalPages = Math.max(1, Math.ceil(vehicles.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const paginatedVehicles = useMemo(
@@ -151,7 +151,7 @@ export default function VehicleRegistryPage() {
             <h1>Vehicle Registry</h1>
             <p>
               {selectedTenantId
-                ? `${allVehicles.length} total vehicle${allVehicles.length !== 1 ? 's' : ''} (${activeCount} active)`
+                ? `${vehicles.length} total vehicle${vehicles.length !== 1 ? 's' : ''} (${activeCount} active)`
                 : 'Manage tenant vehicles, RFID tags, and registrations'}
             </p>
           </div>

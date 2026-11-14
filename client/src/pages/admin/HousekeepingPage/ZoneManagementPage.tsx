@@ -97,7 +97,7 @@ export default function ZoneManagementPage() {
           <div className="page-icon-lg"><Map size={22} /></div>
           <div>
             <h1>Zone Management</h1>
-            <p>{zones.length} total zones across {Object.keys(grouped).length} propert{Object.keys(grouped).length !== 1 ? 'ies' : 'y'}</p>
+            <p>{filtered.length} total zones across {Object.keys(grouped).length} propert{Object.keys(grouped).length !== 1 ? 'ies' : 'y'}</p>
           </div>
         </div>
         <PermissionGuard permission="housekeeping-zones.write">

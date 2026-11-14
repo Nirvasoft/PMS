@@ -152,7 +152,7 @@ export default function PositionsPage() {
             <div>
               <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Positions</h1>
               <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
-                {`${positions.length} total positions`}
+                {`${filteredPositions.length} total positions`}
               </p>
             </div>
           </div>

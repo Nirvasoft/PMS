@@ -511,7 +511,7 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
             </div>
             <div>
               <h1>Shop Directory</h1>
-              <p>{allShops.length} total shops</p>
+              <p>{shops.length} total shops</p>
             </div>
           </div>
           <PermissionGuard permission="mall-shops.write">

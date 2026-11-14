@@ -267,7 +267,7 @@ export default function MeterSetupPage() {
           <div style={{ flex: 1 }}>
             <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Meter Setup</h1>
             <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
-              {`${totalCount} total meters${selectedFloorLabel ? ` · ${selectedFloorLabel}` : ''}`}
+              {`${filteredMeters.length} total meters${selectedFloorLabel ? ` · ${selectedFloorLabel}` : ''}`}
             </p>
           </div>
           <PermissionGuard permission="meter.create">

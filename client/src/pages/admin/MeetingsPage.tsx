@@ -157,7 +157,7 @@ export default function MeetingsPage() {
           <div className="page-icon-lg"><Users size={22} /></div>
           <div>
             <h1>General Meetings</h1>
-            <p>{meetings.length} total meetings</p>
+            <p>{filteredMeetings.length} total meetings</p>
           </div>
         </div>
         <PermissionGuard permission="condo-meetings.write">

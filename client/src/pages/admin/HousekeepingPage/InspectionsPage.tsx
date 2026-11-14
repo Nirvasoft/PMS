@@ -131,7 +131,7 @@ export default function InspectionsPage() {
           <div className="page-icon-lg"><ClipboardCheck size={22} /></div>
           <div>
             <h1>Inspections</h1>
-            <p>{inspections.length} total inspections</p>
+            <p>{filtered.length} total inspections</p>
           </div>
         </div>
         <PermissionGuard permission="housekeeping-inspections.write">

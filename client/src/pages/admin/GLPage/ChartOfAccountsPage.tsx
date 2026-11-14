@@ -399,6 +399,13 @@ export default function ChartOfAccountsPage() {
   const filtered = hasFilters
     ? rootAccounts.filter(a => matchesGroupOrDescendants(a, accounts, filterType, search))
     : rootAccounts;
+  const filteredAccounts = hasFilters
+    ? accounts.filter(
+        a =>
+          (!filterType || resolveGroupForAccount(a.accountType, a.accountSubtype) === filterType) &&
+          matchesAccountSearch(a, search),
+      )
+    : accounts;
 
   const handleEdit = (a: GlAccount) => {
     const locked = Boolean(
@@ -429,7 +436,7 @@ export default function ChartOfAccountsPage() {
           </div>
           <div>
             <h1>Chart of Accounts</h1>
-            <p>{accounts.length} total accounts{isV6Active ? ' • Synced with V6 ERP' : ''}</p>
+            <p>{filteredAccounts.length} total accounts{isV6Active ? ' • Synced with V6 ERP' : ''}</p>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>

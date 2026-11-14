@@ -106,7 +106,7 @@ export default function BmsPage() {
           <div>
             <h1>Building Management System</h1>
             <p>
-              {stats.totalDevices} total device{stats.totalDevices !== 1 ? 's' : ''} across {propList.length} propert{propList.length !== 1 ? 'ies' : 'y'}
+              {filtered.length} total device{filtered.length !== 1 ? 's' : ''} across {propList.length} propert{propList.length !== 1 ? 'ies' : 'y'}
             </p>
           </div>
         </div>
