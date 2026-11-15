@@ -742,24 +742,43 @@ function EmergencyContactsSection({ tenantId }: { tenantId: string }) {
 // ── KYC Tab ───────────────────────────────────
 function KycTab({ tenantId }: { tenantId: string }) {
   const { data, isLoading } = useGetTenantKycQuery(tenantId);
-  const [review] = useReviewKycDocumentMutation();
-  const [reviewModal, setReviewModal] = useState<{ docId: string; name: string } | null>(null);
+  const { data: docsData } = useGetDocumentsQuery({ entityType: 'tenant', entityId: tenantId });
+  const [review, { isLoading: reviewing }] = useReviewKycDocumentMutation();
+  const [reviewModal, setReviewModal] = useState<KycDocumentItem | null>(null);
   const [submitModal, setSubmitModal] = useState<{ reqId: string; name: string } | null>(null);
-  const [decision, setDecision] = useState<'approved' | 'rejected'>('approved');
   const [rejReason, setRejReason] = useState('');
+  const [rejError, setRejError] = useState(false);
 
   const kyc = data?.data;
+  const tenantDocs: DocumentItem[] = docsData?.data || [];
 
-  const handleReview = async () => {
+  const handleReview = async (decision: 'approved' | 'rejected') => {
     if (!reviewModal) return;
+    if (decision === 'rejected' && !rejReason.trim()) {
+      setRejError(true);
+      return;
+    }
     try {
-      await review({ tenantId, kycDocId: reviewModal.docId, decision, rejectionReason: rejReason || undefined }).unwrap();
+      await review({
+        tenantId,
+        kycDocId: reviewModal.id,
+        decision,
+        rejectionReason: decision === 'rejected' ? rejReason.trim() : undefined,
+      }).unwrap();
       toast.success(`Document ${decision}`);
-      setReviewModal(null); setRejReason('');
-    } catch { toast.error('Failed'); }
+      setReviewModal(null);
+      setRejReason('');
+      setRejError(false);
+    } catch {
+      toast.error('Failed to review document');
+    }
   };
 
   if (isLoading) return <div className="tab-loading">Loading KYC…</div>;
+
+  const linkedReviewDoc = reviewModal?.documentId
+    ? tenantDocs.find((d) => d.id === reviewModal.documentId)
+    : undefined;
 
   return (
     <div className="kyc-tab">
@@ -802,7 +821,14 @@ function KycTab({ tenantId }: { tenantId: string }) {
             <div className="kyc-doc-actions">
               {doc.documentId && doc.status !== 'approved' && (
                 <PermissionGuard permission="tenants.kyc">
-                  <button className="btn-kyc-review" onClick={() => { setReviewModal({ docId: doc.id, name: doc.name }); setDecision('approved'); }}>
+                  <button
+                    className="btn-kyc-review"
+                    onClick={() => {
+                      setReviewModal(doc);
+                      setRejReason(doc.rejectionReason || '');
+                      setRejError(false);
+                    }}
+                  >
                     Review
                   </button>
                 </PermissionGuard>
@@ -820,23 +846,108 @@ function KycTab({ tenantId }: { tenantId: string }) {
       </div>
 
       {reviewModal && (
-        <div className="modal-overlay">
+        <div className="modal-overlay" onClick={() => { setReviewModal(null); setRejReason(''); setRejError(false); }}>
           <div className="modal-box" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header"><h3>Review Document</h3><button onClick={() => setReviewModal(null)}><X size={18} /></button></div>
-            <div className="modal-body">
-              <p style={{ fontWeight: 600 }}>{reviewModal.name}</p>
-              <div className="review-toggle">
-                <button className={decision === 'approved' ? 'active approve' : ''} onClick={() => setDecision('approved')}><CheckCircle size={14} /> Approve</button>
-                <button className={decision === 'rejected' ? 'active reject' : ''} onClick={() => setDecision('rejected')}><XCircle size={14} /> Reject</button>
+            <div className="modal-header">
+              <h3>Review KYC Document</h3>
+              <button onClick={() => { setReviewModal(null); setRejReason(''); setRejError(false); }}>
+                <X size={18} />
+              </button>
+            </div>
+            <div className="modal-body" style={{ gap: 14 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  padding: '12px 14px',
+                  borderRadius: 10,
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                  <FileText size={18} style={{ color: 'var(--accent, #10b981)', flexShrink: 0 }} />
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span>{reviewModal.name || reviewModal.docType.replace(/_/g, ' ')}</span>
+                      {reviewModal.isRequired && <span className="req-badge">Required</span>}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                      {linkedReviewDoc
+                        ? `${linkedReviewDoc.name} (${linkedReviewDoc.fileSizeFormatted})`
+                        : reviewModal.submittedAt
+                          ? `Submitted ${new Date(reviewModal.submittedAt).toLocaleDateString()}`
+                          : 'Submitted for verification'}
+                    </div>
+                  </div>
+                </div>
+                {reviewModal.documentId && (
+                  <a
+                    href={`/api/v1/documents/${reviewModal.documentId}/download`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn-ghost"
+                    style={{ padding: '6px 10px', fontSize: '0.75rem', textDecoration: 'none', flexShrink: 0 }}
+                    title="Download / View Document"
+                  >
+                    <Download size={13} /> View File
+                  </a>
+                )}
               </div>
-              {decision === 'rejected' && (
-                <textarea rows={3} placeholder="Rejection reason…" value={rejReason} onChange={(e) => setRejReason(e.target.value)} />
-              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label>
+                  Rejection Reason{' '}
+                  <span style={{ fontWeight: 400, textTransform: 'none', opacity: 0.7 }}>
+                    (required if rejecting)
+                  </span>
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="Enter reason if rejecting this document…"
+                  value={rejReason}
+                  style={rejError ? { borderColor: '#ef4444' } : undefined}
+                  onChange={(e) => {
+                    setRejReason(e.target.value);
+                    if (rejError) setRejError(false);
+                  }}
+                />
+                {rejError && (
+                  <span style={{ color: '#ef4444', fontSize: '0.75rem' }}>
+                    Please enter a rejection reason before rejecting.
+                  </span>
+                )}
+              </div>
             </div>
             <div className="modal-footer">
-              <button className="btn-ghost" onClick={() => setReviewModal(null)}>Cancel</button>
-              <button className={decision === 'approved' ? 'btn-primary' : 'btn-danger'} onClick={handleReview}>
-                {decision === 'approved' ? 'Approve' : 'Reject'}
+              <button
+                className="btn-ghost"
+                onClick={() => {
+                  setReviewModal(null);
+                  setRejReason('');
+                  setRejError(false);
+                }}
+                disabled={reviewing}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn-danger"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                onClick={() => handleReview('rejected')}
+                disabled={reviewing}
+              >
+                <XCircle size={14} /> Reject
+              </button>
+              <button
+                className="btn-primary"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                onClick={() => handleReview('approved')}
+                disabled={reviewing}
+              >
+                <CheckCircle size={14} /> Approve
               </button>
             </div>
           </div>
