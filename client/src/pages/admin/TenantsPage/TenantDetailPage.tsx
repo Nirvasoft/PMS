@@ -1058,7 +1058,7 @@ function DocumentsTab({ tenantId }: { tenantId: string }) {
         <h4>Tenant Documents</h4>
         <div>
           <input ref={fileRef} type="file" style={{ display: 'none' }} onChange={handleUpload} />
-          <PermissionGuard permission="documents.write">
+          <PermissionGuard permission={['tenants.update', 'tenants.kyc', 'documents.write']}>
             <button className="btn-primary-sm" onClick={() => fileRef.current?.click()} disabled={uploading}>
               <Upload size={13} /> {uploading ? 'Uploading…' : 'Upload Document'}
             </button>
@@ -1083,7 +1083,7 @@ function DocumentsTab({ tenantId }: { tenantId: string }) {
                 <a href={`/api/v1/documents/${doc.id}/download`} target="_blank" rel="noreferrer" title="Download">
                   <Download size={14} />
                 </a>
-                <PermissionGuard permission="documents.write">
+                <PermissionGuard permission={['tenants.update', 'tenants.kyc', 'documents.write']}>
                   <button
                     className="btn-icon"
                     title="Delete"
