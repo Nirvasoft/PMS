@@ -16,16 +16,25 @@ import DashboardLayout, { DashboardHome } from './pages/DashboardPage/DashboardP
 
 const CHUNK_RELOAD_TS_KEY = 'pms-chunk-reload-ts';
 const CHUNK_RELOAD_COOLDOWN_MS = 15_000;
-const CHUNK_LOAD_ERROR = /fetch dynamically imported module|error loading dynamically imported module|importing a module script failed|failed to load module script|unable to preload css/i;
+const CHUNK_LOAD_ERROR = /fetch dynamically imported module|error loading dynamically imported module|importing a module script failed|failed to load module script|unable to preload css|unexpected token '<'|disallowed mime type|mime type of "text\/html"|chunkloaderror|loading chunk [\w-]+ failed|loading css chunk [\w-]+ failed|failed to fetch|networkerror when attempting to fetch resource|load failed/i;
+
+function isChunkLoadError(error: unknown): boolean {
+  const msg = error instanceof Error ? `${error.name}: ${error.message}` : String(error ?? '');
+  return CHUNK_LOAD_ERROR.test(msg);
+}
 
 function reloadOnceOnStaleChunk(error: unknown): boolean {
-  const msg = error instanceof Error ? error.message : String(error ?? '');
-  if (!CHUNK_LOAD_ERROR.test(msg)) return false;
+  if (!isChunkLoadError(error)) return false;
   try {
     const last = Number(sessionStorage.getItem(CHUNK_RELOAD_TS_KEY) || '0');
     if (Date.now() - last > CHUNK_RELOAD_COOLDOWN_MS) {
       sessionStorage.setItem(CHUNK_RELOAD_TS_KEY, String(Date.now()));
-      window.location.reload();
+      // Force browser HTTP cache to fetch fresh index.html before reloading
+      fetch(window.location.href, { cache: 'reload', credentials: 'same-origin' })
+        .catch(() => {})
+        .finally(() => {
+          window.location.reload();
+        });
       return true;
     }
   } catch {
@@ -42,17 +51,24 @@ if (typeof window !== 'undefined') {
   });
 }
 
-// Wrap React.lazy so a stale chunk 404 after a new deploy triggers a silent reload
-// while keeping <Suspense> in its loading state instead of flashing GlobalErrorBoundary.
+// Wrap React.lazy with automatic retry on transient network blips and a silent
+// cache-busting reload when a chunk 404s / returns index.html after a new deploy.
 function lazy<T extends ComponentType<any>>(factory: () => Promise<{ default: T }>) {
-  return reactLazy(() =>
-    factory().catch((err) => {
-      if (reloadOnceOnStaleChunk(err)) {
-        return new Promise<{ default: T }>(() => {});
-      }
-      throw err;
-    }),
-  );
+  return reactLazy(() => {
+    const attempt = (retriesLeft: number): Promise<{ default: T }> =>
+      factory().catch((err) => {
+        if (retriesLeft > 0) {
+          return new Promise<{ default: T }>((resolve) => {
+            setTimeout(() => resolve(attempt(retriesLeft - 1)), (3 - retriesLeft) * 400);
+          });
+        }
+        if (reloadOnceOnStaleChunk(err)) {
+          return new Promise<{ default: T }>(() => {});
+        }
+        throw err;
+      });
+    return attempt(2);
+  });
 }
 
 // Lazy-loaded route pages (split into on-demand chunks)
@@ -534,25 +550,45 @@ function AppRoutes() {
 
 // ── Global Error Boundary (catches ALL React errors) ──
 import { Component, type ReactNode as RN2 } from 'react';
-class GlobalErrorBoundary extends Component<{ children: RN2 }, { hasError: boolean; error?: Error; info?: string }> {
-  state = { hasError: false, error: undefined as Error | undefined, info: '' };
-  static getDerivedStateFromError(error: Error) { return { hasError: true, error }; }
+class GlobalErrorBoundary extends Component<
+  { children: RN2 },
+  { hasError: boolean; isReloadingChunk: boolean; error?: Error; info?: string }
+> {
+  state = { hasError: false, isReloadingChunk: false, error: undefined as Error | undefined, info: '' };
+  private handlePopState = () => {
+    if (this.state.hasError) {
+      this.setState({ hasError: false, isReloadingChunk: false, error: undefined, info: '' });
+    }
+  };
+  static getDerivedStateFromError(error: Error) {
+    if (isChunkLoadError(error)) {
+      return { hasError: true, isReloadingChunk: true, error };
+    }
+    return { hasError: true, isReloadingChunk: false, error };
+  }
   componentDidMount() {
+    window.addEventListener('popstate', this.handlePopState);
     if (import.meta.hot) {
       import.meta.hot.on('vite:afterUpdate', () => {
         if (this.state.hasError) {
-          this.setState({ hasError: false, error: undefined, info: '' });
+          this.setState({ hasError: false, isReloadingChunk: false, error: undefined, info: '' });
         }
       });
     }
   }
+  componentWillUnmount() {
+    window.removeEventListener('popstate', this.handlePopState);
+  }
   componentDidCatch(error: Error, info: any) {
     if (reloadOnceOnStaleChunk(error)) return;
-    this.setState({ info: info?.componentStack || '' });
+    this.setState({ isReloadingChunk: false, info: info?.componentStack || '' });
     console.error('Global Error Boundary caught:', error, info);
   }
   render() {
     if (this.state.hasError) {
+      if (this.state.isReloadingChunk) {
+        return null;
+      }
       return (
         <div style={{ padding: 40, maxWidth: 600, margin: '80px auto', fontFamily: 'system-ui' }}>
           <h2 style={{ color: '#ef4444' }}>⚠️ Application Error</h2>

@@ -12,6 +12,19 @@
     <script>
       // Catch fatal JS errors that happen before React mounts
       window.onerror = function(msg, src, line, col, err) {
+        var text = String(msg || '') + ' ' + String((err && err.message) || '');
+        if (/fetch dynamically imported module|error loading dynamically imported module|importing a module script failed|failed to load module script|unable to preload css|unexpected token '<'|disallowed mime type|chunkloaderror/i.test(text)) {
+          try {
+            var last = Number(sessionStorage.getItem('pms-chunk-reload-ts') || '0');
+            if (Date.now() - last > 15000) {
+              sessionStorage.setItem('pms-chunk-reload-ts', String(Date.now()));
+              fetch(window.location.href, { cache: 'reload', credentials: 'same-origin' })
+                .catch(function() {})
+                .finally(function() { window.location.reload(); });
+              return;
+            }
+          } catch (e) {}
+        }
         var root = document.getElementById('root');
         if (root && !root.hasChildNodes()) {
           root.innerHTML = '<div style="padding:40px;max-width:600px;margin:80px auto;font-family:system-ui">'
