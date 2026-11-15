@@ -14,6 +14,9 @@ export class PaymentVouchersService {
         `ALTER TABLE payment_vouchers ADD COLUMN IF NOT EXISTS property_id UUID REFERENCES properties(id) ON DELETE SET NULL;`,
       );
       await prisma.$executeRawUnsafe(
+        `ALTER TABLE payment_vouchers ADD COLUMN IF NOT EXISTS lines_json JSONB;`,
+      );
+      await prisma.$executeRawUnsafe(
         `CREATE INDEX IF NOT EXISTS payment_vouchers_property_id_idx ON payment_vouchers(property_id);`,
       );
       // Backfill legacy payment vouchers from their allocated AP invoice property_id
@@ -199,6 +202,14 @@ export class PaymentVouchersService {
       },
     });
 
+    if (isCash && computedCashLines.length > 0) {
+      await prisma.$executeRawUnsafe(
+        `UPDATE payment_vouchers SET lines_json = $1::jsonb WHERE id = $2::uuid`,
+        JSON.stringify(computedCashLines),
+        voucher.id,
+      );
+    }
+
     // ── Cash Voucher GL Auto-Post: Dr Charges' GL Accounts (or 5000) / Cr Payment Method GL Account ──
     const accountingActive = await isAccountingIntegrationActive(companyId, resolvedPropertyId);
     if (accountingActive && isCash && computedCashLines.length > 0 && totalAmount > 0) {
@@ -292,7 +303,166 @@ export class PaymentVouchersService {
     }
 
     logger.info(`Created payment voucher ${voucherNumber} for ${totalAmount} ${dto.currency}`);
-    return voucher;
+    return {
+      ...voucher,
+      isCash,
+      lines: isCash ? computedCashLines : [],
+    };
+  }
+
+  // ── Update ───────────────────────────────────
+  async update(id: string, companyId: string, dto: Record<string, unknown>, _userId: string) {
+    await this.ensurePaymentVouchersPropertyColumn();
+
+    const existing = await prisma.paymentVoucher.findFirst({
+      where: { id, companyId },
+      include: { allocations: true },
+    });
+    if (!existing) throw AppError.notFound('Payment Voucher');
+    if (existing.status !== 'pending') {
+      throw AppError.validation('Only pending vouchers can be edited');
+    }
+
+    const allocations = ((dto.allocations as Array<{ apInvoiceId: string; amount: number }>) || []);
+    const cashLines = ((dto.lines as Array<{
+      chargeTypeId?: string;
+      description: string;
+      quantity: number;
+      unitPrice: number;
+      taxRate?: number;
+      glAccountCode?: string;
+    }>) || []);
+    const isCash = Boolean(dto.isCash);
+    const vendorName = isCash ? '' : ((dto.vendorName as string) || '').trim();
+    let resolvedPropertyId = (dto.propertyId as string) || existing.propertyId || undefined;
+
+    for (const alloc of allocations) {
+      const apInvoice = await prisma.apInvoice.findFirst({
+        where: { id: alloc.apInvoiceId, companyId },
+      });
+      if (!apInvoice) throw AppError.notFound(`AP Invoice ${alloc.apInvoiceId}`);
+      if (!['approved', 'scheduled'].includes(apInvoice.status)) {
+        throw AppError.validation(`AP Invoice ${apInvoice.apInvoiceNumber} is not approved`);
+      }
+      if (!resolvedPropertyId && apInvoice.propertyId) {
+        resolvedPropertyId = apInvoice.propertyId;
+      }
+      const outstanding = Number(apInvoice.totalAmount) - Number(apInvoice.paidAmount);
+      if (alloc.amount > outstanding + 0.01) {
+        throw AppError.validation(
+          `Allocation ${alloc.amount} exceeds outstanding ${outstanding} for ${apInvoice.apInvoiceNumber}`,
+        );
+      }
+    }
+
+    if (!resolvedPropertyId) {
+      resolvedPropertyId = await this.resolveEffectivePropertyId(companyId);
+    }
+
+    const accountingActivePrecheck = await isAccountingIntegrationActive(companyId, resolvedPropertyId);
+    if (accountingActivePrecheck) {
+      const pmCheck = await glService.resolvePaymentMethodConfig(
+        companyId,
+        dto.paymentMethod as string,
+        resolvedPropertyId,
+      );
+      if (
+        !pmCheck?.glAccountCode?.trim() ||
+        !pmCheck?.departmentCenterId ||
+        !pmCheck?.costCenterId
+      ) {
+        throw AppError.validation(
+          'Selected payment method must have GL Account, Department, and Cost Center configured',
+        );
+      }
+      if (isCash) {
+        if (cashLines.some((l) => !l.chargeTypeId)) {
+          throw AppError.validation('Each line item requires a Charge Type');
+        }
+        const ctIds = Array.from(
+          new Set(cashLines.map((l) => l.chargeTypeId).filter((id): id is string => Boolean(id))),
+        );
+        const cts = await prisma.chargeType.findMany({
+          where: { id: { in: ctIds }, companyId },
+          select: { id: true, name: true, glAccountCode: true, departmentCenterId: true, costCenterId: true },
+        });
+        const ctMap = new Map(cts.map((ct) => [ct.id, ct]));
+        for (const l of cashLines) {
+          const ct = l.chargeTypeId ? ctMap.get(l.chargeTypeId) : undefined;
+          if (!ct?.glAccountCode?.trim() || !ct?.departmentCenterId || !ct?.costCenterId) {
+            throw AppError.validation(
+              `Charge "${ct?.name || 'selected'}" must have GL Account, Department, and Cost Center configured`,
+            );
+          }
+        }
+      }
+    }
+
+    let cashSubtotal = 0;
+    let cashTotalTax = 0;
+    const computedCashLines = cashLines.map((line) => {
+      const amount = Math.round(line.quantity * line.unitPrice * 100) / 100;
+      const lineTax = Math.round(amount * (line.taxRate || 0) * 100) / 100;
+      const lineTotal = Math.round((amount + lineTax) * 100) / 100;
+      cashSubtotal += amount;
+      cashTotalTax += lineTax;
+      return { ...line, amount, lineTax, lineTotal };
+    });
+    const cashGrandTotal = Math.round((cashSubtotal + cashTotalTax) * 100) / 100;
+
+    const allocatedTotal = Math.round(allocations.reduce((s, a) => s + a.amount, 0) * 100) / 100;
+    const explicitAmount = typeof dto.amount === 'number' && !isNaN(dto.amount) ? Math.round(dto.amount * 100) / 100 : 0;
+    const totalAmount = isCash && computedCashLines.length > 0
+      ? cashGrandTotal
+      : (allocations.length > 0 ? (explicitAmount > 0 ? explicitAmount : allocatedTotal) : explicitAmount);
+
+    const updated = await prisma.paymentVoucher.update({
+      where: { id },
+      data: {
+        propertyId: resolvedPropertyId || null,
+        voucherDate: new Date(dto.voucherDate as string),
+        paymentMethod: dto.paymentMethod as string,
+        bankAccountId: (dto.bankAccountId as string) || null,
+        vendorName,
+        vendorBankName: (dto.vendorBankName as string) || null,
+        vendorBankAcc: (dto.vendorBankAcc as string) || null,
+        totalAmount,
+        currency: dto.currency as string,
+        notes: (dto.notes as string) || null,
+        allocations: {
+          deleteMany: {},
+          ...(allocations.length > 0 && {
+            create: allocations.map((a) => ({
+              apInvoiceId: a.apInvoiceId,
+              amount: a.amount,
+            })),
+          }),
+        },
+      },
+      include: {
+        property: { select: { id: true, name: true } },
+        allocations: {
+          include: {
+            apInvoice: { select: { id: true, apInvoiceNumber: true, vendorName: true, totalAmount: true } },
+          },
+        },
+        bankAccount: { select: { id: true, bankName: true, accountNumber: true } },
+        creator: { select: { id: true, email: true, profile: { select: { firstName: true, lastName: true } } } },
+      },
+    });
+
+    await prisma.$executeRawUnsafe(
+      `UPDATE payment_vouchers SET lines_json = $1::jsonb WHERE id = $2::uuid`,
+      isCash && computedCashLines.length > 0 ? JSON.stringify(computedCashLines) : null,
+      id,
+    );
+
+    logger.info(`Updated payment voucher ${updated.voucherNumber} for ${totalAmount} ${dto.currency}`);
+    return {
+      ...updated,
+      isCash,
+      lines: isCash ? computedCashLines : [],
+    };
   }
 
   // ── Find All ─────────────────────────────────
@@ -309,7 +479,7 @@ export class PaymentVouchersService {
     if (status) where.status = status;
     if (vendorName) where.vendorName = { contains: vendorName, mode: 'insensitive' };
 
-    const [data, total] = await Promise.all([
+    const [rawList, total] = await Promise.all([
       prisma.paymentVoucher.findMany({
         where,
         include: {
@@ -328,6 +498,34 @@ export class PaymentVouchersService {
       }),
       prisma.paymentVoucher.count({ where }),
     ]);
+
+    const linesMap = new Map<string, any[]>();
+    if (rawList.length > 0) {
+      try {
+        const ids = rawList.map((v) => v.id);
+        const rows = await prisma.$queryRawUnsafe<Array<{ id: string; lines_json: any }>>(
+          `SELECT id::text as id, lines_json FROM payment_vouchers WHERE id = ANY($1::uuid[])`,
+          ids,
+        );
+        for (const r of rows) {
+          if (Array.isArray(r.lines_json)) {
+            linesMap.set(r.id, r.lines_json);
+          }
+        }
+      } catch {
+        // Fallback if lines_json query fails
+      }
+    }
+
+    const data = rawList.map((v) => {
+      const savedLines = linesMap.get(v.id) || [];
+      const isCash = savedLines.length > 0 || (v.allocations.length === 0 && !v.vendorName);
+      return {
+        ...v,
+        isCash,
+        lines: savedLines,
+      };
+    });
 
     return { data, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
   }

@@ -63,6 +63,9 @@ export class PermissionResolver {
       for (const rp of ur.role.rolePermissions) {
         if (rp.permission.isActive) {
           permSet.add(rp.permission.code);
+        } else if (rp.permission.code === 'ap-vouchers.write') {
+          permSet.add('ap-vouchers.create');
+          permSet.add('ap-vouchers.update');
         }
       }
     }
@@ -84,6 +87,11 @@ export class PermissionResolver {
       }
     }
 
+    if (permSet.has('ap-vouchers.write')) {
+      permSet.add('ap-vouchers.create');
+      permSet.add('ap-vouchers.update');
+    }
+
     const result = Array.from(permSet);
     await redis.set(cacheKey, JSON.stringify(result), 'EX', 300);
     return result;
@@ -91,6 +99,12 @@ export class PermissionResolver {
 
   async invalidateCache(userId: string): Promise<void> {
     const rawKeys = await redis.keys(`${KEY_PREFIX}perms:${userId}:*`);
+    const keys = rawKeys.map((k) => (k.startsWith(KEY_PREFIX) ? k.slice(KEY_PREFIX.length) : k));
+    if (keys.length) await redis.del(...keys);
+  }
+
+  async invalidateAllCaches(): Promise<void> {
+    const rawKeys = await redis.keys(`${KEY_PREFIX}perms:*`);
     const keys = rawKeys.map((k) => (k.startsWith(KEY_PREFIX) ? k.slice(KEY_PREFIX.length) : k));
     if (keys.length) await redis.del(...keys);
   }

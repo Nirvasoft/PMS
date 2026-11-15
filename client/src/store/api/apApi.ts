@@ -61,6 +61,18 @@ export interface PaymentVoucherListItem {
   voucherDate: string;
   paymentMethod: string;
   vendorName: string;
+  vendorBankName?: string | null;
+  vendorBankAcc?: string | null;
+  notes?: string | null;
+  isCash?: boolean;
+  lines?: Array<{
+    chargeTypeId?: string;
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    taxRate?: number;
+    glAccountCode?: string;
+  }>;
   totalAmount: string;
   currency: string;
   paymentReference: string | null;
@@ -163,6 +175,10 @@ export const apApi = createApi({
       query: (body) => ({ url: '/ap/payment-vouchers', method: 'POST', body }),
       invalidatesTags: ['PaymentVouchers', 'ApInvoices'],
     }),
+    updatePaymentVoucher: builder.mutation<{ data: PaymentVoucherListItem }, { id: string; body: Record<string, unknown> }>({
+      query: ({ id, body }) => ({ url: `/ap/payment-vouchers/${id}`, method: 'PUT', body }),
+      invalidatesTags: ['PaymentVouchers', 'ApInvoices'],
+    }),
     markVoucherPaid: builder.mutation<void, { id: string; paymentReference: string; paidAt?: string }>({
       query: ({ id, ...body }) => ({ url: `/ap/payment-vouchers/${id}/mark-paid`, method: 'POST', body }),
       invalidatesTags: ['PaymentVouchers', 'ApInvoices'],
@@ -200,6 +216,7 @@ export const {
   useRejectApInvoiceMutation,
   useGetPaymentVouchersQuery,
   useCreatePaymentVoucherMutation,
+  useUpdatePaymentVoucherMutation,
   useMarkVoucherPaidMutation,
   useGetExpensesQuery,
   useCreateExpenseMutation,

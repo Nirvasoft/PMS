@@ -75,6 +75,8 @@ export const createPaymentVoucherSchema = z.object({
   }),
 });
 
+export const updatePaymentVoucherSchema = createPaymentVoucherSchema;
+
 export const markVoucherPaidSchema = z.object({
   body: z.object({
     paymentReference: z.string().min(1, 'Payment reference is required'),

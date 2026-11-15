@@ -6,7 +6,7 @@ import { paymentVouchersService } from './paymentVouchers.service';
 import { expensesService } from './expenses.service';
 import {
   createApInvoiceSchema, rejectApInvoiceSchema,
-  createPaymentVoucherSchema, markVoucherPaidSchema,
+  createPaymentVoucherSchema, updatePaymentVoucherSchema, markVoucherPaidSchema,
   createExpenseSchema,
 } from './ap.schema';
 
@@ -69,6 +69,11 @@ paymentVouchersRouter.get('/', asyncHandler(async (req, res) => {
 paymentVouchersRouter.post('/', validateRequest(createPaymentVoucherSchema), asyncHandler(async (req, res) => {
   const data = await paymentVouchersService.create(req.user!.companyId, req.body, req.user!.sub);
   res.status(201).json({ success: true, data });
+}));
+
+paymentVouchersRouter.put('/:id', validateRequest(updatePaymentVoucherSchema), asyncHandler(async (req, res) => {
+  const data = await paymentVouchersService.update(p(req, 'id'), req.user!.companyId, req.body, req.user!.sub);
+  res.json({ success: true, data });
 }));
 
 paymentVouchersRouter.post('/:id/mark-paid', validateRequest(markVoucherPaidSchema), asyncHandler(async (req, res) => {

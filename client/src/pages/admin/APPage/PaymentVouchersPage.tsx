@@ -2,7 +2,7 @@ import { TableSkeletonRows } from '../../../components/common/SkeletonLoaders';
 import { useState, useEffect, useMemo } from 'react';
 import { skipToken } from '@reduxjs/toolkit/query/react';
 import {
-  useGetPaymentVouchersQuery, useCreatePaymentVoucherMutation, useMarkVoucherPaidMutation,
+  useGetPaymentVouchersQuery, useCreatePaymentVoucherMutation, useUpdatePaymentVoucherMutation, useMarkVoucherPaidMutation,
   useGetApInvoicesQuery,
 } from '../../../store/api/apApi';
 import { useGetChargeTypesQuery } from '../../../store/api/billingApi';
@@ -12,7 +12,7 @@ import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId'
 import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import {
   CreditCard, Plus, X, DollarSign, FileText, Trash2,
-  ChevronLeft, ChevronRight, Banknote,
+  ChevronLeft, ChevronRight, Banknote, Pencil,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -37,6 +37,8 @@ export default function PaymentVouchersPage() {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
   const [showCreate, setShowCreate] = useState(false);
+  const [editingVoucher, setEditingVoucher] = useState<any | null>(null);
+  const [viewingVoucher, setViewingVoucher] = useState<any | null>(null);
   const [hasAttemptedCreate, setHasAttemptedCreate] = useState(false);
   const [isCash, setIsCash] = useState(false);
   const [payId, setPayId] = useState<string | null>(null);
@@ -56,6 +58,8 @@ export default function PaymentVouchersPage() {
   useEffect(() => {
     setPage(1);
     setShowCreate(false);
+    setEditingVoucher(null);
+    setViewingVoucher(null);
     setHasAttemptedCreate(false);
     setIsCash(!isV6Active);
     setAllocations([]);
@@ -113,7 +117,9 @@ export default function PaymentVouchersPage() {
   );
 
   const [createPaymentVoucher, { isLoading: creating }] = useCreatePaymentVoucherMutation();
+  const [updatePaymentVoucher, { isLoading: updating }] = useUpdatePaymentVoucherMutation();
   const [markVoucherPaid, { isLoading: marking }] = useMarkVoucherPaidMutation();
+  const savingVoucher = creating || updating;
 
   const vouchers = vouchersData?.data || [];
   const meta = vouchersData?.meta;
@@ -122,7 +128,7 @@ export default function PaymentVouchersPage() {
     outstanding: Number(inv.totalAmount) - Number(inv.paidAmount),
   })).filter((inv: any) => inv.outstanding > 0);
 
-  // Create form
+  // Create/Edit form
   const [form, setForm] = useState({
     voucherDate: format(new Date(), 'yyyy-MM-dd'),
     paymentMethod: '' as string,
@@ -198,6 +204,58 @@ export default function PaymentVouchersPage() {
     setForm(f => ({ ...f, amount: nextSum > 0 ? String(nextSum) : '' }));
   };
 
+  const handleOpenEdit = (pv: any) => {
+    const pvIsCash = !isV6Active ? true : Boolean(pv.isCash ?? (pv.allocations?.length === 0 && !pv.vendorName));
+    setEditingVoucher(pv);
+    setHasAttemptedCreate(false);
+    setIsCash(pvIsCash);
+    setForm({
+      voucherDate: pv.voucherDate ? format(new Date(pv.voucherDate), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
+      paymentMethod: pv.paymentMethod || defaultPaymentMethodCode,
+      vendorName: pv.vendorName || '',
+      vendorBankName: pv.vendorBankName || '',
+      vendorBankAcc: pv.vendorBankAcc || '',
+      amount: pv.totalAmount ? String(Number(pv.totalAmount)) : '',
+      currency: pv.currency || 'USD',
+      notes: pv.notes || '',
+    });
+    if (pvIsCash) {
+      if (Array.isArray(pv.lines) && pv.lines.length > 0) {
+        setLines(
+          pv.lines.map((l: any) => ({
+            chargeTypeId: l.chargeTypeId || '',
+            description: l.description || '',
+            quantity: Number(l.quantity) || 1,
+            unitPrice: Number(l.unitPrice) || 0,
+            taxRate: Number(l.taxRate) || 0,
+            glAccountCode: l.glAccountCode || '',
+          })),
+        );
+      } else {
+        setLines([
+          {
+            chargeTypeId: '',
+            description: pv.notes || pv.voucherNumber || 'Cash payment',
+            quantity: 1,
+            unitPrice: Number(pv.totalAmount) || 0,
+            taxRate: 0,
+            glAccountCode: '',
+          },
+        ]);
+      }
+      setAllocations([]);
+    } else {
+      setAllocations(
+        (pv.allocations || []).map((a: any) => ({
+          apInvoiceId: a.apInvoice?.id || a.apInvoiceId,
+          amount: Number(a.amount) || 0,
+        })),
+      );
+      setLines([{ chargeTypeId: '', description: '', quantity: 1, unitPrice: 0, taxRate: 0, glAccountCode: '' }]);
+    }
+    setShowCreate(true);
+  };
+
   const handleCreate = async () => {
     setHasAttemptedCreate(true);
     if (!selectedProperty) return toast.error('Please select a property from the sidebar first');
@@ -237,7 +295,7 @@ export default function PaymentVouchersPage() {
         ...(l.chargeTypeId ? { chargeTypeId: l.chargeTypeId } : {}),
         ...(l.glAccountCode ? { glAccountCode: l.glAccountCode } : {}),
       }));
-      await createPaymentVoucher({
+      const payload = {
         ...form,
         propertyId: selectedProperty,
         isCash: effectiveIsCash,
@@ -245,16 +303,23 @@ export default function PaymentVouchersPage() {
         vendorName: effectiveIsCash ? '' : form.vendorName.trim(),
         allocations: effectiveIsCash ? [] : allocations,
         lines: effectiveIsCash ? cleanedLines : [],
-      }).unwrap();
-      toast.success('Payment Voucher created');
+      };
+      if (editingVoucher) {
+        await updatePaymentVoucher({ id: editingVoucher.id, body: payload }).unwrap();
+        toast.success('Payment Voucher updated');
+      } else {
+        await createPaymentVoucher(payload).unwrap();
+        toast.success('Payment Voucher created');
+      }
       setShowCreate(false);
+      setEditingVoucher(null);
       setHasAttemptedCreate(false);
       setIsCash(!isV6Active);
       setForm({ voucherDate: format(new Date(), 'yyyy-MM-dd'), paymentMethod: defaultPaymentMethodCode, vendorName: '', vendorBankName: '', vendorBankAcc: '', amount: '', currency: 'USD', notes: '' });
       setAllocations([]);
       setLines([{ chargeTypeId: '', description: '', quantity: 1, unitPrice: 0, taxRate: 0, glAccountCode: '' }]);
     } catch (err: any) {
-      toast.error(err?.data?.error?.message || err?.data?.message || 'Failed to create payment voucher');
+      toast.error(err?.data?.error?.message || err?.data?.message || (editingVoucher ? 'Failed to update payment voucher' : 'Failed to create payment voucher'));
     }
   };
 
@@ -285,13 +350,25 @@ export default function PaymentVouchersPage() {
             <p>{meta?.total ?? vouchers.length} total vouchers</p>
           </div>
         </div>
-        <PermissionGuard permission="ap-vouchers.write">
+        <PermissionGuard permission={['ap-vouchers.create', 'ap-vouchers.write']}>
           <button
             className="ap-btn primary"
             onClick={() => {
               const propertyCurrency = properties.find((p) => p.id === selectedProperty)?.currency;
-              setForm((f) => ({ ...f, currency: propertyCurrency || 'USD', paymentMethod: f.paymentMethod || defaultPaymentMethodCode }));
+              setEditingVoucher(null);
+              setForm({
+                voucherDate: format(new Date(), 'yyyy-MM-dd'),
+                paymentMethod: defaultPaymentMethodCode,
+                vendorName: '',
+                vendorBankName: '',
+                vendorBankAcc: '',
+                amount: '',
+                currency: propertyCurrency || 'USD',
+                notes: '',
+              });
               setIsCash(!isV6Active);
+              setAllocations([]);
+              setLines([{ chargeTypeId: '', description: '', quantity: 1, unitPrice: 0, taxRate: 0, glAccountCode: '' }]);
               setHasAttemptedCreate(false);
               setShowCreate(true);
             }}
@@ -343,7 +420,22 @@ export default function PaymentVouchersPage() {
                 <tr><td colSpan={tableColCount}><div className="ap-empty"><CreditCard size={40} /><p>No payment vouchers found</p></div></td></tr>
               ) : vouchers.map((pv: any) => (
                 <tr key={pv.id}>
-                  <td><strong>{pv.voucherNumber}</strong></td>
+                  <td>
+                    <span
+                      className="user-name-link"
+                      onClick={() => setViewingVoucher(pv)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setViewingVoucher(pv);
+                        }
+                      }}
+                    >
+                      {pv.voucherNumber}
+                    </span>
+                  </td>
                   <td>{format(new Date(pv.voucherDate), 'dd MMM yyyy')}</td>
                   {isV6Active && <td>{pv.vendorName || '—'}</td>}
                   <td style={{ textTransform: 'capitalize' }}>{formatPaymentMethod(pv.paymentMethod)}</td>
@@ -355,11 +447,22 @@ export default function PaymentVouchersPage() {
                   <td>{pv.paidAt ? format(new Date(pv.paidAt), 'dd MMM yyyy') : '—'}</td>
                   <td>
                     {pv.status === 'pending' && (
-                      <PermissionGuard permission="ap-vouchers.write">
-                        <button className="ap-btn sm success" onClick={() => { setHasAttemptedPay(false); setPayRef(''); setPayId(pv.id); }}>
-                          <Banknote size={14} /> Pay
-                        </button>
-                      </PermissionGuard>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+                        <PermissionGuard permission={['ap-vouchers.update', 'ap-vouchers.write']}>
+                          <button
+                            className="btn-icon"
+                            onClick={() => handleOpenEdit(pv)}
+                            title="Edit"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                        </PermissionGuard>
+                        <PermissionGuard permission={['ap-vouchers.update', 'ap-vouchers.write']}>
+                          <button className="ap-btn sm success" onClick={() => { setHasAttemptedPay(false); setPayRef(''); setPayId(pv.id); }}>
+                            <Banknote size={14} /> Pay
+                          </button>
+                        </PermissionGuard>
+                      </div>
                     )}
                   </td>
                 </tr>
@@ -393,6 +496,282 @@ export default function PaymentVouchersPage() {
         )}
       </div>
 
+      {/* Payment Voucher Detail View Modal */}
+      {viewingVoucher && (() => {
+        const pv = vouchers.find((v: any) => v.id === viewingVoucher.id) || viewingVoucher;
+        const pvLines: any[] = Array.isArray(pv.lines) ? pv.lines : [];
+        const pvAllocations: any[] = Array.isArray(pv.allocations) ? pv.allocations : [];
+        const creatorName = pv.creator?.profile
+          ? `${pv.creator.profile.firstName} ${pv.creator.profile.lastName}`.trim()
+          : pv.creator?.email || '—';
+        const chargeTypeNameMap = new Map<string, string>(
+          chargeTypes.map((ct: any) => [ct.id, ct.name]),
+        );
+        const linesSubtotal = pvLines.reduce(
+          (sum, l) => sum + (Number(l.quantity) || 0) * (Number(l.unitPrice) || 0),
+          0,
+        );
+        const linesTax = pvLines.reduce(
+          (sum, l) => sum + (Number(l.quantity) || 0) * (Number(l.unitPrice) || 0) * (Number(l.taxRate) || 0),
+          0,
+        );
+
+        return (
+          <div className="ap-modal-overlay" onClick={() => setViewingVoucher(null)}>
+            <div className="ap-modal wide" onClick={e => e.stopPropagation()}>
+              <div className="ap-modal-header">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <h2 style={{ margin: 0 }}>
+                    <CreditCard size={18} /> {pv.voucherNumber}
+                  </h2>
+                  <span className={`ap-status ${pv.status}`}>{pv.status}</span>
+                  {isV6Active && (
+                    <span
+                      className="ap-status"
+                      style={{
+                        background: 'rgba(59, 130, 246, 0.14)',
+                        color: '#60a5fa',
+                        textTransform: 'none',
+                      }}
+                    >
+                      {pv.isCash ? 'Cash Mode' : 'AP Invoice Mode'}
+                    </span>
+                  )}
+                </div>
+                <button className="ap-btn icon-only ghost" onClick={() => setViewingVoucher(null)}>
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="ap-modal-body">
+                <div className="ap-detail-grid" style={{ marginBottom: '1.25rem' }}>
+                  {/* Voucher Information */}
+                  <div className="ap-detail-card">
+                    <h3><FileText size={16} /> Voucher Information</h3>
+                    <div className="field-row">
+                      <span className="label">Voucher No.</span>
+                      <span className="val">{pv.voucherNumber}</span>
+                    </div>
+                    <div className="field-row">
+                      <span className="label">Voucher Date</span>
+                      <span className="val">{format(new Date(pv.voucherDate), 'dd MMM yyyy')}</span>
+                    </div>
+                    <div className="field-row">
+                      <span className="label">Payment Method</span>
+                      <span className="val" style={{ textTransform: 'capitalize' }}>
+                        {formatPaymentMethod(pv.paymentMethod)}
+                      </span>
+                    </div>
+                    <div className="field-row">
+                      <span className="label">Property</span>
+                      <span className="val">{pv.property?.name || selectedPropertyName || '—'}</span>
+                    </div>
+                    {pv.bankAccount && (
+                      <div className="field-row">
+                        <span className="label">From Bank Account</span>
+                        <span className="val">{pv.bankAccount.bankName} — {pv.bankAccount.accountNumber}</span>
+                      </div>
+                    )}
+                    <div className="field-row">
+                      <span className="label">Created By</span>
+                      <span className="val">{creatorName}</span>
+                    </div>
+                    {pv.createdAt && (
+                      <div className="field-row">
+                        <span className="label">Created At</span>
+                        <span className="val">{format(new Date(pv.createdAt), 'dd MMM yyyy HH:mm')}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Payment & Vendor Details */}
+                  <div className="ap-detail-card">
+                    <h3><DollarSign size={16} /> Payment & Vendor Details</h3>
+                    <div className="field-row">
+                      <span className="label">Total Amount</span>
+                      <span className="val" style={{ fontSize: '1.05rem', color: 'var(--accent, #10b981)' }}>
+                        {fmt(pv.totalAmount)} {pv.currency}
+                      </span>
+                    </div>
+                    <div className="field-row">
+                      <span className="label">Currency</span>
+                      <span className="val">{pv.currency}</span>
+                    </div>
+                    {isV6Active && (
+                      <div className="field-row">
+                        <span className="label">Vendor Name</span>
+                        <span className="val">{pv.vendorName || '—'}</span>
+                      </div>
+                    )}
+                    {pv.vendorBankName && (
+                      <div className="field-row">
+                        <span className="label">Vendor Bank Name</span>
+                        <span className="val">{pv.vendorBankName}</span>
+                      </div>
+                    )}
+                    {pv.vendorBankAcc && (
+                      <div className="field-row">
+                        <span className="label">Vendor Bank Account</span>
+                        <span className="val">{pv.vendorBankAcc}</span>
+                      </div>
+                    )}
+                    <div className="field-row">
+                      <span className="label">Payment Reference</span>
+                      <span className="val">{pv.paymentReference || '—'}</span>
+                    </div>
+                    <div className="field-row">
+                      <span className="label">Paid At</span>
+                      <span className="val">
+                        {pv.paidAt ? format(new Date(pv.paidAt), 'dd MMM yyyy HH:mm') : '—'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {pv.notes && (
+                    <div className="ap-detail-card" style={{ gridColumn: '1 / -1' }}>
+                      <h3><FileText size={16} /> Notes</h3>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>
+                        {pv.notes}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Cash Line Items */}
+                {pvLines.length > 0 && (
+                  <div className="ap-table-wrap" style={{ marginBottom: pvAllocations.length > 0 ? '1rem' : 0 }}>
+                    <div style={{ padding: '0.85rem 1rem 0.5rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <FileText size={16} /> Line Items
+                    </div>
+                    <TableScrollWrapper>
+                      <table className="ap-table">
+                        <thead>
+                          <tr>
+                            <th>#</th>
+                            {isAccountingIntegrationActive && <th>Charge Type</th>}
+                            <th>Description</th>
+                            <th style={{ textAlign: 'right' }}>Qty</th>
+                            <th style={{ textAlign: 'right' }}>Unit Price</th>
+                            <th style={{ textAlign: 'right' }}>Tax</th>
+                            <th style={{ textAlign: 'right' }}>Total ({pv.currency})</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pvLines.map((line: any, idx: number) => {
+                            const qty = Number(line.quantity) || 0;
+                            const unitPrice = Number(line.unitPrice) || 0;
+                            const taxRate = Number(line.taxRate) || 0;
+                            const rowAmt = qty * unitPrice;
+                            const rowTax = rowAmt * taxRate;
+                            const rowTotal = rowAmt + rowTax;
+                            return (
+                              <tr key={idx}>
+                                <td>{idx + 1}</td>
+                                {isAccountingIntegrationActive && (
+                                  <td>{(line.chargeTypeId && chargeTypeNameMap.get(line.chargeTypeId)) || '—'}</td>
+                                )}
+                                <td>{line.description || '—'}</td>
+                                <td style={{ textAlign: 'right' }}>{qty}</td>
+                                <td style={{ textAlign: 'right' }}>{fmt(unitPrice)}</td>
+                                <td style={{ textAlign: 'right' }}>{fmt(rowTax)}</td>
+                                <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(rowTotal)}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot>
+                          <tr style={{ fontWeight: 700 }}>
+                            <td colSpan={isAccountingIntegrationActive ? 5 : 4} style={{ textAlign: 'right' }}>
+                              Subtotal: {fmt(linesSubtotal)} | Tax: {fmt(linesTax)}
+                            </td>
+                            <td colSpan={2} style={{ textAlign: 'right', fontSize: '0.95rem' }}>
+                              Total: {fmt(pv.totalAmount)} {pv.currency}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </TableScrollWrapper>
+                  </div>
+                )}
+
+                {/* Allocated AP Invoices */}
+                {pvAllocations.length > 0 && (
+                  <div className="ap-table-wrap">
+                    <div style={{ padding: '0.85rem 1rem 0.5rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <DollarSign size={16} /> Allocated AP Invoices
+                    </div>
+                    <TableScrollWrapper>
+                      <table className="ap-table">
+                        <thead>
+                          <tr>
+                            <th>#</th>
+                            <th>AP Invoice No.</th>
+                            <th>Vendor</th>
+                            <th style={{ textAlign: 'right' }}>Allocated Amount ({pv.currency})</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pvAllocations.map((alloc: any, idx: number) => (
+                            <tr key={alloc.id || idx}>
+                              <td>{idx + 1}</td>
+                              <td><strong>{alloc.apInvoice?.apInvoiceNumber || alloc.apInvoiceId}</strong></td>
+                              <td>{alloc.apInvoice?.vendorName || pv.vendorName || '—'}</td>
+                              <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(alloc.amount)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr style={{ fontWeight: 700 }}>
+                            <td colSpan={3} style={{ textAlign: 'right' }}>Total Allocated</td>
+                            <td style={{ textAlign: 'right', fontSize: '0.95rem' }}>
+                              {fmt(pv.totalAmount)} {pv.currency}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </TableScrollWrapper>
+                  </div>
+                )}
+              </div>
+
+              <div className="ap-modal-footer">
+                <button className="ap-btn ghost" onClick={() => setViewingVoucher(null)}>
+                  Close
+                </button>
+                {pv.status === 'pending' && (
+                  <>
+                    <PermissionGuard permission={['ap-vouchers.update', 'ap-vouchers.write']}>
+                      <button
+                        className="ap-btn ghost"
+                        onClick={() => {
+                          setViewingVoucher(null);
+                          handleOpenEdit(pv);
+                        }}
+                      >
+                        <Pencil size={14} /> Edit
+                      </button>
+                    </PermissionGuard>
+                    <PermissionGuard permission={['ap-vouchers.update', 'ap-vouchers.write']}>
+                      <button
+                        className="ap-btn success"
+                        onClick={() => {
+                          setViewingVoucher(null);
+                          setHasAttemptedPay(false);
+                          setPayRef('');
+                          setPayId(pv.id);
+                        }}
+                      >
+                        <Banknote size={14} /> Pay
+                      </button>
+                    </PermissionGuard>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Mark Paid modal */}
       {payId && (
         <div className="ap-modal-overlay">
@@ -425,13 +804,15 @@ export default function PaymentVouchersPage() {
         </div>
       )}
 
-      {/* Create modal */}
+      {/* Create / Edit modal */}
       {showCreate && (
         <div className="ap-modal-overlay">
           <div className="ap-modal wide" onClick={e => e.stopPropagation()}>
             <div className="ap-modal-header">
-              <h2><Plus size={18} /> New Payment Voucher</h2>
-              <button className="ap-btn icon-only ghost" onClick={() => { setShowCreate(false); setHasAttemptedCreate(false); }}><X size={18} /></button>
+              <h2>
+                {editingVoucher ? <><Pencil size={18} /> Edit Payment Voucher ({editingVoucher.voucherNumber})</> : <><Plus size={18} /> New Payment Voucher</>}
+              </h2>
+              <button className="ap-btn icon-only ghost" onClick={() => { setShowCreate(false); setEditingVoucher(null); setHasAttemptedCreate(false); }}><X size={18} /></button>
             </div>
             <div className="ap-modal-body">
               <div className="ap-form-grid">
@@ -733,11 +1114,12 @@ export default function PaymentVouchersPage() {
                         </thead>
                         <tbody>
                           {allocations.map((alloc, idx) => {
-                            const inv = availableInvoices.find((i: any) => i.id === alloc.apInvoiceId);
+                            const inv = availableInvoices.find((i: any) => i.id === alloc.apInvoiceId)
+                              || editingVoucher?.allocations?.find((a) => a.apInvoiceId === alloc.apInvoiceId)?.apInvoice;
                             return (
                               <tr key={alloc.apInvoiceId}>
                                 <td>{inv?.apInvoiceNumber || alloc.apInvoiceId}</td>
-                                <td>{inv?.vendorName || '—'}</td>
+                                <td>{inv?.vendorName || editingVoucher?.vendorName || '—'}</td>
                                 <td>
                                   <input type="number" min={0.01} step={0.01} value={alloc.amount}
                                     style={{ width: 120, padding: '0.25rem 0.5rem' }}
@@ -766,9 +1148,9 @@ export default function PaymentVouchersPage() {
               ) : null}
             </div>
             <div className="ap-modal-footer">
-              <button className="ap-btn ghost" onClick={() => { setShowCreate(false); setHasAttemptedCreate(false); }}>Cancel</button>
-              <button className="ap-btn primary" onClick={handleCreate} disabled={creating}>
-                {creating ? 'Creating...' : 'Create Voucher'}
+              <button className="ap-btn ghost" onClick={() => { setShowCreate(false); setEditingVoucher(null); setHasAttemptedCreate(false); }}>Cancel</button>
+              <button className="ap-btn primary" onClick={handleCreate} disabled={savingVoucher}>
+                {editingVoucher ? (updating ? 'Saving...' : 'Save Changes') : (creating ? 'Creating...' : 'Create Voucher')}
               </button>
             </div>
           </div>
