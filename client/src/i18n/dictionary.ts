@@ -573,6 +573,8 @@ const WORD_DICTIONARY: Record<string, TranslationEntry> = {
   clauses: { my: 'စာချုပ်ပါအချက်များ', th: 'ข้อสัญญา' },
   template: { my: 'ပုံစံခွက်', th: 'เทมเพลต' },
   templates: { my: 'ပုံစံခွက်များ', th: 'เทมเพลต' },
+  prefix: { my: 'ရှေ့ဆက်စာလုံး', th: 'คำนำหน้า' },
+  prefixes: { my: 'ရှေ့ဆက်စာလုံးများ', th: 'คำนำหน้า' },
   amendment: { my: 'ပြင်ဆင်ချက်', th: 'การแก้ไขสัญญา' },
   amendments: { my: 'ပြင်ဆင်ချက်များ', th: 'การแก้ไขสัญญา' },
   invoice: { my: 'ငွေတောင်းခံလွှာ', th: 'ใบแจ้งหนี้' },

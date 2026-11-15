@@ -4,6 +4,11 @@ import {
   Save,
   Plus,
   RotateCcw,
+  Search,
+  Filter,
+  X,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
@@ -16,6 +21,9 @@ import {
 import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import { useConfirm } from '../../../components/DialogProvider';
+import { TableSkeletonRows } from '../../../components/common/SkeletonLoaders';
+import { TableScrollWrapper } from '../BillingPage/components/TableScrollWrapper';
+import '../BillingPage/BillingPage.css';
 import './PrefixSetupPage.css';
 
 // ── Module & Document Definitions ───────────────────────────
@@ -30,7 +38,7 @@ interface DocTypeDef {
   defaultMode?: 'auto' | 'manual';
 }
 
-const MODULE_TABS = [
+const MODULE_OPTIONS = [
   { id: 'organization', label: 'Organization' },
   { id: 'leasing', label: 'Leasing' },
   { id: 'crm', label: 'CRM' },
@@ -40,6 +48,11 @@ const MODULE_TABS = [
   { id: 'parking', label: 'Parking' },
   { id: 'security', label: 'Security' },
 ];
+
+const MODULE_LABELS: Record<string, string> = MODULE_OPTIONS.reduce((acc, m) => {
+  acc[m.id] = m.label;
+  return acc;
+}, {} as Record<string, string>);
 
 const PMS_DOCUMENT_TYPES: DocTypeDef[] = [
   // Organization
@@ -154,7 +167,13 @@ export default function PrefixSetupPage() {
     return properties.find((p) => p.id === activePropertyId) || null;
   }, [properties, activePropertyId]);
 
-  const [activeTab, setActiveTab] = useState<string>('organization');
+  // Search, Filters & Pagination
+  const [search, setSearch] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+  const [moduleFilter, setModuleFilter] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
 
   // Fetch sequences from server for the active property
   const { data: serverSequences = [], isLoading, refetch } = useGetSequencesQuery(
@@ -242,35 +261,65 @@ export default function PrefixSetupPage() {
     return false;
   }, [rows, initialRows]);
 
-  // Active module rows
-  const activeRows = useMemo(() => {
-    return rows.filter((r) => r.module === activeTab);
-  }, [rows, activeTab]);
+  const hasFilterSelections = Boolean(moduleFilter || statusFilter);
 
-  // Available document types for active tab that haven't been added yet
-  const availableTypesForTab = useMemo(() => {
-    const existingKeys = new Set(activeRows.map((r) => r.typeKey));
-    return PMS_DOCUMENT_TYPES.filter((d) => d.module === activeTab && !existingKeys.has(d.typeKey));
-  }, [activeRows, activeTab]);
+  // Filtered rows across all or selected modules
+  const filteredRows = useMemo(() => {
+    return rows.filter((r) => {
+      if (moduleFilter && r.module !== moduleFilter) return false;
+      if (statusFilter === 'modified' && !isRowModified(r)) return false;
+      if (statusFilter === 'default' && isRowModified(r)) return false;
+      if (search.trim()) {
+        const q = search.trim().toLowerCase();
+        const modLabel = (MODULE_LABELS[r.module] || r.module).toLowerCase();
+        const sample = computeLiveSample(r.prefix1, r.prefix2, r.padLength, r.currentVal + 1).toLowerCase();
+        const matchLabel = r.label.toLowerCase().includes(q);
+        const matchPrefix = (r.prefix1 || '').toLowerCase().includes(q);
+        const matchMod = modLabel.includes(q);
+        const matchSample = sample.includes(q);
+        if (!matchLabel && !matchPrefix && !matchMod && !matchSample) return false;
+      }
+      return true;
+    });
+  }, [rows, moduleFilter, statusFilter, search]);
 
-  // Handle Tab Change
-  const handleTabChange = (tabId: string) => {
-    setActiveTab(tabId);
+  useEffect(() => {
+    setPage(1);
+  }, [search, moduleFilter, statusFilter, pageSize, activePropertyId]);
+
+  const totalItems = filteredRows.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedRows = filteredRows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  // Available document types that haven't been added yet
+  const availableTypes = useMemo(() => {
+    const existingKeys = new Set(rows.map((r) => r.typeKey));
+    return PMS_DOCUMENT_TYPES.filter(
+      (d) => (!moduleFilter || d.module === moduleFilter) && !existingKeys.has(d.typeKey)
+    );
+  }, [rows, moduleFilter]);
+
+  const handleResetFilters = () => {
+    setSearch('');
+    setModuleFilter('');
+    setStatusFilter('');
+    setPage(1);
   };
 
-  // Add new row to current active tab
+  // Add new row
   const handleAddRow = () => {
-    if (availableTypesForTab.length === 0) {
-      toast('All document types for this module are already in the list.', { icon: 'ℹ️' });
+    if (availableTypes.length === 0) {
+      toast('All document types are already in the list.', { icon: 'ℹ️' });
       return;
     }
 
-    const nextType = availableTypesForTab[0];
+    const nextType = availableTypes[0];
     const newRow: EditableRow = {
       rowId: `new_${Date.now()}_${nextType.typeKey}`,
       typeKey: nextType.typeKey,
       label: nextType.label,
-      module: activeTab,
+      module: nextType.module,
       prefix1: nextType.defaultPrefix1,
       prefix2: nextType.defaultPrefix2,
       padLength: nextType.defaultPad,
@@ -300,7 +349,6 @@ export default function PrefixSetupPage() {
     );
     if (!confirmed) return;
 
-    // Delete custom property override from server if it was saved
     if (!rowToReset.isNew && activePropertyId) {
       try {
         await deleteSequence({ typeKey: rowToReset.typeKey, locationId: activePropertyId }).unwrap();
@@ -338,6 +386,7 @@ export default function PrefixSetupPage() {
           const docDef = DOC_TYPE_LOOKUP[value as string];
           if (docDef) {
             updated.label = docDef.label;
+            updated.module = docDef.module;
             if (r.isNew) {
               updated.prefix1 = docDef.defaultPrefix1;
               updated.prefix2 = docDef.defaultPrefix2;
@@ -411,259 +460,381 @@ export default function PrefixSetupPage() {
   };
 
   return (
-    <div className="prefix-setup-page">
-      {/* ── Top Header matching PMS System ─────────────────── */}
-      <div className="prefix-page-header">
-        <div className="prefix-header-left">
-          <div className="prefix-icon-badge">
+    <div className="billing-page prefix-setup-page">
+      {/* ── Standard PMS Page Header ─────────────────────────── */}
+      <div className="page-header">
+        <div className="page-title-row">
+          <div
+            className="page-icon-lg"
+            style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent)', borderRadius: 12 }}
+          >
             <Tag size={22} />
           </div>
-          <div>
-            <h1 className="prefix-title">Prefix Setup</h1>
+          <div style={{ flex: 1 }}>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Prefix Setup</h1>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+              {isLoading ? (
+                <span
+                  className="pms-skeleton-line"
+                  style={{ display: 'inline-block', width: 96, height: 12, verticalAlign: 'middle' }}
+                />
+              ) : (
+                `${filteredRows.length} total prefixes`
+              )}
+            </p>
+          </div>
+
+          <div className="prefix-header-actions">
+            {isDirty && <span className="prefix-dirty-pill">● Unsaved Changes</span>}
+            {availableTypes.length > 0 && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleAddRow}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              >
+                <Plus size={14} /> Add Prefix
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleSave}
+              disabled={isSaving || !isDirty}
+              title={isDirty ? 'Save changes' : 'No unsaved changes'}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            >
+              <Save size={15} />
+              <span>{isSaving ? 'Saving...' : 'Save Changes'}</span>
+            </button>
           </div>
         </div>
+      </div>
 
-        <div className="prefix-header-actions">
-          {isDirty && <span className="prefix-dirty-pill">● Unsaved Changes</span>}
+      {/* ── Search & Filter Toolbar (Standard Billing/Admin Style) ── */}
+      <div className="billing-filters" style={showFilters ? { marginBottom: 12 } : undefined}>
+        <div className="billing-filters-left">
+          <div className="search-wrap">
+            <Search size={15} className="search-icon" />
+            <input
+              type="text"
+              placeholder="Search document type, module, or prefix…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            {search && (
+              <button
+                type="button"
+                className="search-clear-btn"
+                onClick={() => setSearch('')}
+                title="Clear search"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
 
           <button
             type="button"
-            className="btn btn-primary prefix-save-btn"
-            onClick={handleSave}
-            disabled={isSaving || !isDirty}
-            title={isDirty ? 'Save changes' : 'No unsaved changes'}
+            className={`btn btn-secondary billing-filter-toggle-btn${showFilters || hasFilterSelections ? ' active' : ''}`}
+            onClick={() => setShowFilters(!showFilters)}
           >
-            {isDirty ? <Save size={16} /> : null}
-            <span>{isSaving ? 'Saving...' : isDirty ? 'Save Changes' : 'Saved'}</span>
+            <Filter size={14} /> Filters{hasFilterSelections ? ' •' : ''}
           </button>
         </div>
-      </div>
 
-      {/* ── Module Tabs Bar (Pill Button Style) ─ */}
-      <div className="prefix-tabs-bar">
-        {MODULE_TABS.map((tab) => {
-          const count = rows.filter((r) => r.module === tab.id).length;
-          const isActive = activeTab === tab.id;
-
-          return (
+        {/* Quick Module Pills on Desktop */}
+        <div className="prefix-module-pills">
+          <button
+            type="button"
+            className={`prefix-mod-pill ${moduleFilter === '' ? 'active' : ''}`}
+            onClick={() => setModuleFilter('')}
+          >
+            All
+          </button>
+          {MODULE_OPTIONS.map((m) => (
             <button
-              key={tab.id}
+              key={m.id}
               type="button"
-              className={`perm-tab-btn ${isActive ? 'active' : ''}`}
-              onClick={() => handleTabChange(tab.id)}
+              className={`prefix-mod-pill ${moduleFilter === m.id ? 'active' : ''}`}
+              onClick={() => setModuleFilter(moduleFilter === m.id ? '' : m.id)}
             >
-              <span>{tab.label}</span>
-              <span className="perm-tab-badge">{count}</span>
+              {m.label}
             </button>
-          );
-        })}
+          ))}
+        </div>
       </div>
 
-      {/* ── Main Setup Card (Table Only) ───────────────────────────────── */}
-      <div className="prefix-card">
-        {/* ── Dynamic Prefix Table with Evenly Spaced Columns ─ */}
-        <div className="prefix-table-container">
-          {isLoading ? (
-            <div className="prefix-loading-wrap">
-              <div className="prefix-spinner" />
-              <p>Loading document sequence configurations...</p>
-            </div>
-          ) : (
-            <table className="prefix-data-table">
-              <thead>
+      {showFilters && (
+        <div className="billing-filter-bar">
+          <select
+            className="filter-select"
+            value={moduleFilter}
+            onChange={(e) => setModuleFilter(e.target.value)}
+            title="Module"
+          >
+            <option value="">All Modules</option>
+            {MODULE_OPTIONS.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            className="filter-select"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            title="Configuration Status"
+          >
+            <option value="">All Statuses</option>
+            <option value="modified">Modified Only</option>
+            <option value="default">Default Only</option>
+          </select>
+
+          <button
+            type="button"
+            className="btn-ghost billing-filter-reset-btn"
+            onClick={handleResetFilters}
+          >
+            <X size={14} /> Reset
+          </button>
+        </div>
+      )}
+
+      {/* ── Standard PMS Table ─────────────────────────────── */}
+      <div className="billing-table-wrap">
+        <TableScrollWrapper>
+          <table className="billing-table prefix-billing-table">
+            <thead>
+              <tr>
+                <th style={{ minWidth: 210 }}>Document Type</th>
+                <th style={{ width: 130 }}>Module</th>
+                <th className="text-center" style={{ width: 140 }}>Mode</th>
+                <th style={{ width: 130 }}>Prefix 1</th>
+                <th style={{ width: 150 }}>Date Prefix</th>
+                <th className="text-center" style={{ width: 110 }}>Digits</th>
+                <th style={{ minWidth: 190 }}>Preview</th>
+                <th className="text-center" style={{ width: 80 }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading ? (
+                <TableSkeletonRows columns={8} />
+              ) : filteredRows.length === 0 ? (
                 <tr>
-                  <th style={{ width: '44px', textAlign: 'center' }}>#</th>
-                  <th style={{ width: '22%' }}>Type</th>
-                  <th style={{ width: '14%' }}>Mode</th>
-                  <th style={{ width: '13%' }}>Prefix 1</th>
-                  <th style={{ width: '16%' }}>Prefix 2</th>
-                  <th style={{ width: '11%' }}>Length</th>
-                  <th style={{ width: '24%' }}>Preview</th>
-                  <th style={{ width: '76px', textAlign: 'center' }} aria-label="Actions"></th>
+                  <td colSpan={8} className="billing-empty" style={{ padding: '40px 16px', textAlign: 'center' }}>
+                    <div style={{ marginBottom: 12, fontSize: 14, color: 'var(--text-secondary)' }}>
+                      No prefix configurations match your search or filter criteria.
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={handleResetFilters}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '6px 14px' }}
+                    >
+                      <RotateCcw size={13} /> Reset Filters
+                    </button>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {activeRows.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="prefix-empty-cell">
-                      <div className="prefix-empty-content">
-                        <p>No document types configured for this module.</p>
-                        <button
-                          type="button"
-                          className="btn btn-secondary btn-sm"
-                          onClick={handleAddRow}
-                          disabled={availableTypesForTab.length === 0}
-                        >
-                          <Plus size={14} />
-                          <span>Add Document Type</span>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  activeRows.map((row, index) => {
-                    const sample = computeLiveSample(row.prefix1, row.prefix2, row.padLength, row.currentVal + 1);
-                    const isModified = isRowModified(row);
+              ) : (
+                paginatedRows.map((row) => {
+                  const sample = computeLiveSample(row.prefix1, row.prefix2, row.padLength, row.currentVal + 1);
+                  const isModified = isRowModified(row);
 
-                    return (
-                      <tr key={row.rowId} className={row.isNew ? 'row-new' : ''}>
-                        {/* Index */}
-                        <td className="prefix-row-index">{index + 1}</td>
-
-                        {/* Document Type Dropdown & Status Badge */}
-                        <td>
-                          <div className="prefix-doc-type-cell">
-                            <div className="prefix-type-main">
-                              {row.isNew ? (
-                                <select
-                                  className="prefix-input-select"
-                                  value={row.typeKey}
-                                  onChange={(e) => handleUpdateField(row.rowId, 'typeKey', e.target.value)}
-                                >
-                                  <option value={row.typeKey}>{row.label}</option>
-                                  {availableTypesForTab.map((d) => (
-                                    <option key={d.typeKey} value={d.typeKey}>
-                                      {d.label}
-                                    </option>
-                                  ))}
-                                </select>
-                              ) : (
-                                <span className="prefix-type-title">{row.label}</span>
-                              )}
-                              <span
-                                className={`prefix-status-badge ${isModified ? 'status-modified' : 'status-default'}`}
-                                title={isModified ? 'Modified from system default settings' : 'Using system default settings'}
-                              >
-                                {isModified ? 'Modified' : 'Default'}
-                              </span>
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* Mode Column */}
-                        <td>
-                          {row.typeKey === 'tenant' ? (
-                            <div className="prefix-mode-cell" title="Code Generation Mode">
-                              <div className="prefix-mode-toggle">
-                                <button
-                                  type="button"
-                                  className={`prefix-mode-pill ${row.mode !== 'auto' ? 'active' : ''}`}
-                                  onClick={() => handleUpdateField(row.rowId, 'mode', 'manual')}
-                                >
-                                  Manual
-                                </button>
-                                <button
-                                  type="button"
-                                  className={`prefix-mode-pill ${row.mode === 'auto' ? 'active' : ''}`}
-                                  onClick={() => handleUpdateField(row.rowId, 'mode', 'auto')}
-                                >
-                                  Auto
-                                </button>
-                              </div>
-                            </div>
+                  return (
+                    <tr key={row.rowId} className={row.isNew ? 'prefix-row-new' : ''}>
+                      {/* Document Type */}
+                      <td>
+                        <div className="prefix-type-cell">
+                          {row.isNew ? (
+                            <select
+                              className="prefix-field-select"
+                              value={row.typeKey}
+                              onChange={(e) => handleUpdateField(row.rowId, 'typeKey', e.target.value)}
+                            >
+                              <option value={row.typeKey}>{row.label}</option>
+                              {availableTypes.map((d) => (
+                                <option key={d.typeKey} value={d.typeKey}>
+                                  {d.label}
+                                </option>
+                              ))}
+                            </select>
                           ) : (
-                            <span className="prefix-mode-auto-badge" title="Automatically numbered sequence">
-                              Auto
+                            <span className="cell-primary">{row.label}</span>
+                          )}
+                          {isModified && (
+                            <span
+                              className="prefix-modified-tag"
+                              title="Modified from default system configuration"
+                            >
+                              Modified
                             </span>
                           )}
-                        </td>
+                        </div>
+                      </td>
 
-                        {/* Prefix 1 (Text input) */}
-                        <td>
-                          <input
-                            type="text"
-                            className="prefix-input-text"
-                            maxLength={10}
-                            placeholder="e.g. INV"
-                            value={row.prefix1}
-                            onChange={(e) => {
-                              const clean = e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, '');
-                              handleUpdateField(row.rowId, 'prefix1', clean);
-                            }}
-                          />
-                        </td>
+                      {/* Module */}
+                      <td>
+                        <span className="prefix-module-badge">
+                          {MODULE_LABELS[row.module] || row.module}
+                        </span>
+                      </td>
 
-                        {/* Prefix 2 (Date format dropdown) */}
-                        <td>
-                          <select
-                            className="prefix-input-select"
-                            value={row.prefix2}
-                            onChange={(e) =>
-                              handleUpdateField(row.rowId, 'prefix2', e.target.value as Prefix2Format)
-                            }
-                          >
-                            <option value="none">None</option>
-                            <option value="yymm">YYMM</option>
-                            <option value="mmyy">MMYY</option>
-                          </select>
-                        </td>
-
-                        {/* Length (Padding Digits) */}
-                        <td>
-                          <input
-                            type="number"
-                            className="prefix-input-number"
-                            min={3}
-                            max={10}
-                            value={row.padLength}
-                            onChange={(e) =>
-                              handleUpdateField(
-                                row.rowId,
-                                'padLength',
-                                Math.max(3, Math.min(10, parseInt(e.target.value, 10) || 6))
-                              )
-                            }
-                          />
-                        </td>
-
-                        {/* Real-time Sample Preview */}
-                        <td className="prefix-preview-td">
-                          <div className="prefix-preview-cell">
-                            <span className="prefix-sample-pill">{sample}</span>
-                            {row.currentVal > 0 && (
-                              <span
-                                className="prefix-counter-subtext"
-                                title={`Total documents issued so far: ${row.currentVal}. Click to reset.`}
-                                onClick={() => handleResetCounter(row)}
-                              >
-                                <RotateCcw size={11} /> {row.currentVal} issued
-                              </span>
-                            )}
+                      {/* Mode */}
+                      <td className="text-center">
+                        {row.typeKey === 'tenant' ? (
+                          <div className="prefix-mode-segmented" title="Code Generation Mode">
+                            <button
+                              type="button"
+                              className={`prefix-seg-btn ${row.mode !== 'auto' ? 'active' : ''}`}
+                              onClick={() => handleUpdateField(row.rowId, 'mode', 'manual')}
+                            >
+                              Manual
+                            </button>
+                            <button
+                              type="button"
+                              className={`prefix-seg-btn ${row.mode === 'auto' ? 'active' : ''}`}
+                              onClick={() => handleUpdateField(row.rowId, 'mode', 'auto')}
+                            >
+                              Auto
+                            </button>
                           </div>
-                        </td>
+                        ) : (
+                          <span className="prefix-mode-static">Auto</span>
+                        )}
+                      </td>
 
-                        {/* Reset to Default Button */}
-                        <td style={{ textAlign: 'center' }}>
+                      {/* Prefix 1 */}
+                      <td>
+                        <input
+                          type="text"
+                          className="prefix-field-input prefix-field-code"
+                          maxLength={10}
+                          placeholder="e.g. INV"
+                          value={row.prefix1}
+                          onChange={(e) => {
+                            const clean = e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, '');
+                            handleUpdateField(row.rowId, 'prefix1', clean);
+                          }}
+                        />
+                      </td>
+
+                      {/* Date Prefix (Prefix 2) */}
+                      <td>
+                        <select
+                          className="prefix-field-select"
+                          value={row.prefix2}
+                          onChange={(e) =>
+                            handleUpdateField(row.rowId, 'prefix2', e.target.value as Prefix2Format)
+                          }
+                        >
+                          <option value="none">None</option>
+                          <option value="yymm">YYMM</option>
+                          <option value="mmyy">MMYY</option>
+                        </select>
+                      </td>
+
+                      {/* Digits (Pad Length) */}
+                      <td className="text-center">
+                        <input
+                          type="number"
+                          className="prefix-field-input prefix-field-digits"
+                          min={3}
+                          max={10}
+                          value={row.padLength}
+                          onChange={(e) =>
+                            handleUpdateField(
+                              row.rowId,
+                              'padLength',
+                              Math.max(3, Math.min(10, parseInt(e.target.value, 10) || 6))
+                            )
+                          }
+                        />
+                      </td>
+
+                      {/* Live Sample Preview */}
+                      <td>
+                        <div className="prefix-preview-wrap">
+                          <span className="cell-mono prefix-preview-code">{sample}</span>
+                          {row.currentVal > 0 && (
+                            <button
+                              type="button"
+                              className="prefix-counter-reset-btn"
+                              title={`Total issued so far: ${row.currentVal}. Click to reset counter to 0.`}
+                              onClick={() => handleResetCounter(row)}
+                            >
+                              <RotateCcw size={11} />
+                              <span>{row.currentVal} issued</span>
+                            </button>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Row Reset Action (Only shown when modified) */}
+                      <td className="text-center">
+                        {isModified ? (
                           <button
                             type="button"
-                            className={`prefix-btn-reset-text ${!isModified ? 'is-default' : ''}`}
-                            onClick={() => isModified && handleResetRow(row)}
-                            disabled={!isModified}
-                            title={isModified ? `Reset ${row.label} to default settings` : `${row.label} is already using default settings`}
+                            className="btn-icon prefix-row-reset-btn"
+                            onClick={() => handleResetRow(row)}
+                            title={`Reset ${row.label} to default`}
                           >
-                            Reset
+                            <RotateCcw size={14} />
                           </button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          )}
-        </div>
+                        ) : (
+                          <span style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>—</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </TableScrollWrapper>
 
-        {/* ── Table Footer Summary (Add Row Button if any types remain) ──── */}
-        {availableTypesForTab.length > 0 && (
-          <div className="prefix-card-footer" style={{ justifyContent: 'flex-end' }}>
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={handleAddRow}
-            >
-              <Plus size={14} />
-              <span>Add Document Type ({availableTypesForTab.length} remaining)</span>
-            </button>
+        {/* Pagination */}
+        {totalItems >= 10 && (
+          <div className="billing-pagination">
+            <div className="pagination-left">
+              <div className="page-size-selector">
+                <label htmlFor="prefix-page-size">Rows per page:</label>
+                <select
+                  id="prefix-page-size"
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(1);
+                  }}
+                >
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="page-btns">
+              <button
+                disabled={currentPage === 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                title="Previous page"
+              >
+                <ChevronLeft size={15} />
+              </button>
+              <span className="page-num-display">
+                Page {currentPage} of {totalPages}
+              </span>
+              <button
+                disabled={currentPage >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                title="Next page"
+              >
+                <ChevronRight size={15} />
+              </button>
+            </div>
           </div>
         )}
       </div>
