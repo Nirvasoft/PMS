@@ -63,6 +63,7 @@ export class NotificationService {
    */
   async sendImmediate(dto: SendNotificationDto): Promise<{ queued: number }> {
     const { templateCode, companyId, recipientIds, variables = {}, entityType, entityId } = dto;
+    if (!recipientIds || recipientIds.length === 0) return { queued: 0 };
 
     // Resolve template
     let template;
@@ -73,10 +74,27 @@ export class NotificationService {
       return { queued: 0 };
     }
 
+    // Ensure every recipientId maps to an existing User.id (notification_logs_recipient_id_fkey)
+    const existingUsers = await prisma.user.findMany({
+      where: { id: { in: recipientIds } },
+      select: { id: true },
+    });
+    const validUserIds = new Set(existingUsers.map((u) => u.id));
+    const unresolvedIds = recipientIds.filter((id) => !validUserIds.has(id));
+    if (unresolvedIds.length > 0) {
+      const residents = await prisma.resident.findMany({
+        where: { companyId, tenantId: { in: unresolvedIds }, isActive: true, userId: { not: null } },
+        select: { userId: true },
+      });
+      for (const r of residents) {
+        if (r.userId) validUserIds.add(r.userId);
+      }
+    }
+
     const requestedChannels = dto.channels ?? template.channels;
     let queued = 0;
 
-    for (const recipientId of recipientIds) {
+    for (const recipientId of validUserIds) {
       // Check user preferences
       const prefs = await this.getPreferences(recipientId, templateCode);
       const channels = this.resolveChannels(requestedChannels, prefs);

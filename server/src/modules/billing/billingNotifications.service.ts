@@ -91,16 +91,59 @@ export async function seedBillingNotificationTemplates() {
  * Helper to send billing notifications. Silently logs errors without throwing.
  */
 export class BillingNotifications {
+  private async resolveRecipientUserIds(companyId: string, tenantId: string): Promise<string[]> {
+    if (!tenantId) return [];
+    const userIds = new Set<string>();
+
+    // 1. Check if recipientId is already a valid User ID
+    const directUser = await prisma.user.findUnique({
+      where: { id: tenantId },
+      select: { id: true },
+    });
+    if (directUser) {
+      userIds.add(directUser.id);
+    }
+
+    // 2. Check active Resident records linked to this tenant that have a portal userId
+    const residents = await prisma.resident.findMany({
+      where: { companyId, tenantId, isActive: true, userId: { not: null } },
+      select: { userId: true },
+    });
+    for (const r of residents) {
+      if (r.userId) userIds.add(r.userId);
+    }
+
+    // 3. Check if the tenant's email matches a User in the same company
+    if (userIds.size === 0) {
+      const tenant = await prisma.tenant.findFirst({
+        where: { id: tenantId, companyId },
+        select: { email: true },
+      });
+      if (tenant?.email) {
+        const userByEmail = await prisma.user.findFirst({
+          where: { companyId, email: { equals: tenant.email, mode: 'insensitive' } },
+          select: { id: true },
+        });
+        if (userByEmail) userIds.add(userByEmail.id);
+      }
+    }
+
+    return Array.from(userIds);
+  }
+
   async invoiceIssued(invoice: {
     id: string; invoiceNumber: string; totalAmount: any; currency: string;
     dueDate: any; periodFrom: any; periodTo: any;
     companyId: string; tenantId: string;
   }, tenantName: string) {
     try {
+      const recipientIds = await this.resolveRecipientUserIds(invoice.companyId, invoice.tenantId);
+      if (recipientIds.length === 0) return;
+
       await notificationService.send({
         templateCode: 'invoice_issued',
         companyId: invoice.companyId,
-        recipientIds: [invoice.tenantId],
+        recipientIds,
         channels: ['email', 'in_app'],
         variables: {
           invoiceNumber: invoice.invoiceNumber,
@@ -124,11 +167,14 @@ export class BillingNotifications {
     companyId: string; tenantId: string;
   }, penaltyAmount: number, daysOverdue: number, tenantName: string) {
     try {
+      const recipientIds = await this.resolveRecipientUserIds(invoice.companyId, invoice.tenantId);
+      if (recipientIds.length === 0) return;
+
       const outstandingAmount = Number(invoice.totalAmount) + penaltyAmount;
       await notificationService.send({
         templateCode: 'invoice_overdue_penalty',
         companyId: invoice.companyId,
-        recipientIds: [invoice.tenantId],
+        recipientIds,
         channels: ['email', 'in_app'],
         variables: {
           invoiceNumber: invoice.invoiceNumber,
@@ -151,10 +197,13 @@ export class BillingNotifications {
     companyId: string; tenantId: string; creditReason?: string | null;
   }, originalInvoiceNumber: string, tenantName: string) {
     try {
+      const recipientIds = await this.resolveRecipientUserIds(creditNote.companyId, creditNote.tenantId);
+      if (recipientIds.length === 0) return;
+
       await notificationService.send({
         templateCode: 'credit_note_issued',
         companyId: creditNote.companyId,
-        recipientIds: [creditNote.tenantId],
+        recipientIds,
         channels: ['email', 'in_app'],
         variables: {
           invoiceNumber: creditNote.invoiceNumber,
