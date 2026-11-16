@@ -15,7 +15,7 @@ import LoginPage from './pages/LoginPage/LoginPage';
 import DashboardLayout, { DashboardHome } from './pages/DashboardPage/DashboardPage';
 
 const CHUNK_RELOAD_TS_KEY = 'pms-chunk-reload-ts';
-const CHUNK_RELOAD_COOLDOWN_MS = 15_000;
+const CHUNK_RELOAD_COOLDOWN_MS = 10_000;
 const CHUNK_LOAD_ERROR = /fetch dynamically imported module|error loading dynamically imported module|importing a module script failed|failed to load module script|unable to preload css|unexpected token '<'|disallowed mime type|mime type of "text\/html"|chunkloaderror|loading chunk [\w-]+ failed|loading css chunk [\w-]+ failed|failed to fetch|networkerror when attempting to fetch resource|load failed/i;
 
 function isChunkLoadError(error: unknown): boolean {
@@ -23,24 +23,37 @@ function isChunkLoadError(error: unknown): boolean {
   return CHUNK_LOAD_ERROR.test(msg);
 }
 
+function triggerCacheBustingReload() {
+  const rootUrl = `${window.location.origin}/index.html?_t=${Date.now()}`;
+  Promise.allSettled([
+    fetch(rootUrl, { cache: 'reload', credentials: 'same-origin' }),
+    fetch(window.location.href, { cache: 'reload', credentials: 'same-origin' }),
+  ]).finally(() => {
+    window.location.reload();
+  });
+}
+
 function reloadOnceOnStaleChunk(error: unknown): boolean {
   if (!isChunkLoadError(error)) return false;
   try {
-    const last = Number(sessionStorage.getItem(CHUNK_RELOAD_TS_KEY) || '0');
+    const pathKey = `${CHUNK_RELOAD_TS_KEY}:${window.location.pathname}`;
+    const last = Number(sessionStorage.getItem(pathKey) || '0');
     if (Date.now() - last > CHUNK_RELOAD_COOLDOWN_MS) {
-      sessionStorage.setItem(CHUNK_RELOAD_TS_KEY, String(Date.now()));
-      // Force browser HTTP cache to fetch fresh index.html before reloading
-      fetch(window.location.href, { cache: 'reload', credentials: 'same-origin' })
-        .catch(() => {})
-        .finally(() => {
-          window.location.reload();
-        });
+      sessionStorage.setItem(pathKey, String(Date.now()));
+      triggerCacheBustingReload();
       return true;
     }
+    // Even if within cooldown on the same route, retry reload after a short delay
+    // rather than crashing the UI with an Application Error screen.
+    setTimeout(() => {
+      sessionStorage.setItem(pathKey, String(Date.now()));
+      triggerCacheBustingReload();
+    }, 1200);
+    return true;
   } catch {
-    // Ignore storage errors in restricted browsing modes
+    window.location.reload();
+    return true;
   }
-  return false;
 }
 
 if (typeof window !== 'undefined') {
@@ -51,15 +64,25 @@ if (typeof window !== 'undefined') {
   });
 }
 
-// Wrap React.lazy with automatic retry on transient network blips and a silent
-// cache-busting reload when a chunk 404s / returns index.html after a new deploy.
+function extractFailedModuleUrl(error: unknown): string | null {
+  const msg = error instanceof Error ? error.message : String(error ?? '');
+  const match = msg.match(/https?:\/\/[^\s'")]+?\.m?js(?:\?[^\s'")]*)?|\/assets\/[^\s'")]+?\.m?js(?:\?[^\s'")]*)?/i);
+  return match ? match[0] : null;
+}
+
+// Wrap React.lazy with automatic cache-busting retry on transient network blips
+// and a silent reload when a chunk 404s / returns index.html after a new deploy.
 function lazy<T extends ComponentType<any>>(factory: () => Promise<{ default: T }>) {
   return reactLazy(() => {
-    const attempt = (retriesLeft: number): Promise<{ default: T }> =>
-      factory().catch((err) => {
+    const attempt = (retriesLeft: number, bustUrl?: string | null): Promise<{ default: T }> => {
+      const loader = bustUrl
+        ? () => import(/* @vite-ignore */ `${bustUrl}${bustUrl.includes('?') ? '&' : '?'}retry=${3 - retriesLeft}-${Date.now()}`) as Promise<{ default: T }>
+        : factory;
+      return loader().catch((err) => {
         if (retriesLeft > 0) {
+          const nextBustUrl = bustUrl || extractFailedModuleUrl(err);
           return new Promise<{ default: T }>((resolve) => {
-            setTimeout(() => resolve(attempt(retriesLeft - 1)), (3 - retriesLeft) * 400);
+            setTimeout(() => resolve(attempt(retriesLeft - 1, nextBustUrl)), (3 - retriesLeft) * 350);
           });
         }
         if (reloadOnceOnStaleChunk(err)) {
@@ -67,6 +90,7 @@ function lazy<T extends ComponentType<any>>(factory: () => Promise<{ default: T 
         }
         throw err;
       });
+    };
     return attempt(2);
   });
 }

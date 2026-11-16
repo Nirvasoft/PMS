@@ -33,29 +33,60 @@ const AnalyticsDashboard = lazy(() => import('./AnalyticsDashboard'));
 
 // Error Boundary to prevent dashboard crashes from breaking the whole page
 const CHUNK_RELOAD_KEY = 'dashboard-chunk-reload';
-const CHUNK_RELOAD_COOLDOWN_MS = 15_000;
-const CHUNK_LOAD_ERROR = /fetch dynamically imported module|error loading dynamically imported module|importing a module script failed|failed to load module script|unable to preload css/i;
+const CHUNK_RELOAD_COOLDOWN_MS = 10_000;
+const CHUNK_LOAD_ERROR = /fetch dynamically imported module|error loading dynamically imported module|importing a module script failed|failed to load module script|unable to preload css|unexpected token '<'|disallowed mime type|mime type of "text\/html"|chunkloaderror|loading chunk [\w-]+ failed|loading css chunk [\w-]+ failed|failed to fetch|networkerror when attempting to fetch resource|load failed/i;
 
-class DashboardErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error?: Error }> {
-  state = { hasError: false, error: undefined as Error | undefined };
-  static getDerivedStateFromError(error: Error) { return { hasError: true, error }; }
+function isDashboardChunkError(error: unknown): boolean {
+  const msg = error instanceof Error ? `${error.name}: ${error.message}` : String(error ?? '');
+  return CHUNK_LOAD_ERROR.test(msg);
+}
+
+class DashboardErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean; isReloadingChunk: boolean; error?: Error }
+> {
+  state = { hasError: false, isReloadingChunk: false, error: undefined as Error | undefined };
+  static getDerivedStateFromError(error: Error) {
+    return {
+      hasError: true,
+      isReloadingChunk: isDashboardChunkError(error),
+      error,
+    };
+  }
 
   componentDidCatch(error: Error) {
-    // A stale chunk hash from before the latest deploy 404s on lazy-load.
-    // Reloading once picks up the new build; guard against looping within 15s
-    // if the failure is something else entirely.
-    const last = Number(sessionStorage.getItem(CHUNK_RELOAD_KEY) || '0');
-    if (CHUNK_LOAD_ERROR.test(error.message) && Date.now() - last > CHUNK_RELOAD_COOLDOWN_MS) {
-      sessionStorage.setItem(CHUNK_RELOAD_KEY, String(Date.now()));
-      window.location.reload();
+    if (!isDashboardChunkError(error)) return;
+    const pathKey = `${CHUNK_RELOAD_KEY}:${window.location.pathname}`;
+    const last = Number(sessionStorage.getItem(pathKey) || '0');
+    const doReload = () => {
+      sessionStorage.setItem(pathKey, String(Date.now()));
+      const rootUrl = `${window.location.origin}/index.html?_t=${Date.now()}`;
+      Promise.allSettled([
+        fetch(rootUrl, { cache: 'reload', credentials: 'same-origin' }),
+        fetch(window.location.href, { cache: 'reload', credentials: 'same-origin' }),
+      ]).finally(() => {
+        window.location.reload();
+      });
+    };
+    if (Date.now() - last > CHUNK_RELOAD_COOLDOWN_MS) {
+      doReload();
+    } else {
+      setTimeout(doReload, 1200);
     }
   }
 
   render() {
     if (this.state.hasError) {
+      if (this.state.isReloadingChunk) {
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '45vh', color: 'var(--text-secondary, #94a3b8)', fontSize: '0.88rem' }}>
+            Loading…
+          </div>
+        );
+      }
       return (
         <div style={{ padding: 40, textAlign: 'center', opacity: 0.6 }}>
-          <h3>⚠️ Dashboard failed to load</h3>
+          <h3>⚠️ Page failed to load</h3>
           <p style={{ fontSize: '0.85rem' }}>{this.state.error?.message || 'Unknown error'}</p>
           <button className="btn btn-primary" onClick={() => window.location.reload()}>Reload</button>
         </div>
@@ -1067,7 +1098,17 @@ export default function DashboardLayout() {
             <NotificationBell />
           </div>
         </div>
-        <Outlet />
+        <DashboardErrorBoundary key={location.pathname}>
+          <Suspense
+            fallback={
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '45vh', color: 'var(--text-secondary, #94a3b8)', fontSize: '0.88rem' }}>
+                Loading…
+              </div>
+            }
+          >
+            <Outlet />
+          </Suspense>
+        </DashboardErrorBoundary>
       </main>
     </div>
   );
