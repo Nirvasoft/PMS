@@ -300,7 +300,8 @@ export default function BillingSchedulesPage() {
     const ct = chargeTypes.find((c) => c.id === form.chargeTypeId) || selectedSchedule?.chargeType;
     if (!isBaseRentCharge(ct)) {
       quantitySyncedRef.current = true;
-      setForm((f) => ({ ...f, quantity: 1 }));
+      const savedQty = Number(selectedSchedule?.quantity);
+      setForm((f) => ({ ...f, quantity: savedQty > 0 ? savedQty : 1 }));
       return;
     }
     const lease = leases.find((l) => l.id === form.leaseId);
@@ -338,7 +339,7 @@ export default function BillingSchedulesPage() {
     const savedQty = Number(s.quantity);
     const effectiveQty = isRent
       ? (savedQty > 1 ? savedQty : (s.lease?.leaseTermMonths || savedQty || 1))
-      : 1;
+      : (savedQty > 0 ? savedQty : 1);
     quantitySyncedRef.current = true;
     setForm({
       chargeTypeId: s.chargeType.id,
@@ -610,7 +611,7 @@ export default function BillingSchedulesPage() {
                       <span style={{ fontWeight: 600, fontSize: 13 }}>
                         {isBaseRentCharge(s.chargeType)
                           ? (Number(s.quantity) > 1 ? Number(s.quantity) : (s.lease?.leaseTermMonths ?? Number(s.quantity) ?? 1))
-                          : 1}
+                          : (Number(s.quantity) > 0 ? Number(s.quantity) : 1)}
                       </span>
                     </td>
                     <td className="text-right">
@@ -965,7 +966,7 @@ export default function BillingSchedulesPage() {
                   {/* Row 4: Qty | Amount * */}
                   <div className="inv-field">
                     <label>Qty</label>
-                    <input type="number" min={0} step={1} value={form.quantity}
+                    <input type="number" min={0} step="any" value={form.quantity}
                       onChange={e => setForm({ ...form, quantity: Number(e.target.value) })} />
                   </div>
                   <div className="inv-field">

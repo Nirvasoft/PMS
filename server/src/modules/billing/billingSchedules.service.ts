@@ -130,8 +130,12 @@ export class BillingSchedulesService {
     const startDate = new Date(dto.startDate as string);
     const billingDay = (dto.billingDay as number) || 1;
     const billingCycle = (dto.billingCycle as string) || 'monthly';
-    const isProrated = startDate.getUTCDate() !== billingDay;
-    const nextBillingDate = this.computeNextBillingDateFromStart(startDate, billingCycle, billingDay);
+    const isProrated = dto.isProrated !== undefined
+      ? Boolean(dto.isProrated)
+      : startDate.getUTCDate() !== billingDay;
+    const nextBillingDate = dto.nextBillingDate
+      ? new Date(dto.nextBillingDate as string)
+      : this.computeNextBillingDateFromStart(startDate, billingCycle, billingDay);
 
     const isTemporary = Boolean(dto.isTemporary);
     const created = await prisma.billingSchedule.create({
@@ -638,7 +642,15 @@ export class BillingSchedulesService {
     if (dto.startDate !== undefined) {
       updateData.startDate = new Date(dto.startDate as string);
     }
-    if (dto.startDate !== undefined || dto.billingCycle !== undefined || dto.billingDay !== undefined) {
+    const startChanged =
+      updateData.startDate !== undefined &&
+      updateData.startDate.toISOString().split('T')[0] !== schedule.startDate.toISOString().split('T')[0];
+    const cycleChanged =
+      dto.billingCycle !== undefined && dto.billingCycle !== schedule.billingCycle;
+    const dayChanged =
+      dto.billingDay !== undefined && Number(dto.billingDay) !== Number(schedule.billingDay);
+
+    if (startChanged || cycleChanged || dayChanged) {
       const effectiveStart: Date = updateData.startDate ?? schedule.startDate;
       const effectiveCycle: string = (updateData.billingCycle ?? schedule.billingCycle) as string;
       const effectiveDay: number = Number(updateData.billingDay ?? schedule.billingDay) || 1;

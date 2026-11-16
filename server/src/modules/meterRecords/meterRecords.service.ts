@@ -370,7 +370,7 @@ class MeterRecordsService {
    * Bulk-appends rows from an uploaded .xlsx (columns matching the Export layout) into the
    * meter_record_list audit log — never surfaced in any UI list — and, for each row whose
    * unit currently has an active tenant, binds it to a one-off BillingSchedule (quantity =
-   * End Unit - Start Unit, amount = quantity * rate) so it flows into the normal invoicing
+   * End Unit - Start Unit, amount = rate) so it flows into the normal invoicing
    * cycle. The schedule's start/end date are both the row's Bill Date, so it self-completes
    * after generating exactly one invoice rather than recurring with stale readings.
    */
@@ -418,27 +418,80 @@ class MeterRecordsService {
       });
       const meterType = r.meterType as string;
       const category = r.category as string;
-      const chargeTypeId = lease ? await resolveChargeTypeId(companyId, resolveChargeTypeCode(meterType, category)) : null;
+      const meterSetup = lease
+        ? await prisma.meterSetup.findFirst({
+            where: {
+              propertyId,
+              companyId,
+              meterNo: { equals: String(r.meterNo ?? '').trim(), mode: 'insensitive' },
+              isActive: true,
+            },
+            select: { chargeTypeId: true },
+          })
+        : null;
+      const chargeTypeId = lease
+        ? (meterSetup?.chargeTypeId || await resolveChargeTypeId(companyId, resolveChargeTypeCode(meterType, category)))
+        : null;
 
       if (!lease || !chargeTypeId) { skipped++; continue; }
 
+      const chargeType = await prisma.chargeType.findUnique({
+        where: { id: chargeTypeId },
+        select: { departmentCenterId: true, costCenterId: true, glAccountCode: true },
+      });
+      let departmentCenterId = chargeType?.departmentCenterId ?? null;
+      let costCenterId = chargeType?.costCenterId ?? null;
+      if ((!departmentCenterId || !costCenterId) && chargeType?.glAccountCode?.trim()) {
+        const glAccount = await prisma.glAccount.findFirst({
+          where: {
+            companyId,
+            code: chargeType.glAccountCode.trim(),
+            isActive: true,
+            OR: [{ propertyId }, { propertyId: null }],
+          },
+          orderBy: { propertyId: 'asc' },
+          select: { departmentCenterId: true, costCenterId: true },
+        });
+        departmentCenterId = departmentCenterId || glAccount?.departmentCenterId || null;
+        costCenterId = costCenterId || glAccount?.costCenterId || null;
+      }
+      if (!departmentCenterId || !costCenterId) {
+        const fallbackSchedule = await prisma.billingSchedule.findFirst({
+          where: {
+            leaseId: lease.id,
+            departmentCenterId: { not: null },
+            costCenterId: { not: null },
+          },
+          select: { departmentCenterId: true, costCenterId: true },
+        });
+        departmentCenterId = departmentCenterId || fallbackSchedule?.departmentCenterId || null;
+        costCenterId = costCenterId || fallbackSchedule?.costCenterId || null;
+      }
+
       const quantity = Number(r.endUnit) - Number(r.startUnit);
-      const billDateIso = (r.billDate as Date).toISOString();
+      const startDateIso = (r.startDate as Date).toISOString();
+      const endDateIso = (r.endDate as Date).toISOString();
+      const todayYmd = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Yangon' }).format(new Date());
+      const importDateIso = isoToUtcDate(todayYmd).toISOString();
 
       await billingSchedulesService.create(companyId, {
         propertyId,
         unitId: r.unitId,
         tenantId: lease.tenantId,
         leaseId: lease.id,
+        departmentCenterId,
+        costCenterId,
         chargeTypeId,
         description: `${meterType} — ${r.meterNo} (${toDateOnly(r.startDate as Date)} to ${toDateOnly(r.endDate as Date)})`,
-        amount: quantity * Number(r.rate),
+        amount: Number(r.rate),
         quantity,
         currency: property.currency,
         billingCycle: property.billingCycle,
         billingDay: property.billingDay,
-        startDate: billDateIso,
-        endDate: billDateIso,
+        startDate: startDateIso,
+        endDate: endDateIso,
+        nextBillingDate: importDateIso,
+        isProrated: false,
       }, userId);
       billingSchedulesCreated++;
     }
