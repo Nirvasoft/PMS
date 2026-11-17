@@ -32,7 +32,7 @@ const formatAmount = (amount: string | number) =>
 const formatCompactAmount = (amount: string | number) =>
   formatCompactAmountHelper(amount, { minDecimals: 2, maxDecimals: 2 });
 
-const BILLING_CYCLES = ['monthly', 'quarterly', 'semi_annual', 'annual'] as const;
+const BILLING_CYCLES = ['monthly', 'quarterly', 'semi_annual', 'tri_quarterly', 'annual'] as const;
 
 interface ScheduleForm {
   chargeTypeId: string; propertyId: string; tenantId: string; unitId: string; leaseId: string;
@@ -521,6 +521,7 @@ export default function BillingSchedulesPage() {
             <option value="monthly">Monthly</option>
             <option value="quarterly">Quarterly</option>
             <option value="semi_annual">Semi-Annual</option>
+            <option value="tri_quarterly">Tri-Quarterly</option>
             <option value="annual">Annual</option>
           </select>
 
@@ -1017,7 +1018,7 @@ export default function BillingSchedulesPage() {
                       onChange={e => setForm({ ...form, billingCycle: e.target.value })}
                     >
                       {BILLING_CYCLES.map(c => (
-                        <option key={c} value={c}>{c.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</option>
+                        <option key={c} value={c}>{c.replace('_', '-').replace(/\b\w/g, l => l.toUpperCase())}</option>
                       ))}
                     </select>
                     {isBillingCycleMissing && <span className="inv-error-text">Billing cycle is required</span>}

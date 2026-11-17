@@ -48,8 +48,9 @@ export function getBillingCycleMonths(cycle?: string): number {
   switch (cycle) {
     case 'monthly':     return 1;
     case 'quarterly':   return 3;
-    case 'semi_annual': return 6;
-    case 'annual':      return 12;
+    case 'semi_annual':   return 6;
+    case 'tri_quarterly': return 9;
+    case 'annual':        return 12;
     default:            return 1;
   }
 }

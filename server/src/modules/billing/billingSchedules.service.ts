@@ -281,8 +281,9 @@ export class BillingSchedulesService {
       switch (lease.billingCycle) {
         case 'monthly':     cycleMonths = 1;  break;
         case 'quarterly':   cycleMonths = 3;  break;
-        case 'semi_annual': cycleMonths = 6;  break;
-        case 'annual':      cycleMonths = 12; break;
+        case 'semi_annual':   cycleMonths = 6;  break;
+        case 'tri_quarterly': cycleMonths = 9;  break;
+        case 'annual':        cycleMonths = 12; break;
         default:            cycleMonths = 1;  break;
       }
 
@@ -584,8 +585,9 @@ export class BillingSchedulesService {
     switch (billingCycle) {
       case 'monthly':     monthsToAdd = 1;  break;
       case 'quarterly':   monthsToAdd = 3;  break;
-      case 'semi_annual': monthsToAdd = 6;  break;
-      case 'annual':      monthsToAdd = 12; break;
+      case 'semi_annual':   monthsToAdd = 6;  break;
+      case 'tri_quarterly': monthsToAdd = 9;  break;
+      case 'annual':        monthsToAdd = 12; break;
       default:            monthsToAdd = 1;  break;
     }
 

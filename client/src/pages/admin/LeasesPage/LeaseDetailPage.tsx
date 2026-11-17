@@ -389,7 +389,7 @@ function EditDraftModal({ lease, onClose }: { lease: import('../../../store/api/
               <div className="edf-row">
                 <label>Billing Cycle
                   <select value={form.billingCycle} onChange={(e) => set('billingCycle', e.target.value)}>
-                    {['monthly','quarterly','semi_annual','annual'].map((c) => <option key={c} value={c}>{c.replace(/_/g,' ')}</option>)}
+                    {['monthly','quarterly','semi_annual','tri_quarterly','annual'].map((c) => <option key={c} value={c}>{c.replace(/_/g,'-')}</option>)}
                   </select>
                 </label>
                 <label>Billing Day<input type="number" min={1} max={28} value={form.billingDay} onChange={(e) => set('billingDay', Number(e.target.value))} /></label>

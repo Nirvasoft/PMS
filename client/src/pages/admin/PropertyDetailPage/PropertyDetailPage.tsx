@@ -1085,10 +1085,11 @@ function HistoryTab({ propertyId }: { propertyId: string }) {
 
 // ─── Settings Tab ─────────────────────────────
 const BILLING_CYCLES = [
-  { value: 'monthly',     label: 'Monthly' },
-  { value: 'quarterly',   label: 'Quarterly' },
-  { value: 'semi_annual', label: 'Semi-Annual' },
-  { value: 'annual',      label: 'Annual' },
+  { value: 'monthly',       label: 'Monthly' },
+  { value: 'quarterly',     label: 'Quarterly' },
+  { value: 'semi_annual',   label: 'Semi-Annual' },
+  { value: 'tri_quarterly', label: 'Tri-Quarterly' },
+  { value: 'annual',        label: 'Annual' },
 ];
 const TIMEZONES  = ['UTC','America/New_York','America/Chicago','America/Los_Angeles','Europe/London','Europe/Paris','Asia/Singapore','Asia/Tokyo','Asia/Bangkok','Asia/Yangon','Asia/Dubai','Australia/Sydney'];
 

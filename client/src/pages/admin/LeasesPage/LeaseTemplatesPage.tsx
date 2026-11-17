@@ -117,7 +117,7 @@ export default function LeaseTemplatesPage() {
             <div className="field">
               <label>Billing Cycle</label>
               <select value={form.defaultTerms.billingCycle} onChange={(e) => setForm({ ...form, defaultTerms: { ...form.defaultTerms, billingCycle: e.target.value } })}>
-                {['monthly','quarterly','semi_annual','annual'].map((c) => <option key={c} value={c}>{c.replace(/_/g, ' ')}</option>)}
+                {['monthly','quarterly','semi_annual','tri_quarterly','annual'].map((c) => <option key={c} value={c}>{c.replace(/_/g, '-')}</option>)}
               </select>
             </div>
             <div className="field">

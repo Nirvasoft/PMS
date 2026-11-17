@@ -643,6 +643,7 @@ export default function CreatePropertyPage() {
                   <option value="monthly">Monthly</option>
                   <option value="quarterly">Quarterly</option>
                   <option value="semi_annual">Semi-Annual</option>
+                  <option value="tri_quarterly">Tri-Quarterly</option>
                   <option value="annual">Annual</option>
                 </select>
               </div>

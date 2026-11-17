@@ -532,6 +532,8 @@ export const UI_DICTIONARY: Record<string, TranslationEntry> = {
   'quarterly': { my: 'သုံးလတစ်ကြိမ်', th: 'รายไตรมาส' },
   'Semi-Annual': { my: 'ခြောက်လတစ်ကြိမ်', th: 'รายครึ่งปี' },
   'semi_annual': { my: 'ခြောက်လတစ်ကြိမ်', th: 'รายครึ่งปี' },
+  'Tri-Quarterly': { my: 'ကိုးလတစ်ကြိမ်', th: 'ราย 9 เดือน' },
+  'tri_quarterly': { my: 'ကိုးလတစ်ကြိမ်', th: 'ราย 9 เดือน' },
   'Annual': { my: 'နှစ်စဉ်', th: 'รายปี' },
   'annual': { my: 'နှစ်စဉ်', th: 'รายปี' },
   'Yearly': { my: 'နှစ်စဉ်', th: 'รายปี' },
