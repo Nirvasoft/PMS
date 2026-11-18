@@ -46,13 +46,81 @@ export function calcLeaseTermMonths(start: Date | string, end: Date | string): n
 
 export function getBillingCycleMonths(cycle?: string): number {
   switch (cycle) {
-    case 'monthly':     return 1;
-    case 'quarterly':   return 3;
+    case 'monthly':       return 1;
+    case 'quarterly':     return 3;
     case 'semi_annual':   return 6;
     case 'tri_quarterly': return 9;
     case 'annual':        return 12;
-    default:            return 1;
+    default:              return 1;
   }
+}
+
+export function addDaysIso(dateInput: Date | string, days: number): string {
+  if (!dateInput) return '';
+  let y: number;
+  let m: number;
+  let d: number;
+  if (typeof dateInput === 'string') {
+    const match = dateInput.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      y = Number(match[1]);
+      m = Number(match[2]) - 1;
+      d = Number(match[3]);
+    } else {
+      const parsed = new Date(dateInput);
+      if (isNaN(parsed.getTime())) return '';
+      y = parsed.getUTCFullYear();
+      m = parsed.getUTCMonth();
+      d = parsed.getUTCDate();
+    }
+  } else {
+    if (isNaN(dateInput.getTime())) return '';
+    y = dateInput.getUTCFullYear();
+    m = dateInput.getUTCMonth();
+    d = dateInput.getUTCDate();
+  }
+  return new Date(Date.UTC(y, m, d + days)).toISOString().slice(0, 10);
+}
+
+/**
+ * Computes inclusive Lease End Date = Start Date + Billing Cycle Months - 1 Day.
+ * E.g. 2026-01-01 + Monthly (1m) => 2026-01-31; + Quarterly (3m) => 2026-03-31.
+ */
+export function calcEndDateFromStartAndCycle(
+  startDateInput: Date | string,
+  billingCycle?: string,
+): string {
+  if (!startDateInput) return '';
+  let y: number;
+  let m: number;
+  let d: number;
+  if (typeof startDateInput === 'string') {
+    const match = startDateInput.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      y = Number(match[1]);
+      m = Number(match[2]) - 1;
+      d = Number(match[3]);
+    } else {
+      const parsed = new Date(startDateInput);
+      if (isNaN(parsed.getTime())) return '';
+      y = parsed.getUTCFullYear();
+      m = parsed.getUTCMonth();
+      d = parsed.getUTCDate();
+    }
+  } else {
+    if (isNaN(startDateInput.getTime())) return '';
+    y = startDateInput.getUTCFullYear();
+    m = startDateInput.getUTCMonth();
+    d = startDateInput.getUTCDate();
+  }
+
+  const cycleMonths = getBillingCycleMonths(billingCycle);
+  const totalMonths = m + cycleMonths;
+  const targetYear = y + Math.floor(totalMonths / 12);
+  const targetMonth = totalMonths % 12;
+  const maxDayInTargetMonth = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
+  const clampedDay = Math.min(d, maxDayInTargetMonth);
+  return new Date(Date.UTC(targetYear, targetMonth, clampedDay - 1)).toISOString().slice(0, 10);
 }
 
 export interface PartialBreakdown {

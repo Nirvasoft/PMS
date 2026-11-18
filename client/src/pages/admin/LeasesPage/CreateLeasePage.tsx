@@ -1,20 +1,27 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { skipToken } from '@reduxjs/toolkit/query';
 import {
   useGetLeaseTemplatesQuery, useGetLeaseClausesQuery,
-  useCreateLeaseMutation,
+  useCreateLeaseMutation, useGetLeasesQuery,
 } from '../../../store/api/leasesApi';
 import { useConvertLeadMutation, useGetLeadQuery } from '../../../store/api/crmApi';
 import { useGetUnitChargesQuery, useUpdateUnitChargeMutation, useUpdateUnitMutation } from '../../../store/api/unitsApi';
 import { useGetCompanyQuery } from '../../../store/api/organizationApi';
 import { useGetTenantQuery } from '../../../store/api/tenantsApi';
+import { useGetMyPropertyScopeQuery, useGetPropertyQuery } from '../../../store/api/propertiesApi';
 import { ArrowLeft, ArrowRight, Check, Building2, FileText, DollarSign, List, FileSignature } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './CreateLeasePage.css';
 
-import { calcPartialBreakdown, type Step, type FormState } from './CreateLeasePage/types';
+import {
+  addDaysIso,
+  calcEndDateFromStartAndCycle,
+  calcPartialBreakdown,
+  type Step,
+  type FormState,
+} from './CreateLeasePage/types';
 import { UnitTenantStep } from './CreateLeasePage/components/steps/UnitTenantStep';
 import { DatesBillingStep } from './CreateLeasePage/components/steps/DatesBillingStep';
 import { FinancialsStep } from './CreateLeasePage/components/steps/FinancialsStep';
@@ -26,7 +33,7 @@ const todayISO = () => new Date().toISOString().split('T')[0];
 
 const INITIAL: FormState = {
   propertyId: '', propertyCode: '', floorNumber: '', unitId: '', unitCode: '', tenantId: '', tenantCode: '', templateId: '',
-  startDate: todayISO(), endDate: '', handoverDate: '', predefinedType: '',
+  startDate: todayISO(), endDate: calcEndDateFromStartAndCycle(todayISO(), 'monthly'), handoverDate: '', predefinedType: '',
   billingCycle: 'monthly', billingDay: 1, paymentDueDays: 7,
   rentAmount: '', currency: 'USD', securityDeposit: '',
   escalationType: '', escalationValue: '', escalationFrequency: 'annual',
@@ -37,7 +44,7 @@ const INITIAL: FormState = {
   rentalAgreement: {
     renterName: '', renterAddress: '', renterSignedName: '', renterNirc: '', renterDate: todayISO(),
     companyName: '', customerAddress: '', customerSignedName: '', customerNirc: '', customerDate: todayISO(),
-    contractStartDate: todayISO(), contractEndDate: '',
+    contractStartDate: todayISO(), contractEndDate: calcEndDateFromStartAndCycle(todayISO(), 'monthly'),
     shopName: '',
   },
 };
@@ -70,6 +77,84 @@ export default function CreateLeasePage() {
   const { data: companyData } = useGetCompanyQuery();
   const { data: tenantData } = useGetTenantQuery(form.tenantId ? form.tenantId : skipToken);
   const { data: leadData } = useGetLeadQuery(prefillLeadId ? prefillLeadId : skipToken);
+  const { data: scopeData } = useGetMyPropertyScopeQuery();
+  const { data: propertyDetailData } = useGetPropertyQuery(form.propertyId ? form.propertyId : skipToken);
+  const { data: existingLeasesData } = useGetLeasesQuery(
+    form.propertyId && form.tenantId
+      ? { propertyId: form.propertyId, tenantId: form.tenantId, limit: 20 }
+      : skipToken,
+  );
+
+  const selectedPropertyMeta = useMemo(() => {
+    if (!form.propertyId) return null;
+    if (propertyDetailData?.data && propertyDetailData.data.id === form.propertyId) {
+      return propertyDetailData.data;
+    }
+    return (scopeData?.data || []).find((p) => p.id === form.propertyId) || null;
+  }, [form.propertyId, propertyDetailData?.data, scopeData?.data]);
+
+  // Bind Billing Cycle (and Billing Day) from Property Settings whenever Property is selected/loaded
+  const boundPropertyCycleKeyRef = useRef<string>('');
+  useEffect(() => {
+    if (!form.propertyId || !selectedPropertyMeta) return;
+    const propCycle = selectedPropertyMeta.billingCycle || 'monthly';
+    const propDay = Number(selectedPropertyMeta.billingDay) || 1;
+    const bindKey = `${form.propertyId}:${propCycle}:${propDay}`;
+    if (boundPropertyCycleKeyRef.current === bindKey) return;
+    boundPropertyCycleKeyRef.current = bindKey;
+
+    setForm((f) => {
+      const startIso = f.startDate || todayISO();
+      const contractStartIso = f.rentalAgreement.contractStartDate || startIso;
+      const autoEnd = calcEndDateFromStartAndCycle(startIso, propCycle);
+      const autoContractEnd = calcEndDateFromStartAndCycle(contractStartIso, propCycle);
+      return {
+        ...f,
+        billingCycle: propCycle,
+        billingDay: propDay,
+        startDate: startIso,
+        endDate: autoEnd || f.endDate,
+        rentalAgreement: {
+          ...f.rentalAgreement,
+          contractStartDate: contractStartIso,
+          contractEndDate: autoContractEnd || f.rentalAgreement.contractEndDate,
+        },
+      };
+    });
+  }, [form.propertyId, selectedPropertyMeta]);
+
+  // Latest previous lease endDate for this tenant (preferring same unit if any) for Prerenewal
+  const previousLeaseEndDate = useMemo(() => {
+    const list = existingLeasesData?.data || [];
+    if (list.length === 0) return '';
+    const sameUnit = form.unitId ? list.filter((l) => l.unit?.id === form.unitId && l.endDate) : [];
+    const pool = sameUnit.length > 0 ? sameUnit : list.filter((l) => Boolean(l.endDate));
+    if (pool.length === 0) return '';
+    const sorted = [...pool].sort(
+      (a, b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime(),
+    );
+    return sorted[0]?.endDate || '';
+  }, [existingLeasesData?.data, form.unitId]);
+
+  useEffect(() => {
+    if (form.predefinedType !== 'prerenewal' || !previousLeaseEndDate) return;
+    const nextStart = addDaysIso(previousLeaseEndDate, 1);
+    const nextEnd = nextStart ? calcEndDateFromStartAndCycle(nextStart, form.billingCycle) : '';
+    if (!nextStart || !nextEnd) return;
+    setForm((f) => {
+      if (f.startDate === nextStart && f.endDate === nextEnd) return f;
+      return {
+        ...f,
+        startDate: nextStart,
+        endDate: nextEnd,
+        rentalAgreement: {
+          ...f.rentalAgreement,
+          contractStartDate: nextStart,
+          contractEndDate: nextEnd,
+        },
+      };
+    });
+  }, [form.predefinedType, previousLeaseEndDate, form.billingCycle]);
 
   // Auto-bind Shop Name from Lead Pipeline if lead was imported/converted
   useEffect(() => {
@@ -267,7 +352,7 @@ export default function CreateLeasePage() {
       {/* Step content */}
       <div className="cl-body">
         {step === 1 && <UnitTenantStep form={form} set={set} templates={templates} />}
-        {step === 2 && <DatesBillingStep form={form} set={set} />}
+        {step === 2 && <DatesBillingStep form={form} set={set} previousLeaseEndDate={previousLeaseEndDate} />}
         {step === 3 && <FinancialsStep form={form} set={set} />}
         {step === 4 && <RentalAgreementStep form={form} set={set} />}
         {step === 5 && <ClausesStep form={form} set={set} libraryClauseList={clauses} />}

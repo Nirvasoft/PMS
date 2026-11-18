@@ -108,7 +108,8 @@ export const createAmendmentSchema = z.object({
 export const createRenewalSchema = z.object({
   body: z.object({
     startDate: dateString.optional(),
-    endDate: dateString,
+    endDate: dateString.optional(),
+    billingCycle: z.enum(['monthly', 'quarterly', 'semi_annual', 'tri_quarterly', 'annual']).optional(),
     rentAmount: z.number().positive().optional(),
     securityDeposit: z.number().min(0).optional(),
     escalationType: z.enum(['fixed_percent', 'fixed_amount', 'cpi', 'stepped']).nullable().optional(),

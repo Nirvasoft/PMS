@@ -2,7 +2,13 @@ import { prisma } from '../../../common/database';
 import { AppError } from '../../../common/errors';
 import { logger } from '../../../common/logger';
 import { sequenceService } from '../../../common/sequence.service';
-import { calcLeaseTermMonths, resolveTerminationPolicy, computeTerminationPenalty } from './helpers';
+import {
+  addDaysUtc,
+  calcEndDateFromStartAndCycleUtc,
+  calcLeaseTermMonths,
+  resolveTerminationPolicy,
+  computeTerminationPenalty,
+} from './helpers';
 import { escalationService } from './escalation.service';
 import { workflowEngine } from '../../workflow/services/engine.service';
 import { billingSchedulesService } from '../../billing/billingSchedules.service';
@@ -272,14 +278,27 @@ export class LeasesLifecycleService {
 
 
   // ── Create renewal ───────────────────────
-  async createRenewal(id: string, companyId: string, dto: { startDate: string; endDate: string; rentAmount?: number; securityDeposit?: number; offerExpiresAt?: string }, createdBy: string) {
+  async createRenewal(
+    id: string,
+    companyId: string,
+    dto: {
+      startDate?: string;
+      endDate?: string;
+      billingCycle?: string;
+      rentAmount?: number;
+      securityDeposit?: number;
+      offerExpiresAt?: string;
+    },
+    createdBy: string,
+  ) {
     const original = await prisma.lease.findFirst({ where: { id, companyId, deletedAt: null } });
     if (!original) throw AppError.notFound('Lease');
     if (original.status !== 'active') throw new AppError(400, 'NOT_ACTIVE', 'Can only renew active leases');
 
-    // If startDate is omitted, default to original lease end date + 1 day (natural renewal start)
-    const start = dto.startDate ? new Date(dto.startDate) : new Date(original.endDate.getTime() + 86_400_000);
-    const end   = new Date(dto.endDate);
+    const effectiveCycle = dto.billingCycle || original.billingCycle || 'monthly';
+    // Default startDate to original lease end date + 1 day, and endDate to startDate + billingCycle
+    const start = dto.startDate ? new Date(dto.startDate) : addDaysUtc(original.endDate, 1);
+    const end = dto.endDate ? new Date(dto.endDate) : calcEndDateFromStartAndCycleUtc(start, effectiveCycle);
     const leaseNumber = await sequenceService.next(companyId, 'lease', { propertyId: original.propertyId });
 
     const renewal = await prisma.lease.create({
@@ -290,7 +309,7 @@ export class LeasesLifecycleService {
         startDate: start, endDate: end, leaseTermMonths: calcLeaseTermMonths(start, end),
         rentAmount: dto.rentAmount ?? original.rentAmount,
         securityDeposit: dto.securityDeposit ?? original.securityDeposit,
-        currency: original.currency, billingCycle: original.billingCycle,
+        currency: original.currency, billingCycle: effectiveCycle,
         billingDay: original.billingDay, paymentDueDays: original.paymentDueDays,
         escalationType: original.escalationType, escalationValue: original.escalationValue,
         renewalOfferedAt: new Date(),

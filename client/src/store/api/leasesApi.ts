@@ -306,7 +306,7 @@ export const leasesApi = createApi({
       onQueryStarted: invalidateUnitTagsOnSuccess,
     }),
 
-    createRenewal: builder.mutation<ApiResponse<LeaseDetail>, { id: string; startDate: string; endDate: string; rentAmount?: number; securityDeposit?: number; offerExpiresAt?: string }>({
+    createRenewal: builder.mutation<ApiResponse<LeaseDetail>, { id: string; startDate: string; endDate: string; billingCycle?: string; rentAmount?: number; securityDeposit?: number; offerExpiresAt?: string }>({
       query: ({ id, ...data }) => ({ url: `/leases/${id}/renewal`, method: 'POST', body: data }),
       invalidatesTags: ['Leases'],
     }),

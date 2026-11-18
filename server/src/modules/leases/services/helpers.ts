@@ -30,6 +30,36 @@ export function calcLeaseTermMonths(start: Date | string, end: Date | string): n
   return Math.max(1, months);
 }
 
+export function getBillingCycleMonths(cycle?: string): number {
+  switch (cycle) {
+    case 'monthly':       return 1;
+    case 'quarterly':     return 3;
+    case 'semi_annual':   return 6;
+    case 'tri_quarterly': return 9;
+    case 'annual':        return 12;
+    default:              return 1;
+  }
+}
+
+export function addDaysUtc(dateInput: Date | string, days: number): Date {
+  const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + days));
+}
+
+export function calcEndDateFromStartAndCycleUtc(startDateInput: Date | string, billingCycle?: string): Date {
+  const d = typeof startDateInput === 'string' ? new Date(startDateInput) : startDateInput;
+  const y = d.getUTCFullYear();
+  const m = d.getUTCMonth();
+  const day = d.getUTCDate();
+  const cycleMonths = getBillingCycleMonths(billingCycle);
+  const totalMonths = m + cycleMonths;
+  const targetYear = y + Math.floor(totalMonths / 12);
+  const targetMonth = totalMonths % 12;
+  const maxDayInTargetMonth = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
+  const clampedDay = Math.min(day, maxDayInTargetMonth);
+  return new Date(Date.UTC(targetYear, targetMonth, clampedDay - 1));
+}
+
 export function nextLeaseNumber(): string {
   const year = new Date().getFullYear();
   const rand  = Math.floor(Math.random() * 90000) + 10000;

@@ -1,25 +1,39 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useCreateRenewalMutation, type LeaseDetail } from '../../../../../../store/api/leasesApi';
+import { useGetMyPropertyScopeQuery } from '../../../../../../store/api/propertiesApi';
+import { addDaysIso, calcEndDateFromStartAndCycle } from '../../../CreateLeasePage/types';
 import { Modal } from './SharedModal';
 
-function addDays(dateStr: string, days: number): string {
-  const d = new Date(dateStr);
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
-}
-
 export function RenewalModal({ leaseId, lease, onClose }: { leaseId: string; lease: LeaseDetail; onClose: () => void }) {
-  const defaultStartDate = lease.endDate ? addDays(lease.endDate, 1) : '';
+  const { data: scopeData } = useGetMyPropertyScopeQuery();
+  const propertyBillingCycle = useMemo(() => {
+    const propId = (lease as any).propertyId || lease.property?.id;
+    const matched = propId ? (scopeData?.data || []).find((p) => p.id === propId) : undefined;
+    return matched?.billingCycle || lease.billingCycle || 'monthly';
+  }, [lease, scopeData?.data]);
+
+  const defaultStartDate = lease.endDate ? addDaysIso(lease.endDate, 1) : '';
+  const [billingCycle, setBillingCycle] = useState(propertyBillingCycle);
   const [startDate, setStartDate] = useState(defaultStartDate);
-  const [endDate,   setEndDate]   = useState(defaultStartDate ? addDays(defaultStartDate, 1) : '');
-  const [rentAmount, setRent]     = useState(lease.rentAmount ? String(lease.rentAmount) : '');
-  const [deposit, setDeposit]     = useState(lease.securityDeposit ? String(lease.securityDeposit) : '');
+  const [endDate, setEndDate] = useState(
+    defaultStartDate ? calcEndDateFromStartAndCycle(defaultStartDate, propertyBillingCycle) : '',
+  );
+  const [rentAmount, setRent] = useState(lease.rentAmount ? String(lease.rentAmount) : '');
+  const [deposit, setDeposit] = useState(lease.securityDeposit ? String(lease.securityDeposit) : '');
   const [createRenewal, { isLoading }] = useCreateRenewalMutation();
 
   useEffect(() => {
-    if (startDate) setEndDate(addDays(startDate, 1));
-  }, [startDate]);
+    if (propertyBillingCycle) {
+      setBillingCycle(propertyBillingCycle);
+    }
+  }, [propertyBillingCycle]);
+
+  useEffect(() => {
+    if (startDate) {
+      setEndDate(calcEndDateFromStartAndCycle(startDate, billingCycle));
+    }
+  }, [startDate, billingCycle]);
 
   const handleSubmit = async () => {
     if (!startDate || !endDate) { toast.error('Dates required'); return; }
@@ -28,6 +42,7 @@ export function RenewalModal({ leaseId, lease, onClose }: { leaseId: string; lea
         id: leaseId,
         startDate,
         endDate,
+        billingCycle,
         rentAmount: rentAmount ? Number(rentAmount) : undefined,
         securityDeposit: deposit ? Number(deposit) : undefined,
       }).unwrap();
@@ -39,6 +54,16 @@ export function RenewalModal({ leaseId, lease, onClose }: { leaseId: string; lea
   return (
     <Modal title="Create Renewal Offer" onClose={onClose}>
       <div className="modal-body">
+        <div className="form-field">
+          <label>Billing Cycle *</label>
+          <select value={billingCycle} onChange={(e) => setBillingCycle(e.target.value)}>
+            <option value="monthly">Monthly</option>
+            <option value="quarterly">Quarterly</option>
+            <option value="semi_annual">Semi-Annual</option>
+            <option value="tri_quarterly">Tri-Quarterly</option>
+            <option value="annual">Annual</option>
+          </select>
+        </div>
         <div className="form-field"><label>New Start Date *</label><input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} /></div>
         <div className="form-field"><label>New End Date *</label><input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} /></div>
         <div className="form-field"><label>New Rent (optional, current: {lease.currency} {Number(lease.rentAmount).toLocaleString()})</label><input type="number" value={rentAmount} onChange={(e) => setRent(e.target.value)} /></div>

@@ -1,23 +1,84 @@
 import type { RentalAgreement } from '../../../../../../store/api/leasesApi';
-import { calcLeaseTermMonths, type FormState } from '../../types';
+import {
+  addDaysIso,
+  calcEndDateFromStartAndCycle,
+  calcLeaseTermMonths,
+  type FormState,
+} from '../../types';
 
-export function DatesBillingStep({ form, set }: { form: FormState; set: Function }) {
+export function DatesBillingStep({
+  form,
+  set,
+  previousLeaseEndDate,
+}: {
+  form: FormState;
+  set: Function;
+  previousLeaseEndDate?: string;
+}) {
   const termMonths = form.startDate && form.endDate && form.endDate >= form.startDate
     ? calcLeaseTermMonths(form.startDate, form.endDate)
     : 0;
 
-  const setRA = (key: keyof RentalAgreement, val: string) =>
-    set('rentalAgreement', { ...form.rentalAgreement, [key]: val });
-
-  // One-way sync: changing a Contract date auto-fills the matching Advance date.
-  // Advance dates remain freely editable and never write back to the contract dates.
+  // One-way sync: changing a Contract Start Date auto-fills Advance Start Date
+  // and computes End Date = Start Date + Billing Cycle for both.
   const onContractStartChange = (val: string) => {
-    setRA('contractStartDate', val);
+    const autoEnd = val ? calcEndDateFromStartAndCycle(val, form.billingCycle) : '';
+    set('rentalAgreement', {
+      ...form.rentalAgreement,
+      contractStartDate: val,
+      ...(autoEnd ? { contractEndDate: autoEnd } : {}),
+    });
     set('startDate', val);
+    if (autoEnd) {
+      set('endDate', autoEnd);
+    }
   };
   const onContractEndChange = (val: string) => {
-    setRA('contractEndDate', val);
+    set('rentalAgreement', { ...form.rentalAgreement, contractEndDate: val });
     set('endDate', val);
+  };
+  const onAdvanceStartChange = (val: string) => {
+    set('startDate', val);
+    if (val) {
+      const autoEnd = calcEndDateFromStartAndCycle(val, form.billingCycle);
+      if (autoEnd) {
+        set('endDate', autoEnd);
+      }
+    }
+  };
+  const onBillingCycleChange = (newCycle: string) => {
+    set('billingCycle', newCycle);
+    const nextAdvanceEnd = form.startDate
+      ? calcEndDateFromStartAndCycle(form.startDate, newCycle)
+      : '';
+    const nextContractEnd = form.rentalAgreement.contractStartDate
+      ? calcEndDateFromStartAndCycle(form.rentalAgreement.contractStartDate, newCycle)
+      : nextAdvanceEnd;
+    if (nextAdvanceEnd) {
+      set('endDate', nextAdvanceEnd);
+    }
+    if (nextContractEnd) {
+      set('rentalAgreement', {
+        ...form.rentalAgreement,
+        contractEndDate: nextContractEnd,
+      });
+    }
+  };
+  const onPredefinedTypeChange = (val: string) => {
+    set('predefinedType', val);
+    if (val === 'prerenewal' && previousLeaseEndDate) {
+      const nextStart = addDaysIso(previousLeaseEndDate, 1);
+      const nextEnd = nextStart ? calcEndDateFromStartAndCycle(nextStart, form.billingCycle) : '';
+      if (nextStart) {
+        set('startDate', nextStart);
+        if (nextEnd) set('endDate', nextEnd);
+        set('rentalAgreement', {
+          ...form.rentalAgreement,
+          contractStartDate: nextStart,
+          ...(nextEnd ? { contractEndDate: nextEnd } : {}),
+        });
+      }
+    }
   };
 
   return (
@@ -34,7 +95,7 @@ export function DatesBillingStep({ form, set }: { form: FormState; set: Function
         </div>
         <div className="form-field">
           <label>Advance Start Date *</label>
-          <input type="date" value={form.startDate} onChange={(e) => set('startDate', e.target.value)} />
+          <input type="date" value={form.startDate} onChange={(e) => onAdvanceStartChange(e.target.value)} />
         </div>
         <div className="form-field">
           <label>Advance End Date *</label>
@@ -42,7 +103,7 @@ export function DatesBillingStep({ form, set }: { form: FormState; set: Function
         </div>
         <div className="form-field">
           <label>Predefined Type</label>
-          <select value={form.predefinedType} onChange={(e) => set('predefinedType', e.target.value)}>
+          <select value={form.predefinedType} onChange={(e) => onPredefinedTypeChange(e.target.value)}>
             <option value="">-</option>
             <option value="prerenewal">Prerenewal</option>
             <option value="precontractend">Precontractend</option>
@@ -53,7 +114,7 @@ export function DatesBillingStep({ form, set }: { form: FormState; set: Function
       <div className="form-grid-3" style={{ marginTop: 12 }}>
         <div className="form-field">
           <label>Billing Cycle *</label>
-          <select value={form.billingCycle} onChange={(e) => set('billingCycle', e.target.value)}>
+          <select value={form.billingCycle} onChange={(e) => onBillingCycleChange(e.target.value)}>
             <option value="monthly">Monthly</option>
             <option value="quarterly">Quarterly</option>
             <option value="semi_annual">Semi-Annual</option>
