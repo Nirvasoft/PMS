@@ -398,7 +398,7 @@ function AppRoutes() {
             'billing-dashboard.read', 'billing-invoices.read', 'billing-schedules.read', 'charge-category.read', 'billing-charge-types.read', 'currency-rate.read', 'meter.read', 'billing-settings.read',
             'ar-receipts.read', 'ar-aging.read', 'ar-collections.read', 'ar-refunds.read', 'ar-statements.read', 'ar-credits.read',
             'ap-invoices.read', 'ap-vouchers.read', 'ap-expenses.read',
-            'finance-coa.read', 'finance-journal.read', 'finance-fiscal-periods.read', 'finance-trial-balance.read', 'finance-pnl.read', 'finance-balance-sheet.read', 'finance-cash-flow.read', 'finance-budgets.read', 'finance-assets.read', 'finance-banking.read', 'finance-gateway.read',
+            'finance-coa.read', 'finance-departments.read', 'finance-cost-centers.read', 'finance-payment-methods.read', 'finance-journal.read', 'finance-fiscal-periods.read', 'finance-trial-balance.read', 'finance-pnl.read', 'finance-balance-sheet.read', 'finance-cash-flow.read', 'finance-budgets.read', 'finance-assets.read', 'finance-banking.read', 'finance-gateway.read',
           ]} />}>
             <Route path="/admin/billing/invoices" element={<InvoiceListPage />} />
             <Route path="/admin/billing/invoices/new" element={<CreateInvoicePage />} />

@@ -417,6 +417,8 @@ async function bootstrap() {
         const { ensurePropertySetupScope } = await import('./common/propertySetupScope');
         const { syncUnitPhotoBlobsOnStartup } = await import('./common/unitPhotoStore');
         await Promise.all([ensurePropertySetupScope(), syncUnitPhotoBlobsOnStartup()]);
+        const { permissionsService } = await import('./modules/users/services/permissions.service');
+        await permissionsService.ensureFinanceSetupPermissions();
 
         // Seed reference data in parallel
         const [

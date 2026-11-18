@@ -250,7 +250,7 @@ export default function PaymentMethodSetupPage() {
               {`${filteredPaymentMethods.length} total payment methods`}
             </p>
           </div>
-          <PermissionGuard permission="finance-coa.write">
+          <PermissionGuard permission="finance-payment-methods.create">
             <button
               className="btn btn-primary"
               onClick={openCreate}
@@ -397,11 +397,13 @@ export default function PaymentMethodSetupPage() {
                         : <span className="sched-status sched-status--cancelled">Inactive</span>}
                     </td>
                     <td className="text-center">
-                      <PermissionGuard permission="finance-coa.write">
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <PermissionGuard permission="finance-payment-methods.update">
                           <button className="btn-icon" title="Edit" onClick={() => openEdit(pm)}>
                             <Pencil size={14} />
                           </button>
+                        </PermissionGuard>
+                        <PermissionGuard permission="finance-payment-methods.delete">
                           <button
                             className="btn-icon"
                             title="Delete"
@@ -416,8 +418,8 @@ export default function PaymentMethodSetupPage() {
                           >
                             <Trash2 size={14} />
                           </button>
-                        </div>
-                      </PermissionGuard>
+                        </PermissionGuard>
+                      </div>
                     </td>
                   </tr>
                 );

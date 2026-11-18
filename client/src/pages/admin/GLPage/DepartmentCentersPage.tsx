@@ -71,7 +71,7 @@ export default function DepartmentCentersPage() {
             <p>{filtered.length} total departments for accounting & GL{isV6Active ? ' • Synced with V6 ERP' : ''}</p>
           </div>
         </div>
-        <PermissionGuard permission="finance-coa.write">
+        <PermissionGuard permission="finance-departments.create">
           <button
             className="btn-primary"
             disabled={isV6Active}
@@ -185,7 +185,7 @@ export default function DepartmentCentersPage() {
                       </span>
                     </td>
                     <td style={{ textAlign: 'right' }}>
-                      <PermissionGuard permission="finance-coa.write">
+                      <PermissionGuard permission="finance-departments.update">
                         <button
                           className="btn-icon"
                           title="Edit"
@@ -196,6 +196,8 @@ export default function DepartmentCentersPage() {
                         >
                           <Pencil size={14} />
                         </button>
+                      </PermissionGuard>
+                      <PermissionGuard permission="finance-departments.delete">
                         <button
                           className="btn-icon"
                           title="Delete"

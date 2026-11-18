@@ -508,7 +508,7 @@ export default function DashboardLayout() {
           </PermissionGuard>
 
           {/* Finance / GL Section */}
-          <PermissionGuard hideWhenDenied permission={['finance-coa.read', 'finance-journal.read', 'finance-fiscal-periods.read', 'finance-trial-balance.read', 'finance-pnl.read', 'finance-balance-sheet.read', 'finance-cash-flow.read', 'finance-budgets.read', 'finance-assets.read', 'finance-banking.read', 'finance-gateway.read']}>
+          <PermissionGuard hideWhenDenied permission={['finance-coa.read', 'finance-departments.read', 'finance-cost-centers.read', 'finance-payment-methods.read', 'finance-journal.read', 'finance-fiscal-periods.read', 'finance-trial-balance.read', 'finance-pnl.read', 'finance-balance-sheet.read', 'finance-cash-flow.read', 'finance-budgets.read', 'finance-assets.read', 'finance-banking.read', 'finance-gateway.read']}>
             <NavSection label="Finance" storageKey="finance" defaultOpen isCollapsed={isCollapsed}>
               <PermissionGuard hideWhenDenied permission="finance-coa.read">
                 <NavLink to="/admin/gl/accounts" className="nav-item" title="Chart of Accounts">
@@ -516,19 +516,19 @@ export default function DashboardLayout() {
                   <span>Chart of Accounts</span>
                 </NavLink>
               </PermissionGuard>
-              <PermissionGuard hideWhenDenied permission="finance-coa.read">
+              <PermissionGuard hideWhenDenied permission="finance-departments.read">
                 <NavLink to="/admin/gl/department-centers" className="nav-item" title="Department">
                   <GitBranch size={18} />
                   <span>Department</span>
                 </NavLink>
               </PermissionGuard>
-              <PermissionGuard hideWhenDenied permission="finance-coa.read">
+              <PermissionGuard hideWhenDenied permission="finance-cost-centers.read">
                 <NavLink to="/admin/gl/cost-centers" className="nav-item" title="Cost Centers">
                   <Layers size={18} />
                   <span>Cost Centers</span>
                 </NavLink>
               </PermissionGuard>
-              <PermissionGuard hideWhenDenied permission="finance-coa.read">
+              <PermissionGuard hideWhenDenied permission="finance-payment-methods.read">
                 <NavLink to="/admin/gl/payment-methods" className="nav-item" title="Payment Method Setup">
                   <CreditCard size={18} />
                   <span>Payment Method Setup</span>

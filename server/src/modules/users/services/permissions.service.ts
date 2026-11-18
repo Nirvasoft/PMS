@@ -1,8 +1,102 @@
 import { prisma } from '../../../common/database';
 import { permissionResolver } from '../helpers/permission-resolver';
 
+/**
+ * Finance setup menus that previously shared Chart of Accounts permissions now have their own.
+ * `legacyRead` / `legacyWrite` are the codes whose holders inherit the new permissions once,
+ * the first time each new permission is created (so existing users keep their menus).
+ */
+const FINANCE_SETUP_PERMISSION_MODULES = [
+  { module: 'finance-departments', label: 'Department Centers' },
+  { module: 'finance-cost-centers', label: 'Cost Centers' },
+  { module: 'finance-payment-methods', label: 'Payment Methods' },
+] as const;
+
+const FINANCE_SETUP_ACTIONS = [
+  { action: 'read', verb: 'View', legacy: 'finance-coa.read' },
+  { action: 'create', verb: 'Create', legacy: 'finance-coa.write' },
+  { action: 'update', verb: 'Update', legacy: 'finance-coa.write' },
+  { action: 'delete', verb: 'Delete', legacy: 'finance-coa.write' },
+] as const;
+
 export class PermissionsService {
   private apVouchersMigrated = false;
+  private financeSetupMigrated = false;
+
+  /**
+   * Ensure Department Centers, Cost Centers, and Payment Methods each have their own
+   * read/create/update/delete permissions. A newly created permission is granted to every
+   * role (and user override) holding the matching legacy Chart of Accounts permission, plus
+   * all system roles. Existing permissions are left untouched so admin changes are preserved.
+   */
+  async ensureFinanceSetupPermissions() {
+    if (this.financeSetupMigrated) return;
+    try {
+      const legacyCodes = Array.from(new Set(FINANCE_SETUP_ACTIONS.map((a) => a.legacy)));
+      const legacyPerms = await prisma.permission.findMany({
+        where: { code: { in: legacyCodes } },
+        select: { id: true, code: true },
+      });
+      const legacyIdByCode = new Map(legacyPerms.map((p) => [p.code, p.id]));
+      const systemRoles = await prisma.role.findMany({ where: { isSystem: true }, select: { id: true } });
+      let granted = false;
+
+      for (const { module, label } of FINANCE_SETUP_PERMISSION_MODULES) {
+        for (const { action, verb, legacy } of FINANCE_SETUP_ACTIONS) {
+          const code = `${module}.${action}`;
+          const name = `${verb} ${label}`;
+          const existing = await prisma.permission.findUnique({ where: { code }, select: { id: true } });
+          if (existing) continue;
+
+          const perm = await prisma.permission.create({
+            data: { code, name, module, action, isActive: true },
+          });
+
+          const legacyId = legacyIdByCode.get(legacy);
+          const roleIds = new Set(systemRoles.map((r) => r.id));
+          if (legacyId) {
+            const legacyRolePerms = await prisma.rolePermission.findMany({
+              where: { permissionId: legacyId },
+              select: { roleId: true },
+            });
+            legacyRolePerms.forEach((rp) => roleIds.add(rp.roleId));
+
+            const legacyOverrides = await prisma.userPermissionOverride.findMany({
+              where: { permissionId: legacyId },
+            });
+            for (const ov of legacyOverrides) {
+              await prisma.userPermissionOverride.upsert({
+                where: { uq_user_perm_override: { userId: ov.userId, permissionId: perm.id } },
+                create: {
+                  userId: ov.userId,
+                  permissionId: perm.id,
+                  overrideType: ov.overrideType,
+                  reason: ov.reason,
+                  expiresAt: ov.expiresAt,
+                  grantedBy: ov.grantedBy,
+                },
+                update: {},
+              });
+            }
+          }
+
+          for (const roleId of roleIds) {
+            await prisma.rolePermission.upsert({
+              where: { roleId_permissionId: { roleId, permissionId: perm.id } },
+              create: { roleId, permissionId: perm.id },
+              update: {},
+            });
+          }
+          granted = true;
+        }
+      }
+
+      if (granted) await permissionResolver.invalidateAllCaches();
+      this.financeSetupMigrated = true;
+    } catch {
+      // Non-fatal fallback
+    }
+  }
 
   /** Ensure ap-vouchers has granular create & update permissions instead of legacy write */
   private async ensureApVoucherPermissions() {
@@ -101,7 +195,7 @@ export class PermissionsService {
 
   /** Get all permissions grouped by module */
   async findAllGrouped(moduleFilter?: string) {
-    await this.ensureApVoucherPermissions();
+    await Promise.all([this.ensureApVoucherPermissions(), this.ensureFinanceSetupPermissions()]);
     const where = moduleFilter ? { module: moduleFilter, isActive: true } : { isActive: true };
     const permissions = await prisma.permission.findMany({
       where,

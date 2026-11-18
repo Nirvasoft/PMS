@@ -71,7 +71,7 @@ export default function CostCentersPage() {
             <p>{filtered.length} total cost centers for financial tracking & GL{isV6Active ? ' • Synced with V6 ERP' : ''}</p>
           </div>
         </div>
-        <PermissionGuard permission="finance-coa.write">
+        <PermissionGuard permission="finance-cost-centers.create">
           <button
             className="btn-primary"
             disabled={isV6Active}
@@ -185,7 +185,7 @@ export default function CostCentersPage() {
                       </span>
                     </td>
                     <td style={{ textAlign: 'right' }}>
-                      <PermissionGuard permission="finance-coa.write">
+                      <PermissionGuard permission="finance-cost-centers.update">
                         <button
                           className="btn-icon"
                           title="Edit"
@@ -196,6 +196,8 @@ export default function CostCentersPage() {
                         >
                           <Pencil size={14} />
                         </button>
+                      </PermissionGuard>
+                      <PermissionGuard permission="finance-cost-centers.delete">
                         <button
                           className="btn-icon"
                           title="Delete"

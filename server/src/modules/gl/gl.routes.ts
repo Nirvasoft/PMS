@@ -1,6 +1,7 @@
 import { Router, Request } from 'express';
 import ExcelJS from 'exceljs';
 import { asyncHandler } from '../../middleware';
+import { requirePermission } from '../auth/guards/roleGuard';
 import { validateRequest } from '../../middleware/validateRequest';
 import { glService } from './gl.service';
 import {
@@ -53,17 +54,17 @@ glRouter.get('/department-centers', asyncHandler(async (req, res) => {
   res.json({ success: true, data });
 }));
 
-glRouter.post('/department-centers', validateRequest(createDepartmentCenterSchema), asyncHandler(async (req, res) => {
+glRouter.post('/department-centers', requirePermission('finance-departments.create'), validateRequest(createDepartmentCenterSchema), asyncHandler(async (req, res) => {
   const data = await glService.createDepartmentCenter(req.user!.companyId, req.body);
   res.status(201).json({ success: true, data });
 }));
 
-glRouter.put('/department-centers/:id', validateRequest(updateDepartmentCenterSchema), asyncHandler(async (req, res) => {
+glRouter.put('/department-centers/:id', requirePermission('finance-departments.update'), validateRequest(updateDepartmentCenterSchema), asyncHandler(async (req, res) => {
   const data = await glService.updateDepartmentCenter(p(req, 'id'), req.user!.companyId, req.body);
   res.json({ success: true, data });
 }));
 
-glRouter.delete('/department-centers/:id', asyncHandler(async (req, res) => {
+glRouter.delete('/department-centers/:id', requirePermission('finance-departments.delete'), asyncHandler(async (req, res) => {
   const data = await glService.deleteDepartmentCenter(p(req, 'id'), req.user!.companyId);
   res.json({ success: true, data });
 }));
@@ -83,17 +84,17 @@ glRouter.get('/cost-centers', asyncHandler(async (req, res) => {
   res.json({ success: true, data });
 }));
 
-glRouter.post('/cost-centers', validateRequest(createCostCenterSchema), asyncHandler(async (req, res) => {
+glRouter.post('/cost-centers', requirePermission('finance-cost-centers.create'), validateRequest(createCostCenterSchema), asyncHandler(async (req, res) => {
   const data = await glService.createCostCenter(req.user!.companyId, req.body);
   res.status(201).json({ success: true, data });
 }));
 
-glRouter.put('/cost-centers/:id', validateRequest(updateCostCenterSchema), asyncHandler(async (req, res) => {
+glRouter.put('/cost-centers/:id', requirePermission('finance-cost-centers.update'), validateRequest(updateCostCenterSchema), asyncHandler(async (req, res) => {
   const data = await glService.updateCostCenter(p(req, 'id'), req.user!.companyId, req.body);
   res.json({ success: true, data });
 }));
 
-glRouter.delete('/cost-centers/:id', asyncHandler(async (req, res) => {
+glRouter.delete('/cost-centers/:id', requirePermission('finance-cost-centers.delete'), asyncHandler(async (req, res) => {
   const data = await glService.deleteCostCenter(p(req, 'id'), req.user!.companyId);
   res.json({ success: true, data });
 }));
@@ -112,17 +113,17 @@ glRouter.get('/payment-methods', asyncHandler(async (req, res) => {
   res.json({ success: true, data });
 }));
 
-glRouter.post('/payment-methods', validateRequest(createPaymentMethodSchema), asyncHandler(async (req, res) => {
+glRouter.post('/payment-methods', requirePermission('finance-payment-methods.create'), validateRequest(createPaymentMethodSchema), asyncHandler(async (req, res) => {
   const data = await glService.createPaymentMethod(req.user!.companyId, req.body);
   res.status(201).json({ success: true, data });
 }));
 
-glRouter.put('/payment-methods/:id', validateRequest(updatePaymentMethodSchema), asyncHandler(async (req, res) => {
+glRouter.put('/payment-methods/:id', requirePermission('finance-payment-methods.update'), validateRequest(updatePaymentMethodSchema), asyncHandler(async (req, res) => {
   const data = await glService.updatePaymentMethod(p(req, 'id'), req.user!.companyId, req.body);
   res.json({ success: true, data });
 }));
 
-glRouter.delete('/payment-methods/:id', asyncHandler(async (req, res) => {
+glRouter.delete('/payment-methods/:id', requirePermission('finance-payment-methods.delete'), asyncHandler(async (req, res) => {
   const data = await glService.deletePaymentMethod(p(req, 'id'), req.user!.companyId);
   res.json({ success: true, data });
 }));
