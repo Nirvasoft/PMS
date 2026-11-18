@@ -2,6 +2,7 @@ import { createApi } from '@reduxjs/toolkit/query/react';
 import { baseQueryWithReauth } from './baseQuery';
 import { glApi } from './glApi';
 import { propertiesApi } from './propertiesApi';
+import { billingApi } from './billingApi';
 
 export const integrationsApi = createApi({
   reducerPath: 'integrationsApi',
@@ -153,6 +154,19 @@ export const integrationsApi = createApi({
         method: 'POST',
         body: body ?? {},
       }),
+      invalidatesTags: ['Integrations', 'SyncLogs', 'EntityMap'],
+      async onQueryStarted(arg, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          const tags: any[] = ['Invoices'];
+          if (arg && Array.isArray(arg.invoiceIds)) {
+            for (const id of arg.invoiceIds) {
+              tags.push({ type: 'Invoices', id });
+            }
+          }
+          dispatch(billingApi.util.invalidateTags(tags));
+        } catch { /* ignore */ }
+      },
     }),
     syncV6Coa: builder.mutation<any, { propertyId?: string } | void>({
       query: (body) => ({

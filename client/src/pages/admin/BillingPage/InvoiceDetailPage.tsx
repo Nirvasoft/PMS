@@ -37,11 +37,12 @@ export default function InvoiceDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const selectedPropertyId = useSelectedPropertyId();
-  const { data, isLoading } = useGetInvoiceQuery(id!);
+  const { data, isLoading, refetch } = useGetInvoiceQuery(id!);
   const [voidInvoice, { isLoading: voiding }] = useVoidInvoiceMutation();
   const [sendInvoice, { isLoading: sending }] = useSendInvoiceMutation();
   const [createCreditNote, { isLoading: creatingCN }] = useCreateCreditNoteMutation();
   const [pushInvoicesToV6Erp, { isLoading: pushingToV6 }] = usePushInvoicesToV6ErpMutation();
+  const [v6SentOverride, setV6SentOverride] = useState(false);
   const inv = data?.data;
   const { isV6PushActive: isV6Active, isAccountingIntegrationActive } = useV6IntegrationStatus(inv?.property?.id);
   const confirmDialog = useConfirm();
@@ -133,7 +134,7 @@ export default function InvoiceDetailPage() {
   };
 
   const handleSendToV6 = async () => {
-    if (!inv || inv.status !== 'issued') return;
+    if (!inv || inv.status !== 'issued' || v6SentOverride) return;
     if (!(await confirmDialog(`Send invoice ${inv.invoiceNumber} to V6 ERP?\n\nStatus will change to "sent" upon completion.`))) return;
     try {
       const targetPropId = inv.property?.id || (inv as any).propertyId || selectedPropertyId || undefined;
@@ -142,6 +143,8 @@ export default function InvoiceDetailPage() {
         ...(targetPropId ? { propertyId: targetPropId } : {}),
       }).unwrap();
       if (result.data?.sent > 0) {
+        setV6SentOverride(true);
+        refetch();
         toast.success(`Invoice ${inv.invoiceNumber} sent to V6 ERP!`);
       } else if (result.data?.failed > 0) {
         toast.error(`Failed to send invoice to V6 ERP: ${result.data?.results?.[0]?.error || 'Unknown error'}`);
@@ -243,6 +246,9 @@ export default function InvoiceDetailPage() {
     : 0;
 
 
+  const effectiveStatus = v6SentOverride && inv.status === 'issued' ? 'sent' : inv.status;
+  const isV6BtnDisabled = pushingToV6 || effectiveStatus !== 'issued';
+
   return (
     <div className="billing-page">
       {/* Header */}
@@ -250,7 +256,7 @@ export default function InvoiceDetailPage() {
         <div className="inv-number">
           <FileText size={28} />
           {inv.invoiceNumber}
-          <span className={`inv-status inv-status--${inv.status}`}>{inv.status.replace('_', ' ')}</span>
+          <span className={`inv-status inv-status--${effectiveStatus}`}>{effectiveStatus.replace('_', ' ')}</span>
           {inv.invoiceType !== 'invoice' && (
             <span className={`inv-type inv-type--${inv.invoiceType}`}>{inv.invoiceType.replace('_', ' ')}</span>
           )}
@@ -279,31 +285,40 @@ export default function InvoiceDetailPage() {
             </button>
           )}
           <PermissionGuard permission="billing-invoices.write">
-            {['draft', 'issued'].includes(inv.status) && (
+            {['draft', 'issued'].includes(effectiveStatus) && (
               <button className="btn btn-primary" onClick={handleSend} disabled={sending}
                 style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <Send size={14} /> {sending ? 'Sending…' : 'Send'}
               </button>
             )}
-            {isV6Active && inv.status === 'issued' && (
+            {isV6Active && (
               <button
                 className="btn btn-secondary"
                 onClick={handleSendToV6}
-                disabled={pushingToV6}
-                title="Send this invoice to V6 ERP"
-                style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(16,185,129,0.1)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)' }}
+                disabled={isV6BtnDisabled}
+                title={effectiveStatus !== 'issued' ? `Already ${effectiveStatus}` : 'Send this invoice to V6 ERP'}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  background: isV6BtnDisabled ? 'rgba(148,163,184,0.1)' : 'rgba(16,185,129,0.1)',
+                  color: isV6BtnDisabled ? 'var(--text-tertiary)' : '#10b981',
+                  border: isV6BtnDisabled ? '1px solid var(--border-subtle)' : '1px solid rgba(16,185,129,0.3)',
+                  opacity: isV6BtnDisabled ? 0.6 : 1,
+                  cursor: isV6BtnDisabled ? 'not-allowed' : 'pointer',
+                }}
               >
                 <UploadCloud size={14} /> {pushingToV6 ? 'Sending…' : 'Send to V6 ERP'}
               </button>
             )}
             {/* Credit Note button */}
-            {['issued', 'sent', 'partially_paid', 'paid', 'overdue'].includes(inv.status) && inv.invoiceType === 'invoice' && (
+            {['issued', 'sent', 'partially_paid', 'paid', 'overdue'].includes(effectiveStatus) && inv.invoiceType === 'invoice' && (
               <button className="btn btn-secondary" onClick={() => setShowCreditModal(true)}
                 style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#34d399' }}>
                 <CreditCard size={14} /> Credit Note
               </button>
             )}
-            {['draft', 'issued', 'sent'].includes(inv.status) && (
+            {['draft', 'issued', 'sent'].includes(effectiveStatus) && (
               <button className="btn btn-secondary" onClick={handleVoid} disabled={voiding}
                 style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#ef4444' }}>
                 <Ban size={14} /> Void
