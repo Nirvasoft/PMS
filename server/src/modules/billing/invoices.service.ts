@@ -8,8 +8,7 @@ import { workflowEngine } from '../workflow/services/engine.service';
 import { glService } from '../gl/gl.service';
 import { webhookInvoiceIssued } from '../../common/webhookHooks';
 import { calcLeaseTermMonths } from '../leases/services/helpers';
-import { isV6ErpActive, isAccountingIntegrationActive } from '../integrations/v6Status.helper';
-import { integrationsService } from '../integrations/integrations.service';
+import { isAccountingIntegrationActive } from '../integrations/v6Status.helper';
 
 /** Adds computed `outstandingAmount` to an invoice object */
 function withOutstanding<T extends { totalAmount: any; paidAmount: any }>(inv: T): T & { outstandingAmount: number } {
@@ -709,17 +708,6 @@ export class InvoicesService {
         costCenterId: invCcId,
         lines: glLines,
       });
-    }
-
-    if (await isV6ErpActive(companyId, invoice.propertyId)) {
-      integrationsService
-        .pushInvoicesToV6Erp(companyId, [invoice.id], false, invoice.propertyId || undefined)
-        .catch((err) =>
-          logger.warn('Failed to push newly created invoice to V6 ERP', {
-            err: err instanceof Error ? err.message : String(err),
-            invoiceId: invoice.id,
-          }),
-        );
     }
 
     // Send notification
@@ -1549,17 +1537,6 @@ export class InvoicesService {
         costCenterId,
         lines: glLines,
       });
-    }
-
-    if (await isV6ErpActive(first.companyId, first.propertyId)) {
-      integrationsService
-        .pushInvoicesToV6Erp(first.companyId, [invoice.id], false, first.propertyId || undefined)
-        .catch((err) =>
-          logger.warn('[generateFromSchedules] Failed to push invoice to V6 ERP', {
-            err: err instanceof Error ? err.message : String(err),
-            invoiceId: invoice.id,
-          }),
-        );
     }
 
     // Send notification

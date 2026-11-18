@@ -1737,13 +1737,13 @@ class IntegrationsService {
           return {
             lineNo: String((idx + 1) * 1000000),
             lineType: 2,
-            stockCode: '',
+            stockCode: String(line.chargeType?.code || '').trim(),
             stockDesc: String(
               line.chargeType?.name || line.description || 'Invoice Charge',
             ).trim(),
             locationCode: '',
             uomCode: '',
-            lvlQty: 1,
+            lvlQty: qty,
             unitRatio: 1,
             qty,
             unitPrice,
