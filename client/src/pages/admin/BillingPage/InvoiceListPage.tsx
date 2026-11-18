@@ -2,7 +2,7 @@ import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
-  useGetInvoicesQuery, useLazyGetInvoicesQuery, useGetInvoiceReportFiltersQuery,
+  useGetInvoicesQuery,
   useRunBillingMutation, useGetBillingSchedulesQuery,
   useVoidInvoiceMutation, useSendInvoiceMutation, useLazyGetInvoicePdfQuery,
   useGetCurrencyRatesQuery,
@@ -14,15 +14,13 @@ import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import {
   FileText, Plus, Play, Search, ChevronLeft, ChevronRight,
   DollarSign, AlertTriangle, CheckCircle, Receipt,
-  Send, Ban, Download, XCircle, X, Building2, UploadCloud, Eye, Filter,
+  Send, Ban, Download, XCircle, X, Building2, UploadCloud, Filter,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
-import ComboBox from '../../../components/ComboBox';
 import { TableScrollWrapper } from './components/TableScrollWrapper';
-import { openInvoicesReportPreview, type InvoiceReportType } from './utils/invoicePrintPreview';
 import './BillingPage.css';
 
 import {
@@ -110,7 +108,6 @@ export default function InvoiceListPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkProcessing, setBulkProcessing] = useState(false);
   const [runBillingModalOpen, setRunBillingModalOpen] = useState(false);
-  const [reportModalOpen, setReportModalOpen] = useState(false);
 
   // Fetch currency rates scoped to the active property (or company-wide when All Properties is selected)
   const { data: currencyRatesData } = useGetCurrencyRatesQuery(
@@ -435,7 +432,7 @@ export default function InvoiceListPage() {
       <div className="page-header" style={{ marginBottom: 16 }}>
         <div className="page-title-row">
           <div className="page-icon-lg" style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent)', borderRadius: 12 }}>
-            <FileText size={22} />
+            <Receipt size={22} />
           </div>
           <div style={{ flex: 1 }}>
             <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Invoices</h1>
@@ -551,13 +548,6 @@ export default function InvoiceListPage() {
         </div>
 
         <div className="billing-filters-actions">
-          <button
-            className="btn btn-secondary"
-            onClick={() => setReportModalOpen(true)}
-            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-          >
-            <Eye size={14} /> View Report
-          </button>
           <PermissionGuard permission="billing-invoices.write">
             {isV6Active && (
               <button
@@ -860,13 +850,6 @@ export default function InvoiceListPage() {
         </div>
       )}
 
-      {reportModalOpen && (
-        <ViewInvoiceReportModal
-          activeProperty={activePropertyFilter}
-          onClose={() => setReportModalOpen(false)}
-        />
-      )}
-
       {runBillingModalOpen && (
         <RunBillingModal
           activeProperty={activePropertyFilter}
@@ -1090,478 +1073,4 @@ function RunBillingModal({ activeProperty, onClose, onSubmit, isLoading }: {
     </div>
   );
 }
-
-// ── View Invoice Report Modal ────────────────────────
-function ViewInvoiceReportModal({
-  activeProperty,
-  onClose,
-}: {
-  activeProperty: string;
-  onClose: () => void;
-}) {
-  const { data: filterMetaResp } = useGetInvoiceReportFiltersQuery(
-    activeProperty ? { propertyId: activeProperty } : undefined,
-  );
-  const filterMeta = filterMetaResp?.data;
-
-  const [triggerFetchReportInvoices, { isFetching: generatingReport }] = useLazyGetInvoicesQuery();
-
-  const defaultDates = useMemo(() => {
-    const now = new Date();
-    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    return {
-      min: format(firstDay, 'yyyy-MM-dd'),
-      max: format(lastDay, 'yyyy-MM-dd'),
-    };
-  }, []);
-
-  const { data: currencyRatesData } = useGetCurrencyRatesQuery(
-    activeProperty ? { propertyId: activeProperty } : undefined,
-  );
-  const currencyRates = currencyRatesData?.data ?? [];
-  const baseCurrencyCode = currencyRates.find(r => r.isBaseCurrency)?.currency || 'MMK';
-
-  const currencyOptions = useMemo(
-    () => buildCurrencyOptions(currencyRates, baseCurrencyCode),
-    [currencyRates, baseCurrencyCode],
-  );
-
-  const [reportType, setReportType] = useState<InvoiceReportType>('summary');
-  const [billType, setBillType] = useState<string>('');
-  const [currencyFilter, setCurrencyFilter] = useState<string>('');
-  const [fromDate, setFromDate] = useState<string>(() => defaultDates.min);
-  const [toDate, setToDate] = useState<string>(() => defaultDates.max);
-  const [startInvoice, setStartInvoice] = useState<string>('');
-  const [endInvoice, setEndInvoice] = useState<string>('');
-  const [floor, setFloor] = useState<string>('');
-  const [unitNumber, setUnitNumber] = useState<string>('');
-  const [tenantId, setTenantId] = useState<string>('');
-  const [statusFilter, setStatusFilter] = useState<string>('');
-  const [sortBy, setSortBy] = useState<string>('invoiceNumber');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-  const [validationError, setValidationError] = useState<string>('');
-
-  useEffect(() => {
-    setCurrencyFilter(baseCurrencyCode);
-  }, [activeProperty, baseCurrencyCode]);
-
-  const activeCurrency = currencyFilter === 'ALL' ? undefined : (currencyFilter || baseCurrencyCode);
-
-  const floorOptions = useMemo(() => filterMeta?.floors || [], [filterMeta?.floors]);
-
-  const unitOptions = useMemo(() => {
-    const list = filterMeta?.units || [];
-    const set = new Set<string>();
-    list.forEach(u => {
-      if (floor && u.floor !== floor) return;
-      if (u.unitNumber) set.add(u.unitNumber);
-    });
-    return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-  }, [filterMeta?.units, floor]);
-
-  const tenantComboOptions = useMemo(() => {
-    const items = filterMeta?.tenantItems || [];
-    return items.map((t) => {
-      const topLine = t.firstName || t.lastName;
-      const subLine = t.firstName && t.lastName && t.lastName !== t.firstName ? t.lastName : undefined;
-      return {
-        id: t.id,
-        label: topLine,
-        sublabel: subLine,
-      };
-    });
-  }, [filterMeta?.tenantItems]);
-
-  const selectedTenantDisplay = useMemo(() => {
-    if (!tenantId) return '';
-    const found = (filterMeta?.tenantItems || []).find((t) => t.id === tenantId);
-    if (!found) return '';
-    return [found.firstName, found.lastName].filter(Boolean).join(' - ');
-  }, [tenantId, filterMeta?.tenantItems]);
-
-  const statusOptions = useMemo(() => filterMeta?.statuses || [], [filterMeta?.statuses]);
-
-  useEffect(() => {
-    if (fromDate && toDate && fromDate > toDate) {
-      setValidationError('From Date cannot be later than To Date.');
-    } else if (startInvoice.trim() && endInvoice.trim() && startInvoice.trim() > endInvoice.trim()) {
-      setValidationError('Start Invoice cannot be greater than End Invoice.');
-    } else {
-      setValidationError('');
-    }
-  }, [fromDate, toDate, startInvoice, endInvoice]);
-
-  const handleResetFilters = () => {
-    setBillType('');
-    setCurrencyFilter(baseCurrencyCode);
-    setFromDate(defaultDates.min);
-    setToDate(defaultDates.max);
-    setStartInvoice('');
-    setEndInvoice('');
-    setFloor('');
-    setUnitNumber('');
-    setTenantId('');
-    setStatusFilter('');
-    setSortBy('invoiceNumber');
-    setSortOrder('asc');
-    setValidationError('');
-  };
-
-  const handleGenerateReport = async () => {
-    if (!reportType) {
-      toast.error('Please select a Report Type');
-      return;
-    }
-    if (fromDate && toDate && fromDate > toDate) {
-      setValidationError('From Date cannot be later than To Date.');
-      toast.error('From Date cannot be later than To Date');
-      return;
-    }
-    if (startInvoice.trim() && endInvoice.trim() && startInvoice.trim() > endInvoice.trim()) {
-      setValidationError('Start Invoice cannot be greater than End Invoice.');
-      toast.error('Start Invoice cannot be greater than End Invoice');
-      return;
-    }
-
-    setValidationError('');
-
-    const baseFilterParams: Record<string, any> = {
-      includeLines: reportType !== 'summary',
-      sortBy,
-      sortOrder,
-    };
-    if (activeProperty) baseFilterParams.propertyId = activeProperty;
-    if (activeCurrency) baseFilterParams.currency = activeCurrency;
-    if (billType) baseFilterParams.billType = billType;
-    if (startInvoice.trim()) baseFilterParams.startInvoice = startInvoice.trim();
-    if (endInvoice.trim()) baseFilterParams.endInvoice = endInvoice.trim();
-    if (fromDate) baseFilterParams.from = fromDate;
-    if (toDate) baseFilterParams.to = toDate;
-    if (floor) baseFilterParams.floor = floor;
-    if (unitNumber) baseFilterParams.unitNumber = unitNumber;
-    if (tenantId) baseFilterParams.tenantId = tenantId;
-    if (statusFilter) baseFilterParams.status = statusFilter;
-
-    const reportFiltersInfo = {
-      currency: activeCurrency || undefined,
-      billType: billType ? (billType === 'monthly' ? 'Monthly Invoice' : 'Rental Invoice') : undefined,
-      startInvoice: startInvoice.trim() || undefined,
-      endInvoice: endInvoice.trim() || undefined,
-      fromDate: fromDate || undefined,
-      toDate: toDate || undefined,
-      floor: floor || undefined,
-      unit: unitNumber || undefined,
-      tenant: selectedTenantDisplay || undefined,
-      status: statusFilter || undefined,
-    };
-
-    let previewWin: Window | null = null;
-
-    const loadReportPage = async (
-      targetPage: number,
-      targetPageSize: number,
-      cachedTotals?: Record<string, { subtotal: number; tax: number; total: number; paid: number; outstanding: number }>,
-    ) => {
-      try {
-        const res = await triggerFetchReportInvoices({
-          ...baseFilterParams,
-          page: targetPage,
-          limit: targetPageSize,
-          includeTotals: !cachedTotals,
-        }).unwrap();
-
-        const fetched = res?.data || [];
-        if (fetched.length === 0 && targetPage === 1) {
-          if (previewWin) previewWin.close();
-          setValidationError('No invoices match the current filter criteria.');
-          toast.error('No invoices match the current filter criteria.');
-          return;
-        }
-
-        if (!previewWin || previewWin.closed) {
-          previewWin = window.open('', '_blank');
-          if (!previewWin) {
-            toast.error('Popup blocked! Please allow popups for this site to view the report.');
-            return;
-          }
-        }
-
-        const total = res?.meta?.total ?? fetched.length;
-        const totalPages = res?.meta?.totalPages ?? Math.max(1, Math.ceil(total / targetPageSize));
-        const totalsByCurrency = cachedTotals || res?.meta?.totalsByCurrency;
-
-        openInvoicesReportPreview({
-          reportType,
-          invoices: fetched,
-          targetWindow: previewWin,
-          filters: reportFiltersInfo,
-          pagination: {
-            page: targetPage,
-            pageSize: targetPageSize,
-            total,
-            totalPages,
-            totalsByCurrency,
-            onPageChange: (nextPage, nextSize) => {
-              loadReportPage(nextPage, nextSize, totalsByCurrency);
-            },
-          },
-        });
-      } catch (err: any) {
-        if (targetPage === 1 && previewWin) {
-          previewWin.close();
-        }
-        toast.error(err?.data?.errors?.[0]?.message || 'Failed to generate invoice report');
-      }
-    };
-
-    await loadReportPage(1, 500);
-  };
-
-  return (
-    <div className="rb-overlay">
-      <div className="rb-modal rb-modal-lg" style={{ maxWidth: 600 }} onClick={e => e.stopPropagation()}>
-        <div className="rb-header">
-          <div className="rb-title">
-            <Eye size={16} /> View Invoice Report
-          </div>
-          <button className="btn-icon" onClick={onClose}><X size={18} /></button>
-        </div>
-
-        <div className="rb-body">
-          {/* Report Type */}
-          <div className="rb-field">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <label>Report Type <span style={{ color: '#ef4444' }}>*</span></label>
-              {(billType || (currencyFilter && currencyFilter !== baseCurrencyCode) || startInvoice.trim() || endInvoice.trim() || floor || unitNumber || tenantId || statusFilter || sortBy !== 'invoiceNumber' || sortOrder !== 'asc' || fromDate !== defaultDates.min || toDate !== defaultDates.max) && (
-                <button
-                  type="button"
-                  onClick={handleResetFilters}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--accent, #10b981)',
-                    fontSize: '0.75rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    padding: 0,
-                  }}
-                >
-                  Reset Filters
-                </button>
-              )}
-            </div>
-            <select
-              value={reportType}
-              onChange={e => setReportType(e.target.value as InvoiceReportType)}
-            >
-              <option value="summary">Invoice Summary Report</option>
-              <option value="detail">Invoice Detail Report</option>
-              <option value="voucher">Invoice Voucher Print Preview</option>
-            </select>
-          </div>
-
-          {/* Invoice Type & Currency */}
-          <div className="rb-grid-2">
-            <div className="rb-field">
-              <label>Invoice Type</label>
-              <select
-                value={billType}
-                onChange={e => setBillType(e.target.value)}
-              >
-                <option value="">All Invoices</option>
-                <option value="monthly">Monthly Invoice</option>
-                <option value="rental">Rental Invoice</option>
-              </select>
-            </div>
-            <div className="rb-field">
-              <label>Currency</label>
-              <select
-                value={currencyFilter || baseCurrencyCode}
-                onChange={e => setCurrencyFilter(e.target.value)}
-              >
-                {currencyOptions.map(c => (
-                  <option key={c.code} value={c.code}>
-                    {c.code}{c.isBase ? ' (Base)' : ''}
-                  </option>
-                ))}
-                <option value="ALL">All Currencies</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Date Range Validation */}
-          <div className="rb-grid-2">
-            <div className="rb-field">
-              <label>From Date (Issue Date)</label>
-              <input
-                type="date"
-                value={fromDate}
-                max={toDate || undefined}
-                onChange={e => setFromDate(e.target.value)}
-              />
-            </div>
-            <div className="rb-field">
-              <label>To Date (Issue Date)</label>
-              <input
-                type="date"
-                value={toDate}
-                min={fromDate || undefined}
-                onChange={e => setToDate(e.target.value)}
-              />
-            </div>
-          </div>
-
-          {/* Start Invoice & End Invoice */}
-          <div className="rb-grid-2">
-            <div className="rb-field">
-              <label>Start Invoice</label>
-              <input
-                type="text"
-                placeholder="e.g. INV-000001"
-                value={startInvoice}
-                onChange={e => setStartInvoice(e.target.value)}
-              />
-            </div>
-            <div className="rb-field">
-              <label>End Invoice</label>
-              <input
-                type="text"
-                placeholder="e.g. INV-000500"
-                value={endInvoice}
-                onChange={e => setEndInvoice(e.target.value)}
-              />
-            </div>
-          </div>
-
-          {/* Floor & Unit Validation */}
-          <div className="rb-grid-2">
-            <div className="rb-field">
-              <label>Floor</label>
-              <select
-                value={floor}
-                onChange={e => {
-                  setFloor(e.target.value);
-                  setUnitNumber('');
-                }}
-              >
-                <option value="">All Floors</option>
-                {floorOptions.map(fl => (
-                  <option key={fl} value={fl}>{fl}</option>
-                ))}
-              </select>
-            </div>
-            <div className="rb-field">
-              <label>Unit / Room</label>
-              <select
-                value={unitNumber}
-                onChange={e => setUnitNumber(e.target.value)}
-              >
-                <option value="">All Units</option>
-                {unitOptions.map(u => (
-                  <option key={u} value={u}>{u}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Tenant & Status Validation */}
-          <div className="rb-grid-2">
-            <div className="rb-field">
-              <label>Tenant</label>
-              <ComboBox
-                id="report-tenant"
-                value={tenantId}
-                placeholder="All Tenants"
-                emptyText="No tenants found"
-                options={tenantComboOptions}
-                onChange={val => setTenantId(val)}
-              />
-            </div>
-            <div className="rb-field">
-              <label>Status</label>
-              <select
-                value={statusFilter}
-                onChange={e => setStatusFilter(e.target.value)}
-              >
-                <option value="">All Statuses</option>
-                {statusOptions.map(s => (
-                  <option key={s} value={s}>{s.replace('_', ' ').toUpperCase()}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Sort By & Sort Order */}
-          <div className="rb-grid-2">
-            <div className="rb-field">
-              <label>Sort By</label>
-              <select
-                value={sortBy}
-                onChange={e => setSortBy(e.target.value)}
-              >
-                <option value="invoiceNumber">Invoice Number</option>
-                <option value="issueDate">Issue Date</option>
-                <option value="dueDate">Due Date</option>
-                <option value="floor">Floor</option>
-                <option value="unit">Unit / Room</option>
-                <option value="tenant">Tenant</option>
-                <option value="totalAmount">Total Amount</option>
-              </select>
-            </div>
-            <div className="rb-field">
-              <label>Sort Order</label>
-              <select
-                value={sortOrder}
-                onChange={e => setSortOrder(e.target.value as 'asc' | 'desc')}
-              >
-                <option value="asc">Ascending</option>
-                <option value="desc">Descending</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Validation Banner */}
-          {validationError && (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '10px 12px',
-                borderRadius: 8,
-                background: 'rgba(239, 68, 68, 0.1)',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
-                color: '#ef4444',
-                fontSize: '0.82rem',
-                fontWeight: 500,
-              }}
-            >
-              <AlertTriangle size={15} style={{ flexShrink: 0 }} />
-              <span>{validationError}</span>
-            </div>
-          )}
-
-          <p className="rb-hint">
-            <FileText size={12} />
-            Opens a printable report preview window where you can print or save as PDF.
-          </p>
-        </div>
-
-        <div className="rb-footer">
-          <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          <button
-            className="btn btn-primary"
-            onClick={handleGenerateReport}
-            disabled={generatingReport}
-            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-          >
-            <Eye size={14} /> {generatingReport ? 'Loading…' : 'View Report'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 

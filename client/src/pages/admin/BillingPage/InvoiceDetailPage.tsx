@@ -8,7 +8,7 @@ import {
   useGetCurrencyRatesQuery,
 } from '../../../store/api/billingApi';
 import { useGetGlAccountsQuery } from '../../../store/api/glApi';
-import { List, FileText, Ban, CreditCard, Send, Plus, Trash2, X, Banknote, History, ShieldAlert, Timer, Eye, UploadCloud, Table2 } from 'lucide-react';
+import { List, FileText, Receipt, Ban, CreditCard, Send, Plus, Trash2, X, Banknote, History, ShieldAlert, Timer, UploadCloud, Table2 } from 'lucide-react';
 import { InvoiceRecapModal } from './components/InvoiceRecapModal';
 import { format, differenceInDays } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -254,7 +254,7 @@ export default function InvoiceDetailPage() {
       {/* Header */}
       <div className="invoice-detail-header">
         <div className="inv-number">
-          <FileText size={28} />
+          <Receipt size={28} />
           {inv.invoiceNumber}
           <span className={`inv-status inv-status--${effectiveStatus}`}>{effectiveStatus.replace('_', ' ')}</span>
           {inv.invoiceType !== 'invoice' && (
@@ -272,7 +272,7 @@ export default function InvoiceDetailPage() {
           </button>
           <button className="btn btn-primary" onClick={handleViewPdf}
             style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Eye size={14} /> View PDF
+            <FileText size={14} /> Preview
           </button>
           {isAccountingIntegrationActive && (
             <button

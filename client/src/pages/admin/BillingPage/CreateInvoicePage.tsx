@@ -8,7 +8,7 @@ import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
 import { useGetLeasesQuery } from '../../../store/api/leasesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
-import { ArrowLeft, Plus, Trash2, FileText, ClipboardList, Building2, Send, Table2 } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, FileText, Receipt, ClipboardList, Building2, Send, Table2 } from 'lucide-react';
 import { InvoiceRecapModal } from './components/InvoiceRecapModal';
 import { useAlertDialog } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
@@ -332,7 +332,7 @@ export default function CreateInvoicePage() {
       <div className="page-header" style={{ marginBottom: 28, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div className="page-title-row">
           <div className="page-icon-lg" style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent)', borderRadius: 12 }}>
-            <FileText size={22} />
+            <Receipt size={22} />
           </div>
           <div>
             <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Create Invoice</h1>

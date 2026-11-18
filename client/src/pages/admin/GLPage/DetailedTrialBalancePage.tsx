@@ -351,7 +351,7 @@ export default function DetailedTrialBalancePage() {
             onClick={() => setShowTemplatePopup(true)}
           >
             <FileText size={16} />
-            View Pdf
+            Preview
           </button>
         </div>
       </div>

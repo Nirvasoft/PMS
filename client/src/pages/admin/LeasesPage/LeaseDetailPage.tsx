@@ -50,6 +50,7 @@ export default function LeaseDetailPage() {
   const [showAmendModal,     setShowAmendModal]      = useState(false);
   const [showEsignModal,     setShowEsignModal]      = useState(false);
   const [showEditDraft,      setShowEditDraft]        = useState(false);
+  const [showPreviewModal,   setShowPreviewModal]     = useState(false);
 
   const { data, isLoading } = useGetLeaseQuery(id!);
   const lease = data?.data;
@@ -109,14 +110,9 @@ export default function LeaseDetailPage() {
               <List size={14}/> List
             </button>
             <button
-              className="btn-action-report"
-              onClick={() => openLeaseFormPrintPreview(lease, usersData?.data || [], leadsData?.data || [])}
-            >
-              <FileText size={14}/> Lease Form
-            </button>
-            <button
+              type="button"
               className="btn-action-preview"
-              onClick={() => openLeasePreviewReport(lease)}
+              onClick={() => setShowPreviewModal(true)}
             >
               <FileText size={14}/> Preview
             </button>
@@ -218,6 +214,55 @@ export default function LeaseDetailPage() {
       {tab === 'history'     && <HistoryTab lease={lease} />}
 
       {/* Modals */}
+      {showPreviewModal && (
+        <div
+          className="ld-preview-popup-overlay"
+          onClick={() => setShowPreviewModal(false)}
+        >
+          <div
+            className="ld-preview-popup"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="ld-preview-popup-header">
+              <h3>Preview</h3>
+              <button
+                type="button"
+                className="ld-preview-close-circle"
+                onClick={() => setShowPreviewModal(false)}
+                title="Close"
+              >
+                <X size={14} />
+              </button>
+            </div>
+            <ul className="ld-preview-list">
+              <li
+                className="ld-preview-item"
+                onClick={() => {
+                  setShowPreviewModal(false);
+                  openLeasePreviewReport(lease);
+                }}
+              >
+                <span className="ld-preview-item-label">
+                  <span>1.</span>
+                  <span>Invoice Form</span>
+                </span>
+              </li>
+              <li
+                className="ld-preview-item"
+                onClick={() => {
+                  setShowPreviewModal(false);
+                  openLeaseFormPrintPreview(lease, usersData?.data || [], leadsData?.data || []);
+                }}
+              >
+                <span className="ld-preview-item-label">
+                  <span>2.</span>
+                  <span>Lease Form</span>
+                </span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      )}
       {showTerminateModal && <TerminateModal leaseId={id!} rentAmount={Number(lease.rentAmount)} endDate={lease.endDate} currency={lease.currency} onClose={() => setShowTerminateModal(false)} />}
       {showRenewalModal   && <RenewalModal   leaseId={id!} lease={lease} onClose={() => setShowRenewalModal(false)} />}
       {showAmendModal     && <AmendModal     leaseId={id!} onClose={() => setShowAmendModal(false)} />}

@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useGetLeasesQuery, useDeleteLeaseMutation } from '../../../store/api/leasesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
-  FileText, Plus, Search, Filter, X, AlertTriangle, Trash2,
+  FileText, ClipboardList, Plus, Search, Filter, X, AlertTriangle, Trash2,
   Clock, CheckCircle, XCircle, PenLine, Archive, Import,
   ChevronLeft, ChevronRight,
 } from 'lucide-react';
@@ -72,7 +72,7 @@ export default function LeaseListPage() {
       {/* Header */}
       <div className="page-header">
         <div className="page-title-row">
-          <div className="page-icon-lg"><FileText size={22} /></div>
+          <div className="page-icon-lg"><ClipboardList size={22} /></div>
           <div>
             <h1>Leases</h1>
             <p>{meta ? `${meta.total} total leases` : <span className="pms-skeleton-line" style={{ display: 'inline-block', width: 96, height: 12, verticalAlign: 'middle' }} />}</p>
@@ -169,7 +169,7 @@ export default function LeaseListPage() {
               ) : leases.length === 0 ? (
                 <tr>
                   <td colSpan={8}>
-                    <div className="table-empty"><FileText size={40} /><p>No leases found{hasFilters ? ' — try clearing filters' : ''}</p></div>
+                    <div className="table-empty"><ClipboardList size={40} /><p>No leases found{hasFilters ? ' — try clearing filters' : ''}</p></div>
                   </td>
                 </tr>
               ) : (

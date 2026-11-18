@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import {
   FileText,
+  Receipt,
   ClipboardList,
   Eye,
   AlertTriangle,
@@ -71,7 +72,7 @@ export default function ReportsPage() {
         <div className="page-title-row">
           <div className="page-icon-lg">
             {activeTab === 'invoice' ? (
-              <FileText size={22} />
+              <Receipt size={22} />
             ) : (
               <ClipboardList size={22} />
             )}
@@ -92,7 +93,7 @@ export default function ReportsPage() {
             className={`tab-btn ${activeTab === 'invoice' ? 'active' : ''}`}
             onClick={() => setActiveTab('invoice')}
           >
-            <FileText size={16} /> Invoice Report
+            <Receipt size={16} /> Invoice Report
           </button>
           <button
             type="button"
