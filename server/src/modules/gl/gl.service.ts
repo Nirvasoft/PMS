@@ -2,7 +2,7 @@ import { prisma } from '../../common/database';
 import { logger } from '../../common/logger';
 import { AppError } from '../../common/errors';
 import { ensurePropertySetupScope, resolveEffectivePropertyId } from '../../common/propertySetupScope';
-import { isV6ErpActive, isAccountingIntegrationActive } from '../integrations/v6Status.helper';
+import { isAccountingIntegrationActive } from '../integrations/v6Status.helper';
 
 const DEFAULT_PAYMENT_METHODS = [
   { code: 'BANK_TRANSFER', name: 'Bank Transfer', isSystem: true, isActive: true },

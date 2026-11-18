@@ -183,7 +183,7 @@ export default function CreateInvoicePage() {
       if (form.costCenterId && ctCcId !== form.costCenterId) return false;
       return true;
     });
-  }, [isAccountingIntegrationActive, chargeTypes, glAccountByCode, form.departmentCenterId, form.costCenterId]);
+  }, [isAccountingIntegrationActive, chargeTypes, form.departmentCenterId, form.costCenterId]);
 
   const [lines, setLines] = useState<LineItem[]>([
     { chargeTypeId: '', description: '', quantity: 1, unitPrice: 0, taxRate: 0 },

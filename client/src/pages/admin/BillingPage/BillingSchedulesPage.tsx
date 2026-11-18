@@ -7,7 +7,7 @@ import {
   useGetChargeTypesQuery, useGetCurrencyRatesQuery,
 } from '../../../store/api/billingApi';
 import type { BillingSchedule } from '../../../store/api/billingApi';
-import { useGetDepartmentCentersQuery, useGetCostCentersQuery, useGetGlAccountsQuery, type GlAccount } from '../../../store/api/glApi';
+import { useGetDepartmentCentersQuery, useGetCostCentersQuery } from '../../../store/api/glApi';
 import { useGetPropertiesQuery, useGetFloorSetupsQuery, useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useGetUnitsQuery } from '../../../store/api/unitsApi';
 import { useGetLeasesQuery } from '../../../store/api/leasesApi';
@@ -124,10 +124,6 @@ export default function BillingSchedulesPage() {
     setupPropertyId ? { propertyId: setupPropertyId } : undefined,
   );
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
-  const { data: glAccounts = [] } = useGetGlAccountsQuery(
-    setupPropertyId ? { propertyId: setupPropertyId } : {},
-    { skip: !isAccountingIntegrationActive },
-  );
   const { data: departmentCentersData = [] } = useGetDepartmentCentersQuery(
     {
       isActive: true,
@@ -179,12 +175,6 @@ export default function BillingSchedulesPage() {
   const leases = leasesData?.data || [];
   const tenants = tenantsData?.data || [];
 
-  const glAccountByCode = useMemo(() => {
-    const map = new Map<string, GlAccount>();
-    glAccounts.forEach((a) => map.set(a.code, a));
-    return map;
-  }, [glAccounts]);
-
   const filteredChargeTypes = useMemo(() => {
     if (!isAccountingIntegrationActive) {
       return chargeTypes.filter((ct) => ct.isActive);
@@ -198,7 +188,7 @@ export default function BillingSchedulesPage() {
       if (form.costCenterId && ctCcId !== form.costCenterId) return false;
       return true;
     });
-  }, [isAccountingIntegrationActive, chargeTypes, glAccountByCode, form.departmentCenterId, form.costCenterId]);
+  }, [isAccountingIntegrationActive, chargeTypes, form.departmentCenterId, form.costCenterId]);
 
   useEffect(() => {
     if (!showForm || !form.chargeTypeId) return;

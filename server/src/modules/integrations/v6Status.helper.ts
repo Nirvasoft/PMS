@@ -1,15 +1,6 @@
 import { prisma } from '../../common/database';
 import { ensurePropertySetupScope, resolveEffectivePropertyId } from '../../common/propertySetupScope';
 
-export const ACCOUNTING_INTEGRATION_TYPES = [
-  'v6erp',
-  'sap',
-  'netsuite',
-  'dynamics365',
-  'quickbooks',
-  'xero',
-] as const;
-
 /**
  * Automatically turns OFF `property.settings.useAccountAndJournalEntry` for the target property
  * (or all company properties if propertyId is omitted) when V6 ERP integration is active.

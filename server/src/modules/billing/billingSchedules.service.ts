@@ -3,6 +3,7 @@ import { AppError } from '../../common/errors';
 import { unitsService } from '../units/units.service';
 import { clearShopIdentityOp } from '../mall/shopProfileReset';
 import { isAccountingIntegrationActive } from '../integrations/v6Status.helper';
+import { getBillingCycleMonths } from '../leases/services/helpers';
 
 export class BillingSchedulesService {
   // Fields every schedule spawned from an activated lease shares (RENT, SERVICE_CHARGE,
@@ -277,15 +278,7 @@ export class BillingSchedulesService {
       // Full term rent already invoiced — no need to schedule Base Rent
       scheduleRentAmount = 0;
     } else if (hasPartialRent) {
-      let cycleMonths = 1;
-      switch (lease.billingCycle) {
-        case 'monthly':     cycleMonths = 1;  break;
-        case 'quarterly':   cycleMonths = 3;  break;
-        case 'semi_annual':   cycleMonths = 6;  break;
-        case 'tri_quarterly': cycleMonths = 9;  break;
-        case 'annual':        cycleMonths = 12; break;
-        default:            cycleMonths = 1;  break;
-      }
+      const cycleMonths = getBillingCycleMonths(lease.billingCycle);
 
       const totalCycles = Math.max(1, Math.ceil(termMonths / cycleMonths));
       const remainingRent = Math.max(0, Math.round((totalRent - coveredRentAmount) * 100) / 100);
@@ -581,15 +574,7 @@ export class BillingSchedulesService {
     const d = new Date(startDate);
     const startYear = d.getUTCFullYear();
     const startMonth = d.getUTCMonth();
-    let monthsToAdd = 1;
-    switch (billingCycle) {
-      case 'monthly':     monthsToAdd = 1;  break;
-      case 'quarterly':   monthsToAdd = 3;  break;
-      case 'semi_annual':   monthsToAdd = 6;  break;
-      case 'tri_quarterly': monthsToAdd = 9;  break;
-      case 'annual':        monthsToAdd = 12; break;
-      default:            monthsToAdd = 1;  break;
-    }
+    const monthsToAdd = getBillingCycleMonths(billingCycle);
 
     const totalMonths = startMonth + monthsToAdd;
     const targetYear = startYear + Math.floor(totalMonths / 12);

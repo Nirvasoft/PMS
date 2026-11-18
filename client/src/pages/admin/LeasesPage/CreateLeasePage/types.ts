@@ -12,23 +12,22 @@ export const PREDEFINED_TYPE_LABELS: Record<string, string> = {
  * In property management, lease end dates are inclusive (e.g. 2026-10-01 to
  * 2026-12-31 includes all of December, making it 3 full months).
  */
-export function calcLeaseTermMonths(start: Date | string, end: Date | string): number {
-  if (!start || !end) return 0;
-
-  const parseParts = (val: Date | string) => {
-    if (typeof val === 'string') {
-      const match = val.match(/^(\d{4})-(\d{2})-(\d{2})/);
-      if (match) {
-        return { y: Number(match[1]), m: Number(match[2]) - 1, d: Number(match[3]) };
-      }
+function parseDateParts(val?: Date | string): { y: number; m: number; d: number } | null {
+  if (!val) return null;
+  if (typeof val === 'string') {
+    const match = val.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      return { y: Number(match[1]), m: Number(match[2]) - 1, d: Number(match[3]) };
     }
-    const d = val instanceof Date ? val : new Date(val);
-    if (isNaN(d.getTime())) return null;
-    return { y: d.getUTCFullYear(), m: d.getUTCMonth(), d: d.getUTCDate() };
-  };
+  }
+  const d = val instanceof Date ? val : new Date(val);
+  if (isNaN(d.getTime())) return null;
+  return { y: d.getUTCFullYear(), m: d.getUTCMonth(), d: d.getUTCDate() };
+}
 
-  const s = parseParts(start);
-  const e = parseParts(end);
+export function calcLeaseTermMonths(start: Date | string, end: Date | string): number {
+  const s = parseDateParts(start);
+  const e = parseDateParts(end);
   if (!s || !e) return 0;
 
   const startUtc = Date.UTC(s.y, s.m, s.d);
@@ -56,30 +55,9 @@ export function getBillingCycleMonths(cycle?: string): number {
 }
 
 export function addDaysIso(dateInput: Date | string, days: number): string {
-  if (!dateInput) return '';
-  let y: number;
-  let m: number;
-  let d: number;
-  if (typeof dateInput === 'string') {
-    const match = dateInput.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (match) {
-      y = Number(match[1]);
-      m = Number(match[2]) - 1;
-      d = Number(match[3]);
-    } else {
-      const parsed = new Date(dateInput);
-      if (isNaN(parsed.getTime())) return '';
-      y = parsed.getUTCFullYear();
-      m = parsed.getUTCMonth();
-      d = parsed.getUTCDate();
-    }
-  } else {
-    if (isNaN(dateInput.getTime())) return '';
-    y = dateInput.getUTCFullYear();
-    m = dateInput.getUTCMonth();
-    d = dateInput.getUTCDate();
-  }
-  return new Date(Date.UTC(y, m, d + days)).toISOString().slice(0, 10);
+  const parts = parseDateParts(dateInput);
+  if (!parts) return '';
+  return new Date(Date.UTC(parts.y, parts.m, parts.d + days)).toISOString().slice(0, 10);
 }
 
 /**
@@ -90,36 +68,15 @@ export function calcEndDateFromStartAndCycle(
   startDateInput: Date | string,
   billingCycle?: string,
 ): string {
-  if (!startDateInput) return '';
-  let y: number;
-  let m: number;
-  let d: number;
-  if (typeof startDateInput === 'string') {
-    const match = startDateInput.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (match) {
-      y = Number(match[1]);
-      m = Number(match[2]) - 1;
-      d = Number(match[3]);
-    } else {
-      const parsed = new Date(startDateInput);
-      if (isNaN(parsed.getTime())) return '';
-      y = parsed.getUTCFullYear();
-      m = parsed.getUTCMonth();
-      d = parsed.getUTCDate();
-    }
-  } else {
-    if (isNaN(startDateInput.getTime())) return '';
-    y = startDateInput.getUTCFullYear();
-    m = startDateInput.getUTCMonth();
-    d = startDateInput.getUTCDate();
-  }
+  const parts = parseDateParts(startDateInput);
+  if (!parts) return '';
 
   const cycleMonths = getBillingCycleMonths(billingCycle);
-  const totalMonths = m + cycleMonths;
-  const targetYear = y + Math.floor(totalMonths / 12);
+  const totalMonths = parts.m + cycleMonths;
+  const targetYear = parts.y + Math.floor(totalMonths / 12);
   const targetMonth = totalMonths % 12;
   const maxDayInTargetMonth = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
-  const clampedDay = Math.min(d, maxDayInTargetMonth);
+  const clampedDay = Math.min(parts.d, maxDayInTargetMonth);
   return new Date(Date.UTC(targetYear, targetMonth, clampedDay - 1)).toISOString().slice(0, 10);
 }
 

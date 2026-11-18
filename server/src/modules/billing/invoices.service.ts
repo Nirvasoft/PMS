@@ -7,7 +7,7 @@ import { billingNotifications } from './billingNotifications.service';
 import { workflowEngine } from '../workflow/services/engine.service';
 import { glService } from '../gl/gl.service';
 import { webhookInvoiceIssued } from '../../common/webhookHooks';
-import { calcLeaseTermMonths } from '../leases/services/helpers';
+import { calcLeaseTermMonths, getBillingCycleMonths } from '../leases/services/helpers';
 import { isAccountingIntegrationActive } from '../integrations/v6Status.helper';
 
 /** Adds computed `outstandingAmount` to an invoice object */
@@ -1840,14 +1840,7 @@ export class InvoicesService {
   }
 
   private getCycleMonths(billingCycle: string): number {
-    switch (billingCycle) {
-      case 'monthly':     return 1;
-      case 'quarterly':   return 3;
-      case 'semi_annual':   return 6;
-      case 'tri_quarterly': return 9;
-      case 'annual':        return 12;
-      default:            return 1;
-    }
+    return getBillingCycleMonths(billingCycle);
   }
 
   /**

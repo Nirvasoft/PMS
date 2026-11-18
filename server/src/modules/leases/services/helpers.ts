@@ -1,20 +1,19 @@
-export function calcLeaseTermMonths(start: Date | string, end: Date | string): number {
-  if (!start || !end) return 0;
-
-  const parseParts = (val: Date | string) => {
-    if (typeof val === 'string') {
-      const match = val.match(/^(\d{4})-(\d{2})-(\d{2})/);
-      if (match) {
-        return { y: Number(match[1]), m: Number(match[2]) - 1, d: Number(match[3]) };
-      }
+function parseDateParts(val?: Date | string): { y: number; m: number; d: number } | null {
+  if (!val) return null;
+  if (typeof val === 'string') {
+    const match = val.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      return { y: Number(match[1]), m: Number(match[2]) - 1, d: Number(match[3]) };
     }
-    const d = val instanceof Date ? val : new Date(val);
-    if (isNaN(d.getTime())) return null;
-    return { y: d.getUTCFullYear(), m: d.getUTCMonth(), d: d.getUTCDate() };
-  };
+  }
+  const d = val instanceof Date ? val : new Date(val);
+  if (isNaN(d.getTime())) return null;
+  return { y: d.getUTCFullYear(), m: d.getUTCMonth(), d: d.getUTCDate() };
+}
 
-  const s = parseParts(start);
-  const e = parseParts(end);
+export function calcLeaseTermMonths(start: Date | string, end: Date | string): number {
+  const s = parseDateParts(start);
+  const e = parseDateParts(end);
   if (!s || !e) return 0;
 
   const startUtc = Date.UTC(s.y, s.m, s.d);
@@ -42,21 +41,20 @@ export function getBillingCycleMonths(cycle?: string): number {
 }
 
 export function addDaysUtc(dateInput: Date | string, days: number): Date {
-  const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + days));
+  const parts = parseDateParts(dateInput);
+  if (!parts) return new Date(NaN);
+  return new Date(Date.UTC(parts.y, parts.m, parts.d + days));
 }
 
 export function calcEndDateFromStartAndCycleUtc(startDateInput: Date | string, billingCycle?: string): Date {
-  const d = typeof startDateInput === 'string' ? new Date(startDateInput) : startDateInput;
-  const y = d.getUTCFullYear();
-  const m = d.getUTCMonth();
-  const day = d.getUTCDate();
+  const parts = parseDateParts(startDateInput);
+  if (!parts) return new Date(NaN);
   const cycleMonths = getBillingCycleMonths(billingCycle);
-  const totalMonths = m + cycleMonths;
-  const targetYear = y + Math.floor(totalMonths / 12);
+  const totalMonths = parts.m + cycleMonths;
+  const targetYear = parts.y + Math.floor(totalMonths / 12);
   const targetMonth = totalMonths % 12;
   const maxDayInTargetMonth = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
-  const clampedDay = Math.min(day, maxDayInTargetMonth);
+  const clampedDay = Math.min(parts.d, maxDayInTargetMonth);
   return new Date(Date.UTC(targetYear, targetMonth, clampedDay - 1));
 }
 
@@ -111,12 +109,8 @@ export function calcEarlyTermPenalty(
 }
 
 function toUtcDay(val: Date | string): number {
-  if (typeof val === 'string') {
-    const m = val.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (m) return Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-  }
-  const d = val instanceof Date ? val : new Date(val);
-  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  const parts = parseDateParts(val);
+  return parts ? Date.UTC(parts.y, parts.m, parts.d) : NaN;
 }
 
 /** Compute penalty + human-readable breakdown for terminating a lease on `termDate`. */

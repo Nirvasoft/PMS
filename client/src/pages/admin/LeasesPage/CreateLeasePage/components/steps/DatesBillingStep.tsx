@@ -1,4 +1,3 @@
-import type { RentalAgreement } from '../../../../../../store/api/leasesApi';
 import {
   addDaysIso,
   calcEndDateFromStartAndCycle,
