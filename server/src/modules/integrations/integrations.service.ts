@@ -1292,6 +1292,73 @@ class IntegrationsService {
   }
 
   /**
+   * Persist PMS Charge Type Code (`dtls[].stockCode`) into V6 ERP AR Invoice / Debit Note
+   * detail `t2` field via `saleInvoice/readBySyskey(SI|DN)ByRoleAllowed` + `saleInvoice/saveInvoice`,
+   * because `mDisRepository/integrationAPI/postARInvoice` leaves `t2` empty when `lineType === 2`.
+   */
+  private async syncV6InvoiceDetailCodes(
+    repoRoot: string,
+    domain: string,
+    invoiceSyskey: string,
+    subType: number,
+    dtls: Array<{ stockCode?: string; stockDesc?: string }>,
+  ): Promise<void> {
+    const sk = String(invoiceSyskey || '').trim();
+    if (!sk || sk === '0' || !Array.isArray(dtls) || dtls.length === 0) return;
+    if (!dtls.some((d) => String(d?.stockCode || '').trim().length > 0)) return;
+
+    try {
+      const webAuth = await this.getV6WebToken(repoRoot, domain);
+      if (!webAuth) return;
+
+      const hdrs = {
+        'Content-Type': 'application/json',
+        'Content-Over': webAuth.oid,
+        'APP-CALLER': '1',
+      };
+
+      const readEndpoint =
+        subType === 1
+          ? `${webAuth.webRoot}/saleInvoice/readBySyskeyDNByRoleAllowed/${sk}`
+          : `${webAuth.webRoot}/saleInvoice/readBySyskeySIByRoleAllowed/${sk}`;
+
+      const readResp = await fetch(readEndpoint, {
+        method: 'GET',
+        headers: hdrs,
+        signal: AbortSignal.timeout(12000),
+      });
+      if (!readResp.ok) return;
+
+      const si = (await readResp.json().catch(() => null)) as any;
+      if (!si || !si.syskey || si.syskey === '0' || !Array.isArray(si.transDetailsData)) {
+        return;
+      }
+
+      let changed = false;
+      for (let i = 0; i < si.transDetailsData.length && i < dtls.length; i++) {
+        const targetCode = String(dtls[i]?.stockCode || '').trim();
+        if (targetCode && String(si.transDetailsData[i].t2 || '').trim() !== targetCode) {
+          si.transDetailsData[i].t2 = targetCode;
+          changed = true;
+        }
+      }
+
+      if (!changed) return;
+
+      si.deletedTransDetails = Array.isArray(si.deletedTransDetails) ? si.deletedTransDetails : [];
+
+      await fetch(`${webAuth.webRoot}/saleInvoice/saveInvoice`, {
+        method: 'POST',
+        headers: hdrs,
+        body: JSON.stringify(si),
+        signal: AbortSignal.timeout(15000),
+      });
+    } catch (err: any) {
+      logger.warn(`V6 ERP syncV6InvoiceDetailCodes warning (${sk}): ${err?.message || err}`);
+    }
+  }
+
+  /**
    * Derive customer code and name from a PMS Tenant record.
    */
   private deriveTenantV6CodeAndName(tenant: {
@@ -1738,7 +1805,7 @@ class IntegrationsService {
           return {
             lineNo: String((idx + 1) * 1000000),
             lineType: 2,
-            stockCode: String(line.chargeType?.category || line.chargeType?.code || '').trim(),
+            stockCode: String(line.chargeType?.code || '').trim(),
             stockDesc: String(
               line.chargeType?.name || line.description || 'Invoice Charge',
             ).trim(),
@@ -1824,6 +1891,18 @@ class IntegrationsService {
         const savedCrossRef = rawCr ? String(rawCr).trim() : '';
 
         if (isSuccess || isAlreadyExists) {
+          const effectiveV6Sk =
+            savedV6Syskey && savedV6Syskey !== '0' ? savedV6Syskey : existingSyskeyStr;
+          if (effectiveV6Sk && effectiveV6Sk !== '0') {
+            await this.syncV6InvoiceDetailCodes(
+              auth.repoRoot,
+              auth.domain,
+              effectiveV6Sk,
+              subType,
+              dtls,
+            );
+          }
+
           results.push({
             invoiceId: inv.id,
             invoiceNumber: inv.invoiceNumber,
