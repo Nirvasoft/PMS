@@ -1586,6 +1586,7 @@ class IntegrationsService {
                 id: true,
                 code: true,
                 name: true,
+                category: true,
                 glAccountCode: true,
               },
             },
@@ -1737,7 +1738,7 @@ class IntegrationsService {
           return {
             lineNo: String((idx + 1) * 1000000),
             lineType: 2,
-            stockCode: String(line.chargeType?.code || '').trim(),
+            stockCode: String(line.chargeType?.category || line.chargeType?.code || '').trim(),
             stockDesc: String(
               line.chargeType?.name || line.description || 'Invoice Charge',
             ).trim(),
