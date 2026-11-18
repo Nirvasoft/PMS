@@ -375,7 +375,9 @@ export const leasesApi = createApi({
 
 export const {
   useGetLeasesQuery,
+  useLazyGetLeasesQuery,
   useGetLeaseQuery,
+  useLazyGetLeaseQuery,
   useCreateLeaseMutation,
   useUpdateLeaseMutation,
   useDeleteLeaseMutation,

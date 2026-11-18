@@ -1113,3 +1113,477 @@ export function openLeasePreviewReport(lease: LeaseDetail): void {
   win.document.close();
   win.focus();
 }
+
+export type LeaseReportType = 'summary' | 'detail' | 'form' | 'preview';
+
+export interface LeaseReportFiltersInfo {
+  currency?: string;
+  fromDate?: string;
+  toDate?: string;
+  expiringWithinDays?: number;
+  startLease?: string;
+  endLease?: string;
+  floor?: string;
+  unit?: string;
+  tenant?: string;
+  status?: string;
+}
+
+export function openLeasesReportPreview(params: {
+  reportType: LeaseReportType;
+  leases: Array<LeaseDetail | any>;
+  users?: { fullName?: string; jobTitle?: string | null }[];
+  leads?: any[];
+  targetWindow?: Window | null;
+  filters?: LeaseReportFiltersInfo;
+}): boolean {
+  const { reportType, leases, users = [], leads = [], targetWindow, filters } = params;
+  const win = targetWindow || window.open('', '_blank');
+  if (!win) return false;
+
+  if (reportType === 'form') {
+    if (leases.length === 1) {
+      const html = generateLeaseFormHtml(leases[0] as LeaseDetail, users, leads);
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+      return true;
+    }
+    const pagesHtml = leases
+      .map((l) => {
+        const single = generateLeaseFormHtml(l as LeaseDetail, users, leads);
+        const bodyMatch = single.match(/<div class="preview-container">([\s\S]*?)<\/div>\s*<\/body>/i);
+        return bodyMatch ? bodyMatch[1] : '';
+      })
+      .join('\n');
+    const baseHtml = generateLeaseFormHtml(leases[0] as LeaseDetail, users, leads).replace(
+      /<div class="preview-container">[\s\S]*?<\/div>\s*<\/body>/i,
+      `<div class="preview-container">${pagesHtml}</div></body>`,
+    );
+    win.document.open();
+    win.document.write(baseHtml);
+    win.document.close();
+    win.focus();
+    return true;
+  }
+
+  if (reportType === 'preview') {
+    if (leases.length === 1) {
+      const html = generateLeasePreviewHtml(leases[0] as LeaseDetail);
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+      return true;
+    }
+    const papersHtml = leases
+      .map((l) => {
+        const single = generateLeasePreviewHtml(l as LeaseDetail);
+        const m = single.match(/<div class="invoice-paper">[\s\S]*?<\/div>\s*<\/div>\s*<\/body>/i);
+        return m ? m[0].replace(/<\/div>\s*<\/body>$/i, '') : '';
+      })
+      .join('<div style="height:24px;page-break-after:always;"></div>');
+    const baseHtml = generateLeasePreviewHtml(leases[0] as LeaseDetail).replace(
+      /<div class="preview-container">[\s\S]*?<\/body>/i,
+      `<div class="preview-container" style="flex-direction:column;align-items:center;gap:24px;">${papersHtml}</div></body>`,
+    );
+    win.document.open();
+    win.document.write(baseHtml);
+    win.document.close();
+    win.focus();
+    return true;
+  }
+
+  const reportTitle =
+    reportType === 'summary' ? 'Lease Summary Report' : 'Lease Detail Report';
+  const firstProp = leases[0]?.property;
+  const generatedAt = new Date().toLocaleString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  const filterBadges: string[] = [];
+  if (filters?.currency) filterBadges.push(`Currency: ${filters.currency}`);
+  if (filters?.fromDate) filterBadges.push(`From: ${fmtDate(filters.fromDate)}`);
+  if (filters?.toDate) filterBadges.push(`To: ${fmtDate(filters.toDate)}`);
+  if (filters?.expiringWithinDays) filterBadges.push(`Expiring Within: ${filters.expiringWithinDays} Days`);
+  if (filters?.startLease) filterBadges.push(`Start Lease: ${filters.startLease}`);
+  if (filters?.endLease) filterBadges.push(`End Lease: ${filters.endLease}`);
+  if (filters?.floor) filterBadges.push(`Floor: ${filters.floor}`);
+  if (filters?.unit) filterBadges.push(`Unit: ${filters.unit}`);
+  if (filters?.tenant) filterBadges.push(`Tenant: ${filters.tenant}`);
+  if (filters?.status) filterBadges.push(`Status: ${filters.status.toUpperCase()}`);
+  if (filterBadges.length === 0) filterBadges.push('All Leases');
+
+  const grandTotalsByCurrency: Record<
+    string,
+    { monthlyRent: number; contractTotal: number; deposit: number; extraCharges: number }
+  > = {};
+
+  for (const l of leases) {
+    const cur = (l.currency || 'MMK').toUpperCase();
+    if (!grandTotalsByCurrency[cur]) {
+      grandTotalsByCurrency[cur] = {
+        monthlyRent: 0,
+        contractTotal: 0,
+        deposit: 0,
+        extraCharges: 0,
+      };
+    }
+    const rent = Number(l.rentAmount) || 0;
+    const term = Number(l.leaseTermMonths) || 1;
+    const dep = Number(l.securityDeposit) || 0;
+    const extras = Array.isArray(l.leaseCharges)
+      ? l.leaseCharges.reduce((s: number, c: any) => s + (Number(c.amount) || 0), 0)
+      : 0;
+    grandTotalsByCurrency[cur].monthlyRent += rent;
+    grandTotalsByCurrency[cur].contractTotal += rent * term;
+    grandTotalsByCurrency[cur].deposit += dep;
+    grandTotalsByCurrency[cur].extraCharges += extras;
+  }
+
+  const getTenantCode = (l: any) => l.tenant?.firstName || l.tenant?.code || '-';
+  const getTenantName = (l: any) =>
+    l.tenant?.tenantType && l.tenant.tenantType !== 'individual'
+      ? l.tenant?.companyName || l.tenant?.displayName || '-'
+      : l.tenant?.lastName || l.tenant?.displayName || l.tenant?.firstName || '-';
+  const getFloorText = (l: any) =>
+    l.unit?.floorLabel ||
+    (l.unit?.floorNumber !== null && l.unit?.floorNumber !== undefined
+      ? `Floor ${l.unit.floorNumber}`
+      : '-');
+
+  const tableHtml =
+    reportType === 'summary'
+      ? `
+      <table class="report-table">
+        <thead>
+          <tr>
+            <th style="width:38px;text-align:center;">No.</th>
+            <th>Lease #</th>
+            <th>Floor</th>
+            <th>Unit</th>
+            <th>Code</th>
+            <th>Tenant Name</th>
+            <th>Start Date</th>
+            <th>End Date</th>
+            <th style="text-align:center;">Term</th>
+            <th style="text-align:center;">Curr</th>
+            <th style="text-align:right;">Rent / Mo</th>
+            <th style="text-align:right;">Contract Rent</th>
+            <th style="text-align:right;">Deposit</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${leases
+            .map((l, idx) => {
+              const rent = Number(l.rentAmount) || 0;
+              const term = Number(l.leaseTermMonths) || 1;
+              const dep = Number(l.securityDeposit) || 0;
+              return `
+              <tr>
+                <td style="text-align:center;">${idx + 1}</td>
+                <td style="font-weight:700;">${escapeHtml(l.leaseNumber)}</td>
+                <td>${escapeHtml(getFloorText(l))}</td>
+                <td>${escapeHtml(l.unit?.unitNumber || '-')}</td>
+                <td>${escapeHtml(getTenantCode(l))}</td>
+                <td>${escapeHtml(getTenantName(l))}</td>
+                <td>${escapeHtml(fmtDate(l.startDate))}</td>
+                <td>${escapeHtml(fmtDate(l.endDate))}</td>
+                <td style="text-align:center;">${escapeHtml(term)} mos</td>
+                <td style="text-align:center;">${escapeHtml(l.currency || 'MMK')}</td>
+                <td style="text-align:right;font-weight:600;">${money(rent)}</td>
+                <td style="text-align:right;font-weight:600;">${money(rent * term)}</td>
+                <td style="text-align:right;">${money(dep)}</td>
+                <td style="text-transform:uppercase;font-size:10.5px;font-weight:700;">${escapeHtml((l.status || '').replace(/_/g, ' '))}</td>
+              </tr>`;
+            })
+            .join('')}
+        </tbody>
+        <tfoot>
+          ${Object.entries(grandTotalsByCurrency)
+            .map(
+              ([cur, t]) => `
+            <tr class="summary-row">
+              <td colspan="10" style="text-align:right;font-weight:700;">Grand Total — ${leases.length.toLocaleString()} Leases (${escapeHtml(cur)})</td>
+              <td style="text-align:right;font-weight:700;">${money(t.monthlyRent)}</td>
+              <td style="text-align:right;font-weight:700;">${money(t.contractTotal)}</td>
+              <td style="text-align:right;font-weight:700;">${money(t.deposit)}</td>
+              <td></td>
+            </tr>`,
+            )
+            .join('')}
+        </tfoot>
+      </table>`
+      : `
+      <table class="report-table">
+        <thead>
+          <tr>
+            <th style="width:38px;text-align:center;">No.</th>
+            <th>Lease #</th>
+            <th>Floor / Unit</th>
+            <th>Area (Sqft)</th>
+            <th>Tenant</th>
+            <th>Period (Start ~ End)</th>
+            <th style="text-align:center;">Term</th>
+            <th>Charge Code / Type</th>
+            <th style="text-align:center;">Curr</th>
+            <th style="text-align:right;">Monthly / Rate</th>
+            <th style="text-align:right;">Total Amount</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${leases
+            .map((l, idx) => {
+              const rent = Number(l.rentAmount) || 0;
+              const term = Number(l.leaseTermMonths) || 1;
+              const contractRent = rent * term;
+              const floorUnit = [getFloorText(l), l.unit?.unitNumber]
+                .filter((x) => x && x !== '-')
+                .join(' / ');
+              const tenantLabel = `${getTenantCode(l)} — ${getTenantName(l)}`;
+              const charges: any[] = Array.isArray(l.leaseCharges) ? l.leaseCharges : [];
+              const extraSum = charges.reduce((s, c) => s + (Number(c.amount) || 0), 0);
+              const mainRow = `
+              <tr>
+                <td style="text-align:center;">${idx + 1}</td>
+                <td style="font-weight:700;">${escapeHtml(l.leaseNumber)}</td>
+                <td>${escapeHtml(floorUnit || '-')}</td>
+                <td style="text-align:right;">${l.unit?.areaSqft ? escapeHtml(Number(l.unit.areaSqft).toLocaleString()) : '-'}</td>
+                <td>${escapeHtml(tenantLabel)}</td>
+                <td>${escapeHtml(fmtDate(l.startDate))} ~ ${escapeHtml(fmtDate(l.endDate))}</td>
+                <td style="text-align:center;">${escapeHtml(term)} mos</td>
+                <td><strong>RENT</strong> — Base Rental</td>
+                <td style="text-align:center;">${escapeHtml(l.currency || 'MMK')}</td>
+                <td style="text-align:right;">${money(rent)}</td>
+                <td style="text-align:right;font-weight:600;">${money(contractRent)}</td>
+                <td style="text-transform:uppercase;font-size:10.5px;font-weight:700;">${escapeHtml((l.status || '').replace(/_/g, ' '))}</td>
+              </tr>`;
+              const chargeRows = charges
+                .map(
+                  (c) => `
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td style="text-align:center;">—</td>
+                <td><strong>${escapeHtml(c.chargeType?.code || '')}</strong> — ${escapeHtml(c.chargeType?.name || '')}</td>
+                <td style="text-align:center;">${escapeHtml(l.currency || 'MMK')}</td>
+                <td style="text-align:right;">${money(Number(c.amount) || 0)}</td>
+                <td style="text-align:right;font-weight:600;">${money(Number(c.amount) || 0)}</td>
+                <td></td>
+              </tr>`,
+                )
+                .join('');
+              const subRow = `
+              <tr style="background:#f8fafc;">
+                <td colspan="10" style="text-align:right;font-weight:600;font-size:11px;color:#475569;">
+                  Subtotal for ${escapeHtml(l.leaseNumber)} (${escapeHtml(l.currency || 'MMK')}) — Security Deposit: ${money(Number(l.securityDeposit) || 0)}
+                </td>
+                <td style="text-align:right;font-weight:700;">${money(contractRent + extraSum)}</td>
+                <td></td>
+              </tr>`;
+              return mainRow + chargeRows + subRow;
+            })
+            .join('')}
+        </tbody>
+        <tfoot>
+          ${Object.entries(grandTotalsByCurrency)
+            .map(
+              ([cur, t]) => `
+            <tr class="summary-row">
+              <td colspan="10" style="text-align:right;font-weight:700;">Grand Total — ${leases.length.toLocaleString()} Leases (${escapeHtml(cur)})</td>
+              <td style="text-align:right;font-weight:700;">${money(t.contractTotal + t.extraCharges)}</td>
+              <td></td>
+            </tr>`,
+            )
+            .join('')}
+        </tfoot>
+      </table>`;
+
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${escapeHtml(reportTitle)}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #525659;
+      font-family: 'Inter', 'Noto Sans Myanmar', Arial, sans-serif;
+      font-size: 12px;
+      color: #0f172a;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .preview-toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 24px;
+      background: #1e293b;
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    }
+    .preview-toolbar-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #e2e8f0;
+    }
+    .preview-toolbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .preview-btn {
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid transparent;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .preview-btn-print { background: #10b981; color: #fff; }
+    .preview-btn-print:hover { background: #059669; }
+    .preview-btn-close {
+      background: rgba(255,255,255,0.12);
+      color: #f1f5f9;
+      border-color: rgba(255,255,255,0.2);
+    }
+    .preview-container {
+      padding: 24px 16px;
+      display: flex;
+      justify-content: center;
+    }
+    .report-sheet {
+      background: #fff;
+      width: 297mm;
+      min-height: 210mm;
+      padding: 14mm 16mm;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.35);
+      border-radius: 2px;
+    }
+    .report-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 2px solid #0f172a;
+      padding-bottom: 12px;
+      margin-bottom: 14px;
+    }
+    .report-title { font-size: 20px; line-height: 24px; font-weight: 800; color: #0f172a; }
+    .report-subtitle { font-size: 13px; line-height: 16px; font-weight: 600; color: #475569; margin-top: 4px; }
+    .report-meta { text-align: right; font-size: 11px; color: #475569; line-height: 1.5; }
+    .filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .filter-chip {
+      background: #f1f5f9;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #334155;
+    }
+    .report-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11.5px;
+    }
+    .report-table th,
+    .report-table td {
+      border: 1px solid #cbd5e1;
+      padding: 6px 8px;
+      vertical-align: middle;
+    }
+    .report-table thead th {
+      background: #059669;
+      color: #ffffff;
+      font-weight: 700;
+      text-align: left;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .report-table tbody tr:nth-child(even) { background: #f8fafc; }
+    .summary-row td {
+      background: #f1f5f9;
+      border-top: 2px solid #0f172a;
+      font-size: 12px;
+    }
+    @page { size: A4 landscape; margin: 10mm 12mm; }
+    @media print {
+      body { background: #fff !important; }
+      .no-print { display: none !important; }
+      .preview-container { padding: 0 !important; display: block !important; }
+      .report-sheet {
+        width: 100% !important;
+        min-height: auto !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="preview-toolbar no-print">
+    <div class="preview-toolbar-title">
+      ${escapeHtml(reportTitle)} — Total ${leases.length.toLocaleString()} lease${leases.length !== 1 ? 's' : ''}
+    </div>
+    <div class="preview-toolbar-actions">
+      <button class="preview-btn preview-btn-print" onclick="window.print()">
+        Print / Save as PDF
+      </button>
+      <button class="preview-btn preview-btn-close" onclick="window.close()">
+        Close
+      </button>
+    </div>
+  </div>
+  <div class="preview-container">
+    <div class="report-sheet">
+      <div class="report-header">
+        <div>
+          <div class="report-title">${escapeHtml(reportTitle)}</div>
+          <div class="report-subtitle">${escapeHtml(firstProp?.name || 'All Properties')}</div>
+        </div>
+        <div class="report-meta">
+          <div><strong>Generated:</strong> ${escapeHtml(generatedAt)}</div>
+          <div><strong>Total Matched Leases:</strong> ${leases.length.toLocaleString()}</div>
+        </div>
+      </div>
+      <div class="filter-bar">
+        ${filterBadges.map((b) => `<span class="filter-chip">${escapeHtml(b)}</span>`).join('')}
+      </div>
+      ${tableHtml}
+    </div>
+  </div>
+</body>
+</html>`;
+
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  return true;
+}
+
