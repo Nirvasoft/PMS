@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import {
-  CheckCircle2, ChevronDown, ChevronRight, ClipboardCheck, RotateCcw, AlertTriangle, CircleDot,
+  CheckCircle2, ClipboardCheck, RotateCcw, AlertTriangle, CircleDot,
 } from 'lucide-react';
 import {
   useGetBillingScheduleReviewQuery,
@@ -42,7 +42,6 @@ interface Props {
 export function ScheduleReviewPanel({ propertyId, currency, search }: Props) {
   const [billDate, setBillDate] = useState(todayIso());
   const [categoryFilter, setCategoryFilter] = useState('');
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const canWrite = usePermission('billing-schedules.write');
   const confirmDialog = useConfirm();
@@ -70,14 +69,28 @@ export function ScheduleReviewPanel({ propertyId, currency, search }: Props) {
       seen.add(key);
       opts.push({ id: g.categoryCode, label: g.categoryName });
     }
-    return opts.sort((a, b) => a.label.localeCompare(b.label));
+    // Categories with due schedules come first so the default (top) selection has data to review
+    const dueKeys = new Set((review?.categories ?? []).map((g) => g.categoryCode.trim().toLowerCase()));
+    return opts.sort((a, b) => {
+      const da = dueKeys.has(a.id.trim().toLowerCase()) ? 0 : 1;
+      const db = dueKeys.has(b.id.trim().toLowerCase()) ? 0 : 1;
+      return da - db || a.label.localeCompare(b.label);
+    });
   }, [chargeCategoriesData, review]);
 
-  const categoryScoped = useMemo(() => {
-    const list = review?.categories ?? [];
-    if (!categoryFilter) return list;
+  // One category at a time — default to the top option, and keep a valid selection when options change
+  useEffect(() => {
+    if (categoryOptions.length === 0) return;
     const key = categoryFilter.trim().toLowerCase();
-    return list.filter((c) => c.categoryCode.trim().toLowerCase() === key);
+    if (!key || !categoryOptions.some((o) => o.id.trim().toLowerCase() === key)) {
+      setCategoryFilter(categoryOptions[0].id);
+    }
+  }, [categoryOptions, categoryFilter]);
+
+  const categoryScoped = useMemo(() => {
+    if (!categoryFilter) return [];
+    const key = categoryFilter.trim().toLowerCase();
+    return (review?.categories ?? []).filter((c) => c.categoryCode.trim().toLowerCase() === key);
   }, [review, categoryFilter]);
 
   const stats = useMemo(() => ({
@@ -152,10 +165,11 @@ export function ScheduleReviewPanel({ propertyId, currency, search }: Props) {
             <ComboBox
               id="review-charge-category"
               value={categoryFilter}
-              onChange={setCategoryFilter}
+              onChange={(v) => { if (v) setCategoryFilter(v); }}
               options={categoryOptions}
-              placeholder="All categories"
+              placeholder="Select category"
               emptyText="No charge categories"
+              clearable={false}
             />
           </div>
         </div>
@@ -191,14 +205,12 @@ export function ScheduleReviewPanel({ propertyId, currency, search }: Props) {
       ) : (
         categories.map((cat) => {
           const key = cat.categoryCode;
-          const isOpen = expanded[key] ?? false;
           const fullyConfirmed = cat.activeCount === 0 && cat.confirmedCount > 0;
           const invoicedCount = cat.schedules.filter((s) => s.alreadyInvoicedNumber).length;
           return (
             <div key={key} className={`sched-category-card${fullyConfirmed ? ' sched-category-card--confirmed' : ''}`}>
               <div className="sched-category-head">
-                <button type="button" className="sched-category-toggle" onClick={() => setExpanded((p) => ({ ...p, [key]: !isOpen }))}>
-                  {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                <div className="sched-category-toggle">
                   <span className="sched-category-name">{cat.categoryName}</span>
                   <span className="sched-category-count">{cat.activeCount + cat.confirmedCount} schedules</span>
                   {cat.confirmedCount > 0 && (
@@ -216,7 +228,7 @@ export function ScheduleReviewPanel({ propertyId, currency, search }: Props) {
                       <AlertTriangle size={10} /> {invoicedCount} Already Invoiced
                     </span>
                   )}
-                </button>
+                </div>
                 <div className="sched-category-actions">
                   <span className="sched-category-total">{totalsLabel(cat.totalsByCurrency)}</span>
                   {canWrite && cat.confirmedCount > 0 && (
@@ -232,7 +244,7 @@ export function ScheduleReviewPanel({ propertyId, currency, search }: Props) {
                 </div>
               </div>
 
-              {isOpen && (
+              {(
                 <div className="sched-category-body">
                   <table className="billing-table">
                     <thead>

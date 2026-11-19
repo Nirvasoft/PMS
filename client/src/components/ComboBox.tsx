@@ -21,13 +21,15 @@ interface Props {
   id?: string;
   allowCustom?: boolean;
   onSelectOption?: (option: ComboBoxOption) => void;
+  /** Show the clear (X) button when a value is selected. Defaults to true. */
+  clearable?: boolean;
 }
 
 export default function ComboBox({
   value, onChange, options, onSearch,
   placeholder = 'Search…', loading = false, disabled = false,
   emptyText = 'No matches', id, selectedLabel,
-  allowCustom = false, onSelectOption,
+  allowCustom = false, onSelectOption, clearable = true,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [term, setTerm] = useState('');
@@ -132,7 +134,7 @@ export default function ComboBox({
           }}
           onKeyDown={onKeyDown}
         />
-        {value && !disabled ? (
+        {clearable && value && !disabled ? (
           <button type="button" className="combobox-clear" onClick={clear} aria-label="Clear selection">
             <X size={13} />
           </button>
