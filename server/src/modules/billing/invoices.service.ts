@@ -1294,7 +1294,13 @@ export class InvoicesService {
       schedule: (typeof schedules)[number];
       periodFrom: Date; periodTo: Date; nextBillingDate: Date; amount: number; taxRate: number; taxAmount: number; lineTotal: number;
     };
+    type SkippedScheduleUpdate = {
+      scheduleId: string;
+      nextBillingDate: Date;
+      endDate: Date | null;
+    };
     const lineInputs: LineInput[] = [];
+    const skippedUpdates: SkippedScheduleUpdate[] = [];
 
     // Pre-fetch all active tax configs for this company once before the loop
     // so getApplicableRate() is resolved in-memory instead of hitting the DB per schedule
@@ -1341,7 +1347,14 @@ export class InvoicesService {
         },
       });
       if (existing) {
-        logger.warn(`Invoice already exists for schedule ${schedule.id} period ${periodFrom.toISOString()}, skipping`);
+        logger.warn(
+          `Invoice already exists for schedule ${schedule.id} period ${periodFrom.toISOString()}, skipping invoice creation and advancing nextBillingDate to ${nextBillingDate.toISOString().split('T')[0]}`,
+        );
+        skippedUpdates.push({
+          scheduleId: schedule.id,
+          nextBillingDate,
+          endDate: schedule.endDate,
+        });
         continue;
       }
 
@@ -1358,7 +1371,24 @@ export class InvoicesService {
       lineInputs.push({ schedule, periodFrom, periodTo, nextBillingDate, amount, taxRate, taxAmount, lineTotal: amount + taxAmount });
     }
 
-    if (lineInputs.length === 0) return null;
+    const buildSkippedScheduleUpdate = (s: SkippedScheduleUpdate) => {
+      const isCompleted = Boolean(s.endDate && s.nextBillingDate > s.endDate);
+      return prisma.billingSchedule.update({
+        where: { id: s.scheduleId },
+        data: {
+          nextBillingDate: isCompleted ? null : s.nextBillingDate,
+          isProrated: false,
+          status: isCompleted ? 'completed' : 'active',
+        },
+      });
+    };
+
+    if (lineInputs.length === 0) {
+      if (skippedUpdates.length > 0) {
+        await prisma.$transaction(skippedUpdates.map(buildSkippedScheduleUpdate));
+      }
+      return null;
+    }
 
     const first = lineInputs[0].schedule;
     const periodFrom = lineInputs.reduce((min, l) => (l.periodFrom < min ? l.periodFrom : min), lineInputs[0].periodFrom);
@@ -1481,9 +1511,9 @@ export class InvoicesService {
       },
     });
 
-    // Advance all included schedules in a single transaction (was one await per schedule)
-    await prisma.$transaction(
-      lineInputs.map((l) => {
+    // Advance all included and already-invoiced (skipped) schedules in a single transaction
+    await prisma.$transaction([
+      ...lineInputs.map((l) => {
         const nextDate = l.nextBillingDate;
         const scheduleEndDate = l.schedule.endDate;
         const isCompleted = Boolean(scheduleEndDate && nextDate > scheduleEndDate);
@@ -1497,8 +1527,9 @@ export class InvoicesService {
             status: isCompleted ? 'completed' : 'active',
           },
         });
-      })
-    );
+      }),
+      ...skippedUpdates.map(buildSkippedScheduleUpdate),
+    ]);
 
     // GL auto-posting: Dr AR (linked to Invoice Dept/CC) / Cr per ChargeType GL Account / Cr Tax Payable
     if (await isAccountingIntegrationActive(first.companyId, first.propertyId)) {
