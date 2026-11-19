@@ -32,8 +32,14 @@ usersRouter.get('/', requirePermission('users.read'), asyncHandler(async (req: R
   res.json({ success: true, ...result });
 }));
 
-usersRouter.get('/:id', requirePermission('users.read'), asyncHandler(async (req: Request, res: Response) => {
-  const data = await usersService.findById(param(req, 'id'));
+usersRouter.get('/:id', asyncHandler(async (req: Request, res: Response) => {
+  const targetId = param(req, 'id');
+  const isSelf = req.user!.sub === targetId;
+  const perms = req.user!.permissions ?? [];
+  if (!isSelf && !perms.includes('users.read') && !perms.includes('settings-profile.read')) {
+    throw AppError.forbidden('This action requires the users.read permission');
+  }
+  const data = await usersService.findById(targetId);
   res.json({ success: true, data });
 }));
 
@@ -42,8 +48,14 @@ usersRouter.post('/', requirePermission('users.create'), asyncHandler(async (req
   res.status(201).json({ success: true, data: { id: user.id, email: user.email } });
 }));
 
-usersRouter.put('/:id', requirePermission('users.update'), asyncHandler(async (req: Request, res: Response) => {
-  const data = await usersService.updateProfile(param(req, 'id'), req.body);
+usersRouter.put('/:id', asyncHandler(async (req: Request, res: Response) => {
+  const targetId = param(req, 'id');
+  const isSelf = req.user!.sub === targetId;
+  const perms = req.user!.permissions ?? [];
+  if (!isSelf && !perms.includes('users.update') && !perms.includes('settings-profile.write')) {
+    throw AppError.forbidden('This action requires the users.update permission');
+  }
+  const data = await usersService.updateProfile(targetId, req.body);
   res.json({ success: true, data });
 }));
 

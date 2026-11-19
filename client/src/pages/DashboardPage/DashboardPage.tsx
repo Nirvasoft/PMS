@@ -1,6 +1,7 @@
 import { useNavigate, NavLink, Outlet, useLocation, matchPath } from 'react-router-dom';
 import { useLogoutMutation } from '../../store/api/authApi';
 import { useGetMyPropertyScopeQuery } from '../../store/api/propertiesApi';
+import { useGetUserQuery } from '../../store/api/usersApi';
 import { useAppSelector, useAppDispatch } from '../../store';
 import { setSelectedProperty } from '../../store/slices/propertiesSlice';
 import { ALL_PROPERTIES } from '../../hooks/useSelectedPropertyId';
@@ -136,6 +137,13 @@ export default function DashboardLayout() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const { user } = useAppSelector((s) => s.auth);
+  const { data: currentUserData } = useGetUserQuery(user?.id ?? '', { skip: !user?.id });
+  const profileFullName = [currentUserData?.data?.firstName, currentUserData?.data?.lastName]
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+  const sidebarDisplayName = profileFullName || user?.email?.split('@')[0] || 'User';
+  const sidebarAvatarUrl = currentUserData?.data?.avatarUrl || null;
   const selectedPropertyId = useAppSelector((s) => s.properties.selectedPropertyId);
   const { data: propertiesRes } = useGetMyPropertyScopeQuery();
   const properties = propertiesRes?.data || [];
@@ -1100,13 +1108,21 @@ export default function DashboardLayout() {
         </nav>
 
         <div className={`sidebar-footer${isCollapsed ? ' sidebar-footer--collapsed' : ''}`}>
-          <div className="user-info" title={isCollapsed ? (user?.email?.split('@')[0] || '') : undefined}>
+          <div className="user-info" title={isCollapsed ? sidebarDisplayName : undefined}>
             <div className="user-avatar">
-              <User size={16} />
+              {sidebarAvatarUrl ? (
+                <img
+                  src={sidebarAvatarUrl}
+                  alt={sidebarDisplayName}
+                  style={{ width: '100%', height: '100%', borderRadius: 'inherit', objectFit: 'cover' }}
+                />
+              ) : (
+                <User size={16} />
+              )}
             </div>
             {!isCollapsed && (
               <div className="user-details">
-                <span className="user-name">{user?.email?.split('@')[0]}</span>
+                <span className="user-name">{sidebarDisplayName}</span>
                 <span className="user-role">{user?.roles?.[0] || 'User'}</span>
               </div>
             )}

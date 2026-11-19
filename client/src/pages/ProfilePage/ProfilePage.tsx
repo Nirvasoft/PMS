@@ -1,15 +1,21 @@
 import { TableSkeleton } from '../../components/common/SkeletonLoaders';
 import { useState, useEffect, useRef } from 'react';
 import { useGetMeQuery } from '../../store/api/authApi';
+import { useGetUserQuery, useUpdateUserMutation } from '../../store/api/usersApi';
 import { useAppSelector } from '../../store';
 import toast from 'react-hot-toast';
 import { User, Mail, Phone, Building2, MapPin, Clock, Loader2, Save, Camera, ShieldCheck, ShieldAlert } from 'lucide-react';
-import { baseQueryWithReauth } from '../../store/api/baseQuery';
 
 export default function ProfilePage() {
   const { user, accessToken } = useAppSelector((s) => s.auth);
   const { data: meData, isLoading: meLoading, refetch } = useGetMeQuery();
+  const { data: userDetailData, isLoading: userLoading, refetch: refetchUser } = useGetUserQuery(
+    user?.id ?? '',
+    { skip: !user?.id },
+  );
+  const [updateUser] = useUpdateUserMutation();
   const me = meData?.data;
+  const userDetail = userDetailData?.data as (Record<string, unknown> | undefined);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({
@@ -23,19 +29,31 @@ export default function ProfilePage() {
   const [sendingVerify, setSendingVerify] = useState(false);
 
   useEffect(() => {
-    if (me && !loaded) {
-      const p = me.profile as Record<string, string> | undefined;
-      setForm({
-        firstName: p?.firstName || '',
-        lastName: p?.lastName || '',
-        phone: p?.phone || '',
-        timezone: p?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
-        address: p?.address || '',
-      });
-      if (p?.avatarUrl) setAvatarUrl(p.avatarUrl);
+    if ((userDetail || me) && !loaded) {
+      const p = (me?.profile as Record<string, string> | undefined) || {};
+      const firstName = (userDetail?.firstName as string) || p.firstName || '';
+      const lastName = (userDetail?.lastName as string) || p.lastName || '';
+      const phone = (userDetail?.phone as string) || p.phone || '';
+      const timezone =
+        (userDetail?.timezone as string) ||
+        p.timezone ||
+        Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const address =
+        (userDetail?.address as string) ||
+        (userDetail?.notes as string) ||
+        p.address ||
+        p.notes ||
+        '';
+      const av = (userDetail?.avatarUrl as string) || p.avatarUrl || null;
+
+      // Wait for userDetail if me doesn't have profile fields populated
+      if (!userDetail && !p.firstName && userLoading) return;
+
+      setForm({ firstName, lastName, phone, timezone, address });
+      if (av) setAvatarUrl(av);
       setLoaded(true);
     }
-  }, [me, loaded]);
+  }, [me, userDetail, userLoading, loaded]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,15 +62,21 @@ export default function ProfilePage() {
     if (!user?.id) return;
     setSaving(true);
     try {
-      const result = await baseQueryWithReauth(
-        { url: `/users/${user.id}`, method: 'PUT', body: form },
-        {} as Parameters<typeof baseQueryWithReauth>[1],
-        {} as Parameters<typeof baseQueryWithReauth>[2],
-      );
-      if (result.error) throw result.error;
+      await updateUser({
+        id: user.id,
+        data: {
+          firstName: form.firstName.trim(),
+          lastName: form.lastName.trim(),
+          phone: form.phone.trim() || null,
+          timezone: form.timezone || 'UTC',
+          notes: form.address.trim() || null,
+        },
+      }).unwrap();
       toast.success('Profile updated!');
-    } catch {
-      toast.error('Failed to update profile');
+      refetch();
+      refetchUser();
+    } catch (err: any) {
+      toast.error(err?.data?.errors?.[0]?.message || 'Failed to update profile');
     } finally {
       setSaving(false);
     }
@@ -74,6 +98,7 @@ export default function ProfilePage() {
       if (data.success) {
         setAvatarUrl(data.data.avatarUrl);
         toast.success('Avatar updated!');
+        refetchUser();
       } else { toast.error('Upload failed'); }
     } catch { toast.error('Upload error'); }
     finally { setUploadingAvatar(false); }
@@ -82,22 +107,28 @@ export default function ProfilePage() {
   const handleSendVerification = async () => {
     setSendingVerify(true);
     try {
-      const result = await baseQueryWithReauth(
-        { url: '/auth/send-verification', method: 'POST' },
-        {} as Parameters<typeof baseQueryWithReauth>[1],
-        {} as Parameters<typeof baseQueryWithReauth>[2],
-      );
-      if (result.error) throw result.error;
-      const data = result.data as { data: { message: string; verifyUrl?: string } };
-      toast.success(data.data.message);
+      const res = await fetch('/api/v1/auth/send-verification', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) throw new Error(data?.errors?.[0]?.message || 'Failed');
+      toast.success(data.data?.message || 'Verification email sent');
       refetch();
     } catch { toast.error('Failed to send verification email'); }
     finally { setSendingVerify(false); }
   };
 
-  if (meLoading) return <div className="page-content"><TableSkeleton columns={5} rows={5} /></div>;
+  if (meLoading && userLoading) return <div className="page-content"><TableSkeleton columns={5} rows={5} /></div>;
 
   const emailVerified = (me as Record<string, unknown>)?.emailVerified as boolean | undefined;
+  const companyDisplayName =
+    (me?.company as Record<string, string> | undefined)?.name ||
+    (user as unknown as Record<string, string> | undefined)?.companyName ||
+    'ACME Property Group';
 
   return (
     <div className="page-content">
@@ -226,7 +257,7 @@ export default function ProfilePage() {
 
           <div className="form-group" style={{ marginTop: 8 }}>
             <label><Building2 size={14} /> Company</label>
-            <input className="input-full" disabled value={(me?.company as Record<string, string>)?.name || 'N/A'}
+            <input className="input-full" disabled value={companyDisplayName}
               style={{ opacity: 0.6 }} />
           </div>
 

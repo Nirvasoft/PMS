@@ -357,10 +357,15 @@ authRouter.get('/me', asyncHandler(async (req: Request, res: Response) => {
       id: true, email: true, companyId: true, emailVerified: true,
       isActive: true, mfaEnabled: true, lastLoginAt: true,
       mustChangePassword: true, createdAt: true,
+      profile: true,
+      company: { select: { id: true, code: true, name: true } },
     },
   });
   if (!user) { res.status(404).json({ success: false }); return; }
-  res.json({ success: true, data: { ...user, roles: req.user!.roles } });
+  const profile = user.profile
+    ? { ...user.profile, address: user.profile.notes ?? '' }
+    : null;
+  res.json({ success: true, data: { ...user, profile, roles: req.user!.roles } });
 }));
 
 // ─── Email Verification ────────────────────────

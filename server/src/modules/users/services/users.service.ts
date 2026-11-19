@@ -121,6 +121,8 @@ export class UsersService {
       jobTitle: user.profile?.jobTitle,
       employeeId: user.profile?.employeeId,
       dateOfJoining: user.profile?.dateOfJoining,
+      notes: user.profile?.notes,
+      address: user.profile?.notes,
       timezone: user.profile?.timezone,
       locale: user.profile?.locale,
       department: user.profile?.department,
@@ -200,15 +202,31 @@ export class UsersService {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw AppError.notFound('User');
 
+    const allowedKeys = [
+      'firstName', 'lastName', 'phone', 'mobile', 'avatarUrl',
+      'jobTitle', 'departmentId', 'positionId', 'employeeId',
+      'dateOfJoining', 'notes', 'timezone', 'locale',
+    ] as const;
+
+    const cleanData: Record<string, unknown> = {};
+    for (const key of allowedKeys) {
+      if (dto[key] !== undefined) {
+        cleanData[key] = dto[key];
+      }
+    }
+    if (dto.address !== undefined && cleanData.notes === undefined) {
+      cleanData.notes = dto.address;
+    }
+
     await prisma.userProfile.upsert({
       where: { userId },
       create: {
         userId,
-        firstName: (dto.firstName as string) || '',
-        lastName: (dto.lastName as string) || '',
-        ...dto,
+        firstName: (cleanData.firstName as string) || '',
+        lastName: (cleanData.lastName as string) || '',
+        ...cleanData,
       },
-      update: dto,
+      update: cleanData,
     });
 
     return this.findById(userId);
