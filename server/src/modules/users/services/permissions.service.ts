@@ -34,11 +34,13 @@ const SIDEBAR_ALIGNED_PERMISSIONS: ReadonlyArray<{
   { code: 'finance-detailed-trial.write', name: 'Manage Detailed Trial', module: 'finance-detailed-trial', action: 'write', legacyCodes: ['finance-trial-balance.write'] },
   { code: 'reports-invoices.read', name: 'View Invoice Report', module: 'reports-invoices', action: 'read', legacyCodes: ['reports-list.read', 'billing-invoices.read'] },
   { code: 'reports-leases.read', name: 'View Lease Report', module: 'reports-leases', action: 'read', legacyCodes: ['reports-list.read', 'leases.read'] },
+  { code: 'reports-tenants.read', name: 'View Tenant Report', module: 'reports-tenants', action: 'read', legacyCodes: ['reports-list.read', 'tenants.read', 'leases.read'] },
+  { code: 'reports-units.read', name: 'View Unit Report', module: 'reports-units', action: 'read', legacyCodes: ['reports-list.read', 'unit.read', 'properties.read', 'leases.read'] },
   { code: 'developer-cron-jobs.read', name: 'View Cron Jobs', module: 'developer-cron-jobs', action: 'read', legacyCodes: ['developer-integrations.read'] },
   { code: 'developer-cron-jobs.write', name: 'Manage Cron Jobs', module: 'developer-cron-jobs', action: 'write', legacyCodes: ['developer-integrations.write'] },
 ];
 
-const DEPRECATED_PERMISSION_CODES = ['reports-list.read', 'reports-list.write', 'reports-invoices.write', 'reports-leases.write'] as const;
+const DEPRECATED_PERMISSION_CODES = ['reports-list.read', 'reports-list.write', 'reports-invoices.write', 'reports-leases.write', 'reports-tenants.write', 'reports-units.write'] as const;
 
 export class PermissionsService {
   private apVouchersMigrated = false;

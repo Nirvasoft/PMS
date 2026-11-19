@@ -167,6 +167,8 @@ async function main() {
     { code: 'reports-anomalies.write', name: 'Manage Anomaly Dashboard', module: 'reports-anomalies', action: 'write' },
     { code: 'reports-invoices.read', name: 'View Invoice Report', module: 'reports-invoices', action: 'read' },
     { code: 'reports-leases.read', name: 'View Lease Report', module: 'reports-leases', action: 'read' },
+    { code: 'reports-tenants.read', name: 'View Tenant Report', module: 'reports-tenants', action: 'read' },
+    { code: 'reports-units.read', name: 'View Unit Report', module: 'reports-units', action: 'read' },
     { code: 'settings-security.read', name: 'View Security Settings', module: 'settings-security', action: 'read' },
     { code: 'settings-security.write', name: 'Manage Security Settings', module: 'settings-security', action: 'write' },
     { code: 'settings-notifications.read', name: 'View Notification Prefs', module: 'settings-notifications', action: 'read' },

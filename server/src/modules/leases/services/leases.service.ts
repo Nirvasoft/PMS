@@ -55,10 +55,11 @@ export class LeasesService {
         select: {
           id: true, leaseNumber: true, status: true,
           startDate: true, endDate: true, leaseTermMonths: true,
-          rentAmount: true, currency: true, esignStatus: true, createdAt: true,
-          unit:     { select: { id: true, unitNumber: true, unitType: true, areaSqft: true, floorNumber: true, floorLabel: true } },
+          rentAmount: true, currency: true, billingCycle: true, securityDeposit: true,
+          esignStatus: true, createdAt: true,
+          unit:     { select: { id: true, unitNumber: true, unitType: true, areaSqft: true, floorNumber: true, floorLabel: true, status: true, shopProfile: { select: { brandName: true } } } },
           property: { select: { id: true, name: true, addressLine1: true, addressLine2: true, city: true, state: true, postalCode: true, country: true } },
-          tenant:   { select: { id: true, firstName: true, lastName: true, companyName: true, tenantType: true } },
+          tenant:   { select: { id: true, firstName: true, lastName: true, companyName: true, tenantType: true, email: true, mobile: true, phone: true } },
         },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
@@ -67,8 +68,26 @@ export class LeasesService {
       prisma.lease.count({ where }),
     ]);
 
+    const raShopByLeaseId = new Map<string, string>();
+    if (raw.length > 0) {
+      try {
+        const raRows = await prisma.$queryRaw<Array<{ id: string; rental_agreement: any }>>`
+          SELECT "id"::text AS "id", "rental_agreement"
+          FROM "leases"
+          WHERE "company_id" = ${companyId}::uuid AND "deleted_at" IS NULL
+        `;
+        for (const row of raRows) {
+          const sn = typeof row.rental_agreement?.shopName === 'string' ? row.rental_agreement.shopName.trim() : '';
+          if (sn) raShopByLeaseId.set(row.id, sn);
+        }
+      } catch {
+        // Ignore if rental_agreement column is unavailable
+      }
+    }
+
     const data = raw.map((l) => ({
       ...l,
+      shopName: raShopByLeaseId.get(l.id) || l.unit?.shopProfile?.brandName || null,
       tenant: { ...l.tenant, displayName: l.tenant.tenantType === 'company' ? l.tenant.companyName : `${l.tenant.firstName || ''} ${l.tenant.lastName || ''}`.trim() },
       daysUntilExpiry: daysUntilExpiry(l.endDate),
     }));

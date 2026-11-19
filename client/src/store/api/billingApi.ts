@@ -423,7 +423,18 @@ export const billingApi = createApi({
 
     getInvoiceReportFilters: builder.query<ApiResponse<{
       floors: string[];
-      units: Array<{ unitNumber: string; floor: string }>;
+      units: Array<{
+        id?: string;
+        unitNumber: string;
+        floor: string;
+        unitType?: string | null;
+        areaSqft?: number | null;
+        status?: string | null;
+        baseRent?: number | null;
+        currency?: string | null;
+        propertyName?: string | null;
+        shopName?: string | null;
+      }>;
       tenantItems: Array<{ id: string; firstName: string; lastName: string }>;
       statuses: string[];
     }>, { propertyId?: string } | void>({

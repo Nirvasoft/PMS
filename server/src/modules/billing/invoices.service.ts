@@ -25,7 +25,7 @@ export class InvoicesService {
   // ── Query ───────────────────────────────────
 
   async getReportFilterOptions(companyId: string, propertyId?: string) {
-    const cacheKey = `invoices:${companyId}:report-filters:${propertyId || 'all'}`;
+    const cacheKey = `invoices:${companyId}:report-filters:v2:${propertyId || 'all'}`;
     return cacheGetOrSet(cacheKey, 300, async () => {
       const [unitRows, tenantRows] = await Promise.all([
         prisma.unit.findMany({
@@ -34,7 +34,19 @@ export class InvoicesService {
             deletedAt: null,
             ...(propertyId ? { propertyId } : {}),
           },
-          select: { unitNumber: true, floorNumber: true, floorLabel: true },
+          select: {
+            id: true,
+            unitNumber: true,
+            floorNumber: true,
+            floorLabel: true,
+            unitType: true,
+            areaSqft: true,
+            status: true,
+            rate: true,
+            currency: true,
+            property: { select: { id: true, name: true } },
+            shopProfile: { select: { brandName: true } },
+          },
         }),
         prisma.tenant.findMany({
           where: {
@@ -52,12 +64,34 @@ export class InvoicesService {
       };
 
       const floorSet = new Set<string>();
-      const units: Array<{ unitNumber: string; floor: string }> = [];
+      const units: Array<{
+        id: string;
+        unitNumber: string;
+        floor: string;
+        unitType?: string | null;
+        areaSqft?: number | null;
+        status?: string | null;
+        baseRent?: number | null;
+        currency?: string | null;
+        propertyName?: string | null;
+        shopName?: string | null;
+      }> = [];
       for (const u of unitRows) {
         const fl = formatFloor(u);
         if (fl) floorSet.add(fl);
         if (u.unitNumber) {
-          units.push({ unitNumber: u.unitNumber, floor: fl });
+          units.push({
+            id: u.id,
+            unitNumber: u.unitNumber,
+            floor: fl,
+            unitType: u.unitType,
+            areaSqft: u.areaSqft != null ? Number(u.areaSqft) : null,
+            status: u.status,
+            baseRent: u.rate != null ? Number(u.rate) : null,
+            currency: u.currency,
+            propertyName: u.property?.name || null,
+            shopName: u.shopProfile?.brandName || null,
+          });
         }
       }
 

@@ -6,6 +6,8 @@ import {
   FileText,
   Receipt,
   ClipboardList,
+  Users2,
+  Building2,
   AlertTriangle,
   RotateCcw,
 } from 'lucide-react';
@@ -28,7 +30,15 @@ import {
 } from '../admin/BillingPage/utils/invoicePrintPreview';
 import {
   openLeasesReportPreview,
+  openTenantReportPreview,
+  openUnitReportPreview,
+  isCurrentOccupancyLease,
+  isPreviousOccupancyLease,
   type LeaseReportType,
+  type TenantReportType,
+  type TenantOccupancyFilter,
+  type UnitReportType,
+  type UnitReportEntry,
 } from '../admin/LeasesPage/utils/leasePrintPreview';
 import '../admin/BillingPage/BillingPage.css';
 import './ReportsPage.css';
@@ -61,10 +71,29 @@ const LEASE_STATUS_OPTIONS = [
   { value: 'cancelled', label: 'CANCELLED' },
 ];
 
-export default function ReportsPage({ mode }: { mode?: 'invoice' | 'lease' }) {
+const UNIT_STATUS_OPTIONS = [
+  { value: 'occupied', label: 'OCCUPIED' },
+  { value: 'available', label: 'AVAILABLE' },
+  { value: 'reserved', label: 'RESERVED' },
+  { value: 'maintenance', label: 'MAINTENANCE' },
+  { value: 'not_for_rent', label: 'NOT FOR RENT' },
+];
+
+export default function ReportsPage({
+  mode,
+}: {
+  mode?: 'invoice' | 'lease' | 'tenant' | 'unit';
+}) {
   const location = useLocation();
-  const activeMode: 'invoice' | 'lease' =
-    mode ?? (location.pathname.includes('/leases') ? 'lease' : 'invoice');
+  const activeMode: 'invoice' | 'lease' | 'tenant' | 'unit' =
+    mode ??
+    (location.pathname.includes('/units')
+      ? 'unit'
+      : location.pathname.includes('/tenants')
+      ? 'tenant'
+      : location.pathname.includes('/leases')
+      ? 'lease'
+      : 'invoice');
   const activeProperty = useSelectedPropertyFilter();
 
   return (
@@ -75,16 +104,32 @@ export default function ReportsPage({ mode }: { mode?: 'invoice' | 'lease' }) {
           <div className="page-icon-lg">
             {activeMode === 'invoice' ? (
               <Receipt size={22} />
-            ) : (
+            ) : activeMode === 'lease' ? (
               <ClipboardList size={22} />
+            ) : activeMode === 'tenant' ? (
+              <Users2 size={22} />
+            ) : (
+              <Building2 size={22} />
             )}
           </div>
           <div>
-            <h1>{activeMode === 'invoice' ? 'Invoice Report' : 'Lease Report'}</h1>
+            <h1>
+              {activeMode === 'invoice'
+                ? 'Invoice Report'
+                : activeMode === 'lease'
+                ? 'Lease Report'
+                : activeMode === 'tenant'
+                ? 'Tenant Unit & Lease History Report'
+                : 'Unit Occupancy & Lease History Report'}
+            </h1>
             <p>
               {activeMode === 'invoice'
                 ? 'Invoice Summary, Detail & Voucher Report'
-                : 'Lease Summary, Detail, Form & Preview Report'}
+                : activeMode === 'lease'
+                ? 'Lease Summary, Detail, Form & Preview Report'
+                : activeMode === 'tenant'
+                ? 'Tenant Current Owned & Previous Owned Units, Lease Numbers, Dates & Status Report'
+                : 'Unit No, Shop Name, Floor, Area, Lease Numbers, Start & End Dates & Status Report'}
             </p>
           </div>
         </div>
@@ -92,8 +137,12 @@ export default function ReportsPage({ mode }: { mode?: 'invoice' | 'lease' }) {
 
       {activeMode === 'invoice' ? (
         <InvoiceReportForm activeProperty={activeProperty} />
-      ) : (
+      ) : activeMode === 'lease' ? (
         <LeaseReportForm activeProperty={activeProperty} />
+      ) : activeMode === 'tenant' ? (
+        <TenantReportForm activeProperty={activeProperty} />
+      ) : (
+        <UnitReportForm activeProperty={activeProperty} />
       )}
     </div>
   );
@@ -1083,3 +1132,1190 @@ function LeaseReportForm({ activeProperty }: { activeProperty: string }) {
     </div>
   );
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 3. TENANT UNIT & LEASE HISTORY REPORT FORM (3-COLUMN CLEAN GRID)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function TenantReportForm({ activeProperty }: { activeProperty: string }) {
+  const { data: filterMetaResp } = useGetInvoiceReportFiltersQuery(
+    activeProperty ? { propertyId: activeProperty } : undefined,
+  );
+  const filterMeta = filterMetaResp?.data;
+
+  const [triggerFetchLeases, { isFetching: fetchingLeases }] =
+    useLazyGetLeasesQuery();
+
+  const { data: currencyRatesData } = useGetCurrencyRatesQuery(
+    activeProperty ? { propertyId: activeProperty } : undefined,
+  );
+  const currencyRates = currencyRatesData?.data ?? [];
+  const baseCurrencyCode =
+    currencyRates.find((r) => r.isBaseCurrency)?.currency || 'MMK';
+
+  const currencyOptions = useMemo(
+    () => buildCurrencyOptions(currencyRates, baseCurrencyCode),
+    [currencyRates, baseCurrencyCode],
+  );
+
+  const defaultDates = useMemo(() => {
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return {
+      min: format(firstDay, 'yyyy-MM-dd'),
+      max: format(lastDay, 'yyyy-MM-dd'),
+    };
+  }, []);
+
+  const [reportType, setReportType] = useState<TenantReportType>('detail');
+  const [occupancyFilter, setOccupancyFilter] =
+    useState<TenantOccupancyFilter>('all');
+  const [currencyFilter, setCurrencyFilter] = useState<string>('ALL');
+  const [fromDate, setFromDate] = useState<string>(() => defaultDates.min);
+  const [toDate, setToDate] = useState<string>(() => defaultDates.max);
+  const [startLease, setStartLease] = useState<string>('');
+  const [endLease, setEndLease] = useState<string>('');
+  const [floor, setFloor] = useState<string>('');
+  const [unitNumber, setUnitNumber] = useState<string>('');
+  const [tenantId, setTenantId] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [sortBy, setSortBy] = useState<string>('tenant');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [validationError, setValidationError] = useState<string>('');
+
+  const floorOptions = useMemo(
+    () => filterMeta?.floors || [],
+    [filterMeta?.floors],
+  );
+
+  const unitOptions = useMemo(() => {
+    const list = filterMeta?.units || [];
+    const set = new Set<string>();
+    list.forEach((u) => {
+      if (floor && u.floor !== floor) return;
+      if (u.unitNumber) set.add(u.unitNumber);
+    });
+    return Array.from(set).sort((a, b) =>
+      a.localeCompare(b, undefined, { numeric: true }),
+    );
+  }, [filterMeta?.units, floor]);
+
+  const tenantComboOptions = useMemo(() => {
+    const items = filterMeta?.tenantItems || [];
+    return items.map((t) => {
+      const topLine = t.firstName || t.lastName;
+      const subLine =
+        t.firstName && t.lastName && t.lastName !== t.firstName
+          ? t.lastName
+          : undefined;
+      return {
+        id: t.id,
+        label: topLine,
+        sublabel: subLine,
+      };
+    });
+  }, [filterMeta?.tenantItems]);
+
+  const selectedTenantDisplay = useMemo(() => {
+    if (!tenantId) return '';
+    const found = (filterMeta?.tenantItems || []).find(
+      (t) => t.id === tenantId,
+    );
+    if (!found) return '';
+    return [found.firstName, found.lastName].filter(Boolean).join(' - ');
+  }, [tenantId, filterMeta?.tenantItems]);
+
+  useEffect(() => {
+    if (fromDate && toDate && fromDate > toDate) {
+      setValidationError('From Date cannot be later than To Date.');
+    } else if (
+      startLease.trim() &&
+      endLease.trim() &&
+      startLease
+        .trim()
+        .localeCompare(endLease.trim(), undefined, { numeric: true }) > 0
+    ) {
+      setValidationError('Start Lease cannot be greater than End Lease.');
+    } else {
+      setValidationError('');
+    }
+  }, [fromDate, toDate, startLease, endLease]);
+
+  const handleResetFilters = () => {
+    setReportType('detail');
+    setOccupancyFilter('all');
+    setCurrencyFilter('ALL');
+    setFromDate(defaultDates.min);
+    setToDate(defaultDates.max);
+    setStartLease('');
+    setEndLease('');
+    setFloor('');
+    setUnitNumber('');
+    setTenantId('');
+    setStatusFilter('');
+    setSortBy('tenant');
+    setSortOrder('asc');
+    setValidationError('');
+  };
+
+  const handleGenerateTenantReport = async () => {
+    if (fromDate && toDate && fromDate > toDate) {
+      setValidationError('From Date cannot be later than To Date.');
+      toast.error('From Date cannot be later than To Date');
+      return;
+    }
+    if (
+      startLease.trim() &&
+      endLease.trim() &&
+      startLease
+        .trim()
+        .localeCompare(endLease.trim(), undefined, { numeric: true }) > 0
+    ) {
+      setValidationError('Start Lease cannot be greater than End Lease.');
+      toast.error('Start Lease cannot be greater than End Lease');
+      return;
+    }
+
+    setValidationError('');
+
+    try {
+      const res = await triggerFetchLeases({
+        propertyId: activeProperty || undefined,
+        tenantId: tenantId || undefined,
+        status: statusFilter || undefined,
+        page: 1,
+        limit: 1000,
+      }).unwrap();
+
+      const allLeases = [...(res?.data || [])];
+
+      const getFl = (l: any) =>
+        String(l.unit?.floorLabel || l.unit?.floorNumber || '').trim();
+
+      // Step 1: Find which tenants have at least one lease matching the selected date window
+      // (a lease matches the date window if its [startDate, endDate] overlaps [fromDate, toDate],
+      // or its startDate/endDate falls inside [fromDate, toDate]).
+      // Then, when occupancyFilter === 'all', include all historical (previous owned) leases
+      // for those matched tenants so the report always shows both Current Unit and Before Owned Units!
+      const matchesDateRange = (l: any): boolean => {
+        if (!fromDate && !toDate) return true;
+        const s = l.startDate ? String(l.startDate).slice(0, 10) : '';
+        const e = l.endDate ? String(l.endDate).slice(0, 10) : s;
+        if (fromDate && toDate) {
+          return s <= toDate && e >= fromDate;
+        }
+        if (fromDate) return e >= fromDate;
+        if (toDate) return s <= toDate;
+        return true;
+      };
+
+      const matchesNonDateFilters = (l: any): boolean => {
+        if (currencyFilter && currencyFilter !== 'ALL') {
+          if ((l.currency || 'MMK') !== currencyFilter) return false;
+        }
+        if (occupancyFilter === 'current' && !isCurrentOccupancyLease(l.status)) {
+          return false;
+        }
+        if (
+          occupancyFilter === 'previous' &&
+          !isPreviousOccupancyLease(l.status)
+        ) {
+          return false;
+        }
+        if (startLease.trim()) {
+          if (
+            (l.leaseNumber || '').localeCompare(
+              startLease.trim(),
+              undefined,
+              { numeric: true, sensitivity: 'base' },
+            ) < 0
+          ) {
+            return false;
+          }
+        }
+        if (endLease.trim()) {
+          if (
+            (l.leaseNumber || '').localeCompare(
+              endLease.trim(),
+              undefined,
+              { numeric: true, sensitivity: 'base' },
+            ) > 0
+          ) {
+            return false;
+          }
+        }
+        if (floor && getFl(l) !== floor) return false;
+        if (unitNumber && (l.unit?.unitNumber || '') !== unitNumber) {
+          return false;
+        }
+        return true;
+      };
+
+      // Identify tenants that have at least one lease overlapping the date range
+      const matchedTenantIds = new Set<string>();
+      for (const l of allLeases) {
+        if (matchesDateRange(l)) {
+          const tId =
+            l.tenant?.id ||
+            `${l.tenant?.firstName || ''}__${l.tenant?.lastName || l.tenant?.companyName || ''}`;
+          matchedTenantIds.add(tId);
+        }
+      }
+
+      let items = allLeases.filter((l) => {
+        if (!matchesNonDateFilters(l)) return false;
+        const tId =
+          l.tenant?.id ||
+          `${l.tenant?.firstName || ''}__${l.tenant?.lastName || l.tenant?.companyName || ''}`;
+        if (occupancyFilter === 'all') {
+          // Include all current & previous owned units of any tenant active/overlapping in the date window
+          return matchedTenantIds.has(tId);
+        }
+        return matchesDateRange(l);
+      });
+
+      // Fallback: if no lease overlapped the current month window (e.g. only older historical leases exist),
+      // show all leases matching the non-date filters so previous owned units are still visible
+      if (items.length === 0 && allLeases.length > 0 && occupancyFilter !== 'current') {
+        items = allLeases.filter(matchesNonDateFilters);
+      }
+
+      if (items.length === 0) {
+        toast.error('No tenant unit or lease records match the selected filters');
+        return;
+      }
+
+      const dir = sortOrder === 'asc' ? 1 : -1;
+      items.sort((a: any, b: any) => {
+        switch (sortBy) {
+          case 'leaseNumber':
+            return (
+              dir *
+              (a.leaseNumber || '').localeCompare(
+                b.leaseNumber || '',
+                undefined,
+                { numeric: true },
+              )
+            );
+          case 'startDate':
+            return (
+              dir *
+              ((a.startDate ? new Date(a.startDate).getTime() : 0) -
+                (b.startDate ? new Date(b.startDate).getTime() : 0))
+            );
+          case 'endDate':
+            return (
+              dir *
+              ((a.endDate ? new Date(a.endDate).getTime() : 0) -
+                (b.endDate ? new Date(b.endDate).getTime() : 0))
+            );
+          case 'floor':
+            return (
+              dir *
+              getFl(a).localeCompare(getFl(b), undefined, { numeric: true })
+            );
+          case 'unit':
+            return (
+              dir *
+              (a.unit?.unitNumber || '').localeCompare(
+                b.unit?.unitNumber || '',
+                undefined,
+                { numeric: true },
+              )
+            );
+          case 'rentAmount':
+            return (
+              dir * ((Number(a.rentAmount) || 0) - (Number(b.rentAmount) || 0))
+            );
+          case 'tenant':
+          default: {
+            const ta = `${a.tenant?.firstName || ''} ${
+              a.tenant?.lastName || a.tenant?.companyName || ''
+            }`.trim();
+            const tb = `${b.tenant?.firstName || ''} ${
+              b.tenant?.lastName || b.tenant?.companyName || ''
+            }`.trim();
+            return (
+              dir * ta.localeCompare(tb, undefined, { numeric: true })
+            );
+          }
+        }
+      });
+
+      const sortLabels: Record<string, string> = {
+        tenant: 'Tenant',
+        unit: 'Unit / Room',
+        floor: 'Floor',
+        leaseNumber: 'Lease Number',
+        startDate: 'Start Date',
+        endDate: 'End Date',
+        rentAmount: 'Rent Amount',
+      };
+
+      const ok = openTenantReportPreview(items, {
+        reportType,
+        occupancyFilter,
+        fromDate: fromDate || undefined,
+        toDate: toDate || undefined,
+        floor: floor || undefined,
+        unit: unitNumber || undefined,
+        tenant: selectedTenantDisplay || undefined,
+        status: statusFilter || undefined,
+        currency:
+          currencyFilter === 'ALL' ? 'All Currencies' : currencyFilter,
+        sortByLabel: sortLabels[sortBy] || sortBy,
+        sortOrder,
+      });
+
+      if (!ok) {
+        toast.error('Please allow pop-ups to view the printable report');
+      }
+    } catch {
+      toast.error('Failed to load tenant report data');
+    }
+  };
+
+  return (
+    <div className="rp-clean-card">
+      <div className="rp-grid-3">
+        {/* Row 1: Report Type | Unit History | Currency */}
+        <div className="rb-field">
+          <label>
+            Report Type <span style={{ color: '#ef4444' }}>*</span>
+          </label>
+          <select
+            value={reportType}
+            onChange={(e) => setReportType(e.target.value as TenantReportType)}
+          >
+            <option value="summary">Tenant Summary Report</option>
+            <option value="detail">Tenant Detail Report</option>
+          </select>
+        </div>
+
+        <div className="rb-field">
+          <label>Unit History</label>
+          <select
+            value={occupancyFilter}
+            onChange={(e) =>
+              setOccupancyFilter(e.target.value as TenantOccupancyFilter)
+            }
+          >
+            <option value="all">All Units</option>
+            <option value="current">Current Units</option>
+            <option value="previous">Previous Units</option>
+          </select>
+        </div>
+
+        <div className="rb-field">
+          <label>Currency</label>
+          <select
+            value={currencyFilter}
+            onChange={(e) => setCurrencyFilter(e.target.value)}
+          >
+            <option value="ALL">All Currencies</option>
+            {currencyOptions.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.code}
+                {c.isBase ? ' (Base)' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Row 2: From Date | To Date | Lease Status */}
+        <div className="rb-field">
+          <label>From Date (Start Date)</label>
+          <input
+            type="date"
+            value={fromDate}
+            max={toDate || undefined}
+            onChange={(e) => setFromDate(e.target.value)}
+          />
+        </div>
+
+        <div className="rb-field">
+          <label>To Date (End Date)</label>
+          <input
+            type="date"
+            value={toDate}
+            min={fromDate || undefined}
+            onChange={(e) => setToDate(e.target.value)}
+          />
+        </div>
+
+        <div className="rb-field">
+          <label>Lease Status</label>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="">All Statuses</option>
+            {LEASE_STATUS_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Row 3: Start Lease # | End Lease # | Tenant */}
+        <div className="rb-field">
+          <label>Start Lease #</label>
+          <input
+            type="text"
+            placeholder="e.g. LSE-00001"
+            value={startLease}
+            onChange={(e) => setStartLease(e.target.value)}
+          />
+        </div>
+
+        <div className="rb-field">
+          <label>End Lease #</label>
+          <input
+            type="text"
+            placeholder="e.g. LSE-00500"
+            value={endLease}
+            onChange={(e) => setEndLease(e.target.value)}
+          />
+        </div>
+
+        <div className="rb-field">
+          <label>Tenant</label>
+          <ComboBox
+            id="central-tenant-report-tenant"
+            value={tenantId}
+            onChange={(id) => setTenantId(id)}
+            options={tenantComboOptions}
+            placeholder="All Tenants"
+            clearLabel="All Tenants"
+          />
+        </div>
+
+        {/* Row 4: Floor | Unit / Room | Sort By + Order */}
+        <div className="rb-field">
+          <label>Floor</label>
+          <select
+            value={floor}
+            onChange={(e) => {
+              setFloor(e.target.value);
+              setUnitNumber('');
+            }}
+          >
+            <option value="">All Floors</option>
+            {floorOptions.map((fl) => (
+              <option key={fl} value={fl}>
+                {fl}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="rb-field">
+          <label>Unit / Room</label>
+          <select
+            value={unitNumber}
+            onChange={(e) => setUnitNumber(e.target.value)}
+          >
+            <option value="">All Units</option>
+            {unitOptions.map((u) => (
+              <option key={u} value={u}>
+                {u}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="rp-sort-pair">
+          <div className="rb-field">
+            <label>Sort By</label>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+            >
+              <option value="tenant">Tenant</option>
+              <option value="unit">Unit / Room</option>
+              <option value="floor">Floor</option>
+              <option value="leaseNumber">Lease Number</option>
+              <option value="startDate">Start Date</option>
+              <option value="endDate">End Date</option>
+              <option value="rentAmount">Rent Amount</option>
+            </select>
+          </div>
+          <div className="rb-field">
+            <label>Order</label>
+            <select
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc')}
+            >
+              <option value="asc">Asc</option>
+              <option value="desc">Desc</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Validation Banner */}
+      {validationError && (
+        <div className="rp-validation-alert">
+          <AlertTriangle size={15} style={{ flexShrink: 0 }} />
+          <span>{validationError}</span>
+        </div>
+      )}
+
+      {/* Footer Bar */}
+      <div className="rp-card-footer">
+        <span className="rb-hint" style={{ margin: 0 }}>
+          <FileText size={13} />
+          Opens a printable report preview window (Print / Save as PDF).
+        </span>
+        <div className="rp-footer-actions">
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={handleResetFilters}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            <RotateCcw size={14} /> Reset
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={handleGenerateTenantReport}
+            disabled={fetchingLeases}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            <FileText size={14} /> {fetchingLeases ? 'Loading…' : 'Preview'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 4. UNIT OCCUPANCY & LEASE HISTORY REPORT FORM (3-COLUMN CLEAN GRID)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function UnitReportForm({ activeProperty }: { activeProperty: string }) {
+  const { data: filterMetaResp } = useGetInvoiceReportFiltersQuery(
+    activeProperty ? { propertyId: activeProperty } : undefined,
+  );
+  const filterMeta = filterMetaResp?.data;
+
+  const [triggerFetchLeases, { isFetching: fetchingLeases }] =
+    useLazyGetLeasesQuery();
+
+  const { data: currencyRatesData } = useGetCurrencyRatesQuery(
+    activeProperty ? { propertyId: activeProperty } : undefined,
+  );
+  const currencyRates = currencyRatesData?.data ?? [];
+  const baseCurrencyCode =
+    currencyRates.find((r) => r.isBaseCurrency)?.currency || 'MMK';
+
+  const currencyOptions = useMemo(
+    () => buildCurrencyOptions(currencyRates, baseCurrencyCode),
+    [currencyRates, baseCurrencyCode],
+  );
+
+  const defaultDates = useMemo(() => {
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return {
+      min: format(firstDay, 'yyyy-MM-dd'),
+      max: format(lastDay, 'yyyy-MM-dd'),
+    };
+  }, []);
+
+  const [reportType, setReportType] = useState<UnitReportType>('detail');
+  const [unitStatusFilter, setUnitStatusFilter] = useState<string>('');
+  const [leaseStatusFilter, setLeaseStatusFilter] = useState<string>('');
+  const [currencyFilter, setCurrencyFilter] = useState<string>('ALL');
+  const [fromDate, setFromDate] = useState<string>(() => defaultDates.min);
+  const [toDate, setToDate] = useState<string>(() => defaultDates.max);
+  const [shopNameSearch, setShopNameSearch] = useState<string>('');
+  const [startLease, setStartLease] = useState<string>('');
+  const [endLease, setEndLease] = useState<string>('');
+  const [floor, setFloor] = useState<string>('');
+  const [unitNumber, setUnitNumber] = useState<string>('');
+  const [tenantId, setTenantId] = useState<string>('');
+  const [sortBy, setSortBy] = useState<string>('unit');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [validationError, setValidationError] = useState<string>('');
+
+  const floorOptions = useMemo(
+    () => filterMeta?.floors || [],
+    [filterMeta?.floors],
+  );
+
+  const unitOptions = useMemo(() => {
+    const list = filterMeta?.units || [];
+    const set = new Set<string>();
+    list.forEach((u) => {
+      if (floor && u.floor !== floor) return;
+      if (u.unitNumber) set.add(u.unitNumber);
+    });
+    return Array.from(set).sort((a, b) =>
+      a.localeCompare(b, undefined, { numeric: true }),
+    );
+  }, [filterMeta?.units, floor]);
+
+  useEffect(() => {
+    if (fromDate && toDate && fromDate > toDate) {
+      setValidationError('From Date cannot be later than To Date.');
+    } else if (
+      startLease.trim() &&
+      endLease.trim() &&
+      startLease
+        .trim()
+        .localeCompare(endLease.trim(), undefined, { numeric: true }) > 0
+    ) {
+      setValidationError('Start Lease cannot be greater than End Lease.');
+    } else {
+      setValidationError('');
+    }
+  }, [fromDate, toDate, startLease, endLease]);
+
+  const handleResetFilters = () => {
+    setReportType('detail');
+    setUnitStatusFilter('');
+    setLeaseStatusFilter('');
+    setCurrencyFilter('ALL');
+    setFromDate(defaultDates.min);
+    setToDate(defaultDates.max);
+    setShopNameSearch('');
+    setStartLease('');
+    setEndLease('');
+    setFloor('');
+    setUnitNumber('');
+    setTenantId('');
+    setSortBy('unit');
+    setSortOrder('asc');
+    setValidationError('');
+  };
+
+  const handleGenerateUnitReport = async () => {
+    if (fromDate && toDate && fromDate > toDate) {
+      setValidationError('From Date cannot be later than To Date.');
+      toast.error('From Date cannot be later than To Date');
+      return;
+    }
+    if (
+      startLease.trim() &&
+      endLease.trim() &&
+      startLease
+        .trim()
+        .localeCompare(endLease.trim(), undefined, { numeric: true }) > 0
+    ) {
+      setValidationError('Start Lease cannot be greater than End Lease.');
+      toast.error('Start Lease cannot be greater than End Lease');
+      return;
+    }
+
+    setValidationError('');
+
+    try {
+      const res = await triggerFetchLeases({
+        propertyId: activeProperty || undefined,
+        tenantId: tenantId || undefined,
+        status: leaseStatusFilter || undefined,
+        page: 1,
+        limit: 1000,
+      }).unwrap();
+
+      const allLeases = [...(res?.data || [])];
+      const allMetaUnits = filterMeta?.units || [];
+
+      const getFl = (l: any) => {
+        const fl = l.unit?.floorLabel;
+        const fn = l.unit?.floorNumber;
+        if (fl && String(fl).trim()) return String(fl).trim();
+        if (fn !== null && fn !== undefined && String(fn).trim() !== '') {
+          return `Floor ${fn}`;
+        }
+        return '';
+      };
+
+      const matchesLeaseDate = (l: any): boolean => {
+        if (!fromDate && !toDate) return true;
+        const s = l.startDate ? String(l.startDate).slice(0, 10) : '';
+        const e = l.endDate ? String(l.endDate).slice(0, 10) : s;
+        if (fromDate && toDate) {
+          return s <= toDate && e >= fromDate;
+        }
+        if (fromDate) return e >= fromDate;
+        if (toDate) return s <= toDate;
+        return true;
+      };
+
+      const matchesLeaseSpecificFilters = (l: any): boolean => {
+        if (currencyFilter && currencyFilter !== 'ALL') {
+          if ((l.currency || 'MMK') !== currencyFilter) return false;
+        }
+        if (leaseStatusFilter && l.status !== leaseStatusFilter) return false;
+        if (tenantId && l.tenant?.id !== tenantId) return false;
+        if (startLease.trim()) {
+          if (
+            (l.leaseNumber || '').localeCompare(
+              startLease.trim(),
+              undefined,
+              { numeric: true, sensitivity: 'base' },
+            ) < 0
+          ) {
+            return false;
+          }
+        }
+        if (endLease.trim()) {
+          if (
+            (l.leaseNumber || '').localeCompare(
+              endLease.trim(),
+              undefined,
+              { numeric: true, sensitivity: 'base' },
+            ) > 0
+          ) {
+            return false;
+          }
+        }
+        return true;
+      };
+
+      // Build map of UnitReportEntry from allMetaUnits + any units referenced on leases
+      const unitMap = new Map<string, UnitReportEntry>();
+
+      for (const u of allMetaUnits) {
+        const key = u.id || u.unitNumber;
+        if (!key) continue;
+        unitMap.set(u.unitNumber, {
+          id: u.id || u.unitNumber,
+          unitNumber: u.unitNumber,
+          floor: u.floor || '-',
+          areaSqft: u.areaSqft ?? null,
+          unitStatus: u.status || 'available',
+          shopName: u.shopName || null,
+          propertyName: u.propertyName || null,
+          baseRent: u.baseRent ?? null,
+          currency: u.currency || baseCurrencyCode,
+          leases: [],
+        });
+      }
+
+      // Attach leases to their units
+      for (const l of allLeases) {
+        const uNum = l.unit?.unitNumber;
+        if (!uNum) continue;
+        let entry = unitMap.get(uNum);
+        if (!entry) {
+          entry = {
+            id: l.unit?.id || uNum,
+            unitNumber: uNum,
+            floor: getFl(l) || '-',
+            areaSqft:
+              l.unit?.areaSqft != null ? Number(l.unit.areaSqft) : null,
+            unitStatus:
+              l.unit?.status ||
+              (isCurrentOccupancyLease(l.status) ? 'occupied' : 'available'),
+            shopName:
+              l.shopName || l.unit?.shopProfile?.brandName || null,
+            propertyName: l.property?.name || null,
+            baseRent: Number(l.rentAmount) || null,
+            currency: l.currency || baseCurrencyCode,
+            leases: [],
+          };
+          unitMap.set(uNum, entry);
+        } else {
+          if (!entry.shopName && (l.shopName || l.unit?.shopProfile?.brandName)) {
+            entry.shopName = l.shopName || l.unit?.shopProfile?.brandName;
+          }
+          if (!entry.propertyName && l.property?.name) {
+            entry.propertyName = l.property.name;
+          }
+        }
+
+        if (matchesLeaseSpecificFilters(l)) {
+          entry.leases.push(l);
+        }
+      }
+
+      // Sort leases within each unit: Current leases first, then Previous leases (newest startDate first)
+      for (const entry of unitMap.values()) {
+        entry.leases.sort((a, b) => {
+          const aCurr = isCurrentOccupancyLease(a.status) ? 0 : 1;
+          const bCurr = isCurrentOccupancyLease(b.status) ? 0 : 1;
+          if (aCurr !== bCurr) return aCurr - bCurr;
+          const da = a.startDate ? new Date(a.startDate).getTime() : 0;
+          const db = b.startDate ? new Date(b.startDate).getTime() : 0;
+          return db - da;
+        });
+      }
+
+      const hasStrictLeaseFilter = Boolean(
+        leaseStatusFilter ||
+          tenantId ||
+          startLease.trim() ||
+          endLease.trim(),
+      );
+
+      const qShop = shopNameSearch.trim().toLowerCase();
+
+      const entries = Array.from(unitMap.values()).filter((u) => {
+        if (floor && u.floor !== floor) return false;
+        if (unitNumber && u.unitNumber !== unitNumber) return false;
+        if (
+          unitStatusFilter &&
+          (u.unitStatus || '').toLowerCase() !== unitStatusFilter.toLowerCase()
+        ) {
+          return false;
+        }
+        if (
+          currencyFilter &&
+          currencyFilter !== 'ALL' &&
+          u.leases.length === 0 &&
+          (u.currency || baseCurrencyCode) !== currencyFilter
+        ) {
+          return false;
+        }
+        if (qShop) {
+          const uShopMatch = (u.shopName || '').toLowerCase().includes(qShop);
+          const lShopMatch = u.leases.some((l) =>
+            String(l.shopName || l.unit?.shopProfile?.brandName || '')
+              .toLowerCase()
+              .includes(qShop),
+          );
+          if (!uShopMatch && !lShopMatch) return false;
+        }
+
+        if (hasStrictLeaseFilter && u.leases.length === 0) {
+          return false;
+        }
+
+        if (u.leases.length > 0) {
+          const anyInDateWindow = u.leases.some(matchesLeaseDate);
+          if (!anyInDateWindow && hasStrictLeaseFilter) return false;
+        }
+
+        return true;
+      });
+
+      if (entries.length === 0) {
+        toast.error('No unit or lease records match the selected filters');
+        return;
+      }
+
+      const dir = sortOrder === 'asc' ? 1 : -1;
+      entries.sort((a, b) => {
+        const aLease = a.leases[0];
+        const bLease = b.leases[0];
+        switch (sortBy) {
+          case 'floor':
+            return (
+              dir *
+              (a.floor || '').localeCompare(b.floor || '', undefined, {
+                numeric: true,
+              })
+            );
+          case 'shopName': {
+            const sa = a.shopName || aLease?.shopName || '';
+            const sb = b.shopName || bLease?.shopName || '';
+            return dir * sa.localeCompare(sb, undefined, { numeric: true });
+          }
+          case 'leaseNumber':
+            return (
+              dir *
+              (aLease?.leaseNumber || '').localeCompare(
+                bLease?.leaseNumber || '',
+                undefined,
+                { numeric: true },
+              )
+            );
+          case 'startDate':
+            return (
+              dir *
+              ((aLease?.startDate ? new Date(aLease.startDate).getTime() : 0) -
+                (bLease?.startDate ? new Date(bLease.startDate).getTime() : 0))
+            );
+          case 'endDate':
+            return (
+              dir *
+              ((aLease?.endDate ? new Date(aLease.endDate).getTime() : 0) -
+                (bLease?.endDate ? new Date(bLease.endDate).getTime() : 0))
+            );
+          case 'rentAmount': {
+            const ra = aLease
+              ? Number(aLease.rentAmount) || 0
+              : Number(a.baseRent) || 0;
+            const rb = bLease
+              ? Number(bLease.rentAmount) || 0
+              : Number(b.baseRent) || 0;
+            return dir * (ra - rb);
+          }
+          case 'status':
+            return (
+              dir *
+              (a.unitStatus || '').localeCompare(b.unitStatus || '')
+            );
+          case 'unit':
+          default:
+            return (
+              dir *
+              (a.unitNumber || '').localeCompare(
+                b.unitNumber || '',
+                undefined,
+                { numeric: true },
+              )
+            );
+        }
+      });
+
+      const sortLabels: Record<string, string> = {
+        unit: 'Unit No',
+        floor: 'Floor',
+        shopName: 'Shop Name',
+        leaseNumber: 'Lease Number',
+        startDate: 'Start Date',
+        endDate: 'End Date',
+        rentAmount: 'Rent Amount',
+        status: 'Unit Status',
+      };
+
+      const ok = openUnitReportPreview(entries, {
+        reportType,
+        unitStatus: unitStatusFilter || undefined,
+        leaseStatus: leaseStatusFilter || undefined,
+        fromDate: fromDate || undefined,
+        toDate: toDate || undefined,
+        floor: floor || undefined,
+        unit: unitNumber || undefined,
+        shopName: shopNameSearch.trim() || undefined,
+        currency:
+          currencyFilter === 'ALL' ? 'All Currencies' : currencyFilter,
+        sortByLabel: sortLabels[sortBy] || sortBy,
+        sortOrder,
+      });
+
+      if (!ok) {
+        toast.error('Please allow pop-ups to view the printable report');
+      }
+    } catch {
+      toast.error('Failed to load unit report data');
+    }
+  };
+
+  return (
+    <div className="rp-clean-card">
+      <div className="rp-grid-3">
+        {/* Row 1: Report Type | Unit Status | Currency */}
+        <div className="rb-field">
+          <label>
+            Report Type <span style={{ color: '#ef4444' }}>*</span>
+          </label>
+          <select
+            value={reportType}
+            onChange={(e) => setReportType(e.target.value as UnitReportType)}
+          >
+            <option value="summary">Unit Summary Report</option>
+            <option value="detail">Unit Detail Report</option>
+          </select>
+        </div>
+
+        <div className="rb-field">
+          <label>Unit Status</label>
+          <select
+            value={unitStatusFilter}
+            onChange={(e) => setUnitStatusFilter(e.target.value)}
+          >
+            <option value="">All Statuses</option>
+            {UNIT_STATUS_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="rb-field">
+          <label>Currency</label>
+          <select
+            value={currencyFilter}
+            onChange={(e) => setCurrencyFilter(e.target.value)}
+          >
+            <option value="ALL">All Currencies</option>
+            {currencyOptions.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.code}
+                {c.isBase ? ' (Base)' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Row 2: From Date | To Date | Lease Status */}
+        <div className="rb-field">
+          <label>From Date (Start Date)</label>
+          <input
+            type="date"
+            value={fromDate}
+            max={toDate || undefined}
+            onChange={(e) => setFromDate(e.target.value)}
+          />
+        </div>
+
+        <div className="rb-field">
+          <label>To Date (End Date)</label>
+          <input
+            type="date"
+            value={toDate}
+            min={fromDate || undefined}
+            onChange={(e) => setToDate(e.target.value)}
+          />
+        </div>
+
+        <div className="rb-field">
+          <label>Lease Status</label>
+          <select
+            value={leaseStatusFilter}
+            onChange={(e) => setLeaseStatusFilter(e.target.value)}
+          >
+            <option value="">All Lease Statuses</option>
+            {LEASE_STATUS_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Row 3: Start Lease # | End Lease # | Shop Name */}
+        <div className="rb-field">
+          <label>Start Lease #</label>
+          <input
+            type="text"
+            placeholder="e.g. LSE-00001"
+            value={startLease}
+            onChange={(e) => setStartLease(e.target.value)}
+          />
+        </div>
+
+        <div className="rb-field">
+          <label>End Lease #</label>
+          <input
+            type="text"
+            placeholder="e.g. LSE-00500"
+            value={endLease}
+            onChange={(e) => setEndLease(e.target.value)}
+          />
+        </div>
+
+        <div className="rb-field">
+          <label>Shop Name</label>
+          <input
+            type="text"
+            placeholder="Search shop name…"
+            value={shopNameSearch}
+            onChange={(e) => setShopNameSearch(e.target.value)}
+          />
+        </div>
+
+        {/* Row 4: Floor | Unit No | Sort By + Order */}
+        <div className="rb-field">
+          <label>Floor</label>
+          <select
+            value={floor}
+            onChange={(e) => {
+              setFloor(e.target.value);
+              setUnitNumber('');
+            }}
+          >
+            <option value="">All Floors</option>
+            {floorOptions.map((fl) => (
+              <option key={fl} value={fl}>
+                {fl}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="rb-field">
+          <label>Unit No</label>
+          <select
+            value={unitNumber}
+            onChange={(e) => setUnitNumber(e.target.value)}
+          >
+            <option value="">All Units</option>
+            {unitOptions.map((u) => (
+              <option key={u} value={u}>
+                {u}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="rp-sort-pair">
+          <div className="rb-field">
+            <label>Sort By</label>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+            >
+              <option value="unit">Unit No</option>
+              <option value="floor">Floor</option>
+              <option value="shopName">Shop Name</option>
+              <option value="leaseNumber">Lease Number</option>
+              <option value="startDate">Start Date</option>
+              <option value="endDate">End Date</option>
+              <option value="rentAmount">Rent Amount</option>
+              <option value="status">Unit Status</option>
+            </select>
+          </div>
+          <div className="rb-field">
+            <label>Order</label>
+            <select
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc')}
+            >
+              <option value="asc">Asc</option>
+              <option value="desc">Desc</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Validation Banner */}
+      {validationError && (
+        <div className="rp-validation-alert">
+          <AlertTriangle size={15} style={{ flexShrink: 0 }} />
+          <span>{validationError}</span>
+        </div>
+      )}
+
+      {/* Footer Bar */}
+      <div className="rp-card-footer">
+        <span className="rb-hint" style={{ margin: 0 }}>
+          <FileText size={13} />
+          Opens a printable report preview window (Print / Save as PDF).
+        </span>
+        <div className="rp-footer-actions">
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={handleResetFilters}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            <RotateCcw size={14} /> Reset
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={handleGenerateUnitReport}
+            disabled={fetchingLeases}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            <FileText size={14} /> {fetchingLeases ? 'Loading…' : 'Preview'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
