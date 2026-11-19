@@ -7,12 +7,14 @@ import {
 import {
   useGetBillingScheduleReviewQuery,
   useSetBillingScheduleConfirmationMutation,
+  useGetChargeCategoriesQuery,
   type BillingScheduleReviewCategory,
   type BillingScheduleReviewRow,
 } from '../../../../store/api/billingApi';
 import { useConfirm, useAlertDialog } from '../../../../components/DialogProvider';
 import { usePermission } from '../../../../components/guards/PermissionGuard';
 import { formatFullAmount } from '../../../../utils/formatCurrency';
+import ComboBox from '../../../../components/ComboBox';
 
 const fmt = (n: string | number) => formatFullAmount(n, { minDecimals: 2, maxDecimals: 2 });
 
@@ -39,6 +41,7 @@ interface Props {
  */
 export function ScheduleReviewPanel({ propertyId, currency, search }: Props) {
   const [billDate, setBillDate] = useState(todayIso());
+  const [categoryFilter, setCategoryFilter] = useState('');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const canWrite = usePermission('billing-schedules.write');
@@ -49,9 +52,43 @@ export function ScheduleReviewPanel({ propertyId, currency, search }: Props) {
   const [setConfirmation] = useSetBillingScheduleConfirmationMutation();
   const review = data?.data;
 
+  const { data: chargeCategoriesData } = useGetChargeCategoriesQuery(propertyId ? { propertyId } : undefined);
+  const categoryOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const opts: { id: string; label: string; sublabel?: string }[] = [];
+    for (const c of chargeCategoriesData?.data ?? []) {
+      const key = c.code.trim().toLowerCase();
+      if (!c.isActive || seen.has(key)) continue;
+      seen.add(key);
+      const label = c.description?.trim() || c.code;
+      opts.push({ id: c.code, label, sublabel: label !== c.code ? c.code : undefined });
+    }
+    // Categories that only exist on due schedules (e.g. legacy codes) stay selectable too
+    for (const g of review?.categories ?? []) {
+      const key = g.categoryCode.trim().toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      opts.push({ id: g.categoryCode, label: g.categoryName });
+    }
+    return opts.sort((a, b) => a.label.localeCompare(b.label));
+  }, [chargeCategoriesData, review]);
+
+  const categoryScoped = useMemo(() => {
+    const list = review?.categories ?? [];
+    if (!categoryFilter) return list;
+    const key = categoryFilter.trim().toLowerCase();
+    return list.filter((c) => c.categoryCode.trim().toLowerCase() === key);
+  }, [review, categoryFilter]);
+
+  const stats = useMemo(() => ({
+    due: categoryScoped.reduce((n, c) => n + c.activeCount + c.confirmedCount, 0),
+    pending: categoryScoped.reduce((n, c) => n + c.activeCount, 0),
+    confirmed: categoryScoped.reduce((n, c) => n + c.confirmedCount, 0),
+  }), [categoryScoped]);
+
   // Client-side search over tenant / unit / charge so the category totals stay server-accurate.
   const categories = useMemo(() => {
-    const list = review?.categories ?? [];
+    const list = categoryScoped;
     const q = search.trim().toLowerCase();
     if (!q) return list;
     return list
@@ -63,7 +100,7 @@ export function ScheduleReviewPanel({ propertyId, currency, search }: Props) {
         ),
       }))
       .filter((c) => c.schedules.length > 0);
-  }, [review, search]);
+  }, [categoryScoped, search]);
 
   const run = async (
     key: string,
@@ -105,22 +142,35 @@ export function ScheduleReviewPanel({ propertyId, currency, search }: Props) {
   return (
     <div className="sched-review">
       <div className="sched-review-toolbar">
-        <label className="sched-review-date">
-          <span>Bill Date</span>
-          <input type="date" value={billDate} onChange={(e) => setBillDate(e.target.value || todayIso())} />
-        </label>
+        <div className="sched-review-filters">
+          <label className="sched-review-date">
+            <span>Bill Date</span>
+            <input type="date" value={billDate} onChange={(e) => setBillDate(e.target.value || todayIso())} />
+          </label>
+          <div className="sched-review-date sched-review-category">
+            <span>Charge Category</span>
+            <ComboBox
+              id="review-charge-category"
+              value={categoryFilter}
+              onChange={setCategoryFilter}
+              options={categoryOptions}
+              placeholder="All categories"
+              emptyText="No charge categories"
+            />
+          </div>
+        </div>
         <div className="sched-review-stats">
           <div className="sched-review-stat">
             <span className="sched-review-stat-label">Due</span>
-            <span className="sched-review-stat-value">{review?.totalSchedules ?? 0}</span>
+            <span className="sched-review-stat-value">{stats.due}</span>
           </div>
           <div className="sched-review-stat">
             <span className="sched-review-stat-label">Pending Review</span>
-            <span className="sched-review-stat-value sched-review-stat-value--pending">{review?.activeCount ?? 0}</span>
+            <span className="sched-review-stat-value sched-review-stat-value--pending">{stats.pending}</span>
           </div>
           <div className="sched-review-stat">
             <span className="sched-review-stat-label">Confirmed</span>
-            <span className="sched-review-stat-value sched-review-stat-value--confirmed">{review?.confirmedCount ?? 0}</span>
+            <span className="sched-review-stat-value sched-review-stat-value--confirmed">{stats.confirmed}</span>
           </div>
         </div>
       </div>
@@ -133,7 +183,11 @@ export function ScheduleReviewPanel({ propertyId, currency, search }: Props) {
       {isFetching && !review ? (
         <div className="billing-empty">Loading…</div>
       ) : categories.length === 0 ? (
-        <div className="billing-empty">No schedules due on or before {billDate}.</div>
+        <div className="billing-empty">
+          No schedules due on or before {billDate}
+          {categoryFilter ? ` in "${categoryOptions.find((o) => o.id === categoryFilter)?.label || categoryFilter}"` : ''}
+          {currency ? ` (${currency})` : ''}.
+        </div>
       ) : (
         categories.map((cat) => {
           const key = cat.categoryCode;
