@@ -145,7 +145,7 @@ export class ChargeTypesService {
         where: {
           companyId,
           chargeTypeId: id,
-          status: { in: ['draft', 'active', 'paused'] },
+          status: { in: ['draft', 'active', 'confirmed', 'paused'] },
         },
         data: {
           departmentCenterId: updated.departmentCenterId ?? null,

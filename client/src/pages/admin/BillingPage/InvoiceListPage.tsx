@@ -968,26 +968,23 @@ function RunBillingModal({ activeProperty, onClose, onSubmit, isLoading }: {
   const { data: scopeData } = useGetMyPropertyScopeQuery();
   const lockedPropertyName = (scopeData?.data || []).find((p) => p.id === activeProperty)?.name;
 
+  // Run Billing only invoices schedules that were checked and Confirmed (Billing Schedules → Review & Confirm).
   const { data: schedulesData, isFetching: schedulesLoading } = useGetBillingSchedulesQuery({
-    status: 'active',
+    status: 'confirmed',
+    dueAsOf: asOfDate,
     propertyId: propertyId || undefined,
-    limit: 200,
+    limit: 100,
   });
-
-  const dueSchedules = useMemo(() => {
-    const schedules = schedulesData?.data || [];
-    return schedules.filter(s =>
-      s.nextBillingDate && s.nextBillingDate.split('T')[0] <= asOfDate
-    );
-  }, [schedulesData, asOfDate]);
+  const dueSchedules = schedulesData?.data || [];
+  const dueTotal = schedulesData?.meta?.total ?? dueSchedules.length;
 
   const handleSubmit = async () => {
     if (!asOfDate || asOfDate > todayStr) {
       toast.error('Bill date cannot be in the future');
       return;
     }
-    if (dueSchedules.length === 0) return;
-    if (!(await confirmDialog('Are you sure you want to run billing?'))) return;
+    if (dueTotal === 0) return;
+    if (!(await confirmDialog(`Generate invoices for ${dueTotal} confirmed schedule(s) due on or before ${asOfDate}?`))) return;
     onSubmit(propertyId, asOfDate);
   };
 
@@ -1026,7 +1023,7 @@ function RunBillingModal({ activeProperty, onClose, onSubmit, isLoading }: {
           </div>
 
           <div className="rb-field">
-            <label>Due Schedules ({dueSchedules.length})</label>
+            <label>Confirmed Due Schedules ({dueTotal})</label>
             <div className="rb-schedule-list">
               <div className="rb-schedule-row rb-schedule-header">
                 <span>Charge</span>
@@ -1037,7 +1034,10 @@ function RunBillingModal({ activeProperty, onClose, onSubmit, isLoading }: {
               {schedulesLoading ? (
                 <TableSkeleton columns={4} rows={4} />
               ) : dueSchedules.length === 0 ? (
-                <div className="rb-schedule-empty">No active schedules due on or before this date.</div>
+                <div className="rb-schedule-empty">
+                  No confirmed schedules due on or before this date.{' '}
+                  <Link to="/admin/billing/schedules" onClick={onClose}>Review &amp; confirm schedules</Link> first.
+                </div>
               ) : (
                 dueSchedules.map(s => (
                   <div key={s.id} className="rb-schedule-row">
@@ -1051,10 +1051,13 @@ function RunBillingModal({ activeProperty, onClose, onSubmit, isLoading }: {
             </div>
           </div>
 
+          {dueTotal > dueSchedules.length && (
+            <p className="rb-hint">Showing first {dueSchedules.length} of {dueTotal} confirmed schedules — all {dueTotal} will be billed.</p>
+          )}
           <p className="rb-hint">
             <Building2 size={12} />
-            Generates invoices for all billing schedules due on or before the selected date
-            {propertyId ? '' : ', across all properties'}.
+            Generates invoices only for Confirmed billing schedules due on or before the selected date
+            {propertyId ? '' : ', across all properties'}. Billed schedules return to Active with their next billing date.
           </p>
         </div>
 
@@ -1063,7 +1066,7 @@ function RunBillingModal({ activeProperty, onClose, onSubmit, isLoading }: {
           <button
             className="btn btn-primary"
             onClick={handleSubmit}
-            disabled={isLoading || schedulesLoading || dueSchedules.length === 0}
+            disabled={isLoading || schedulesLoading || dueTotal === 0}
             style={{ display: 'flex', alignItems: 'center', gap: 6 }}
           >
             <Play size={14} /> {isLoading ? 'Running…' : 'Run Billing'}

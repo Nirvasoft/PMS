@@ -200,7 +200,7 @@ export class LeasesLifecycleService {
       prisma.unit.update({ where: { id: lease.unitId }, data: { status: 'available' } }),
       clearShopIdentityOp([lease.unitId]),
       prisma.billingSchedule.updateMany({
-        where: { leaseId: id, status: { in: ['draft', 'active', 'paused'] } },
+        where: { leaseId: id, status: { in: ['draft', 'active', 'confirmed', 'paused'] } },
         data: { status: 'cancelled', nextBillingDate: null },
       }),
     ]);
@@ -264,7 +264,7 @@ export class LeasesLifecycleService {
       clearShopIdentityOp([lease.unitId]),
       ...(dto.terminateSchedules !== false
         ? [prisma.billingSchedule.updateMany({
-            where: { leaseId: id, status: { in: ['active', 'paused', 'draft'] } },
+            where: { leaseId: id, status: { in: ['active', 'confirmed', 'paused', 'draft'] } },
             data: { status: 'cancelled', endDate: termDate, nextBillingDate: null },
           })]
         : []),

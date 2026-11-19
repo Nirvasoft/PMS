@@ -670,7 +670,7 @@ export class UnitsService {
           prisma.unit.update({ where: { id: unitId }, data: { status: dto.status } }),
           ...(shouldClearShopIdentity(unit.status, dto.status) ? [clearShopIdentityOp([unitId])] : []),
           prisma.billingSchedule.updateMany({
-            where: { leaseId: activeLease.id, status: 'active', billingCycle: { not: 'monthly' } },
+            where: { leaseId: activeLease.id, status: { in: ['active', 'confirmed'] }, billingCycle: { not: 'monthly' } },
             data: { status: 'cancelled' },
           }),
         ]);
@@ -1151,9 +1151,10 @@ export class UnitChargesService {
         where: {
           unitId,
           chargeTypeId: effectiveChargeTypeId,
-          status: 'active',
+          status: { in: ['active', 'confirmed'] },
         },
-        data: { amount: effectiveAmount },
+        // Amount changed: confirmed schedules go back to Active for re-review
+        data: { amount: effectiveAmount, status: 'active' },
       });
     }
 

@@ -147,6 +147,42 @@ export interface BillingSchedule {
   lease: { id: string; leaseNumber: string; leaseTermMonths?: number | null } | null;
 }
 
+export interface BillingScheduleReviewRow {
+  id: string;
+  status: string;
+  description: string | null;
+  amount: string;
+  quantity: string;
+  lineTotal: number;
+  currency: string;
+  billingCycle: string;
+  nextBillingDate: string | null;
+  isProrated: boolean;
+  chargeType: { id: string; code: string; name: string; category: string };
+  tenant: { id: string; firstName: string | null; lastName: string | null; companyName: string | null; tenantType: string };
+  unit: { id: string; unitNumber: string; floorNumber?: number | null; floorLabel?: string | null } | null;
+  property: { id: string; name: string };
+  lease: { id: string; leaseNumber: string } | null;
+  alreadyInvoicedNumber: string | null;
+}
+
+export interface BillingScheduleReviewCategory {
+  categoryCode: string;
+  categoryName: string;
+  activeCount: number;
+  confirmedCount: number;
+  totalsByCurrency: Record<string, number>;
+  schedules: BillingScheduleReviewRow[];
+}
+
+export interface BillingScheduleReview {
+  asOfDate: string;
+  totalSchedules: number;
+  activeCount: number;
+  confirmedCount: number;
+  categories: BillingScheduleReviewCategory[];
+}
+
 export interface InvoiceLine {
   id: string;
   description: string;
@@ -354,10 +390,22 @@ export const billingApi = createApi({
 
     // ── Billing Schedules ─────────────────
     getBillingSchedules: builder.query<PaginatedResponse<BillingSchedule>, {
-      leaseId?: string; tenantId?: string; propertyId?: string; unitId?: string; status?: string; currency?: string; billingCycle?: string; search?: string; page?: number; limit?: number;
+      leaseId?: string; tenantId?: string; propertyId?: string; unitId?: string; status?: string; currency?: string; billingCycle?: string; search?: string; dueAsOf?: string; page?: number; limit?: number;
     }>({
       query: (params) => ({ url: '/billing/schedules', params }),
       providesTags: ['BillingSchedules'],
+    }),
+
+    getBillingScheduleReview: builder.query<ApiResponse<BillingScheduleReview>, { asOfDate: string; propertyId?: string; currency?: string }>({
+      query: (params) => ({ url: '/billing/schedules/review', params }),
+      providesTags: ['BillingSchedules'],
+    }),
+
+    setBillingScheduleConfirmation: builder.mutation<ApiResponse<{ updatedCount: number; status: string }>, {
+      asOfDate: string; action: 'confirm' | 'unconfirm'; propertyId?: string; currency?: string; category?: string; scheduleIds?: string[];
+    }>({
+      query: (body) => ({ url: '/billing/schedules/confirm', method: 'POST', body }),
+      invalidatesTags: ['BillingSchedules'],
     }),
 
     createBillingSchedule: builder.mutation<ApiResponse<BillingSchedule>, Record<string, unknown>>({
@@ -549,6 +597,8 @@ export const {
   useUpdateCurrencyRateMutation,
   useDeleteCurrencyRateMutation,
   useGetBillingSchedulesQuery,
+  useGetBillingScheduleReviewQuery,
+  useSetBillingScheduleConfirmationMutation,
   useCreateBillingScheduleMutation,
   usePauseScheduleMutation,
   useResumeScheduleMutation,

@@ -29,10 +29,14 @@ export class BillingSchedulesService {
   }
 
   async findAll(companyId: string, filters: {
-    leaseId?: string; tenantId?: string; propertyId?: string; unitId?: string; status?: string; currency?: string; billingCycle?: string; search?: string; page?: number; limit?: number;
+    leaseId?: string; tenantId?: string; propertyId?: string; unitId?: string; status?: string; currency?: string; billingCycle?: string; search?: string; dueAsOf?: string; page?: number; limit?: number;
   }) {
-    const { leaseId, tenantId, propertyId, unitId, status, currency, billingCycle, search, page = 1, limit = 20 } = filters;
+    const { leaseId, tenantId, propertyId, unitId, status, currency, billingCycle, search, dueAsOf, page = 1, limit = 20 } = filters;
     const where: any = { companyId };
+    if (dueAsOf) {
+      where.nextBillingDate = { lte: new Date(dueAsOf) };
+      where.AND = [{ OR: [{ leaseId: null }, { lease: { status: 'active', deletedAt: null } }] }];
+    }
     if (leaseId) where.leaseId = leaseId;
     if (tenantId) where.tenantId = tenantId;
     if (propertyId) where.propertyId = propertyId;
@@ -421,7 +425,7 @@ export class BillingSchedulesService {
   async updateChargeSchedulesFromLease(lease: any): Promise<void> {
     // Find billing schedules created for this lease (both draft and active)
     const allSchedules = await prisma.billingSchedule.findMany({
-      where: { leaseId: lease.id, status: { in: ['draft', 'active'] } },
+      where: { leaseId: lease.id, status: { in: ['draft', 'active', 'confirmed'] } },
       include: {
         chargeType: {
           select: {
@@ -655,6 +659,23 @@ export class BillingSchedulesService {
       updateData.nextBillingDate = nextDate;
     }
 
+    if (schedule.status === 'confirmed') {
+      const sameDay = (a: unknown, b: Date | null) =>
+        (a ? new Date(a as string).toISOString().split('T')[0] : null) === (b ? b.toISOString().split('T')[0] : null);
+      const reviewFieldChanged =
+        (dto.chargeTypeId !== undefined && dto.chargeTypeId !== schedule.chargeTypeId) ||
+        (dto.tenantId !== undefined && dto.tenantId !== schedule.tenantId) ||
+        (dto.unitId !== undefined && (dto.unitId || null) !== schedule.unitId) ||
+        (dto.propertyId !== undefined && dto.propertyId !== schedule.propertyId) ||
+        (dto.currency !== undefined && dto.currency !== schedule.currency) ||
+        (dto.amount !== undefined && Number(dto.amount) !== Number(schedule.amount)) ||
+        (dto.quantity !== undefined && Number(dto.quantity) !== Number(schedule.quantity)) ||
+        (dto.startDate !== undefined && !sameDay(dto.startDate, schedule.startDate)) ||
+        cycleChanged ||
+        dayChanged;
+      if (reviewFieldChanged) updateData.status = 'active';
+    }
+
     const updated = await prisma.billingSchedule.update({
       where: { id },
       data: updateData,
@@ -699,7 +720,9 @@ export class BillingSchedulesService {
   async pause(id: string, companyId: string) {
     const schedule = await prisma.billingSchedule.findFirst({ where: { id, companyId } });
     if (!schedule) throw AppError.notFound('Billing schedule');
-    if (schedule.status !== 'active') throw AppError.validation('Can only pause active schedules');
+    if (!['active', 'confirmed'].includes(schedule.status)) {
+      throw AppError.validation('Can only pause active or confirmed schedules');
+    }
 
     return prisma.billingSchedule.update({ where: { id }, data: { status: 'paused' } });
   }
@@ -757,9 +780,206 @@ export class BillingSchedulesService {
     await unitsService.invalidateStatsCache(propertyId);
   }
 
+  /**
+   * Due active/confirmed schedules (next billing date on or before asOfDate) grouped by
+   * Charge Category, so Unit, Tenant, and Amount can be checked before Run Billing.
+   */
+  async getReviewByCategory(
+    companyId: string,
+    filters: { asOfDate: Date; propertyId?: string; currency?: string },
+  ) {
+    const { asOfDate, propertyId, currency } = filters;
+    const where: any = {
+      companyId,
+      status: { in: ['active', 'confirmed'] },
+      nextBillingDate: { lte: asOfDate },
+      OR: [{ leaseId: null }, { lease: { status: 'active', deletedAt: null } }],
+    };
+    if (propertyId) where.propertyId = propertyId;
+    if (currency) where.currency = currency;
+
+    const [rows, categoryDefs] = await Promise.all([
+      prisma.billingSchedule.findMany({
+        where,
+        include: {
+          chargeType: { select: { id: true, code: true, name: true, category: true } },
+          tenant: { select: { id: true, firstName: true, lastName: true, companyName: true, tenantType: true } },
+          unit: { select: { id: true, unitNumber: true, floorNumber: true, floorLabel: true } },
+          property: { select: { id: true, name: true } },
+          lease: { select: { id: true, leaseNumber: true } },
+        },
+      }),
+      prisma.chargeCategory.findMany({
+        where: { OR: [{ companyId: null }, { companyId }] },
+        select: { code: true, description: true },
+      }),
+    ]);
+
+    const categoryNameByCode = new Map(
+      categoryDefs.map((c) => [c.code.trim().toLowerCase(), c.description?.trim() || c.code]),
+    );
+
+    // Floor labels for units that only store a floor number
+    const floorLookup = new Map<string, string>();
+    const propIdsNeedingFloors = [...new Set(
+      rows.filter((s) => s.unit && !s.unit.floorLabel && s.unit.floorNumber != null).map((s) => s.propertyId),
+    )];
+    if (propIdsNeedingFloors.length > 0) {
+      const floorRows = await prisma.floorSetup.findMany({
+        where: { propertyId: { in: propIdsNeedingFloors } },
+        select: { propertyId: true, floorNumber: true, floorLabel: true },
+      });
+      for (const f of floorRows) floorLookup.set(`${f.propertyId}|${f.floorNumber}`, f.floorLabel);
+    }
+
+    // Invoices already issued for the same period are skipped by Run Billing (date still advances)
+    const invoicedByKey = new Map<string, string>();
+    if (rows.length > 0) {
+      const periodDates = [...new Set(rows.map((s) => s.nextBillingDate!.toISOString()))].map((d) => new Date(d));
+      const existingLines = await prisma.invoiceLine.findMany({
+        where: {
+          chargeTypeId: { in: [...new Set(rows.map((s) => s.chargeTypeId))] },
+          periodFrom: { in: periodDates },
+          invoice: {
+            companyId,
+            invoiceType: 'invoice',
+            status: { not: 'void' },
+            ...(propertyId ? { propertyId } : {}),
+          },
+        },
+        select: {
+          chargeTypeId: true,
+          periodFrom: true,
+          invoice: { select: { invoiceNumber: true, tenantId: true, unitId: true, propertyId: true } },
+        },
+      });
+      for (const l of existingLines) {
+        const key = [l.invoice.propertyId, l.invoice.tenantId, l.invoice.unitId ?? '', l.chargeTypeId, l.periodFrom!.toISOString()].join('|');
+        invoicedByKey.set(key, l.invoice.invoiceNumber);
+      }
+    }
+
+    type ReviewGroup = {
+      categoryCode: string;
+      categoryName: string;
+      activeCount: number;
+      confirmedCount: number;
+      totalsByCurrency: Record<string, number>;
+      schedules: any[];
+    };
+    const groups = new Map<string, ReviewGroup>();
+    let activeCount = 0;
+    let confirmedCount = 0;
+
+    for (const s of rows) {
+      const code = (s.chargeType?.category || 'other').trim();
+      const key = code.toLowerCase();
+      let group = groups.get(key);
+      if (!group) {
+        group = {
+          categoryCode: code,
+          categoryName: categoryNameByCode.get(key) || code.replace(/[_-]+/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase()),
+          activeCount: 0,
+          confirmedCount: 0,
+          totalsByCurrency: {},
+          schedules: [],
+        };
+        groups.set(key, group);
+      }
+
+      const quantity = Number(s.quantity) || 1;
+      const lineTotal = Math.round(Number(s.amount) * quantity * 100) / 100;
+      if (s.status === 'confirmed') { group.confirmedCount++; confirmedCount++; } else { group.activeCount++; activeCount++; }
+      group.totalsByCurrency[s.currency] = Math.round(((group.totalsByCurrency[s.currency] || 0) + lineTotal) * 100) / 100;
+
+      const invoicedKey = [s.propertyId, s.tenantId, s.unitId ?? '', s.chargeTypeId, s.nextBillingDate!.toISOString()].join('|');
+      group.schedules.push({
+        id: s.id,
+        status: s.status,
+        description: s.description,
+        amount: s.amount,
+        quantity: s.quantity,
+        lineTotal,
+        currency: s.currency,
+        billingCycle: s.billingCycle,
+        nextBillingDate: s.nextBillingDate,
+        isProrated: s.isProrated && s.invoiceCount === 0,
+        chargeType: s.chargeType,
+        tenant: s.tenant,
+        property: s.property,
+        lease: s.lease,
+        unit: s.unit
+          ? {
+              ...s.unit,
+              floorLabel: s.unit.floorLabel ?? (s.unit.floorNumber != null ? floorLookup.get(`${s.propertyId}|${s.unit.floorNumber}`) ?? null : null),
+            }
+          : null,
+        alreadyInvoicedNumber: invoicedByKey.get(invoicedKey) ?? null,
+      });
+    }
+
+    const categories = [...groups.values()]
+      .map((g) => ({
+        ...g,
+        schedules: g.schedules.sort((a, b) => {
+          const fa = a.unit?.floorNumber ?? 9999;
+          const fb = b.unit?.floorNumber ?? 9999;
+          if (fa !== fb) return fa - fb;
+          return (a.unit?.unitNumber || '').localeCompare(b.unit?.unitNumber || '', undefined, { numeric: true });
+        }),
+      }))
+      .sort((a, b) => a.categoryName.localeCompare(b.categoryName));
+
+    return {
+      asOfDate: asOfDate.toISOString().split('T')[0],
+      totalSchedules: rows.length,
+      activeCount,
+      confirmedCount,
+      categories,
+    };
+  }
+
+  /**
+   * Confirm (active -> confirmed) or unconfirm (confirmed -> active) due schedules, either a
+   * whole Charge Category or specific schedule ids. Only confirmed schedules are billed.
+   */
+  async setConfirmation(
+    companyId: string,
+    dto: {
+      asOfDate: Date;
+      action: 'confirm' | 'unconfirm';
+      propertyId?: string;
+      currency?: string;
+      category?: string;
+      scheduleIds?: string[];
+    },
+  ) {
+    const { asOfDate, action, propertyId, currency, category, scheduleIds } = dto;
+    if (!category && !(scheduleIds && scheduleIds.length > 0)) {
+      throw AppError.validation('Select a charge category or at least one schedule');
+    }
+    const fromStatus = action === 'unconfirm' ? 'confirmed' : 'active';
+    const toStatus = action === 'unconfirm' ? 'active' : 'confirmed';
+
+    const where: any = {
+      companyId,
+      status: fromStatus,
+      nextBillingDate: { lte: asOfDate },
+      OR: [{ leaseId: null }, { lease: { status: 'active', deletedAt: null } }],
+    };
+    if (propertyId) where.propertyId = propertyId;
+    if (currency) where.currency = currency;
+    if (category) where.chargeType = { category: { equals: category.trim(), mode: 'insensitive' } };
+    if (scheduleIds && scheduleIds.length > 0) where.id = { in: scheduleIds };
+
+    const result = await prisma.billingSchedule.updateMany({ where, data: { status: toStatus } });
+    return { updatedCount: result.count, status: toStatus };
+  }
+
+  /** Schedules Run Billing will invoice: confirmed only, due on or before asOfDate. */
   async findDueSchedules(asOfDate: Date, propertyId?: string) {
     const where: any = {
-      status: 'active',
+      status: 'confirmed',
       nextBillingDate: { lte: asOfDate },
       OR: [
         { leaseId: null },

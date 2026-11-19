@@ -18,7 +18,7 @@ import {
   createChargeCategorySchema, updateChargeCategorySchema,
   createChargeTypeSchema, updateChargeTypeSchema,
   createCurrencyRateSchema, updateCurrencyRateSchema,
-  createBillingScheduleSchema, updateBillingScheduleSchema,
+  createBillingScheduleSchema, updateBillingScheduleSchema, confirmBillingSchedulesSchema,
   createInvoiceSchema, voidInvoiceSchema, createCreditNoteSchema,
   createPenaltyConfigSchema, createTaxConfigSchema,
   createMeterSetupSchema, updateMeterSetupSchema,
@@ -159,10 +159,37 @@ billingSchedulesRouter.get('/', asyncHandler(async (req, res) => {
     currency: req.query.currency as string,
     billingCycle: req.query.billingCycle as string,
     search: req.query.search as string,
+    dueAsOf: req.query.dueAsOf as string,
     page: parseInt(req.query.page as string) || 1,
     limit: Math.min(parseInt(req.query.limit as string) || 20, 100),
   });
   res.json({ success: true, ...result });
+}));
+
+/** GET /billing/schedules/review — due schedules grouped by charge category for pre-billing checks */
+billingSchedulesRouter.get('/review', asyncHandler(async (req, res) => {
+  const asOfRaw = (req.query.asOfDate as string) || new Date().toISOString().split('T')[0];
+  const asOfDate = new Date(asOfRaw);
+  if (Number.isNaN(asOfDate.getTime())) throw AppError.validation('asOfDate must be a valid date (YYYY-MM-DD)');
+  const data = await billingSchedulesService.getReviewByCategory(req.user!.companyId, {
+    asOfDate,
+    propertyId: (req.query.propertyId as string) || undefined,
+    currency: (req.query.currency as string) || undefined,
+  });
+  res.json({ success: true, data });
+}));
+
+/** POST /billing/schedules/confirm — confirm / unconfirm due schedules by category or ids */
+billingSchedulesRouter.post('/confirm', validateRequest(confirmBillingSchedulesSchema), asyncHandler(async (req, res) => {
+  const data = await billingSchedulesService.setConfirmation(req.user!.companyId, {
+    asOfDate: new Date(req.body.asOfDate),
+    action: req.body.action ?? 'confirm',
+    propertyId: req.body.propertyId || undefined,
+    currency: req.body.currency || undefined,
+    category: req.body.category || undefined,
+    scheduleIds: req.body.scheduleIds,
+  });
+  res.json({ success: true, data });
 }));
 
 billingSchedulesRouter.post('/', validateRequest(createBillingScheduleSchema), asyncHandler(async (req, res) => {

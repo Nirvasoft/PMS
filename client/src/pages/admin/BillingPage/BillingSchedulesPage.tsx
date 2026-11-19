@@ -12,7 +12,7 @@ import { useGetPropertiesQuery, useGetFloorSetupsQuery, useGetMyPropertyScopeQue
 import { useGetUnitsQuery } from '../../../store/api/unitsApi';
 import { useGetLeasesQuery } from '../../../store/api/leasesApi';
 import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
-import { CalendarClock, Pause, Play, X, ChevronLeft, ChevronRight, CircleDot, Plus, Pencil, Search, Filter } from 'lucide-react';
+import { CalendarClock, Pause, Play, X, ChevronLeft, ChevronRight, CircleDot, Plus, Pencil, Search, Filter, ClipboardCheck } from 'lucide-react';
 import { format } from 'date-fns';
 import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
 import { useSelectedPropertyFilter, useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
@@ -20,6 +20,7 @@ import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import ComboBox from '../../../components/ComboBox';
 import { TableScrollWrapper } from './components/TableScrollWrapper';
+import { ScheduleReviewPanel } from './components/ScheduleReviewPanel';
 import toast from 'react-hot-toast';
 import {
   formatFullAmount,
@@ -51,6 +52,7 @@ const emptyForm: ScheduleForm = {
 };
 
 export default function BillingSchedulesPage() {
+  const [activeView, setActiveView] = useState<'list' | 'review'>('list');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [showFilters, setShowFilters] = useState(false);
@@ -445,6 +447,22 @@ export default function BillingSchedulesPage() {
             </button>
           </PermissionGuard>
         </div>
+        <div className="sched-view-tabs">
+          <button
+            type="button"
+            className={`sched-view-tab${activeView === 'list' ? ' active' : ''}`}
+            onClick={() => setActiveView('list')}
+          >
+            <CalendarClock size={14} /> All Schedules
+          </button>
+          <button
+            type="button"
+            className={`sched-view-tab${activeView === 'review' ? ' active' : ''}`}
+            onClick={() => setActiveView('review')}
+          >
+            <ClipboardCheck size={14} /> Review &amp; Confirm
+          </button>
+        </div>
         <div className="billing-filters" style={{ marginBottom: 0 }}>
           <div className="billing-filters-left">
             <div className="search-wrap">
@@ -496,6 +514,7 @@ export default function BillingSchedulesPage() {
           >
             <option value="">All Statuses</option>
             <option value="active">Active</option>
+            <option value="confirmed">Confirmed</option>
             <option value="paused">Paused</option>
             <option value="cancelled">Cancelled</option>
             <option value="completed">Completed</option>
@@ -530,6 +549,13 @@ export default function BillingSchedulesPage() {
         </div>
       )}
 
+      {activeView === 'review' ? (
+        <ScheduleReviewPanel
+          propertyId={selectedProperty || undefined}
+          currency={activeListCurrency}
+          search={debouncedSearch}
+        />
+      ) : (
       <div className="billing-table-wrap" style={{ marginTop: 24 }}>
         <TableScrollWrapper className="schedules-scroll">
           <table className="billing-table">
@@ -650,12 +676,12 @@ export default function BillingSchedulesPage() {
                     <td className="text-center">
                       <PermissionGuard permission="billing-schedules.write">
                         <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
-                          {['active', 'paused'].includes(s.status) && (
+                          {['active', 'confirmed', 'paused'].includes(s.status) && (
                             <button className="action-btn" onClick={() => openEdit(s)} title="Edit schedule">
                               <Pencil size={13} />
                             </button>
                           )}
-                          {s.status === 'active' && (
+                          {['active', 'confirmed'].includes(s.status) && (
                             <button className="action-btn" onClick={() => handleAction(s.id, 'pause')} title="Pause schedule">
                               <Pause size={13} />
                             </button>
@@ -665,7 +691,7 @@ export default function BillingSchedulesPage() {
                               <Play size={13} />
                             </button>
                           )}
-                          {['active', 'paused'].includes(s.status) && (
+                          {['active', 'confirmed', 'paused'].includes(s.status) && (
                             <button className="action-btn danger" onClick={() => handleAction(s.id, 'cancel')} title="Cancel schedule">
                               <X size={13} />
                             </button>
@@ -712,6 +738,7 @@ export default function BillingSchedulesPage() {
           </div>
         )}
       </div>
+      )}
 
       {/* ═══ Create / Edit Schedule Modal ═══ */}
       {showForm && (

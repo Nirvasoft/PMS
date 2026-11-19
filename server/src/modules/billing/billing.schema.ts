@@ -157,6 +157,17 @@ export const createBillingScheduleSchema = z.object({
   }),
 });
 
+export const confirmBillingSchedulesSchema = z.object({
+  body: z.object({
+    asOfDate: dateString,
+    action: z.enum(['confirm', 'unconfirm']).optional(),
+    propertyId: z.string().uuid().optional(),
+    currency: z.string().length(3).optional(),
+    category: z.string().min(1).optional(),
+    scheduleIds: z.array(z.string().uuid()).optional(),
+  }),
+});
+
 export const updateBillingScheduleSchema = z.object({
   body: z.object({
     chargeTypeId: z.string().uuid().optional(),
