@@ -980,7 +980,7 @@ export default function DashboardLayout() {
           </PermissionGuard>
 
           {/* BI & Analytics */}
-          <PermissionGuard hideWhenDenied permission={['reports-executive.read', 'reports-bi.read', 'reports-anomalies.read', 'reports-list.read']}>
+          <PermissionGuard hideWhenDenied permission={['reports-executive.read', 'reports-bi.read', 'reports-anomalies.read']}>
             <NavSection label="Analytics" storageKey="bi" isCollapsed={isCollapsed}>
               <PermissionGuard hideWhenDenied permission="reports-executive.read">
                 <NavLink to="/admin/bi" end className="nav-item" title="Executive Dashboard">
@@ -1000,12 +1000,26 @@ export default function DashboardLayout() {
                   <span>Anomaly Dashboard</span>
                 </NavLink>
               </PermissionGuard>
-              <PermissionGuard hideWhenDenied permission="reports-list.read">
-                <NavLink to="/reports" className="nav-item" title="Reports">
-                  <FileText size={18} />
-                  <span>Reports</span>
+            </NavSection>
+          </PermissionGuard>
+
+          {/* Reports Section */}
+          <PermissionGuard hideWhenDenied permission={['reports-list.read', 'billing-invoices.read', 'leases.read']}>
+            <NavSection label="Reports" storageKey="reports" isCollapsed={isCollapsed}>
+              <PermissionGuard hideWhenDenied permission={['reports-list.read', 'billing-invoices.read']}>
+                <NavLink to="/reports/invoices" className="nav-item" title="Invoice Report">
+                  <Receipt size={18} />
+                  <span>Invoice Report</span>
                 </NavLink>
               </PermissionGuard>
+              <FeatureGate flag="leasingEnabled">
+                <PermissionGuard hideWhenDenied permission={['reports-list.read', 'leases.read']}>
+                  <NavLink to="/reports/leases" className="nav-item" title="Lease Report">
+                    <ClipboardList size={18} />
+                    <span>Lease Report</span>
+                  </NavLink>
+                </PermissionGuard>
+              </FeatureGate>
             </NavSection>
           </PermissionGuard>
 

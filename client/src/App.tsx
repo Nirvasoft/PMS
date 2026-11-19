@@ -499,7 +499,9 @@ function AppRoutes() {
           <Route path="/settings/profile" element={<ProfilePage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/documents" element={<DocumentsPage />} />
-          <Route path="/reports" element={<ReportsPage />} />
+          <Route path="/reports" element={<Navigate to="/reports/invoices" replace />} />
+          <Route path="/reports/invoices" element={<ReportsPage key="invoice-report" mode="invoice" />} />
+          <Route path="/reports/leases" element={<ReportsPage key="lease-report" mode="lease" />} />
 
           {/* Module 6.1 — Mall */}
           <Route path="/admin/mall" element={<MallDashboard />} />

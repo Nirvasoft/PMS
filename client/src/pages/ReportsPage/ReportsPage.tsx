@@ -1,11 +1,11 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import {
   FileText,
   Receipt,
   ClipboardList,
-  Eye,
   AlertTriangle,
   RotateCcw,
 } from 'lucide-react';
@@ -61,51 +61,36 @@ const LEASE_STATUS_OPTIONS = [
   { value: 'cancelled', label: 'CANCELLED' },
 ];
 
-export default function ReportsPage() {
-  const [activeTab, setActiveTab] = useState<'invoice' | 'lease'>('invoice');
+export default function ReportsPage({ mode }: { mode?: 'invoice' | 'lease' }) {
+  const location = useLocation();
+  const activeMode: 'invoice' | 'lease' =
+    mode ?? (location.pathname.includes('/leases') ? 'lease' : 'invoice');
   const activeProperty = useSelectedPropertyFilter();
 
   return (
     <div className="reports-page">
-      {/* Page Header with Tab Switcher */}
+      {/* Page Header */}
       <div className="rp-top-bar">
         <div className="page-title-row">
           <div className="page-icon-lg">
-            {activeTab === 'invoice' ? (
+            {activeMode === 'invoice' ? (
               <Receipt size={22} />
             ) : (
               <ClipboardList size={22} />
             )}
           </div>
           <div>
-            <h1>Reports</h1>
+            <h1>{activeMode === 'invoice' ? 'Invoice Report' : 'Lease Report'}</h1>
             <p>
-              {activeTab === 'invoice'
+              {activeMode === 'invoice'
                 ? 'Invoice Summary, Detail & Voucher Report'
                 : 'Lease Summary, Detail, Form & Preview Report'}
             </p>
           </div>
         </div>
-
-        <div className="reports-tabs" style={{ marginBottom: 0 }}>
-          <button
-            type="button"
-            className={`tab-btn ${activeTab === 'invoice' ? 'active' : ''}`}
-            onClick={() => setActiveTab('invoice')}
-          >
-            <Receipt size={16} /> Invoice Report
-          </button>
-          <button
-            type="button"
-            className={`tab-btn ${activeTab === 'lease' ? 'active' : ''}`}
-            onClick={() => setActiveTab('lease')}
-          >
-            <ClipboardList size={16} /> Lease Report
-          </button>
-        </div>
       </div>
 
-      {activeTab === 'invoice' ? (
+      {activeMode === 'invoice' ? (
         <InvoiceReportForm activeProperty={activeProperty} />
       ) : (
         <LeaseReportForm activeProperty={activeProperty} />
@@ -588,7 +573,7 @@ function InvoiceReportForm({ activeProperty }: { activeProperty: string }) {
             disabled={generatingReport}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
           >
-            <Eye size={14} /> {generatingReport ? 'Loading…' : 'View Report'}
+            <FileText size={14} /> {generatingReport ? 'Loading…' : 'Preview'}
           </button>
         </div>
       </div>
@@ -626,10 +611,20 @@ function LeaseReportForm({ activeProperty }: { activeProperty: string }) {
     [currencyRates, baseCurrencyCode],
   );
 
+  const defaultDates = useMemo(() => {
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return {
+      min: format(firstDay, 'yyyy-MM-dd'),
+      max: format(lastDay, 'yyyy-MM-dd'),
+    };
+  }, []);
+
   const [reportType, setReportType] = useState<LeaseReportType>('summary');
   const [currencyFilter, setCurrencyFilter] = useState<string>('ALL');
-  const [fromDate, setFromDate] = useState<string>('');
-  const [toDate, setToDate] = useState<string>('');
+  const [fromDate, setFromDate] = useState<string>(() => defaultDates.min);
+  const [toDate, setToDate] = useState<string>(() => defaultDates.max);
   const [expiringWithinDays, setExpiringWithinDays] = useState<string>('');
   const [startLease, setStartLease] = useState<string>('');
   const [endLease, setEndLease] = useState<string>('');
@@ -699,8 +694,8 @@ function LeaseReportForm({ activeProperty }: { activeProperty: string }) {
 
   const handleResetFilters = () => {
     setCurrencyFilter('ALL');
-    setFromDate('');
-    setToDate('');
+    setFromDate(defaultDates.min);
+    setToDate(defaultDates.max);
     setExpiringWithinDays('');
     setStartLease('');
     setEndLease('');
@@ -1081,7 +1076,7 @@ function LeaseReportForm({ activeProperty }: { activeProperty: string }) {
             disabled={isBusy}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
           >
-            <Eye size={14} /> {isBusy ? 'Loading…' : 'View Report'}
+            <FileText size={14} /> {isBusy ? 'Loading…' : 'Preview'}
           </button>
         </div>
       </div>
