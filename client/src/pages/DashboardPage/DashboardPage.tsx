@@ -282,7 +282,7 @@ export default function DashboardLayout() {
           </PermissionGuard>
 
           {/* Organization Section */}
-          <PermissionGuard hideWhenDenied permission={['company.read', 'properties.read', 'tenants.read', 'leases.read', 'currency-rate.read']}>
+          <PermissionGuard hideWhenDenied permission={['company.read', 'currency-rate.read', 'prefix-setup.read', 'properties.read', 'tenants.read', 'leases.read', 'general-import.read']}>
             <NavSection label="Organization" storageKey="org" defaultOpen isCollapsed={isCollapsed}>
               <PermissionGuard hideWhenDenied permission="company.read">
                 <NavLink to="/admin/company" className="nav-item" title="Company">
@@ -296,7 +296,7 @@ export default function DashboardLayout() {
                   <span>Currency Setup</span>
                 </NavLink>
               </PermissionGuard>
-              <PermissionGuard hideWhenDenied permission="company.read">
+              <PermissionGuard hideWhenDenied permission="prefix-setup.read">
                 <NavLink to="/admin/prefix-setup" className="nav-item" title="Prefix Setup">
                   <Tag size={18} />
                   <span>Prefix Setup</span>
@@ -325,7 +325,7 @@ export default function DashboardLayout() {
                     <span>Leases</span>
                   </NavLink>
                 </PermissionGuard>
-                <PermissionGuard hideWhenDenied permission="leases.create">
+                <PermissionGuard hideWhenDenied permission="general-import.read">
                   <NavLink to="/admin/leases/general-import" className="nav-item" title="General Import">
                     <FileUp size={18} />
                     <span>General Import</span>
@@ -508,7 +508,7 @@ export default function DashboardLayout() {
           </PermissionGuard>
 
           {/* Finance / GL Section */}
-          <PermissionGuard hideWhenDenied permission={['finance-coa.read', 'finance-departments.read', 'finance-cost-centers.read', 'finance-payment-methods.read', 'finance-journal.read', 'finance-fiscal-periods.read', 'finance-trial-balance.read', 'finance-pnl.read', 'finance-balance-sheet.read', 'finance-cash-flow.read', 'finance-budgets.read', 'finance-assets.read', 'finance-banking.read', 'finance-gateway.read']}>
+          <PermissionGuard hideWhenDenied permission={['finance-coa.read', 'finance-departments.read', 'finance-cost-centers.read', 'finance-payment-methods.read', 'finance-journal.read', 'finance-fiscal-periods.read', 'finance-trial-balance.read', 'finance-detailed-trial.read', 'finance-pnl.read', 'finance-balance-sheet.read', 'finance-cash-flow.read', 'finance-budgets.read', 'finance-assets.read', 'finance-banking.read', 'finance-gateway.read']}>
             <NavSection label="Finance" storageKey="finance" defaultOpen isCollapsed={isCollapsed}>
               <PermissionGuard hideWhenDenied permission="finance-coa.read">
                 <NavLink to="/admin/gl/accounts" className="nav-item" title="Chart of Accounts">
@@ -552,7 +552,7 @@ export default function DashboardLayout() {
                   <span>Trial Balance</span>
                 </NavLink>
               </PermissionGuard>
-              <PermissionGuard hideWhenDenied permission="finance-trial-balance.read">
+              <PermissionGuard hideWhenDenied permission="finance-detailed-trial.read">
                 <NavLink to="/admin/gl/detailed-trial-balance" className="nav-item" title="Detailed Trial">
                   <FileText size={18} />
                   <span>Detailed Trial</span>
@@ -1004,16 +1004,16 @@ export default function DashboardLayout() {
           </PermissionGuard>
 
           {/* Reports Section */}
-          <PermissionGuard hideWhenDenied permission={['reports-list.read', 'billing-invoices.read', 'leases.read']}>
+          <PermissionGuard hideWhenDenied permission={['reports-invoices.read', 'reports-leases.read']}>
             <NavSection label="Reports" storageKey="reports" isCollapsed={isCollapsed}>
-              <PermissionGuard hideWhenDenied permission={['reports-list.read', 'billing-invoices.read']}>
+              <PermissionGuard hideWhenDenied permission="reports-invoices.read">
                 <NavLink to="/reports/invoices" className="nav-item" title="Invoice Report">
                   <Receipt size={18} />
                   <span>Invoice Report</span>
                 </NavLink>
               </PermissionGuard>
               <FeatureGate flag="leasingEnabled">
-                <PermissionGuard hideWhenDenied permission={['reports-list.read', 'leases.read']}>
+                <PermissionGuard hideWhenDenied permission="reports-leases.read">
                   <NavLink to="/reports/leases" className="nav-item" title="Lease Report">
                     <ClipboardList size={18} />
                     <span>Lease Report</span>
@@ -1024,7 +1024,7 @@ export default function DashboardLayout() {
           </PermissionGuard>
 
           {/* Developer / Integrations Section */}
-          <PermissionGuard hideWhenDenied permission={['developer-integrations.read', 'developer-webhooks.read', 'developer-api-keys.read', 'developer-bms.read']}>
+          <PermissionGuard hideWhenDenied permission={['developer-integrations.read', 'developer-webhooks.read', 'developer-api-keys.read', 'developer-bms.read', 'developer-cron-jobs.read']}>
             <NavSection label="Developer" storageKey="developer" isCollapsed={isCollapsed}>
               <PermissionGuard hideWhenDenied permission="developer-integrations.read">
                 <NavLink to="/admin/developer/integrations" className="nav-item" title="Integrations">
@@ -1050,10 +1050,12 @@ export default function DashboardLayout() {
                   <span>BMS Devices</span>
                 </NavLink>
               </PermissionGuard>
-              <NavLink to="/admin/developer/cron-jobs" className="nav-item" title="Cron Jobs">
-                <Clock size={18} />
-                <span>Cron Jobs</span>
-              </NavLink>
+              <PermissionGuard hideWhenDenied permission="developer-cron-jobs.read">
+                <NavLink to="/admin/developer/cron-jobs" className="nav-item" title="Cron Jobs">
+                  <Clock size={18} />
+                  <span>Cron Jobs</span>
+                </NavLink>
+              </PermissionGuard>
             </NavSection>
           </PermissionGuard>
 
