@@ -32,6 +32,7 @@ import {
   openLeasesReportPreview,
   openTenantReportPreview,
   openUnitReportPreview,
+  computeUnitAvailability,
   isCurrentOccupancyLease,
   isPreviousOccupancyLease,
   type LeaseReportType,
@@ -77,6 +78,39 @@ const UNIT_STATUS_OPTIONS = [
   { value: 'reserved', label: 'RESERVED' },
   { value: 'maintenance', label: 'MAINTENANCE' },
   { value: 'not_for_rent', label: 'NOT FOR RENT' },
+];
+
+const AVAILABILITY_WINDOW_OPTIONS = [
+  {
+    id: 'available_now',
+    label: 'Available Now',
+    sublabel: 'Vacant / available rooms ready now (0 days)',
+  },
+  {
+    id: '7',
+    label: '≤ 7 Days',
+    sublabel: 'Available now or active lease expiring within 7 days',
+  },
+  {
+    id: '15',
+    label: '≤ 15 Days',
+    sublabel: 'Available now or active lease expiring within 15 days',
+  },
+  {
+    id: '30',
+    label: '≤ 30 Days',
+    sublabel: 'Available now or active lease expiring within 30 days',
+  },
+  {
+    id: '60',
+    label: '≤ 60 Days',
+    sublabel: 'Available now or active lease expiring within 60 days',
+  },
+  {
+    id: '90',
+    label: '≤ 90 Days',
+    sublabel: 'Available now or active lease expiring within 90 days',
+  },
 ];
 
 export default function ReportsPage({
@@ -1729,6 +1763,7 @@ function UnitReportForm({ activeProperty }: { activeProperty: string }) {
   }, []);
 
   const [reportType, setReportType] = useState<UnitReportType>('detail');
+  const [availabilityFilter, setAvailabilityFilter] = useState<string>('');
   const [unitStatusFilter, setUnitStatusFilter] = useState<string>('');
   const [leaseStatusFilter, setLeaseStatusFilter] = useState<string>('');
   const [currencyFilter, setCurrencyFilter] = useState<string>('ALL');
@@ -1743,6 +1778,16 @@ function UnitReportForm({ activeProperty }: { activeProperty: string }) {
   const [sortBy, setSortBy] = useState<string>('unit');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [validationError, setValidationError] = useState<string>('');
+
+  const handleReportTypeChange = (nextType: UnitReportType) => {
+    setReportType(nextType);
+    if (nextType === 'availability') {
+      setSortBy('daysLeft');
+      setSortOrder('asc');
+    } else if (sortBy === 'daysLeft') {
+      setSortBy('unit');
+    }
+  };
 
   const floorOptions = useMemo(
     () => filterMeta?.floors || [],
@@ -1779,6 +1824,7 @@ function UnitReportForm({ activeProperty }: { activeProperty: string }) {
 
   const handleResetFilters = () => {
     setReportType('detail');
+    setAvailabilityFilter('');
     setUnitStatusFilter('');
     setLeaseStatusFilter('');
     setCurrencyFilter('ALL');
@@ -1985,11 +2031,23 @@ function UnitReportForm({ activeProperty }: { activeProperty: string }) {
           if (!uShopMatch && !lShopMatch) return false;
         }
 
+        if (reportType === 'availability' && availabilityFilter) {
+          const avail = computeUnitAvailability(u);
+          if (availabilityFilter === 'available_now') {
+            if (avail.state !== 'available_now') return false;
+          } else {
+            const maxDays = Number(availabilityFilter);
+            if (!Number.isNaN(maxDays)) {
+              if (avail.daysLeft === null || avail.daysLeft > maxDays) return false;
+            }
+          }
+        }
+
         if (hasStrictLeaseFilter && u.leases.length === 0) {
           return false;
         }
 
-        if (u.leases.length > 0) {
+        if (u.leases.length > 0 && reportType !== 'availability') {
           const anyInDateWindow = u.leases.some(matchesLeaseDate);
           if (!anyInDateWindow && hasStrictLeaseFilter) return false;
         }
@@ -2007,6 +2065,20 @@ function UnitReportForm({ activeProperty }: { activeProperty: string }) {
         const aLease = a.leases[0];
         const bLease = b.leases[0];
         switch (sortBy) {
+          case 'daysLeft': {
+            const avA = computeUnitAvailability(a);
+            const avB = computeUnitAvailability(b);
+            const da =
+              avA.daysLeft !== null ? avA.daysLeft : Number.MAX_SAFE_INTEGER;
+            const db =
+              avB.daysLeft !== null ? avB.daysLeft : Number.MAX_SAFE_INTEGER;
+            if (da !== db) return dir * (da - db);
+            return (a.unitNumber || '').localeCompare(
+              b.unitNumber || '',
+              undefined,
+              { numeric: true },
+            );
+          }
           case 'floor':
             return (
               dir *
@@ -2076,14 +2148,23 @@ function UnitReportForm({ activeProperty }: { activeProperty: string }) {
         endDate: 'End Date',
         rentAmount: 'Rent Amount',
         status: 'Unit Status',
+        daysLeft: 'Days Left',
       };
+
+      const selectedAvailOption = AVAILABILITY_WINDOW_OPTIONS.find(
+        (o) => o.id === availabilityFilter,
+      );
 
       const ok = openUnitReportPreview(entries, {
         reportType,
+        availabilityFilterLabel:
+          reportType === 'availability' && selectedAvailOption
+            ? selectedAvailOption.label
+            : undefined,
         unitStatus: unitStatusFilter || undefined,
         leaseStatus: leaseStatusFilter || undefined,
-        fromDate: fromDate || undefined,
-        toDate: toDate || undefined,
+        fromDate: reportType === 'availability' ? undefined : fromDate || undefined,
+        toDate: reportType === 'availability' ? undefined : toDate || undefined,
         floor: floor || undefined,
         unit: unitNumber || undefined,
         shopName: shopNameSearch.trim() || undefined,
@@ -2111,10 +2192,11 @@ function UnitReportForm({ activeProperty }: { activeProperty: string }) {
           </label>
           <select
             value={reportType}
-            onChange={(e) => setReportType(e.target.value as UnitReportType)}
+            onChange={(e) => handleReportTypeChange(e.target.value as UnitReportType)}
           >
             <option value="summary">Unit Summary Report</option>
             <option value="detail">Unit Detail Report</option>
+            <option value="availability">Upcoming Available Units Report</option>
           </select>
         </div>
 
@@ -2149,7 +2231,7 @@ function UnitReportForm({ activeProperty }: { activeProperty: string }) {
           </select>
         </div>
 
-        {/* Row 2: From Date | To Date | Lease Status */}
+        {/* Row 2: From Date | To Date | Availability Window (when availability) or Lease Status */}
         <div className="rb-field">
           <label>From Date (Start Date)</label>
           <input
@@ -2170,20 +2252,33 @@ function UnitReportForm({ activeProperty }: { activeProperty: string }) {
           />
         </div>
 
-        <div className="rb-field">
-          <label>Lease Status</label>
-          <select
-            value={leaseStatusFilter}
-            onChange={(e) => setLeaseStatusFilter(e.target.value)}
-          >
-            <option value="">All Lease Statuses</option>
-            {LEASE_STATUS_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        {reportType === 'availability' ? (
+          <div className="rb-field">
+            <label>Available / Expiring Within (Days Left)</label>
+            <ComboBox
+              id="unit-availability-window"
+              value={availabilityFilter}
+              onChange={setAvailabilityFilter}
+              options={AVAILABILITY_WINDOW_OPTIONS}
+              placeholder="All Units (Available & Expiring)"
+            />
+          </div>
+        ) : (
+          <div className="rb-field">
+            <label>Lease Status</label>
+            <select
+              value={leaseStatusFilter}
+              onChange={(e) => setLeaseStatusFilter(e.target.value)}
+            >
+              <option value="">All Lease Statuses</option>
+              {LEASE_STATUS_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Row 3: Start Lease # | End Lease # | Shop Name */}
         <div className="rb-field">
@@ -2257,6 +2352,9 @@ function UnitReportForm({ activeProperty }: { activeProperty: string }) {
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
             >
+              {reportType === 'availability' && (
+                <option value="daysLeft">Days Left</option>
+              )}
               <option value="unit">Unit No</option>
               <option value="floor">Floor</option>
               <option value="shopName">Shop Name</option>

@@ -995,7 +995,7 @@ export function openInvoicesReportPreview(options: {
     .report-table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 11.5px;
+      font-size: 10.5px;
     }
     .report-table th,
     .report-table td {
@@ -1008,7 +1008,7 @@ export function openInvoicesReportPreview(options: {
       color: #ffffff;
       font-weight: 700;
       text-align: left;
-      font-size: 11px;
+      font-size: 10px;
       text-transform: uppercase;
       letter-spacing: 0.03em;
     }
@@ -1016,7 +1016,7 @@ export function openInvoicesReportPreview(options: {
     .summary-row td {
       background: #f1f5f9;
       border-top: 2px solid #0f172a;
-      font-size: 12px;
+      font-size: 11px;
     }
     @page { size: A4 landscape; margin: 10mm 12mm; }
     @media print {

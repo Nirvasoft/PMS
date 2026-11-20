@@ -1508,7 +1508,7 @@ export function openLeasesReportPreview(params: {
     .report-table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 11.5px;
+      font-size: 10.5px;
     }
     .report-table th,
     .report-table td {
@@ -1521,7 +1521,7 @@ export function openLeasesReportPreview(params: {
       color: #ffffff;
       font-weight: 700;
       text-align: left;
-      font-size: 11px;
+      font-size: 10px;
       text-transform: uppercase;
       letter-spacing: 0.03em;
     }
@@ -1529,7 +1529,7 @@ export function openLeasesReportPreview(params: {
     .summary-row td {
       background: #f1f5f9;
       border-top: 2px solid #0f172a;
-      font-size: 12px;
+      font-size: 11px;
     }
     @page { size: A4 landscape; margin: 10mm 12mm; }
     @media print {
@@ -2045,7 +2045,7 @@ export function openTenantReportPreview(
     .report-table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 11.5px;
+      font-size: 10.5px;
     }
     .report-table th,
     .report-table td {
@@ -2058,7 +2058,7 @@ export function openTenantReportPreview(
       color: #ffffff;
       font-weight: 700;
       text-align: left;
-      font-size: 11px;
+      font-size: 10px;
       text-transform: uppercase;
       letter-spacing: 0.03em;
     }
@@ -2117,7 +2117,7 @@ export function openTenantReportPreview(
     .summary-row td {
       background: #f1f5f9;
       border-top: 2px solid #0f172a;
-      font-size: 12px;
+      font-size: 11px;
     }
     @page { size: A4 landscape; margin: 10mm 12mm; }
     @media print {
@@ -2179,7 +2179,7 @@ export function openTenantReportPreview(
 // 6. UNIT OCCUPANCY & LEASE HISTORY REPORT (Summary & Detail Grouped by Unit)
 // ═══════════════════════════════════════════════════════════════════════════
 
-export type UnitReportType = 'detail' | 'summary';
+export type UnitReportType = 'detail' | 'summary' | 'availability';
 
 export interface UnitReportEntry {
   id: string;
@@ -2194,8 +2194,81 @@ export interface UnitReportEntry {
   leases: Array<LeaseDetail | any>;
 }
 
+export interface UnitAvailabilityInfo {
+  state: 'available_now' | 'ends_today' | 'expiring' | 'expired' | 'unavailable';
+  daysLeft: number | null;
+  label: string;
+  activeLease: any | null;
+}
+
+/**
+ * Calculates Days Left to Available for a unit based on its current Active Lease endDate minus Today.
+ * If the unit is available with no active lease, returns 'Available Now' (0 days).
+ */
+export function computeUnitAvailability(u: UnitReportEntry): UnitAvailabilityInfo {
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+
+  const activeLease =
+    u.leases.find((l) => (l.status || '').toLowerCase() === 'active') ||
+    u.leases.find((l) => isCurrentOccupancyLease(l.status)) ||
+    null;
+
+  const statusLow = (u.unitStatus || 'available').toLowerCase();
+
+  if (activeLease && activeLease.endDate) {
+    const rawEnd = String(activeLease.endDate).slice(0, 10);
+    const [y, m, d] = rawEnd.split('-').map(Number);
+    const endStart =
+      y && m && d
+        ? new Date(y, m - 1, d).getTime()
+        : new Date(activeLease.endDate).setHours(0, 0, 0, 0);
+    const diffDays = Math.round((endStart - todayStart) / 86_400_000);
+
+    if (diffDays > 0) {
+      return {
+        state: 'expiring',
+        daysLeft: diffDays,
+        label: `${diffDays} Day${diffDays === 1 ? '' : 's'} Left`,
+        activeLease,
+      };
+    }
+    if (diffDays === 0) {
+      return {
+        state: 'ends_today',
+        daysLeft: 0,
+        label: 'Ends Today (0 Days)',
+        activeLease,
+      };
+    }
+    return {
+      state: 'expired',
+      daysLeft: diffDays,
+      label: `Expired (${Math.abs(diffDays)}d ago)`,
+      activeLease,
+    };
+  }
+
+  if (statusLow === 'available') {
+    return {
+      state: 'available_now',
+      daysLeft: 0,
+      label: 'Available Now',
+      activeLease: null,
+    };
+  }
+
+  return {
+    state: 'unavailable',
+    daysLeft: null,
+    label: statusLow.replace(/_/g, ' ').toUpperCase(),
+    activeLease,
+  };
+}
+
 export interface UnitReportFilterLabels {
   reportType: UnitReportType;
+  availabilityFilterLabel?: string;
   unitStatus?: string;
   leaseStatus?: string;
   fromDate?: string;
@@ -2257,9 +2330,14 @@ export function openUnitReportPreview(
     `Report Type: ${
       filters.reportType === 'summary'
         ? 'Unit Occupancy & Lease Summary'
+        : filters.reportType === 'availability'
+        ? 'Upcoming Available Units Report'
         : 'Unit Occupancy & Lease History (Detail)'
     }`,
   );
+  if (filters.availabilityFilterLabel) {
+    filterBadges.push(`Availability Window: ${filters.availabilityFilterLabel}`);
+  }
   if (filters.unitStatus) {
     filterBadges.push(
       `Unit Status: ${filters.unitStatus.replace(/_/g, ' ').toUpperCase()}`,
@@ -2291,6 +2369,8 @@ export function openUnitReportPreview(
   const reportTitle =
     filters.reportType === 'summary'
       ? 'Unit Occupancy & Lease Summary Report'
+      : filters.reportType === 'availability'
+      ? 'Upcoming Available Units Report'
       : 'Unit Occupancy & Lease History Report';
 
   const grandTotalsByCurrency: Record<
@@ -2340,8 +2420,109 @@ export function openUnitReportPreview(
     return `<span class="tg-chip tg-chip-prev">UNIT: ${escapeHtml(label)}</span>`;
   };
 
+  const renderAvailabilityBadge = (avail: UnitAvailabilityInfo) => {
+    if (avail.state === 'available_now') {
+      return `<span class="occ-badge occ-current">${escapeHtml(avail.label)}</span>`;
+    }
+    if (avail.state === 'ends_today' || avail.state === 'expired') {
+      return `<span class="occ-badge" style="background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;">${escapeHtml(avail.label)}</span>`;
+    }
+    if (avail.state === 'expiring') {
+      if ((avail.daysLeft ?? 999) <= 7) {
+        return `<span class="occ-badge" style="background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;">${escapeHtml(avail.label)}</span>`;
+      }
+      if ((avail.daysLeft ?? 999) <= 30) {
+        return `<span class="occ-badge occ-previous">${escapeHtml(avail.label)}</span>`;
+      }
+      return `<span class="occ-badge occ-upcoming">${escapeHtml(avail.label)}</span>`;
+    }
+    return `<span class="occ-badge occ-vacant">${escapeHtml(avail.label)}</span>`;
+  };
+
   const tableHtml =
-    filters.reportType === 'summary'
+    filters.reportType === 'availability'
+      ? `
+      <table class="report-table">
+        <thead>
+          <tr>
+            <th style="width:38px;text-align:center;">No.</th>
+            <th>Unit No</th>
+            <th>Floor</th>
+            <th style="text-align:right;">Area (Sqft)</th>
+            <th>Shop Name</th>
+            <th>Current Tenant</th>
+            <th>Active Lease #</th>
+            <th>Start Date</th>
+            <th>End Date</th>
+            <th style="text-align:center;">Days Left to Available</th>
+            <th style="text-align:center;">Curr</th>
+            <th style="text-align:right;">Rent Amount</th>
+            <th>Unit Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${units
+            .map((u, idx) => {
+              const avail = computeUnitAvailability(u);
+              const activeLease = avail.activeLease;
+              const shop = activeLease
+                ? getLeaseShopName(activeLease, u.shopName)
+                : u.shopName || '-';
+              const tenantObj = activeLease?.tenant;
+              const tenantText = activeLease
+                ? (tenantObj?.lastName || tenantObj?.companyName || tenantObj?.displayName || '').trim() || '—'
+                : '—';
+              const leaseNum = activeLease ? activeLease.leaseNumber : '—';
+              const startText = activeLease
+                ? fmtDate(activeLease.startDate)
+                : '—';
+              const endText = activeLease ? fmtDate(activeLease.endDate) : '—';
+              const curCode =
+                activeLease?.currency || u.currency || 'MMK';
+              const rentVal = activeLease
+                ? Number(activeLease.rentAmount) || 0
+                : Number(u.baseRent) || 0;
+              const unitStatusText = (u.unitStatus || 'available')
+                .replace(/_/g, ' ')
+                .toUpperCase();
+
+              return `
+              <tr>
+                <td style="text-align:center;">${idx + 1}</td>
+                <td style="font-weight:700;">${escapeHtml(u.unitNumber)}</td>
+                <td>${escapeHtml(u.floor || '-')}</td>
+                <td style="text-align:right;">${
+                  u.areaSqft != null
+                    ? escapeHtml(Number(u.areaSqft).toLocaleString())
+                    : '-'
+                }</td>
+                <td style="font-weight:600;">${escapeHtml(shop)}</td>
+                <td>${escapeHtml(tenantText)}</td>
+                <td style="font-weight:700;">${escapeHtml(leaseNum)}</td>
+                <td>${escapeHtml(startText)}</td>
+                <td>${escapeHtml(endText)}</td>
+                <td style="text-align:center;">${renderAvailabilityBadge(avail)}</td>
+                <td style="text-align:center;">${escapeHtml(curCode)}</td>
+                <td style="text-align:right;font-weight:600;">${money(rentVal)}</td>
+                <td style="text-transform:uppercase;font-size:10.5px;font-weight:700;">${escapeHtml(unitStatusText)}</td>
+              </tr>`;
+            })
+            .join('')}
+        </tbody>
+        <tfoot>
+          ${Object.entries(grandTotalsByCurrency)
+            .map(
+              ([cur, t]) => `
+            <tr class="summary-row">
+              <td colspan="11" style="text-align:right;font-weight:700;">Grand Total Active Rent — ${units.length.toLocaleString()} Units (${occupiedCount} Occupied / ${availableCount} Available) (${escapeHtml(cur)})</td>
+              <td style="text-align:right;font-weight:700;">${money(t.activeRent)}</td>
+              <td></td>
+            </tr>`,
+            )
+            .join('')}
+        </tfoot>
+      </table>`
+      : filters.reportType === 'summary'
       ? `
       <table class="report-table">
         <thead>
@@ -2645,7 +2826,7 @@ export function openUnitReportPreview(
     .report-table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 11.5px;
+      font-size: 10.5px;
     }
     .report-table th,
     .report-table td {
@@ -2658,7 +2839,7 @@ export function openUnitReportPreview(
       color: #ffffff;
       font-weight: 700;
       text-align: left;
-      font-size: 11px;
+      font-size: 10px;
       text-transform: uppercase;
       letter-spacing: 0.03em;
     }
@@ -2719,7 +2900,7 @@ export function openUnitReportPreview(
     .summary-row td {
       background: #f1f5f9;
       border-top: 2px solid #0f172a;
-      font-size: 12px;
+      font-size: 11px;
     }
     @page { size: A4 landscape; margin: 10mm 12mm; }
     @media print {
