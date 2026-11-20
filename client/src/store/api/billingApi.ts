@@ -183,6 +183,18 @@ export interface BillingScheduleReview {
   categories: BillingScheduleReviewCategory[];
 }
 
+export interface PendingScheduleCategorySummary {
+  categoryCode: string;
+  categoryName: string;
+  pendingCount: number;
+}
+
+export interface PendingScheduleSummary {
+  asOfDate: string;
+  totalPending: number;
+  categories: PendingScheduleCategorySummary[];
+}
+
 export interface InvoiceLine {
   id: string;
   description: string;
@@ -401,6 +413,11 @@ export const billingApi = createApi({
       providesTags: ['BillingSchedules'],
     }),
 
+    getPendingScheduleSummary: builder.query<ApiResponse<PendingScheduleSummary>, { asOfDate: string; propertyId?: string }>({
+      query: (params) => ({ url: '/billing/schedules/pending-summary', params }),
+      providesTags: ['BillingSchedules'],
+    }),
+
     setBillingScheduleConfirmation: builder.mutation<ApiResponse<{ updatedCount: number; status: string }>, {
       asOfDate: string; action: 'confirm' | 'unconfirm'; propertyId?: string; currency?: string; category?: string; scheduleIds?: string[];
     }>({
@@ -598,6 +615,7 @@ export const {
   useDeleteCurrencyRateMutation,
   useGetBillingSchedulesQuery,
   useGetBillingScheduleReviewQuery,
+  useGetPendingScheduleSummaryQuery,
   useSetBillingScheduleConfirmationMutation,
   useCreateBillingScheduleMutation,
   usePauseScheduleMutation,

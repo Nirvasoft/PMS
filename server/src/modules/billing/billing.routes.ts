@@ -179,6 +179,18 @@ billingSchedulesRouter.get('/review', asyncHandler(async (req, res) => {
   res.json({ success: true, data });
 }));
 
+/** GET /billing/schedules/pending-summary — counts of unconfirmed due schedules by charge category */
+billingSchedulesRouter.get('/pending-summary', asyncHandler(async (req, res) => {
+  const asOfRaw = (req.query.asOfDate as string) || new Date().toISOString().split('T')[0];
+  const asOfDate = new Date(asOfRaw);
+  if (Number.isNaN(asOfDate.getTime())) throw AppError.validation('asOfDate must be a valid date (YYYY-MM-DD)');
+  const data = await billingSchedulesService.getPendingConfirmationSummary(req.user!.companyId, {
+    asOfDate,
+    propertyId: (req.query.propertyId as string) || undefined,
+  });
+  res.json({ success: true, data });
+}));
+
 /** POST /billing/schedules/confirm — confirm / unconfirm due schedules by category or ids */
 billingSchedulesRouter.post('/confirm', validateRequest(confirmBillingSchedulesSchema), asyncHandler(async (req, res) => {
   const data = await billingSchedulesService.setConfirmation(req.user!.companyId, {
@@ -351,6 +363,17 @@ export const billingRunRouter = Router();
 billingRunRouter.post('/', asyncHandler(async (req, res) => {
   const asOfDate = req.body.asOfDate ? new Date(req.body.asOfDate) : new Date();
   const propertyId = req.body.propertyId as string | undefined;
+
+  const pending = await billingSchedulesService.getPendingConfirmationSummary(req.user!.companyId, {
+    asOfDate,
+    propertyId,
+  });
+  if (pending.totalPending > 0) {
+    const breakdown = pending.categories.map((c) => `${c.categoryName} (${c.pendingCount})`).join(', ');
+    throw AppError.validation(
+      `Cannot run billing: ${pending.totalPending} due schedule(s) are still pending confirmation (${breakdown}). Please confirm all charge categories in Review & Confirm first.`,
+    );
+  }
 
   const dueSchedules = await billingSchedulesService.findDueSchedules(asOfDate, propertyId);
   const { processed, generated, errors } = await invoicesService.runBilling(dueSchedules, asOfDate);

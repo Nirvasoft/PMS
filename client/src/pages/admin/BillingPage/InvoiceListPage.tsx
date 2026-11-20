@@ -3,7 +3,7 @@ import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   useGetInvoicesQuery,
-  useRunBillingMutation, useGetBillingSchedulesQuery,
+  useRunBillingMutation, useGetBillingSchedulesQuery, useGetPendingScheduleSummaryQuery,
   useVoidInvoiceMutation, useSendInvoiceMutation, useLazyGetInvoicePdfQuery,
   useGetCurrencyRatesQuery,
 } from '../../../store/api/billingApi';
@@ -975,15 +975,27 @@ function RunBillingModal({ activeProperty, onClose, onSubmit, isLoading }: {
     propertyId: propertyId || undefined,
     limit: 100,
   });
+  const { data: pendingData, isFetching: pendingLoading } = useGetPendingScheduleSummaryQuery(
+    { asOfDate, propertyId: propertyId || undefined },
+    { skip: !asOfDate },
+  );
   const dueSchedules = schedulesData?.data || [];
   const dueTotal = schedulesData?.meta?.total ?? dueSchedules.length;
+  const pendingTotal = pendingData?.data?.totalPending ?? 0;
+  const pendingCategories = pendingData?.data?.categories ?? [];
+  const hasPending = pendingTotal > 0;
+  const reviewUrl = (category?: string) => {
+    const qs = new URLSearchParams({ view: 'review', billDate: asOfDate });
+    if (category) qs.set('category', category);
+    return `/admin/billing/schedules?${qs.toString()}`;
+  };
 
   const handleSubmit = async () => {
     if (!asOfDate || asOfDate > todayStr) {
       toast.error('Bill date cannot be in the future');
       return;
     }
-    if (dueTotal === 0) return;
+    if (hasPending || dueTotal === 0) return;
     if (!(await confirmDialog(`Generate invoices for ${dueTotal} confirmed schedule(s) due on or before ${asOfDate}?`))) return;
     onSubmit(propertyId, asOfDate);
   };
@@ -1037,7 +1049,7 @@ function RunBillingModal({ activeProperty, onClose, onSubmit, isLoading }: {
               ) : dueSchedules.length === 0 ? (
                 <div className="rb-schedule-empty">
                   No confirmed schedules due on or before this date.{' '}
-                  <Link to="/admin/billing/schedules" onClick={onClose}>Review &amp; confirm schedules</Link> first.
+                  <Link to={reviewUrl()} onClick={onClose}>Review &amp; confirm schedules</Link> first.
                 </div>
               ) : (
                 dueSchedules.map(s => (
@@ -1056,6 +1068,35 @@ function RunBillingModal({ activeProperty, onClose, onSubmit, isLoading }: {
           {dueTotal > dueSchedules.length && (
             <p className="rb-hint">Showing first {dueSchedules.length} of {dueTotal} confirmed schedules — all {dueTotal} will be billed.</p>
           )}
+          {hasPending && (
+            <div className="rb-warning" role="alert">
+              <div className="rb-warning-head">
+                <AlertTriangle size={15} />
+                <span>
+                  <strong>{pendingTotal}</strong> due schedule{pendingTotal === 1 ? '' : 's'} remaining to confirm.
+                  Please confirm all Charge Categories first before running billing.
+                </span>
+              </div>
+              <div className="rb-warning-cats">
+                {pendingCategories.map((cat) => (
+                  <Link
+                    key={cat.categoryCode}
+                    to={reviewUrl(cat.categoryCode)}
+                    className="rb-warning-chip"
+                    onClick={onClose}
+                    title={`Review & confirm ${cat.categoryName}`}
+                  >
+                    <span>{cat.categoryName}</span>
+                    <strong>{cat.pendingCount}</strong>
+                  </Link>
+                ))}
+                <Link to={reviewUrl()} className="rb-warning-link" onClick={onClose}>
+                  Go to Review &amp; Confirm →
+                </Link>
+              </div>
+            </div>
+          )}
+
           <p className="rb-hint">
             <Building2 size={12} />
             Generates invoices only for Confirmed billing schedules due on or before the selected date
@@ -1068,7 +1109,8 @@ function RunBillingModal({ activeProperty, onClose, onSubmit, isLoading }: {
           <button
             className="btn btn-primary"
             onClick={handleSubmit}
-            disabled={isLoading || schedulesLoading || dueTotal === 0}
+            disabled={isLoading || schedulesLoading || pendingLoading || hasPending || dueTotal === 0}
+            title={hasPending ? 'Confirm all remaining Charge Categories before running billing' : undefined}
             style={{ display: 'flex', alignItems: 'center', gap: 6 }}
           >
             <Play size={14} /> {isLoading ? 'Running…' : 'Run Billing'}

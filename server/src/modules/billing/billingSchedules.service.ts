@@ -7,6 +7,7 @@ import { calcLeaseTermMonths, getBillingCycleMonths } from '../leases/services/h
 import {
   resolveChargeCategoryMap,
   isCategoryMonthly,
+  getCategoryDisplayName,
   findLeaseRentChargeType,
   findLeaseDepositChargeType,
 } from './chargeCategory.helper';
@@ -992,6 +993,55 @@ export class BillingSchedulesService {
 
     const result = await prisma.billingSchedule.updateMany({ where, data: { status: toStatus } });
     return { updatedCount: result.count, status: toStatus };
+  }
+
+  /**
+   * Lightweight count of unconfirmed ('active') due schedules grouped by Charge Category,
+   * used by Run Billing to warn and block billing until all due categories are confirmed.
+   */
+  async getPendingConfirmationSummary(
+    companyId: string,
+    filters: { asOfDate: Date; propertyId?: string },
+  ) {
+    const { asOfDate, propertyId } = filters;
+    const where: any = {
+      companyId,
+      status: 'active',
+      nextBillingDate: { lte: asOfDate },
+      OR: [{ leaseId: null }, { lease: { status: 'active', deletedAt: null } }],
+    };
+    if (propertyId) where.propertyId = propertyId;
+
+    const [rows, categoryMap] = await Promise.all([
+      prisma.billingSchedule.findMany({
+        where,
+        select: { chargeType: { select: { category: true } } },
+      }),
+      resolveChargeCategoryMap(companyId, propertyId),
+    ]);
+
+    const counts = new Map<string, { categoryCode: string; categoryName: string; pendingCount: number }>();
+    for (const row of rows) {
+      const code = (row.chargeType?.category || 'other').trim();
+      const key = code.toLowerCase();
+      const existing = counts.get(key);
+      if (existing) {
+        existing.pendingCount += 1;
+      } else {
+        counts.set(key, {
+          categoryCode: code,
+          categoryName: getCategoryDisplayName(categoryMap, code),
+          pendingCount: 1,
+        });
+      }
+    }
+
+    const categories = [...counts.values()].sort((a, b) => a.categoryName.localeCompare(b.categoryName));
+    return {
+      asOfDate: asOfDate.toISOString().split('T')[0],
+      totalPending: rows.length,
+      categories,
+    };
   }
 
   /** Schedules Run Billing will invoice: confirmed only, due on or before asOfDate. */

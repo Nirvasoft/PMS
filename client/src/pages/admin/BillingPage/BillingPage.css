@@ -2775,6 +2775,59 @@
   color: var(--text-tertiary);
 }
 
+.rb-warning {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 11px 13px;
+  border-radius: 10px;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #fbbf24;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+.rb-warning-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.rb-warning-head svg { flex-shrink: 0; margin-top: 2px; }
+.rb-warning-cats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-left: 23px;
+}
+.rb-warning-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.16);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #fde68a;
+  font-size: 0.73rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.rb-warning-chip:hover {
+  background: rgba(245, 158, 11, 0.28);
+  border-color: rgba(245, 158, 11, 0.55);
+}
+.rb-warning-link {
+  margin-left: auto;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #fbbf24;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.rb-warning-link:hover { color: #fde68a; }
+
 .rb-hint {
   display: flex;
   align-items: flex-start;
@@ -2807,6 +2860,21 @@
 [data-theme="light"] .rb-field input[type="date"]::-webkit-calendar-picker-indicator {
   filter: invert(0);
 }
+[data-theme="light"] .rb-warning {
+  background: #fffbeb;
+  border-color: #fcd34d;
+  color: #92400e;
+}
+[data-theme="light"] .rb-warning-chip {
+  background: #fef3c7;
+  border-color: #f59e0b;
+  color: #78350f;
+}
+[data-theme="light"] .rb-warning-chip:hover {
+  background: #fde68a;
+}
+[data-theme="light"] .rb-warning-link { color: #b45309; }
+[data-theme="light"] .rb-warning-link:hover { color: #78350f; }
 [data-theme="light"] .rb-hint { background: rgba(0,0,0,0.02); }
 [data-theme="light"] .rb-schedule-header {
   background: var(--accent, #059669);

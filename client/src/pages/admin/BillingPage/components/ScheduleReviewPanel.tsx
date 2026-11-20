@@ -33,15 +33,17 @@ interface Props {
   propertyId?: string;
   currency?: string;
   search: string;
+  initialBillDate?: string;
+  initialCategory?: string;
 }
 
 /**
  * Review & Confirm: due schedules grouped by Charge Category. Staff check Unit, Tenant and
  * Amount, then Confirm — only Confirmed schedules are invoiced by Run Billing.
  */
-export function ScheduleReviewPanel({ propertyId, currency, search }: Props) {
-  const [billDate, setBillDate] = useState(todayIso());
-  const [categoryFilter, setCategoryFilter] = useState('');
+export function ScheduleReviewPanel({ propertyId, currency, search, initialBillDate, initialCategory }: Props) {
+  const [billDate, setBillDate] = useState(initialBillDate || todayIso());
+  const [categoryFilter, setCategoryFilter] = useState(initialCategory || '');
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const canWrite = usePermission('billing-schedules.write');
   const confirmDialog = useConfirm();

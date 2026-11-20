@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { skipToken } from '@reduxjs/toolkit/query';
 import {
   useGetBillingSchedulesQuery, usePauseScheduleMutation,
@@ -52,7 +53,11 @@ const emptyForm: ScheduleForm = {
 };
 
 export default function BillingSchedulesPage() {
-  const [activeView, setActiveView] = useState<'list' | 'review'>('list');
+  const [searchParams] = useSearchParams();
+  const initialView = searchParams.get('view') === 'review' ? 'review' : 'list';
+  const initialBillDate = searchParams.get('billDate') || undefined;
+  const initialCategory = searchParams.get('category') || undefined;
+  const [activeView, setActiveView] = useState<'list' | 'review'>(initialView);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [showFilters, setShowFilters] = useState(false);
@@ -554,6 +559,8 @@ export default function BillingSchedulesPage() {
           propertyId={selectedProperty || undefined}
           currency={activeListCurrency}
           search={debouncedSearch}
+          initialBillDate={initialBillDate}
+          initialCategory={initialCategory}
         />
       ) : (
       <div className="billing-table-wrap" style={{ marginTop: 24 }}>
