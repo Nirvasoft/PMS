@@ -3,7 +3,13 @@ import { AppError } from '../../common/errors';
 import { unitsService } from '../units/units.service';
 import { clearShopIdentityOp } from '../mall/shopProfileReset';
 import { isAccountingIntegrationActive } from '../integrations/v6Status.helper';
-import { getBillingCycleMonths } from '../leases/services/helpers';
+import { calcLeaseTermMonths, getBillingCycleMonths } from '../leases/services/helpers';
+import {
+  resolveChargeCategoryMap,
+  isCategoryMonthly,
+  findLeaseRentChargeType,
+  findLeaseDepositChargeType,
+} from './chargeCategory.helper';
 
 export class BillingSchedulesService {
   // Fields every schedule spawned from an activated lease shares (RENT, SERVICE_CHARGE,
@@ -191,190 +197,179 @@ export class BillingSchedulesService {
   }
 
   /**
-   * Auto-create billing schedules when a partially-paid lease is activated.
-   * Creates RENT + SECURITY_DEPOSIT (if deposit > 0) + SERVICE_CHARGE (if configured).
-   * Used only when paymentType ≠ 'fully'.
+   * Auto-create Rent / Deposit / default Service Charge billing schedules on lease activation:
+   *  - RENT:
+   *      • If Rent category has monthly = true → active monthly schedule starting from startDate (no direct invoice).
+   *      • If Rent category has monthly = false & paymentType = 'partially' → active schedule for remaining
+   *        rent balance split evenly across remaining cycles (quantity = 1, amount = remainingRent / remainingCycles).
+   *      • If Rent category has monthly = false & paymentType = 'fully' → no schedule (100% direct-invoiced).
+   *  - SECURITY_DEPOSIT & default SERVICE_CHARGE:
+   *      • Scheduled ONLY when their Charge Category has monthly = true (otherwise 100% direct-invoiced).
    */
   async createFromLease(lease: any) {
-    const rentChargeType = await prisma.chargeType.findFirst({
-      where: { code: 'RENT', OR: [{ companyId: null }, { companyId: lease.companyId }] },
-    });
-    if (!rentChargeType) return;
+    const categoryMap = await resolveChargeCategoryMap(lease.companyId, lease.propertyId);
+    const rentChargeType = await findLeaseRentChargeType(lease.companyId, lease.propertyId);
 
     const startDate  = new Date(lease.startDate);
     const endDate    = lease.endDate ? new Date(lease.endDate) : null;
     const billingDay = lease.billingDay || 1;
     const isProrated = startDate.getUTCDate() !== billingDay;
 
-    // Idempotency: skip if a RENT schedule already exists for this lease
-    const existing = await prisma.billingSchedule.findFirst({
-      where: { leaseId: lease.id, chargeTypeId: rentChargeType.id, status: { not: 'cancelled' } },
-    });
-    if (existing) return;
-
-    const isPartial = lease.paymentType === 'partially';
+    const isPartial  = lease.paymentType === 'partially';
     const deposit    = Number(lease.securityDeposit ?? 0);
     const rentAmount = Number(lease.rentAmount ?? 0);
 
     const termMonths = lease.leaseTermMonths || (
-      lease.endDate && lease.startDate
-        ? Math.max(1, Math.round((new Date(lease.endDate).getTime() - new Date(lease.startDate).getTime()) / (30.4375 * 86400000)))
+      lease.startDate && lease.endDate
+        ? calcLeaseTermMonths(lease.startDate, lease.endDate)
         : 12
-    );
+    ) || 1;
     const totalRent = Math.round(rentAmount * termMonths * 100) / 100;
 
-    // Check existing non-void Rent invoices for this lease / contract period
-    const existingRentInvoices = await prisma.invoice.findMany({
-      where: {
-        companyId: lease.companyId,
-        status: { not: 'void' },
-        OR: [
-          { leaseId: lease.id },
-          ...(lease.unitId && lease.tenantId
-            ? [{
-                unitId: lease.unitId,
-                tenantId: lease.tenantId,
-                invoiceDate: {
-                  gte: startDate,
-                  ...(endDate ? { lte: endDate } : {}),
-                },
-              }]
-            : []),
-        ],
-        lines: {
-          some: {
-            OR: [
-              { chargeType: { code: { in: ['RENT', 'rent'] } } },
-              { chargeType: { category: 'rent' } },
-            ],
-          },
-        },
-      },
-      include: {
-        lines: {
-          include: {
-            chargeType: { select: { code: true, category: true } },
-          },
-        },
-      },
-    });
-
-    let invoicedRentAmount = 0;
-    for (const inv of existingRentInvoices) {
-      for (const l of inv.lines) {
-        const code = (l.chargeType?.code || '').toUpperCase();
-        const cat = (l.chargeType?.category || '').toLowerCase();
-        if (code === 'RENT' || cat === 'rent') {
-          invoicedRentAmount += Number(l.amount ?? l.lineTotal ?? 0);
-        }
-      }
-    }
-
-    const partialAmount = isPartial && lease.partialAmount != null ? Number(lease.partialAmount) : 0;
-    const coveredRentAmount = Math.max(invoicedRentAmount, partialAmount);
-
-    let scheduleRentAmount = rentAmount;
-    let rentNextBillingDate = startDate;
-    let scheduleQty = termMonths || 1;
-    const hasPartialRent = isPartial || (coveredRentAmount > 0 && coveredRentAmount < totalRent);
-
-    if (coveredRentAmount >= totalRent && totalRent > 0) {
-      // Full term rent already invoiced — no need to schedule Base Rent
-      scheduleRentAmount = 0;
-    } else if (hasPartialRent) {
-      const cycleMonths = getBillingCycleMonths(lease.billingCycle);
-
-      const totalCycles = Math.max(1, Math.ceil(termMonths / cycleMonths));
-      const remainingRent = Math.max(0, Math.round((totalRent - coveredRentAmount) * 100) / 100);
-      const coveredCycles = rentAmount > 0 ? Math.max(1, Math.floor(coveredRentAmount / (rentAmount * cycleMonths))) : 1;
-      scheduleQty = Math.max(1, termMonths - Math.floor(coveredRentAmount / (rentAmount || 1)));
-      scheduleRentAmount = remainingRent;
-
-      // Advance nextBillingDate past the covered cycle(s) so recurring billing starts on the next unpaid month
-      if (totalCycles > 1 && coveredRentAmount > 0) {
-        let nextDate = startDate;
-        for (let i = 0; i < coveredCycles; i++) {
-          nextDate = this.computeNextBillingDateFromStart(nextDate, lease.billingCycle || 'monthly', billingDay);
-        }
-        rentNextBillingDate = nextDate;
-      }
-    }
-
     const unitDefaultCenters = await this.resolveUnitDefaultCenters(lease);
-    const rentCenters =
-      rentChargeType.departmentCenterId || rentChargeType.costCenterId
-        ? {
-            departmentCenterId: rentChargeType.departmentCenterId ?? null,
-            costCenterId: rentChargeType.costCenterId ?? null,
-          }
-        : unitDefaultCenters;
+    const floorDisplay = lease.unit?.floorLabel || (lease.unit?.floorNumber != null ? `Floor ${lease.unit.floorNumber}` : '');
+    const unitLabel = `${floorDisplay ? `${floorDisplay} · ` : ''}Unit ${lease.unit?.unitNumber || ''}`;
 
-    // 1. RENT schedule (only when there is positive rent remaining to schedule)
-    if (scheduleRentAmount > 0 && (!endDate || rentNextBillingDate <= endDate)) {
-      const floorDisplay = lease.unit?.floorLabel || (lease.unit?.floorNumber != null ? `Floor ${lease.unit.floorNumber}` : '');
-      const unitLabel = `${floorDisplay ? `${floorDisplay} · ` : ''}Unit ${lease.unit?.unitNumber || ''}`;
-      await prisma.billingSchedule.create({
-        data: {
-          ...this.leaseScheduleBase(lease, startDate, billingDay),
-          departmentCenterId: rentCenters.departmentCenterId,
-          costCenterId: rentCenters.costCenterId,
-          quantity: scheduleQty,
-          nextBillingDate: rentNextBillingDate,
-          chargeTypeId: rentChargeType.id,
-          description: hasPartialRent
-            ? `Rent (Remaining Balance) — ${unitLabel}`
-            : `Rent — ${unitLabel}`,
-          amount: scheduleRentAmount,
-          isProrated: hasPartialRent ? false : isProrated,
-          prorateStart: (!hasPartialRent && isProrated) ? startDate : null,
-        },
-      });
-    }
-
-    // 2. SECURITY_DEPOSIT schedule (one-time deposit: included directly in the upfront invoice on activation, never scheduled for partial leases)
-    if (deposit > 0 && !isPartial) {
-      const existingDepositInvoice = await prisma.invoice.findFirst({
-        where: {
-          leaseId: lease.id,
-          status: { not: 'void' },
-          lines: {
-            some: {
-              chargeType: {
-                OR: [
-                  { code: 'SECURITY_DEPOSIT' },
-                  { code: 'security_deposit' },
-                ],
-              },
-            },
-          },
-        },
+    // 1. RENT schedule
+    if (rentAmount > 0) {
+      const existingRent = await prisma.billingSchedule.findFirst({
+        where: { leaseId: lease.id, chargeTypeId: rentChargeType.id, status: { not: 'cancelled' } },
       });
 
-      if (!existingDepositInvoice) {
-        let depositChargeType = await prisma.chargeType.findFirst({
-          where: { code: 'SECURITY_DEPOSIT', OR: [{ companyId: null }, { companyId: lease.companyId }] },
-        });
-        if (!depositChargeType) {
-          depositChargeType = await prisma.chargeType.create({
-            data: { code: 'SECURITY_DEPOSIT', name: 'Security Deposit', category: 'other', isActive: true, isSystem: true },
-          });
-        }
-        const depositCenters =
-          depositChargeType.departmentCenterId || depositChargeType.costCenterId
+      if (!existingRent) {
+        const isRentMonthly = isCategoryMonthly(categoryMap, rentChargeType.category);
+        const rentCenters =
+          rentChargeType.departmentCenterId || rentChargeType.costCenterId
             ? {
-                departmentCenterId: depositChargeType.departmentCenterId ?? null,
-                costCenterId: depositChargeType.costCenterId ?? null,
+                departmentCenterId: rentChargeType.departmentCenterId ?? null,
+                costCenterId: rentChargeType.costCenterId ?? null,
               }
             : unitDefaultCenters;
+
+        if (isRentMonthly) {
+          // Monthly Rent category → schedule from period 1 (startDate), no direct invoice
+          if (!endDate || startDate <= endDate) {
+            await prisma.billingSchedule.create({
+              data: {
+                ...this.leaseScheduleBase(lease, startDate, billingDay),
+                billingCycle: 'monthly',
+                departmentCenterId: rentCenters.departmentCenterId,
+                costCenterId: rentCenters.costCenterId,
+                quantity: 1,
+                nextBillingDate: startDate,
+                chargeTypeId: rentChargeType.id,
+                description: `Rent — ${unitLabel}`,
+                amount: rentAmount,
+                isProrated,
+                prorateStart: isProrated ? startDate : null,
+              },
+            });
+          }
+        } else if (isPartial) {
+          // Non-monthly Rent with Partial payment → split remaining rent across remaining cycles (qty = 1)
+          const existingRentInvoices = await prisma.invoice.findMany({
+            where: {
+              companyId: lease.companyId,
+              status: { not: 'void' },
+              OR: [
+                { leaseId: lease.id },
+                ...(lease.unitId && lease.tenantId
+                  ? [{
+                      unitId: lease.unitId,
+                      tenantId: lease.tenantId,
+                      invoiceDate: {
+                        gte: startDate,
+                        ...(endDate ? { lte: endDate } : {}),
+                      },
+                    }]
+                  : []),
+              ],
+              lines: {
+                some: {
+                  OR: [
+                    { chargeType: { code: { equals: 'RENT', mode: 'insensitive' } } },
+                    { chargeType: { category: { equals: 'rent', mode: 'insensitive' } } },
+                  ],
+                },
+              },
+            },
+            include: {
+              lines: {
+                include: {
+                  chargeType: { select: { code: true, category: true } },
+                },
+              },
+            },
+          });
+
+          let invoicedRentAmount = 0;
+          for (const inv of existingRentInvoices) {
+            for (const l of inv.lines) {
+              const code = (l.chargeType?.code || '').toUpperCase();
+              const cat = (l.chargeType?.category || '').toLowerCase();
+              if (code === 'RENT' || cat === 'rent') {
+                invoicedRentAmount += Number(l.amount ?? l.lineTotal ?? 0);
+              }
+            }
+          }
+
+          const partialAmount = lease.partialAmount != null ? Number(lease.partialAmount) : 0;
+          const coveredRentAmount = Math.max(invoicedRentAmount, partialAmount);
+          const remainingRent = Math.max(0, Math.round((totalRent - coveredRentAmount) * 100) / 100);
+
+          if (remainingRent > 0) {
+            const cycleMonths = getBillingCycleMonths(lease.billingCycle);
+            const totalCycles = Math.max(1, Math.ceil(termMonths / cycleMonths));
+            const remainingCycles = totalCycles > 1 ? totalCycles - 1 : 1;
+            const scheduleRentAmount = Math.round((remainingRent / remainingCycles) * 100) / 100;
+            const rentNextBillingDate = totalCycles > 1
+              ? this.computeNextBillingDateFromStart(startDate, lease.billingCycle || 'monthly', billingDay)
+              : startDate;
+
+            if (scheduleRentAmount > 0 && (!endDate || rentNextBillingDate <= endDate)) {
+              await prisma.billingSchedule.create({
+                data: {
+                  ...this.leaseScheduleBase(lease, startDate, billingDay),
+                  departmentCenterId: rentCenters.departmentCenterId,
+                  costCenterId: rentCenters.costCenterId,
+                  quantity: 1,
+                  nextBillingDate: rentNextBillingDate,
+                  chargeTypeId: rentChargeType.id,
+                  description: `Rent (Remaining Balance) — ${unitLabel}`,
+                  amount: scheduleRentAmount,
+                  isProrated: false,
+                  prorateStart: null,
+                },
+              });
+            }
+          }
+        }
+      }
+    }
+
+    // 2. SECURITY_DEPOSIT schedule (ONLY when Deposit category has monthly = true)
+    if (deposit > 0) {
+      const depositChargeType = await findLeaseDepositChargeType(lease.companyId, lease.propertyId);
+      if (isCategoryMonthly(categoryMap, depositChargeType.category)) {
         const existingDeposit = await prisma.billingSchedule.findFirst({
           where: { leaseId: lease.id, chargeTypeId: depositChargeType.id, status: { not: 'cancelled' } },
         });
-        if (!existingDeposit) {
+        if (!existingDeposit && (!endDate || startDate <= endDate)) {
+          const depositCenters =
+            depositChargeType.departmentCenterId || depositChargeType.costCenterId
+              ? {
+                  departmentCenterId: depositChargeType.departmentCenterId ?? null,
+                  costCenterId: depositChargeType.costCenterId ?? null,
+                }
+              : unitDefaultCenters;
           await prisma.billingSchedule.create({
             data: {
               ...this.leaseScheduleBase(lease, startDate, billingDay),
+              billingCycle: 'monthly',
               departmentCenterId: depositCenters.departmentCenterId,
               costCenterId: depositCenters.costCenterId,
+              quantity: 1,
+              nextBillingDate: startDate,
               chargeTypeId: depositChargeType.id,
               description: `Security Deposit — Unit ${lease.unit?.unitNumber || ''}`,
               amount: deposit,
@@ -385,45 +380,55 @@ export class BillingSchedulesService {
       }
     }
 
-    // 3. SERVICE_CHARGE schedule (if property has a default)
-    const serviceChargeAmount = lease.unit?.property?.settings?.defaultServiceCharge as number | undefined;
-    if (serviceChargeAmount && serviceChargeAmount > 0) {
+    // 3. Property default SERVICE_CHARGE schedule (ONLY when its category has monthly = true)
+    const serviceChargeAmount = Number(lease.unit?.property?.settings?.defaultServiceCharge ?? 0);
+    if (serviceChargeAmount > 0) {
       const scChargeType = await prisma.chargeType.findFirst({
-        where: { code: 'SERVICE_CHARGE', OR: [{ companyId: null }, { companyId: lease.companyId }] },
+        where: {
+          code: { equals: 'SERVICE_CHARGE', mode: 'insensitive' },
+          OR: [{ companyId: null }, { companyId: lease.companyId }],
+          ...(lease.propertyId ? { AND: [{ OR: [{ propertyId: lease.propertyId }, { propertyId: null }] }] } : {}),
+        },
+        orderBy: { propertyId: 'desc' },
       });
-      if (scChargeType) {
-        const scCentersMap = await this.resolveChargeTypeCenters(lease.companyId, lease.propertyId, [scChargeType]);
-        const scCenters = scCentersMap.get(scChargeType.id);
-        const effectiveScCenters =
-          scCenters && (scCenters.departmentCenterId || scCenters.costCenterId)
-            ? scCenters
-            : unitDefaultCenters;
-        await prisma.billingSchedule.create({
-          data: {
-            ...this.leaseScheduleBase(lease, startDate, billingDay),
-            departmentCenterId: effectiveScCenters.departmentCenterId,
-            costCenterId: effectiveScCenters.costCenterId,
-            chargeTypeId: scChargeType.id,
-            description: `Service Charge — Unit ${lease.unit?.unitNumber || ''}`,
-            amount: serviceChargeAmount,
-            isProrated: false,
-          },
+      if (scChargeType && isCategoryMonthly(categoryMap, scChargeType.category)) {
+        const existingSc = await prisma.billingSchedule.findFirst({
+          where: { leaseId: lease.id, chargeTypeId: scChargeType.id, status: { not: 'cancelled' } },
         });
+        if (!existingSc && (!endDate || startDate <= endDate)) {
+          const scCentersMap = await this.resolveChargeTypeCenters(lease.companyId, lease.propertyId, [scChargeType]);
+          const scCenters = scCentersMap.get(scChargeType.id);
+          const effectiveScCenters =
+            scCenters && (scCenters.departmentCenterId || scCenters.costCenterId)
+              ? scCenters
+              : unitDefaultCenters;
+          await prisma.billingSchedule.create({
+            data: {
+              ...this.leaseScheduleBase(lease, startDate, billingDay),
+              billingCycle: 'monthly',
+              departmentCenterId: effectiveScCenters.departmentCenterId,
+              costCenterId: effectiveScCenters.costCenterId,
+              quantity: 1,
+              nextBillingDate: startDate,
+              chargeTypeId: scChargeType.id,
+              description: `Service Charge — Unit ${lease.unit?.unitNumber || ''}`,
+              amount: serviceChargeAmount,
+              isProrated: false,
+            },
+          });
+        }
       }
     }
   }
 
   /**
-   * Updates the billing schedule records that were already created at lease-creation
-   * time (one per leaseCharge) so they are ready for recurring billing runs starting
-   * from the first billing period (startDate).
-   *
-   * Also ensures the billingCycle on each schedule matches the lease's billingCycle —
-   * relevant when a charge's category has monthly=true but the lease runs on a
-   * different cycle (quarterly, semi-annual, annual).
+   * Syncs additional leaseCharge schedules created in 'draft' at lease-creation time:
+   *  - Charge Category monthly = true  → promote to 'active' (billingCycle = 'monthly',
+   *    nextBillingDate = startDate unless Period 1 was already invoiced).
+   *  - Charge Category monthly = false → mark 'completed' (nextBillingDate = null), because
+   *    non-monthly charges are auto-invoiced directly on activation by invoicesService.createFromLease.
    */
   async updateChargeSchedulesFromLease(lease: any): Promise<void> {
-    // Find billing schedules created for this lease (both draft and active)
     const allSchedules = await prisma.billingSchedule.findMany({
       where: { leaseId: lease.id, status: { in: ['draft', 'active', 'confirmed'] } },
       include: {
@@ -440,76 +445,98 @@ export class BillingSchedulesService {
         },
       },
     });
-    // Exclude RENT and SECURITY_DEPOSIT schedules so we only update additional leaseCharge schedules
+    // Exclude Rent and Security Deposit schedules created/handled by createFromLease
+    // (including properties whose Rent charge type uses a custom code with category='rent')
     const schedules = allSchedules.filter((s) => {
-      const code = (s.chargeType?.code || '').toUpperCase();
-      return code !== 'RENT' && code !== 'SECURITY_DEPOSIT';
+      const code = (s.chargeType?.code || '').trim().toUpperCase();
+      const cat = (s.chargeType?.category || '').trim().toLowerCase();
+      return code !== 'RENT' && code !== 'SECURITY_DEPOSIT' && cat !== 'rent';
     });
     if (schedules.length === 0) return;
 
-    const centersByCtId = await this.resolveChargeTypeCenters(
-      lease.companyId,
-      lease.propertyId,
-      schedules.map((s) => s.chargeType).filter((ct): ct is NonNullable<typeof ct> => Boolean(ct)),
-    );
+    const [centersByCtId, categoryMap] = await Promise.all([
+      this.resolveChargeTypeCenters(
+        lease.companyId,
+        lease.propertyId,
+        schedules.map((s) => s.chargeType).filter((ct): ct is NonNullable<typeof ct> => Boolean(ct)),
+      ),
+      resolveChargeCategoryMap(lease.companyId, lease.propertyId),
+    ]);
 
-    // Fetch categories that have monthly=true so we know which ones override the lease cycle
-    const allCategories = await prisma.chargeCategory.findMany({
-      where: {
-        OR: [{ companyId: null }, { companyId: lease.companyId }],
-        isActive: true,
-        monthly: true,
-      },
-      select: { code: true },
-    });
-    const monthlyCategoryCodes = new Set(allCategories.map((c) => c.code.toLowerCase()));
+    const leaseBillingDay = lease.billingDay || 1;
+    const startDate       = new Date(lease.startDate);
+    const endDate         = lease.endDate ? new Date(lease.endDate) : null;
 
-    const leaseBillingCycle = lease.billingCycle || 'monthly';
-    const leaseBillingDay   = lease.billingDay   || 1;
-    const startDate         = new Date(lease.startDate);
-    const endDate           = lease.endDate ? new Date(lease.endDate) : null;
+    // Check existing non-void invoices in the contract period for monthly schedules only
+    const monthlyCtIds = schedules
+      .filter((s) => isCategoryMonthly(categoryMap, s.chargeType?.category))
+      .map((s) => s.chargeTypeId);
 
-    // Check existing non-void invoices in the contract period for this lease/unit/tenant
-    const contractInvoices = await prisma.invoice.findMany({
-      where: {
-        companyId: lease.companyId,
-        status: { not: 'void' },
-        OR: [
-          { leaseId: lease.id },
-          ...(lease.unitId && lease.tenantId
-            ? [{
-                unitId: lease.unitId,
-                tenantId: lease.tenantId,
-                OR: [
-                  { periodFrom: { gte: startDate, ...(endDate ? { lte: endDate } : {}) } },
-                  { invoiceDate: { gte: startDate, ...(endDate ? { lte: endDate } : {}) } },
-                ],
-              }]
-            : []),
-        ],
-      },
-      select: {
-        invoiceDate: true,
-        periodFrom: true,
-        periodTo: true,
-        lines: {
+    const contractInvoices = monthlyCtIds.length > 0
+      ? await prisma.invoice.findMany({
+          where: {
+            companyId: lease.companyId,
+            status: { not: 'void' },
+            OR: [
+              { leaseId: lease.id },
+              ...(lease.unitId && lease.tenantId
+                ? [{
+                    unitId: lease.unitId,
+                    tenantId: lease.tenantId,
+                    OR: [
+                      { periodFrom: { gte: startDate, ...(endDate ? { lte: endDate } : {}) } },
+                      { invoiceDate: { gte: startDate, ...(endDate ? { lte: endDate } : {}) } },
+                    ],
+                  }]
+                : []),
+            ],
+            lines: { some: { chargeTypeId: { in: monthlyCtIds } } },
+          },
           select: {
-            chargeTypeId: true,
-            description: true,
+            invoiceDate: true,
             periodFrom: true,
             periodTo: true,
-            chargeType: { select: { id: true, code: true, name: true, category: true, glAccountCode: true, departmentCenterId: true, costCenterId: true } },
+            lines: {
+              where: { chargeTypeId: { in: monthlyCtIds } },
+              select: {
+                chargeTypeId: true,
+                periodFrom: true,
+                periodTo: true,
+              },
+            },
           },
-        },
-      },
-    });
+        })
+      : [];
 
     await prisma.$transaction(
       schedules.map((schedule) => {
-        const categoryCode      = (schedule.chargeType?.category || '').toLowerCase();
-        const isMonthlyCategory = monthlyCategoryCodes.has(categoryCode);
-        const effectiveCycle    = isMonthlyCategory ? 'monthly' : leaseBillingCycle;
+        const isMonthlyCategory = isCategoryMonthly(categoryMap, schedule.chargeType?.category);
+        const ctCenters = centersByCtId.get(schedule.chargeTypeId);
+        const hasCtCenters = Boolean(ctCenters && (ctCenters.departmentCenterId || ctCenters.costCenterId));
+        const resolvedDeptId = hasCtCenters
+          ? ctCenters!.departmentCenterId
+          : (schedule.departmentCenterId ?? null);
+        const resolvedCcId = hasCtCenters
+          ? ctCenters!.costCenterId
+          : (schedule.costCenterId ?? null);
 
+        // Non-monthly lease charges were direct-invoiced on activation — close their draft schedule
+        if (!isMonthlyCategory) {
+          return prisma.billingSchedule.update({
+            where: { id: schedule.id },
+            data: {
+              status:             'completed',
+              nextBillingDate:    null,
+              invoiceCount:       Math.max(schedule.invoiceCount || 0, 1),
+              departmentCenterId: resolvedDeptId,
+              costCenterId:       resolvedCcId,
+            },
+          });
+        }
+
+        // Monthly lease charges start from Period 1 (startDate) because no direct invoice was issued;
+        // only advance nextBillingDate if an invoice for this charge already exists in the contract period.
+        const effectiveCycle = 'monthly';
         let latestPeriodFrom: Date | null = null;
         let latestPeriodTo: Date | null = null;
         let latestInvDate: Date | null = null;
@@ -526,7 +553,7 @@ export class BillingSchedulesService {
           }
         }
 
-        let nextBillingDate = this.computeNextBillingDateFromStart(startDate, effectiveCycle, leaseBillingDay);
+        let nextBillingDate = startDate;
         if (latestPeriodFrom) {
           const d1 = this.computeNextBillingDateFromStart(latestPeriodFrom, effectiveCycle, leaseBillingDay);
           if (d1 > nextBillingDate) nextBillingDate = d1;
@@ -543,15 +570,6 @@ export class BillingSchedulesService {
         }
 
         const isFullyInvoiced = endDate != null && nextBillingDate > endDate;
-
-        const ctCenters = centersByCtId.get(schedule.chargeTypeId);
-        const hasCtCenters = Boolean(ctCenters && (ctCenters.departmentCenterId || ctCenters.costCenterId));
-        const resolvedDeptId = hasCtCenters
-          ? ctCenters!.departmentCenterId
-          : (schedule.departmentCenterId ?? null);
-        const resolvedCcId = hasCtCenters
-          ? ctCenters!.costCenterId
-          : (schedule.costCenterId ?? null);
 
         return prisma.billingSchedule.update({
           where: { id: schedule.id },

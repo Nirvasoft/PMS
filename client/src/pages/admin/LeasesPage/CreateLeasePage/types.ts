@@ -105,7 +105,7 @@ export function calcPartialBreakdown(
   const totalRent = Math.round(baseRent * termMonths * 100) / 100;
   const partialAmount = Number(partialPayment || 0);
   const remainingRent = Math.max(0, Math.round((totalRent - partialAmount) * 100) / 100);
-  const remainingCycles = Math.max(0, totalCycles - 1);
+  const remainingCycles = remainingRent > 0 ? (totalCycles > 1 ? totalCycles - 1 : 1) : 0;
   const scheduleAmount = remainingCycles > 0
     ? Math.round((remainingRent / remainingCycles) * 100) / 100
     : 0;

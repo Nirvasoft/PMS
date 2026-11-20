@@ -502,20 +502,20 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
 
               <div style={{ padding: '10px 14px', background: 'rgba(59, 130, 246, 0.08)', borderRadius: 8, border: '1px solid rgba(59, 130, 246, 0.25)' }}>
                 <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  Direct Invoice (Activation)
+                  Rent Direct Invoice (Activation)
                 </div>
                 <div style={{ fontWeight: 600, fontSize: '1rem', color: '#3b82f6', marginTop: 2 }}>
-                  {form.currency} {formatMoneyDisplay((breakdown.partialAmount + Number(form.securityDeposit || 0)).toFixed(2))}
+                  {form.currency} {formatMoneyDisplay(breakdown.partialAmount.toFixed(2))}
                 </div>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
-                  Rent: {form.currency} {formatMoneyDisplay(breakdown.partialAmount.toFixed(2))}
-                  {Number(form.securityDeposit) > 0 && ` + Security Deposit: ${form.currency} ${formatMoneyDisplay(Number(form.securityDeposit).toFixed(2))}`}
+                  Partial payment applies to Rent only.
+                  {Number(form.securityDeposit) > 0 && ` Security Deposit (${form.currency} ${formatMoneyDisplay(Number(form.securityDeposit).toFixed(2))}) and other non-monthly charges are invoiced separately by Charge Category at 100%.`}
                 </div>
               </div>
 
               <div style={{ padding: '10px 14px', background: 'rgba(16, 185, 129, 0.08)', borderRadius: 8, border: '1px solid rgba(16, 185, 129, 0.25)' }}>
                 <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  Billing Schedule (Per Remaining Cycle)
+                  Rent Billing Schedule (Per Remaining Cycle)
                 </div>
                 <div style={{ fontWeight: 600, fontSize: '1rem', color: '#10b981', marginTop: 2 }}>
                   {breakdown.remainingCycles > 0 ? (
@@ -527,13 +527,13 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
                     </>
                   ) : (
                     <span style={{ fontSize: '0.85rem', fontWeight: 400, color: 'var(--text-muted)' }}>
-                      None (Single cycle lease)
+                      None (Fully covered)
                     </span>
                   )}
                 </div>
                 {breakdown.remainingCycles > 0 && (
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
-                    Remaining Rent: {form.currency} {formatMoneyDisplay(breakdown.remainingRent.toFixed(2))} ÷ {breakdown.remainingCycles} cycles
+                    Remaining Rent: {form.currency} {formatMoneyDisplay(breakdown.remainingRent.toFixed(2))} ÷ {breakdown.remainingCycles} cycle{breakdown.remainingCycles !== 1 ? 's' : ''}
                   </div>
                 )}
               </div>

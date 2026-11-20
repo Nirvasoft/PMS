@@ -9,6 +9,13 @@ import { glService } from '../gl/gl.service';
 import { webhookInvoiceIssued } from '../../common/webhookHooks';
 import { calcLeaseTermMonths, getBillingCycleMonths } from '../leases/services/helpers';
 import { isAccountingIntegrationActive } from '../integrations/v6Status.helper';
+import {
+  resolveChargeCategoryMap,
+  isCategoryMonthly,
+  getCategoryDisplayName,
+  findLeaseRentChargeType,
+  findLeaseDepositChargeType,
+} from './chargeCategory.helper';
 
 /** Adds computed `outstandingAmount` to an invoice object */
 function withOutstanding<T extends { totalAmount: any; paidAmount: any }>(inv: T): T & { outstandingAmount: number } {
@@ -758,25 +765,26 @@ export class InvoicesService {
     return invoice;
   }
 
-  // ── Direct Invoices from Lease (fully paid) ──
+  // ── Direct Invoices from Lease Activation ──
 
   /**
-   * Creates direct invoices on lease activation for paymentType = 'fully':
-   *  1. ONE combined invoice for Base Rent + Security Deposit (two line items)
-   *  2. One separate invoice per additional lease charge line (from billingSchedules)
-   *
-   * All invoices are issued immediately and bypass the recurring billing run.
-   * Returns an array of all created invoices.
+   * Auto-creates direct invoices on lease activation for all non-monthly
+   * (ChargeCategory.monthly === false) charges, grouped into one invoice per Charge Category:
+   *  - Base Rent (affected by paymentType 'fully' vs 'partially' only)
+   *  - Security Deposit (always 100%, separate invoice from Rent)
+   *  - Additional non-monthly leaseCharges (qty = 1 x amount, grouped by their category)
+   *  - Monthly charges (ChargeCategory.monthly === true) are NEVER direct-invoiced here;
+   *    they are handled via active Billing Schedules.
    */
   async createFromLease(lease: any, userId: string): Promise<any[]> {
     const created: any[] = [];
-    const now          = new Date();
-    const invoiceDate  = now;
+    const invoiceDate  = new Date();
     const startDate    = new Date(lease.startDate);
     const dueDate      = new Date(invoiceDate);
     dueDate.setDate(dueDate.getDate() + (lease.paymentDueDays || 7));
     const periodTo     = lease.endDate ? new Date(lease.endDate) : null;
     const currency     = lease.currency || 'USD';
+
     let currencyRate: number | null = lease.currencyRate ? Number(lease.currencyRate) : null;
     if ((currencyRate == null || currencyRate <= 1) && lease.companyId && currency) {
       const rateRow =
@@ -794,186 +802,256 @@ export class InvoicesService {
         currencyRate = Number(rateRow.rate);
       }
     }
-    const unitLabel    = lease.unit?.unitNumber || '';
 
-    // ── 1. Combined Rent + Security Deposit invoice ────────────────────────────
-    // ── 1. Combined Rent + Security Deposit invoice ────────────────────────────
-    let rentChargeType = await prisma.chargeType.findFirst({
-      where: {
-        OR: [
-          { code: 'RENT' },
-          { code: 'rent' },
-          { category: 'rent' },
-        ],
-        AND: [{ OR: [{ companyId: null }, { companyId: lease.companyId }] }],
-      },
-    });
-    if (!rentChargeType) {
-      rentChargeType = await prisma.chargeType.create({
-        data: { code: 'RENT', name: 'Rent', category: 'rent', isActive: true, isSystem: true },
-      });
-    }
+    const unitLabel = lease.unit?.unitNumber || '';
+    const categoryMap = await resolveChargeCategoryMap(lease.companyId, lease.propertyId);
 
-    const isPartial = lease.paymentType === 'partially';
-    const partialAmount = lease.partialAmount != null ? Number(lease.partialAmount) : null;
+    const rentChargeType = await findLeaseRentChargeType(lease.companyId, lease.propertyId);
+    const deposit = Number(lease.securityDeposit ?? 0);
+    const depositChargeType = deposit > 0
+      ? await findLeaseDepositChargeType(lease.companyId, lease.propertyId)
+      : null;
+
     const termMonths = lease.leaseTermMonths || (
       lease.startDate && lease.endDate
         ? calcLeaseTermMonths(lease.startDate, lease.endDate)
         : 1
     ) || 1;
-    const monthlyRent = Number(lease.rentAmount);
-    const rentAmount = (isPartial && partialAmount != null && partialAmount > 0)
-      ? partialAmount
-      : Math.round(monthlyRent * termMonths * 100) / 100;
-    const deposit    = Number(lease.securityDeposit ?? 0);
-    const subtotal   = rentAmount + deposit;
+    const monthlyRent = Number(lease.rentAmount ?? 0);
+    const totalRent = Math.round(monthlyRent * termMonths * 100) / 100;
+    const partialAmount = lease.partialAmount != null ? Number(lease.partialAmount) : null;
+    // Partially/Fully affects Rent ONLY
+    const isRentPartial =
+      lease.paymentType === 'partially' &&
+      partialAmount != null &&
+      partialAmount > 0 &&
+      partialAmount < totalRent;
 
-    const rentQty = isPartial ? 1 : termMonths;
-    const rentUnitPrice = isPartial ? (partialAmount || monthlyRent) : monthlyRent;
-    const rentLineTotal = rentAmount;
+    type PendingLine = {
+      chargeTypeId: string;
+      chargeType: any;
+      description: string;
+      quantity: number;
+      unitPrice: number;
+      amount: number;
+      lineTotal: number;
+      departmentCenterId?: string | null;
+      costCenterId?: string | null;
+      isPartialRent?: boolean;
+    };
+    type CategoryBucket = {
+      categoryKey: string;
+      categoryName: string;
+      lines: PendingLine[];
+    };
 
-    let depositChargeType: any = null;
-    if (deposit > 0) {
-      depositChargeType = await prisma.chargeType.findFirst({
-        where: {
-          OR: [
-            { code: 'SECURITY_DEPOSIT' },
-            { code: 'security_deposit' },
-            { code: 'DEPOSIT' },
-            { code: 'deposit' },
-            { category: 'deposit' },
-          ],
-          AND: [{ OR: [{ companyId: null }, { companyId: lease.companyId }] }],
-        },
+    const buckets = new Map<string, CategoryBucket>();
+    const addToBucket = (categoryCode: string | null | undefined, line: PendingLine) => {
+      const key = (categoryCode || 'other').trim().toLowerCase();
+      let bucket = buckets.get(key);
+      if (!bucket) {
+        bucket = {
+          categoryKey: key,
+          categoryName: getCategoryDisplayName(categoryMap, categoryCode),
+          lines: [],
+        };
+        buckets.set(key, bucket);
+      }
+      bucket.lines.push(line);
+    };
+
+    // 1. Base Rent (only when Rent category has monthly = false)
+    if (monthlyRent > 0 && !isCategoryMonthly(categoryMap, rentChargeType.category)) {
+      const rentLineTotal = isRentPartial ? Math.round(partialAmount! * 100) / 100 : totalRent;
+      const rentQty = isRentPartial ? 1 : termMonths;
+      const rentUnitPrice = isRentPartial ? rentLineTotal : monthlyRent;
+      addToBucket(rentChargeType.category || 'rent', {
+        chargeTypeId: rentChargeType.id,
+        chargeType: rentChargeType,
+        description: isRentPartial
+          ? `Rent (Partial Payment) — Unit ${unitLabel}`
+          : `Rent (${termMonths} ${termMonths === 1 ? 'month' : 'months'}) — Unit ${unitLabel}`,
+        quantity: rentQty,
+        unitPrice: rentUnitPrice,
+        amount: rentLineTotal,
+        lineTotal: rentLineTotal,
+        isPartialRent: isRentPartial,
       });
-      if (!depositChargeType) {
-        depositChargeType = await prisma.chargeType.create({
-          data: { code: 'SECURITY_DEPOSIT', name: 'Security Deposit', category: 'deposit', isActive: true, isSystem: true },
+    }
+
+    // 2. Security Deposit (only when Deposit category has monthly = false — always 100%, never partial)
+    if (deposit > 0 && depositChargeType && !isCategoryMonthly(categoryMap, depositChargeType.category)) {
+      const depTotal = Math.round(deposit * 100) / 100;
+      addToBucket(depositChargeType.category || 'deposit', {
+        chargeTypeId: depositChargeType.id,
+        chargeType: depositChargeType,
+        description: `Security Deposit — Unit ${unitLabel}`,
+        quantity: 1,
+        unitPrice: depTotal,
+        amount: depTotal,
+        lineTotal: depTotal,
+      });
+    }
+
+    // 3. Additional non-monthly leaseCharges (qty = 1 x amount, grouped by Charge Category)
+    const scheduleCharges: any[] = Array.isArray(lease.billingSchedules) ? lease.billingSchedules : [];
+    const seenScheduleCtIds = new Set<string>();
+    for (const s of scheduleCharges) {
+      const ct = s.chargeType;
+      if (!ct) continue;
+      const codeUpper = (ct.code || '').trim().toUpperCase();
+      if (codeUpper === 'RENT' || codeUpper === 'SECURITY_DEPOSIT') continue;
+      seenScheduleCtIds.add(s.chargeTypeId);
+      if (isCategoryMonthly(categoryMap, ct.category)) continue;
+
+      const amt = Math.round(Number(s.amount ?? 0) * 100) / 100;
+      if (amt <= 0) continue;
+      addToBucket(ct.category || 'other', {
+        chargeTypeId: s.chargeTypeId,
+        chargeType: ct,
+        description: s.description || (unitLabel ? `${ct.name} — Unit ${unitLabel}` : ct.name),
+        quantity: 1,
+        unitPrice: amt,
+        amount: amt,
+        lineTotal: amt,
+        departmentCenterId: s.departmentCenterId ?? null,
+        costCenterId: s.costCenterId ?? null,
+      });
+    }
+
+    // 4. Property defaultServiceCharge (only when its category has monthly = false and not already in leaseCharges)
+    const defaultServiceCharge = Number(lease.unit?.property?.settings?.defaultServiceCharge ?? 0);
+    if (defaultServiceCharge > 0) {
+      const scChargeType = await prisma.chargeType.findFirst({
+        where: {
+          code: { equals: 'SERVICE_CHARGE', mode: 'insensitive' },
+          OR: [{ companyId: null }, { companyId: lease.companyId }],
+          ...(lease.propertyId ? { AND: [{ OR: [{ propertyId: lease.propertyId }, { propertyId: null }] }] } : {}),
+        },
+        orderBy: { propertyId: 'desc' },
+      });
+      if (
+        scChargeType &&
+        !seenScheduleCtIds.has(scChargeType.id) &&
+        !isCategoryMonthly(categoryMap, scChargeType.category)
+      ) {
+        const scTotal = Math.round(defaultServiceCharge * 100) / 100;
+        addToBucket(scChargeType.category || 'service', {
+          chargeTypeId: scChargeType.id,
+          chargeType: scChargeType,
+          description: `Service Charge — Unit ${unitLabel}`,
+          quantity: 1,
+          unitPrice: scTotal,
+          amount: scTotal,
+          lineTotal: scTotal,
         });
       }
     }
 
-    const { departmentCenterId: leaseDeptId, costCenterId: leaseCcId } =
-      await this.resolveLeaseUnitCenters(lease, rentChargeType, depositChargeType);
+    if (buckets.size === 0) {
+      return created;
+    }
 
-    // Check if an invoice containing Rent already exists for this lease
-    const existingRent = await prisma.invoice.findFirst({
-      where: {
-        leaseId: lease.id,
-        status: { not: 'void' },
-        lines: { some: { chargeTypeId: rentChargeType.id } },
-      },
-      include: {
-        lines: true,
-      },
-    });
+    const fallbackCenters = await this.resolveLeaseUnitCenters(lease, rentChargeType, depositChargeType);
 
-    if (existingRent) {
-      // If invoice exists, ensure it has the security deposit line if deposit > 0
-      const hasDepositLine = depositChargeType
-        ? existingRent.lines.some((l: any) => l.chargeTypeId === depositChargeType.id)
-        : true;
-
-      if (!hasDepositLine && deposit > 0 && depositChargeType) {
-        await prisma.invoiceLine.create({
-          data: {
-            invoiceId: existingRent.id,
-            chargeTypeId: depositChargeType.id,
-            description: `Security Deposit — Unit ${unitLabel}`,
-            quantity: 1,
-            unitPrice: deposit,
-            discountPct: 0,
-            amount: deposit,
-            taxRate: 0,
-            taxAmount: 0,
-            lineTotal: deposit,
-            sortOrder: 1,
-          },
-        });
-
-        const updatedInv = await prisma.invoice.update({
-          where: { id: existingRent.id },
-          data: {
-            ...(existingRent.status === 'draft' ? { status: 'issued' } : {}),
-            subtotal,
-            totalAmount: subtotal,
-            ...(existingRent.departmentCenterId == null && existingRent.costCenterId == null
-              ? { departmentCenterId: leaseDeptId, costCenterId: leaseCcId }
-              : {}),
-            notes: isPartial
-              ? `Base Rent (Partial Payment) & Security Deposit — lease ${lease.leaseNumber}`
-              : `Base Rent (${termMonths} months) & Security Deposit — fully paid lease ${lease.leaseNumber}`,
-          },
-          include: {
-            lines: { include: { chargeType: { select: { code: true, name: true, glAccountCode: true } } } },
-            tenant: { select: { id: true, firstName: true, lastName: true } },
-          },
-        });
-
-        // Clean up any separate deposit invoice that may have been created earlier
-        await prisma.invoice.deleteMany({
+    // Pre-fetch GL accounts for any pending line chargeType that needs center resolution via glAccountCode
+    const glCodes = new Set<string>();
+    for (const bucket of buckets.values()) {
+      for (const line of bucket.lines) {
+        if (!line.departmentCenterId && !line.costCenterId && !line.chargeType?.departmentCenterId && !line.chargeType?.costCenterId) {
+          const code = line.chargeType?.glAccountCode?.trim();
+          if (code) glCodes.add(code);
+        }
+      }
+    }
+    const glAccounts = glCodes.size > 0
+      ? await prisma.glAccount.findMany({
           where: {
-            leaseId: lease.id,
-            id: { not: existingRent.id },
-            lines: { some: { chargeTypeId: depositChargeType.id } },
+            companyId: lease.companyId,
+            code: { in: Array.from(glCodes) },
+            isActive: true,
+            ...(lease.propertyId ? { OR: [{ propertyId: lease.propertyId }, { propertyId: null }] } : {}),
           },
-        });
+          select: { code: true, propertyId: true, departmentCenterId: true, costCenterId: true },
+        })
+      : [];
 
-        created.push(updatedInv);
-        logger.info(`[createFromLease] Updated existing invoice ${existingRent.invoiceNumber} with Security Deposit for lease ${lease.leaseNumber}`);
-      } else {
-        const patchData: Record<string, any> = {};
-        if (existingRent.status === 'draft') {
-          patchData.status = 'issued';
+    const resolveBucketCenters = (lines: PendingLine[]): { departmentCenterId: string | null; costCenterId: string | null } => {
+      if (lease.departmentCenterId || lease.costCenterId) {
+        return {
+          departmentCenterId: lease.departmentCenterId ?? null,
+          costCenterId: lease.costCenterId ?? null,
+        };
+      }
+      for (const line of lines) {
+        if (line.departmentCenterId || line.costCenterId) {
+          return {
+            departmentCenterId: line.departmentCenterId ?? null,
+            costCenterId: line.costCenterId ?? null,
+          };
         }
-        if (
-          existingRent.departmentCenterId == null &&
-          existingRent.costCenterId == null &&
-          (leaseDeptId || leaseCcId)
-        ) {
-          patchData.departmentCenterId = leaseDeptId;
-          patchData.costCenterId = leaseCcId;
+        if (line.chargeType?.departmentCenterId || line.chargeType?.costCenterId) {
+          return {
+            departmentCenterId: line.chargeType.departmentCenterId ?? null,
+            costCenterId: line.chargeType.costCenterId ?? null,
+          };
         }
-        if (Object.keys(patchData).length > 0) {
-          await prisma.invoice.update({
-            where: { id: existingRent.id },
-            data: patchData,
-          });
+        const glCode = line.chargeType?.glAccountCode?.trim();
+        if (glCode) {
+          const matches = glAccounts.filter((a) => a.code === glCode);
+          const propMatch = lease.propertyId ? matches.find((a) => a.propertyId === lease.propertyId) : undefined;
+          const chosen = propMatch || matches[0];
+          if (chosen && (chosen.departmentCenterId || chosen.costCenterId)) {
+            return {
+              departmentCenterId: chosen.departmentCenterId ?? null,
+              costCenterId: chosen.costCenterId ?? null,
+            };
+          }
         }
       }
-    } else {
-      const invoiceLines: any[] = [
-        {
-          chargeTypeId: rentChargeType.id,
-          description: isPartial
-            ? `Rent (Partial Payment) — Unit ${unitLabel}`
-            : `Rent (${termMonths} ${termMonths === 1 ? 'month' : 'months'}) — Unit ${unitLabel}`,
-          quantity: rentQty,
-          unitPrice: rentUnitPrice,
-          discountPct: 0,
-          amount: rentLineTotal,
-          taxRate: 0,
-          taxAmount: 0,
-          lineTotal: rentLineTotal,
-          sortOrder: 0,
-        },
-      ];
-      if (deposit > 0 && depositChargeType) {
-        invoiceLines.push({
-          chargeTypeId: depositChargeType.id,
-          description: `Security Deposit — Unit ${unitLabel}`,
-          quantity: 1,
-          unitPrice: deposit,
-          discountPct: 0,
-          amount: deposit,
-          taxRate: 0,
-          taxAmount: 0,
-          lineTotal: deposit,
-          sortOrder: 1,
-        });
-      }
+      return fallbackCenters;
+    };
 
+    // Idempotency: check existing non-void invoices already linked to this lease
+    const existingInvoices = await prisma.invoice.findMany({
+      where: { leaseId: lease.id, status: { not: 'void' } },
+      include: { lines: { select: { chargeTypeId: true } } },
+    });
+    const existingChargeTypeIds = new Set<string>();
+    for (const inv of existingInvoices) {
+      for (const l of inv.lines) existingChargeTypeIds.add(l.chargeTypeId);
+      const patchData: Record<string, any> = {};
+      if (inv.status === 'draft') patchData.status = 'issued';
+      if (inv.departmentCenterId == null && inv.costCenterId == null && (fallbackCenters.departmentCenterId || fallbackCenters.costCenterId)) {
+        patchData.departmentCenterId = fallbackCenters.departmentCenterId;
+        patchData.costCenterId = fallbackCenters.costCenterId;
+      }
+      if (Object.keys(patchData).length > 0) {
+        await prisma.invoice.update({ where: { id: inv.id }, data: patchData });
+      }
+    }
+
+    // Create one direct invoice per non-monthly Charge Category (Rent first, Deposit second, then A-Z)
+    const bucketOrder = (key: string) => (key === 'rent' ? 0 : key === 'deposit' ? 1 : 2);
+    const sortedBuckets = [...buckets.values()].sort(
+      (a, b) => bucketOrder(a.categoryKey) - bucketOrder(b.categoryKey) || a.categoryName.localeCompare(b.categoryName),
+    );
+
+    for (const bucket of sortedBuckets) {
+      const pendingLines = bucket.lines.filter((l) => !existingChargeTypeIds.has(l.chargeTypeId));
+      if (pendingLines.length === 0) continue;
+
+      const subtotal = Math.round(pendingLines.reduce((sum, l) => sum + l.lineTotal, 0) * 100) / 100;
+      const centers = resolveBucketCenters(pendingLines);
       const invoiceNumber = await this.generateInvoiceNumber(lease.companyId, lease.propertyId);
+
+      const hasPartialRent = pendingLines.some((l) => l.isPartialRent);
+      const notes = bucket.categoryKey === 'rent'
+        ? hasPartialRent
+          ? `Base Rent (Partial Payment) — lease ${lease.leaseNumber}`
+          : `Base Rent (${termMonths} ${termMonths === 1 ? 'month' : 'months'}) — lease ${lease.leaseNumber}`
+        : `${bucket.categoryName} — lease ${lease.leaseNumber}`;
+
       const inv = await prisma.invoice.create({
         data: {
           companyId: lease.companyId,
@@ -981,8 +1059,8 @@ export class InvoicesService {
           unitId: lease.unitId || null,
           tenantId: lease.tenantId,
           leaseId: lease.id,
-          departmentCenterId: leaseDeptId,
-          costCenterId: leaseCcId,
+          departmentCenterId: centers.departmentCenterId,
+          costCenterId: centers.costCenterId,
           invoiceNumber,
           invoiceType: 'invoice',
           status: 'issued',
@@ -996,11 +1074,22 @@ export class InvoicesService {
           paidAmount: 0,
           currency,
           currencyRate,
-          notes: isPartial
-            ? `Base Rent (Partial Payment)${deposit > 0 ? ' & Security Deposit' : ''} — lease ${lease.leaseNumber}`
-            : `Base Rent (${termMonths} months)${deposit > 0 ? ' & Security Deposit' : ''} — fully paid lease ${lease.leaseNumber}`,
+          notes,
           createdBy: userId,
-          lines: { create: invoiceLines },
+          lines: {
+            create: pendingLines.map((line, idx) => ({
+              chargeTypeId: line.chargeTypeId,
+              description: line.description,
+              quantity: line.quantity,
+              unitPrice: line.unitPrice,
+              discountPct: 0,
+              amount: line.amount,
+              taxRate: 0,
+              taxAmount: 0,
+              lineTotal: line.lineTotal,
+              sortOrder: idx,
+            })),
+          },
         },
         include: {
           lines: {
@@ -1021,12 +1110,12 @@ export class InvoicesService {
       });
       await this._postInvoiceGlAndNotify(inv, lease.companyId, invoiceDate, currency);
       created.push(inv);
-      logger.info(`[createFromLease] Rent+Deposit invoice ${invoiceNumber} (${subtotal} ${currency}) for lease ${lease.leaseNumber}`);
+      logger.info(`[createFromLease] ${bucket.categoryName} invoice ${invoiceNumber} (${subtotal} ${currency}, ${pendingLines.length} line(s)) for lease ${lease.leaseNumber}`);
     }
 
-    await this.invalidateCompanyCache(lease.companyId);
-    // Additional lease charges do NOT go to Direct Invoices on initial activation;
-    // they are handled via Billing Schedules starting from period 1 (startDate).
+    if (created.length > 0) {
+      await this.invalidateCompanyCache(lease.companyId);
+    }
     return created;
   }
 

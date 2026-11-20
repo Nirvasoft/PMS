@@ -99,6 +99,7 @@ export class LeasesLifecycleService {
             id: true,
             chargeTypeId: true,
             amount: true,
+            quantity: true,
             description: true,
             billingCycle: true,
             departmentCenterId: true,
@@ -146,38 +147,24 @@ export class LeasesLifecycleService {
       }
     } catch (_e) {}
 
-    // paymentType = 'fully':
-    //   • Create direct invoice for Base Rent (+ Security Deposit if configured)
-    //   • Promote draft charge schedules → active starting from Period 1 (startDate)
-    //
-    // paymentType = 'partially' (or any other):
-    //   • Create direct invoice for partial rent (+ Security Deposit if configured)
-    //   • Create remaining Rent billing schedule + promote draft charge schedules → active
+    // Activation billing rules (driven by ChargeCategory.monthly):
+    //   1. Non-monthly (monthly = false) charges → auto-create direct invoices grouped by Charge Category
+    //      (paymentType 'fully'/'partially' applies to Rent only; Deposit & other non-monthly charges are always 100%).
+    //   2. Monthly (monthly = true) charges → active monthly billing schedules starting from startDate (no direct invoice).
+    //   3. Non-monthly Rent with paymentType = 'partially' → remaining Rent schedule split across remaining cycles.
     const paymentType = (lease as any).paymentType || 'fully';
 
     try {
-      if (paymentType === 'fully') {
-        // 1. Direct invoice — Base Rent (+ Security Deposit if configured)
-        const invoices = await invoicesService.createFromLease(lease, activatedBy);
-        logger.info(`Direct invoices created for lease ${lease.leaseNumber}: ${invoices.length} invoice(s) — ${invoices.map((i: any) => i.invoiceNumber).join(', ')}`);
+      // 1. Direct invoices for all non-monthly charges, grouped by Charge Category
+      const invoices = await invoicesService.createFromLease(lease, activatedBy);
+      logger.info(`Direct invoices created for lease ${lease.leaseNumber} (paymentType=${paymentType}): ${invoices.length} invoice(s) — ${invoices.map((i: any) => i.invoiceNumber).join(', ')}`);
 
-        // 2. Promote draft charge schedules → active, set correct cycle + nextBillingDate = startDate
-        await billingSchedulesService.updateChargeSchedulesFromLease(lease);
-        logger.info(`Billing schedules activated for lease ${lease.leaseNumber} (fully paid, starting from period 1)`);
-      } else {
-        // Partial payment:
-        // 1. Direct invoice for partial rent (+ security deposit if configured)
-        const invoices = await invoicesService.createFromLease(lease, activatedBy);
-        logger.info(`Direct invoice created for partially paid lease ${lease.leaseNumber}: ${invoices.length} invoice(s) — ${invoices.map((i: any) => i.invoiceNumber).join(', ')}`);
+      // 2. Create Rent/Deposit/Service schedules when category is monthly=true (or remaining Rent when partially paid)
+      await billingSchedulesService.createFromLease(lease);
 
-        // 2. Create Rent billing schedule for remaining lease balance distributed across remaining cycles
-        await billingSchedulesService.createFromLease(lease);
-        logger.info(`Billing schedules created for lease ${lease.leaseNumber} (paymentType=${paymentType})`);
-
-        // 3. Promote draft leaseCharge schedules (created at lease-creation time) → active
-        await billingSchedulesService.updateChargeSchedulesFromLease(lease);
-        logger.info(`Charge schedules activated for lease ${lease.leaseNumber} (partial payment)`);
-      }
+      // 3. Sync draft leaseCharge schedules: monthly=true → active from startDate; monthly=false → completed
+      await billingSchedulesService.updateChargeSchedulesFromLease(lease);
+      logger.info(`Billing schedules synced for lease ${lease.leaseNumber} (paymentType=${paymentType})`);
     } catch (err: any) {
       // Don't fail activation if billing setup fails — log and continue
       logger.error(`Billing setup failed for lease ${lease.leaseNumber}: ${err.message}`);
