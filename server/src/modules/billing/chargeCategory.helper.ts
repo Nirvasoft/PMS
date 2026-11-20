@@ -1,9 +1,150 @@
 import { prisma } from '../../common/database';
+import { resolveEffectivePropertyId } from '../../common/propertySetupScope';
 
 export interface ChargeCategoryMeta {
   code: string;
   name: string;
   monthly: boolean;
+}
+
+export const SYSTEM_CHARGE_CATEGORIES: ReadonlyArray<{
+  code: string;
+  description: string;
+  monthly: boolean;
+  lockMonthly: boolean;
+}> = [
+  { code: 'rent', description: 'Rent', monthly: false, lockMonthly: false },
+  { code: 'deposit', description: 'Deposit', monthly: false, lockMonthly: true },
+  { code: 'utility', description: 'Utility', monthly: true, lockMonthly: true },
+];
+
+export function getSystemChargeCategoryDef(code?: string | null) {
+  const normalized = (code || '').trim().toLowerCase();
+  return SYSTEM_CHARGE_CATEGORIES.find((c) => c.code === normalized);
+}
+
+export function isSystemChargeCategoryCode(code?: string | null): boolean {
+  return Boolean(getSystemChargeCategoryDef(code));
+}
+
+/**
+ * Ensures the required system charge categories ('rent', 'deposit', 'utility') exist
+ * and are marked `isSystem: true` for the given company and property scope,
+ * while enforcing fixed monthly defaults for 'deposit' (false) and 'utility' (true).
+ */
+export async function ensureSystemChargeCategories(
+  companyId: string,
+  propertyId?: string | null,
+): Promise<void> {
+  if (!companyId) return;
+
+  const targetPropertyId =
+    propertyId && propertyId.trim()
+      ? propertyId.trim()
+      : await resolveEffectivePropertyId(companyId, undefined);
+
+  // 1. Mark any existing 'rent', 'deposit', 'utility' categories as isSystem = true
+  // and enforce locked monthly values (deposit -> false, utility -> true)
+  await prisma.chargeCategory.updateMany({
+    where: {
+      companyId,
+      OR: SYSTEM_CHARGE_CATEGORIES.map((c) => ({
+        code: { equals: c.code, mode: 'insensitive' as const },
+      })),
+      isSystem: false,
+    },
+    data: { isSystem: true },
+  });
+
+  for (const def of SYSTEM_CHARGE_CATEGORIES) {
+    if (!def.lockMonthly) continue;
+    await prisma.chargeCategory.updateMany({
+      where: {
+        companyId,
+        code: { equals: def.code, mode: 'insensitive' },
+        monthly: { not: def.monthly },
+      },
+      data: { monthly: def.monthly, isSystem: true },
+    });
+  }
+
+  // 2. If the company has an active property, migrate or clean up any company-level (propertyId = null) system categories
+  if (targetPropertyId) {
+    const nullPropRows = await prisma.chargeCategory.findMany({
+      where: {
+        companyId,
+        propertyId: null,
+        OR: SYSTEM_CHARGE_CATEGORIES.map((c) => ({
+          code: { equals: c.code, mode: 'insensitive' as const },
+        })),
+      },
+    });
+
+    for (const row of nullPropRows) {
+      const existingOnProp = await prisma.chargeCategory.findFirst({
+        where: {
+          companyId,
+          propertyId: targetPropertyId,
+          code: { equals: row.code, mode: 'insensitive' },
+        },
+      });
+      if (!existingOnProp) {
+        const def = getSystemChargeCategoryDef(row.code);
+        await prisma.chargeCategory.update({
+          where: { id: row.id },
+          data: {
+            propertyId: targetPropertyId,
+            isSystem: true,
+            ...(def?.lockMonthly ? { monthly: def.monthly } : {}),
+          },
+        });
+      } else {
+        await prisma.chargeCategory.delete({ where: { id: row.id } }).catch(() => {});
+      }
+    }
+  }
+
+  // 3. Ensure 'rent', 'deposit', and 'utility' exist on targetPropertyId (or propertyId = null if company has no properties yet)
+  const existing = await prisma.chargeCategory.findMany({
+    where: {
+      companyId,
+      propertyId: targetPropertyId,
+      OR: SYSTEM_CHARGE_CATEGORIES.map((c) => ({
+        code: { equals: c.code, mode: 'insensitive' as const },
+      })),
+    },
+    select: { id: true, code: true, isActive: true, monthly: true },
+  });
+
+  for (const def of SYSTEM_CHARGE_CATEGORIES) {
+    const match = existing.find((e) => e.code.trim().toLowerCase() === def.code);
+    if (!match) {
+      await prisma.chargeCategory
+        .create({
+          data: {
+            companyId,
+            propertyId: targetPropertyId,
+            code: def.code,
+            description: def.description,
+            monthly: def.monthly,
+            isActive: true,
+            isSystem: true,
+          },
+        })
+        .catch(() => {});
+    } else if (!match.isActive || (def.lockMonthly && match.monthly !== def.monthly)) {
+      await prisma.chargeCategory
+        .update({
+          where: { id: match.id },
+          data: {
+            isActive: true,
+            isSystem: true,
+            ...(def.lockMonthly ? { monthly: def.monthly } : {}),
+          },
+        })
+        .catch(() => {});
+    }
+  }
 }
 
 const formatFallbackCategoryName = (code: string): string =>
@@ -20,6 +161,7 @@ export async function resolveChargeCategoryMap(
   companyId: string,
   propertyId?: string | null,
 ): Promise<Map<string, ChargeCategoryMeta>> {
+  await ensureSystemChargeCategories(companyId, propertyId);
   const rows = await prisma.chargeCategory.findMany({
     where: {
       isActive: true,
