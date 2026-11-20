@@ -1027,12 +1027,13 @@ function RunBillingModal({ activeProperty, onClose, onSubmit, isLoading }: {
             <div className="rb-schedule-list">
               <div className="rb-schedule-row rb-schedule-header">
                 <span>Charge</span>
+                <span>Unit</span>
                 <span>Tenant</span>
                 <span>Next Billing Day</span>
                 <span className="text-right">Amount</span>
               </div>
               {schedulesLoading ? (
-                <TableSkeleton columns={4} rows={4} />
+                <TableSkeleton columns={5} rows={4} />
               ) : dueSchedules.length === 0 ? (
                 <div className="rb-schedule-empty">
                   No confirmed schedules due on or before this date.{' '}
@@ -1042,6 +1043,7 @@ function RunBillingModal({ activeProperty, onClose, onSubmit, isLoading }: {
                 dueSchedules.map(s => (
                   <div key={s.id} className="rb-schedule-row">
                     <span className="rb-schedule-charge">{s.description || s.chargeType.name}</span>
+                    <span className="rb-schedule-unit" title={s.unit?.floorLabel || undefined}>{s.unit?.unitNumber || '—'}</span>
                     <span>{getTenantName(s)}</span>
                     <span>{s.nextBillingDate ? format(new Date(s.nextBillingDate), 'yyyy-MM-dd') : '—'}</span>
                     <span className="text-right">{formatCurrency(s.amount, s.currency)}</span>
