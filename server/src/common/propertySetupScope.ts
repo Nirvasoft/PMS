@@ -278,6 +278,50 @@ async function runPropertySetupScopeMigration(): Promise<void> {
         AND m."external_ref" ~ 'Syskey:\\s*[0-9]+'
     `);
   }
+
+  // Ensure bill_type column exists on invoices and backfill from invoice_lines + charge_types + charge_categories
+  await prisma.$executeRawUnsafe(
+    `ALTER TABLE "invoices" ADD COLUMN IF NOT EXISTS "bill_type" VARCHAR(50)`,
+  );
+  await prisma.$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS "invoices_bill_type_idx" ON "invoices"("bill_type")`,
+  );
+  await prisma.$executeRawUnsafe(`
+    UPDATE "invoices" i
+    SET "bill_type" = CASE
+      WHEN EXISTS (
+        SELECT 1
+        FROM "invoice_lines" il
+        JOIN "charge_types" ct ON ct."id" = il."charge_type_id"
+        LEFT JOIN "charge_categories" cc
+          ON LOWER(TRIM(cc."code")) = LOWER(TRIM(ct."category"))
+          AND cc."is_active" = true
+          AND (cc."company_id" = i."company_id" OR cc."company_id" IS NULL)
+          AND (cc."property_id" = i."property_id" OR cc."property_id" IS NULL)
+        WHERE il."invoice_id" = i."id"
+          AND (COALESCE(cc."monthly", false) = true OR LOWER(TRIM(ct."category")) = 'utility')
+      ) THEN 'monthly'
+      WHEN EXISTS (
+        SELECT 1
+        FROM "invoice_lines" il
+        JOIN "charge_types" ct ON ct."id" = il."charge_type_id"
+        WHERE il."invoice_id" = i."id"
+          AND (LOWER(TRIM(ct."category")) = 'rent' OR UPPER(TRIM(ct."code")) = 'RENT')
+      ) THEN 'rental'
+      WHEN EXISTS (
+        SELECT 1
+        FROM "invoice_lines" il
+        JOIN "charge_types" ct ON ct."id" = il."charge_type_id"
+        WHERE il."invoice_id" = i."id"
+          AND (
+            LOWER(TRIM(ct."category")) = 'deposit'
+            OR UPPER(TRIM(ct."code")) IN ('DEPOSIT', 'SECURITY_DEPOSIT')
+          )
+      ) THEN 'deposit'
+      ELSE 'other'
+    END
+    WHERE i."bill_type" IS NULL
+  `);
 }
 
 export async function resolveEffectivePropertyId(

@@ -66,7 +66,175 @@ function resolveLogoUrl(rawUrl?: string | null): string | null {
   return `${window.location.origin}${rawUrl.startsWith('/') ? '' : '/'}${rawUrl}`;
 }
 
-function renderInvoicePaperHtml(inv: InvoiceListItem | InvoiceDetail): string {
+function calcMonthsBetween(fromVal?: unknown, toVal?: unknown): number | null {
+  if (!fromVal || !toVal) return null;
+  const s = new Date(fromVal as string | number | Date);
+  const e = new Date(toVal as string | number | Date);
+  if (isNaN(s.getTime()) || isNaN(e.getTime())) return null;
+  const inclusiveEnd = new Date(e.getTime() + 86_400_000);
+  const months = (inclusiveEnd.getFullYear() - s.getFullYear()) * 12 + (inclusiveEnd.getMonth() - s.getMonth());
+  return Math.max(1, months);
+}
+
+function isRentalInvoice(inv: InvoiceListItem | InvoiceDetail, filterBillType?: string): boolean {
+  if (inv.billType === 'rental') return true;
+  if (inv.billType && inv.billType !== 'rental') return false;
+  if (filterBillType && filterBillType.toLowerCase().includes('rental')) return true;
+  const lines = inv.lines || [];
+  return lines.some((l) => {
+    const cat = (l.chargeType?.category || '').trim().toLowerCase();
+    const code = (l.chargeType?.code || '').trim().toUpperCase();
+    return cat === 'rent' || code === 'RENT';
+  });
+}
+
+function renderRentalInvoicePaperHtml(inv: InvoiceListItem | InvoiceDetail): string {
+  const tenantName = getReportTenantLabel(inv);
+  const rawFloor = getFloorLabel(inv);
+  const floorName = rawFloor && rawFloor !== '-' ? rawFloor : (inv.property?.name || '-');
+  const invoiceDateText = dmy(inv.invoiceDate) || '-';
+  const dueDateText = dmy(inv.dueDate || inv.invoiceDate) || invoiceDateText;
+
+  const allLines = inv.lines || [];
+  const rentLines = allLines.filter((l) => {
+    const cat = (l.chargeType?.category || '').trim().toLowerCase();
+    const code = (l.chargeType?.code || '').trim().toUpperCase();
+    return cat === 'rent' || code === 'RENT';
+  });
+  const linesToRender = rentLines.length > 0 ? rentLines : allLines.length > 0 ? allLines : [null];
+
+  const roomNo = inv.unit?.unitNumber || '-';
+  const areaVal = inv.unit?.areaSqft != null ? Number(inv.unit.areaSqft) : null;
+  const areaText = areaVal != null && !isNaN(areaVal) ? areaVal.toLocaleString('en-US') : '-';
+
+  const contractFrom = inv.lease?.startDate || inv.periodFrom || linesToRender[0]?.periodFrom || inv.invoiceDate;
+  const contractTo = inv.lease?.endDate || inv.periodTo || linesToRender[0]?.periodTo || inv.dueDate;
+  const contractPeriodRange =
+    contractFrom && contractTo
+      ? `${escapeHtml(dmy(contractFrom))} &nbsp;&nbsp;~&nbsp;&nbsp; ${escapeHtml(dmy(contractTo))}`
+      : escapeHtml(dmy(contractFrom) || '-');
+  const contractMonths =
+    (inv.lease?.leaseTermMonths && Number(inv.lease.leaseTermMonths) > 0
+      ? Number(inv.lease.leaseTermMonths)
+      : calcMonthsBetween(contractFrom, contractTo)) || 1;
+
+  const dataRowsHtml = linesToRender
+    .map((line) => {
+      const payFrom = line?.periodFrom || inv.periodFrom || inv.lease?.startDate || inv.invoiceDate;
+      const payTo = line?.periodTo || inv.periodTo || inv.lease?.endDate || inv.dueDate;
+      const payPeriodRange =
+        payFrom && payTo
+          ? `${escapeHtml(dmy(payFrom))} &nbsp;&nbsp;~&nbsp;&nbsp; ${escapeHtml(dmy(payTo))}`
+          : escapeHtml(dmy(payFrom) || '-');
+      const qtyNum = line ? Number(line.quantity) : 0;
+      const payMonths =
+        calcMonthsBetween(payFrom, payTo) ||
+        (qtyNum > 0 ? Math.round(qtyNum) : contractMonths);
+
+      const rentalRate = line
+        ? Number(line.unitPrice || line.amount || 0)
+        : Number(inv.lease?.rentAmount || inv.subtotal || inv.totalAmount || 0);
+      const lineRentalTotal = line
+        ? Number(line.amount || (Number(line.quantity || 1) * Number(line.unitPrice || 0)) || line.lineTotal || 0)
+        : Number(inv.subtotal || inv.totalAmount || 0);
+
+      return `
+        <tr class="rental-data-row">
+          <td class="ta-center">${escapeHtml(roomNo)}</td>
+          <td class="ta-right">${escapeHtml(areaText)}</td>
+          <td class="ta-right">${mmk(rentalRate)}</td>
+          <td class="ta-center">${payPeriodRange}</td>
+          <td class="ta-center">${escapeHtml(String(payMonths))} Month</td>
+          <td class="ta-center">${contractPeriodRange}</td>
+          <td class="ta-center">${escapeHtml(String(contractMonths))} Month</td>
+          <td class="ta-right rental-last-col">${mmk(lineRentalTotal)}</td>
+        </tr>
+      `;
+    })
+    .join('');
+
+  const discountAmt = Number(inv.discountAmount || 0);
+  const subtotalAmt = Number(inv.subtotal || inv.totalAmount || 0);
+  const totalAfterDiscount = Math.max(0, subtotalAmt - discountAmt);
+  const taxAmt = Number(inv.taxAmount || 0);
+  const grandTotalAmt = Number(inv.totalAmount || (totalAfterDiscount + taxAmt));
+
+  return `
+    <div class="invoice-paper rental-paper">
+      <div class="rental-top-to">သို့</div>
+      <div class="rental-recipient-name">${escapeHtml(tenantName)}</div>
+      <div class="rental-recipient-floor">${escapeHtml(floorName)}</div>
+
+      <div class="rental-date-row">
+        <span class="rental-date-label">ရက်စွဲ။</span>
+        <span class="rental-date-val">${escapeHtml(invoiceDateText)}</span>
+      </div>
+
+      <div class="rental-subject-row">
+        <span>အကြောင်းအရာ။</span>
+        <span class="rental-subject-text">။ ဆိုင်ခန်းငှားရမ်းခများ ပေးသွင်းပါရန် အကြောင်းကြားစာပေးပို့ခြင်း။</span>
+      </div>
+
+      <div class="rental-body-para">
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;အထက်ပါအကြောင်းအရာနှင့်ပတ်သက်၍ &nbsp;<strong>${escapeHtml(floorName)}</strong>&nbsp; တွင်ငှားရမ်းဖွင့်လှစ်ထားသော လူကြီးမင်းတို့ ဆိုင်ခန်းအနေဖြင့် ဆိုင်ခန်း ငှားရမ်းခ များအား အောက်ပါအတိုင်း( ${escapeHtml(dueDateText)} ) ရက်နေ့နောက်ဆုံးထား၍ Centre Management Office ( &nbsp;<strong>${escapeHtml(floorName)}</strong>&nbsp; ) သို့ ရုံးချိန်အတွင်း လာရောက်ပေးသွင်းပေးပါရန် အကြောင်းကြားအပ်ပါသည်။
+      </div>
+
+      <table class="rental-table">
+        <thead>
+          <tr>
+            <th style="width:74px;">Room No.</th>
+            <th style="width:52px;">Area</th>
+            <th style="width:92px;">Rental Rate</th>
+            <th colspan="2">Payment Term</th>
+            <th colspan="2">Contract Period</th>
+            <th class="rental-last-col" style="width:105px;">Total Rental</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${dataRowsHtml}
+          <tr class="rental-summary-row">
+            <td colspan="5" class="rental-sum-blank"></td>
+            <td colspan="2" class="rental-sum-label">Discount</td>
+            <td class="rental-sum-val">${mmk(discountAmt)}</td>
+          </tr>
+          <tr class="rental-summary-row">
+            <td colspan="5" class="rental-sum-blank"></td>
+            <td colspan="2" class="rental-sum-label">Total</td>
+            <td class="rental-sum-val">${mmk(totalAfterDiscount)}</td>
+          </tr>
+          <tr class="rental-summary-row">
+            <td colspan="5" class="rental-sum-blank"></td>
+            <td colspan="2" class="rental-sum-label">Commercial Tax</td>
+            <td class="rental-sum-val">${mmk(taxAmt)}</td>
+          </tr>
+          <tr class="rental-summary-row">
+            <td colspan="5" class="rental-sum-blank"></td>
+            <td colspan="2" class="rental-sum-label">Grand Total</td>
+            <td class="rental-sum-val rental-grand-val">${mmk(grandTotalAmt)}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="rental-bottom-section">
+        <div class="rental-note">
+          (မှတ်ချက်။ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ။သတ်မှတ်ရက်အတွင်းလာရောက်ပေးသွင်းရန် ပျက်ကွက်ပါကနောက်ကျကြေးအဖြစ်တစ်လလျှင် ကျသင့်ငွေ၏ (၂%) နှုန်းဖြင့်<br/>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ဒဏ်ကြေးကောက်ခံမည်ဖြစ်သည်။)
+        </div>
+
+        <div class="rental-signoff">
+          <div class="rental-signoff-closing">လေးစားစွာဖြင့်</div>
+          <div class="rental-signoff-title">Centre Operation Manager</div>
+          <div class="rental-signoff-floor">${escapeHtml(floorName)}</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderInvoicePaperHtml(inv: InvoiceListItem | InvoiceDetail, filterBillType?: string): string {
+  if (isRentalInvoice(inv, filterBillType)) {
+    return renderRentalInvoicePaperHtml(inv);
+  }
   const invoiceNo = inv.invoiceNumber || '-';
   const displayCurrency = inv.currency || 'USD';
   const tenantName = getTenantLabel(inv);
@@ -302,6 +470,7 @@ export function generateInvoiceHtml(
   inv: InvoiceDetail | InvoiceListItem,
   multiInvoices?: Array<InvoiceDetail | InvoiceListItem>,
   pagination?: InvoiceReportPaginationInfo,
+  filterBillType?: string,
 ): string {
   const list = multiInvoices && multiInvoices.length > 0 ? multiInvoices : [inv];
   const totalCount = pagination ? pagination.total : list.length;
@@ -313,7 +482,7 @@ export function generateInvoiceHtml(
       ? `Invoice Vouchers (Showing ${startRow.toLocaleString()}–${endRow.toLocaleString()} of ${totalCount.toLocaleString()})`
       : `Invoice Vouchers (${list.length})`;
 
-  const papersHtml = list.map((item) => renderInvoicePaperHtml(item)).join('\n');
+  const papersHtml = list.map((item) => renderInvoicePaperHtml(item, filterBillType)).join('\n');
 
   const paginationControlsHtml = pagination
     ? `
@@ -528,6 +697,130 @@ export function generateInvoiceHtml(
     .footer-hours .label { white-space: nowrap; }
     .footer-hours .time  { font-weight: 600; }
 
+    /* ── Rental Invoice Notice Format ── */
+    .rental-paper {
+      padding: 20mm 18mm 20mm 18mm;
+      color: #000;
+      font-size: 12.5px;
+      line-height: 1.6;
+    }
+    .rental-top-to {
+      font-size: 13px;
+      margin-bottom: 6px;
+      padding-left: 6px;
+    }
+    .rental-recipient-name {
+      font-size: 15px;
+      font-weight: 700;
+      line-height: 1.4;
+    }
+    .rental-recipient-floor {
+      font-size: 13.5px;
+      font-weight: 700;
+      font-family: 'Times New Roman', 'Noto Sans Myanmar', serif;
+      margin-top: 2px;
+    }
+    .rental-date-row {
+      display: flex;
+      justify-content: flex-end;
+      align-items: baseline;
+      gap: 14px;
+      margin-top: 8px;
+      margin-bottom: 6px;
+      padding-right: 12px;
+      font-size: 13px;
+    }
+    .rental-date-label {
+      font-weight: 700;
+    }
+    .rental-date-val {
+      font-family: Arial, sans-serif;
+      font-size: 13px;
+    }
+    .rental-subject-row {
+      display: flex;
+      align-items: baseline;
+      gap: 24px;
+      margin-left: 42px;
+      margin-bottom: 18px;
+      font-size: 12.5px;
+    }
+    .rental-subject-text {
+      flex: 1;
+    }
+    .rental-body-para {
+      font-size: 12.5px;
+      line-height: 2;
+      text-align: justify;
+      margin-bottom: 34px;
+      padding: 0 6px;
+    }
+    .rental-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: 'Times New Roman', 'Noto Sans Myanmar', serif;
+      font-size: 12px;
+      margin-bottom: 36px;
+    }
+    .rental-table thead th {
+      border: 1px solid #000;
+      padding: 10px 6px;
+      font-weight: 700;
+      text-align: center;
+      vertical-align: middle;
+      background: #fff;
+    }
+    .rental-data-row td {
+      border: 1px solid #000;
+      padding: 10px 6px;
+      vertical-align: middle;
+    }
+    .rental-summary-row td.rental-sum-blank {
+      border: none;
+    }
+    .rental-summary-row td.rental-sum-label {
+      border: 1px solid #000;
+      text-align: right;
+      font-weight: 700;
+      padding: 6px 12px 6px 6px;
+    }
+    .rental-summary-row td.rental-sum-val {
+      border: 1px solid #000;
+      text-align: right;
+      padding: 6px 8px;
+    }
+    .rental-summary-row td.rental-grand-val {
+      font-weight: 700;
+    }
+    .rental-bottom-section {
+      margin-top: auto;
+      padding-top: 28px;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .rental-note {
+      font-size: 12px;
+      line-height: 1.85;
+      margin-bottom: 28px;
+    }
+    .rental-signoff {
+      margin-left: 62%;
+      font-size: 13px;
+      line-height: 1.8;
+    }
+    .rental-signoff-closing {
+      margin-bottom: 6px;
+    }
+    .rental-signoff-title {
+      font-family: Arial, sans-serif;
+      font-size: 12.5px;
+    }
+    .rental-signoff-floor {
+      font-family: Arial, sans-serif;
+      font-size: 12.5px;
+      padding-left: 4px;
+    }
+
     @page {
       size: A4 portrait;
       margin: 12mm 14mm;
@@ -669,7 +962,7 @@ export function openInvoicesReportPreview(options: {
   }
 
   if (reportType === 'voucher') {
-    const html = generateInvoiceHtml(invoices[0], invoices, pagination);
+    const html = generateInvoiceHtml(invoices[0], invoices, pagination, filters.billType);
     win.document.open();
     win.document.write(html);
     win.document.close();

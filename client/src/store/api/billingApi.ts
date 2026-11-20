@@ -266,8 +266,23 @@ export interface InvoiceListItem {
     currency: string | null;
     glAccountCode?: string | null;
   };
-  unit: { id: string; unitNumber: string; floorNumber?: number | null; floorLabel?: string | null } | null;
+  unit: {
+    id: string;
+    unitNumber: string;
+    floorNumber?: number | null;
+    floorLabel?: string | null;
+    areaSqft?: string | number | null;
+  } | null;
+  lease?: {
+    id: string;
+    leaseNumber: string;
+    startDate: string;
+    endDate: string;
+    leaseTermMonths?: number | null;
+    rentAmount?: string | number | null;
+  } | null;
   property: { id: string; name: string; coverImageUrl?: string | null; imageUrl?: string | null };
+  discountAmount?: string;
   periodFrom?: string | null;
   periodTo?: string | null;
   lines?: InvoiceLine[];

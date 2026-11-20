@@ -9,6 +9,7 @@ import { glService } from '../gl/gl.service';
 import { webhookInvoiceIssued } from '../../common/webhookHooks';
 import { calcLeaseTermMonths, getBillingCycleMonths } from '../leases/services/helpers';
 import { isAccountingIntegrationActive } from '../integrations/v6Status.helper';
+import { ensurePropertySetupScope } from '../../common/propertySetupScope';
 import {
   resolveChargeCategoryMap,
   isCategoryMonthly,
@@ -137,7 +138,8 @@ export class InvoicesService {
     sortBy?: string; sortOrder?: 'asc' | 'desc';
     page?: number; limit?: number; all?: boolean;
   }) {
-    const cacheKey = `invoices:${companyId}:list:${JSON.stringify(filters)}`;
+    await ensurePropertySetupScope();
+    const cacheKey = `invoices:${companyId}:list:v4:${JSON.stringify(filters)}`;
     return cacheGetOrSet(cacheKey, 60, async () => {
     const {
       tenantId, leaseId, propertyId, status, currency, billType,
@@ -253,7 +255,8 @@ export class InvoicesService {
               }
             : {}),
           tenant: { select: { id: true, firstName: true, lastName: true, companyName: true, tenantType: true, currency: true } },
-          unit: { select: { id: true, unitNumber: true, floorNumber: true, floorLabel: true } },
+          unit: { select: { id: true, unitNumber: true, floorNumber: true, floorLabel: true, areaSqft: true } },
+          lease: { select: { id: true, leaseNumber: true, startDate: true, endDate: true, leaseTermMonths: true, rentAmount: true } },
           property: { select: { id: true, name: true, coverImageUrl: true, imageUrl: true } },
         },
         orderBy: orderByClause,
@@ -363,7 +366,8 @@ export class InvoicesService {
             glAccountCode: true,
           },
         },
-        unit: { select: { id: true, unitNumber: true, floorNumber: true, floorLabel: true } },
+        unit: { select: { id: true, unitNumber: true, floorNumber: true, floorLabel: true, areaSqft: true } },
+        lease: { select: { id: true, leaseNumber: true, startDate: true, endDate: true, leaseTermMonths: true, rentAmount: true } },
         property: { select: { id: true, name: true, coverImageUrl: true, imageUrl: true } },
         departmentCenter: { select: { id: true, code: true, name: true } },
         costCenter: { select: { id: true, code: true, name: true } },

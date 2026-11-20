@@ -234,7 +234,7 @@ export default function CreateInvoicePage() {
     { chargeTypeId: '', description: '', quantity: 1, unitPrice: 0, taxRate: 0 },
   ]);
 
-  // Clear any line's chargeTypeId if it is no longer valid for the selected Department / Cost Center
+  // Clear any line's fields if its chargeTypeId is no longer valid for the selected Department / Cost Center / Invoice Type
   useEffect(() => {
     const validIds = new Set(filteredChargeTypes.map((ct) => ct.id));
     setLines((prev) => {
@@ -242,11 +242,92 @@ export default function CreateInvoicePage() {
       if (!needsUpdate) return prev;
       return prev.map((l) =>
         l.chargeTypeId && !validIds.has(l.chargeTypeId)
-          ? { ...l, chargeTypeId: '' }
+          ? { ...l, chargeTypeId: '', description: '', quantity: 1, unitPrice: 0, taxRate: 0 }
           : l
       );
     });
   }, [filteredChargeTypes]);
+
+  const handleBillTypeChange = (nextVal: string) => {
+    const nextBillType = (nextVal as InvoiceBillType) || '';
+    setForm((f) => ({ ...f, billType: nextBillType }));
+
+    let eligible = chargeTypes.filter((ct) => ct.isActive !== false);
+    if (isAccountingIntegrationActive) {
+      if (!form.departmentCenterId && !form.costCenterId) {
+        eligible = [];
+      } else {
+        eligible = eligible.filter((ct) => {
+          const ctDeptId = ct.departmentCenterId || ct.departmentCenter?.id || '';
+          const ctCcId = ct.costCenterId || ct.costCenter?.id || '';
+          if (form.departmentCenterId && ctDeptId !== form.departmentCenterId) return false;
+          if (form.costCenterId && ctCcId !== form.costCenterId) return false;
+          return true;
+        });
+      }
+    }
+    if (nextBillType) {
+      eligible = eligible.filter((ct) => classifyChargeType(ct) === nextBillType);
+    }
+
+    if (selectedLease && nextBillType === 'rental') {
+      const rentCt =
+        eligible.find(
+          (c) =>
+            c.code?.toUpperCase() === 'RENT' ||
+            c.name?.toLowerCase() === 'rent' ||
+            c.category?.toLowerCase() === 'rent',
+        ) || eligible[0];
+      if (rentCt) {
+        setLines([
+          {
+            chargeTypeId: rentCt.id,
+            description: selectedLease.unit?.unitNumber
+              ? `${rentCt.name || 'Rent'} — Unit ${selectedLease.unit.unitNumber}`
+              : rentCt.name || 'Rent',
+            quantity: selectedLease.leaseTermMonths || 1,
+            unitPrice: Number(selectedLease.rentAmount) || 0,
+            taxRate: rentCt.isTaxable ? Number(rentCt.taxRate) || 0 : 0,
+          },
+        ]);
+        return;
+      }
+    }
+
+    if (selectedLease && nextBillType === 'deposit') {
+      const depCt =
+        eligible.find(
+          (c) =>
+            c.category?.toLowerCase() === 'deposit' ||
+            c.code?.toUpperCase() === 'DEPOSIT' ||
+            c.code?.toUpperCase() === 'SECURITY_DEPOSIT',
+        ) || eligible[0];
+      const depAmount = Number((selectedLease as any).securityDeposit) || 0;
+      if (depCt) {
+        setLines([
+          {
+            chargeTypeId: depCt.id,
+            description: selectedLease.unit?.unitNumber
+              ? `${depCt.name || 'Security Deposit'} — Unit ${selectedLease.unit.unitNumber}`
+              : depCt.name || 'Security Deposit',
+            quantity: 1,
+            unitPrice: depAmount,
+            taxRate: depCt.isTaxable ? Number(depCt.taxRate) || 0 : 0,
+          },
+        ]);
+        return;
+      }
+    }
+
+    const validIds = new Set(eligible.map((ct) => ct.id));
+    setLines((prev) =>
+      prev.map((l) =>
+        !l.chargeTypeId || !validIds.has(l.chargeTypeId)
+          ? { chargeTypeId: '', description: '', quantity: 1, unitPrice: 0, taxRate: 0 }
+          : l,
+      ),
+    );
+  };
 
   // When selectedLease changes (tenant/unit chosen), auto-fill Qty with Lease Term and unitPrice with rent
   const prevSelectedLeaseIdRef = useRef<string | null>(null);
@@ -268,6 +349,30 @@ export default function CreateInvoicePage() {
 
     const leaseTerm = selectedLease.leaseTermMonths || 1;
     const leaseRent = Number(selectedLease.rentAmount) || 0;
+
+    if (form.billType === 'deposit') {
+      const depCt = filteredChargeTypes.find(
+        (c) =>
+          c.category?.toLowerCase() === 'deposit' ||
+          c.code?.toUpperCase() === 'DEPOSIT' ||
+          c.code?.toUpperCase() === 'SECURITY_DEPOSIT',
+      ) || filteredChargeTypes[0];
+      if (depCt) {
+        setLines([
+          {
+            chargeTypeId: depCt.id,
+            description: selectedLease.unit?.unitNumber
+              ? `${depCt.name || 'Security Deposit'} — Unit ${selectedLease.unit.unitNumber}`
+              : depCt.name || 'Security Deposit',
+            quantity: 1,
+            unitPrice: Number((selectedLease as any).securityDeposit) || 0,
+            taxRate: depCt.isTaxable ? Number(depCt.taxRate) || 0 : 0,
+          },
+        ]);
+      }
+      return;
+    }
+
     const rentCt = filteredChargeTypes.find(c => c.code?.toUpperCase() === 'RENT' || c.name?.toLowerCase() === 'rent' || c.category?.toLowerCase() === 'rent');
 
     if (rentCt) {
@@ -546,7 +651,7 @@ export default function CreateInvoicePage() {
                 placeholder="Auto-detect from charge type…"
                 emptyText="No invoice types"
                 options={INVOICE_BILL_TYPE_OPTIONS}
-                onChange={(val) => setForm((f) => ({ ...f, billType: (val as InvoiceBillType) || '' }))}
+                onChange={handleBillTypeChange}
               />
             </div>
             <div className="inv-field">
