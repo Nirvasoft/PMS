@@ -148,11 +148,11 @@ export class LeasesService {
             status: { not: 'cancelled' },
             chargeType: {
               code: { notIn: ['RENT', 'rent', 'SECURITY_DEPOSIT', 'security_deposit'] },
-              category: { notIn: ['rent', 'deposit'] },
+              category: { notIn: ['rent'] },
             },
           },
           select: {
-            id: true, amount: true,
+            id: true, amount: true, description: true,
             chargeType: { select: { id: true, code: true, name: true, category: true } },
           },
           orderBy: { createdAt: 'asc' },
@@ -163,15 +163,19 @@ export class LeasesService {
 
     const tenant = lease.tenant;
     const { billingSchedules, ...leaseRest } = lease as any;
-    const nonRentLeaseCharges = (billingSchedules || []).filter((s: any) => {
-      const code = (s.chargeType?.code || '').trim().toUpperCase();
-      const cat = (s.chargeType?.category || '').trim().toLowerCase();
-      const name = (s.chargeType?.name || '').trim().toLowerCase();
-      if (code === 'RENT' || code === 'SECURITY_DEPOSIT') return false;
-      if (cat === 'rent' || cat === 'deposit') return false;
-      if (/^U\d{4}/i.test(code) || /\b(base\s*rent|unit\s*fee)\b/i.test(name)) return false;
-      return true;
-    });
+    const nonRentLeaseCharges = (billingSchedules || [])
+      .filter((s: any) => {
+        const code = (s.chargeType?.code || '').trim().toUpperCase();
+        const cat = (s.chargeType?.category || '').trim().toLowerCase();
+        const name = (s.chargeType?.name || '').trim().toLowerCase();
+        const desc = (s.description || '').trim().toLowerCase();
+        if (code === 'RENT' || code === 'SECURITY_DEPOSIT') return false;
+        if (cat === 'rent') return false;
+        if (name === 'security deposit' || desc.startsWith('security deposit')) return false;
+        if (/^U\d{4}/i.test(code) || /\b(base\s*rent|unit\s*fee)\b/i.test(name)) return false;
+        return true;
+      })
+      .map(({ description: _desc, ...rest }: any) => rest);
 
     // rental_agreement, payment_type, partial_amount are read via raw SQL so they
     // work even if the generated Prisma client predates the columns.

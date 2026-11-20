@@ -21,10 +21,19 @@ export function TermsTab({ lease }: { lease: LeaseDetail }) {
         <div className="et-label">Charges</div>
         {(() => {
           const visibleCharges = lease.leaseCharges.filter((c) => {
-            const code = (c.chargeType?.code || '').toUpperCase();
-            const cat = (c.chargeType?.category || '').toLowerCase();
-            const name = (c.chargeType?.name || '').toLowerCase();
-            return code !== 'RENT' && cat !== 'rent' && !/^U\d{4}/i.test(code) && name !== 'rent' && name !== 'base rent' && !name.includes('unit fee');
+            const code = (c.chargeType?.code || '').trim().toUpperCase();
+            const cat = (c.chargeType?.category || '').trim().toLowerCase();
+            const name = (c.chargeType?.name || '').trim().toLowerCase();
+            return (
+              code !== 'RENT' &&
+              code !== 'SECURITY_DEPOSIT' &&
+              cat !== 'rent' &&
+              !/^U\d{4}/i.test(code) &&
+              name !== 'rent' &&
+              name !== 'base rent' &&
+              name !== 'security deposit' &&
+              !name.includes('unit fee')
+            );
           });
           return visibleCharges.length === 0 ? (
             <div className="empty-sm">No charges configured for this lease</div>
