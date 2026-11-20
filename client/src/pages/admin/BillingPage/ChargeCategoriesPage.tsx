@@ -55,11 +55,15 @@ export default function ChargeCategoriesPage() {
   const openEdit = (cc: ChargeCategory) => {
     setHasAttemptedSubmit(false);
     setEditing(cc);
-    setForm({ code: cc.code, description: cc.description || '', monthly: cc.monthly });
+    const codeKey = cc.code.trim().toLowerCase();
+    const fixedMonthly = codeKey === 'deposit' ? false : codeKey === 'utility' ? true : cc.monthly;
+    setForm({ code: cc.code, description: cc.description || '', monthly: fixedMonthly });
     setShowForm(true);
   };
   const closeForm = () => { setHasAttemptedSubmit(false); setShowForm(false); setEditing(null); setForm(emptyForm); };
 
+  const editingCodeKey = editing?.code.trim().toLowerCase() || '';
+  const isMonthlyLocked = editingCodeKey === 'deposit' || editingCodeKey === 'utility';
   const isCodeMissing = hasAttemptedSubmit && !form.code.trim();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -265,27 +269,29 @@ export default function ChargeCategoriesPage() {
                       <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>{cc.chargeTypeCount}</span>
                     </td>
                     <td className="text-center">
+                      <PermissionGuard permission="charge-category.update">
+                        <button className="btn-icon" title="Edit" onClick={() => openEdit(cc)}>
+                          <Pencil size={14} />
+                        </button>
+                      </PermissionGuard>
                       {cc.isSystem ? (
-                        <span title="System charge categories can't be edited" style={{ display: 'inline-flex', color: 'var(--text-tertiary)' }}>
+                        <span
+                          className="btn-icon"
+                          title="System charge categories cannot be deleted"
+                          style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-tertiary)', cursor: 'not-allowed' }}
+                        >
                           <Lock size={14} />
                         </span>
                       ) : (
-                        <>
-                          <PermissionGuard permission="charge-category.update">
-                            <button className="btn-icon" title="Edit" onClick={() => openEdit(cc)}>
-                              <Pencil size={14} />
-                            </button>
-                          </PermissionGuard>
-                          <PermissionGuard permission="charge-category.delete">
-                            <button className="btn-icon" title="Delete" onClick={() => handleDelete(cc)}
-                              style={{ color: 'var(--text-muted)' }}
-                              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.1)'; }}
-                              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </PermissionGuard>
-                        </>
+                        <PermissionGuard permission="charge-category.delete">
+                          <button className="btn-icon" title="Delete" onClick={() => handleDelete(cc)}
+                            style={{ color: 'var(--text-muted)' }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.1)'; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </PermissionGuard>
                       )}
                     </td>
                   </tr>
@@ -357,6 +363,8 @@ export default function ChargeCategoriesPage() {
                       className={isCodeMissing ? 'inv-input-error' : ''}
                       placeholder="e.g. utility"
                       value={form.code}
+                      disabled={Boolean(editing?.isSystem)}
+                      style={editing?.isSystem ? { opacity: 0.65, cursor: 'not-allowed' } : undefined}
                       onChange={e => setForm({ ...form, code: e.target.value })}
                     />
                     {isCodeMissing && <span className="inv-error-text">Code is required</span>}
@@ -369,10 +377,27 @@ export default function ChargeCategoriesPage() {
                 </div>
 
                 <div style={{ marginTop: 16 }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                    <input type="checkbox" checked={form.monthly}
-                      onChange={e => setForm({ ...form, monthly: e.target.checked })}
-                      style={{ accentColor: 'var(--primary)' }} />
+                  <label
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      fontSize: 13,
+                      color: 'var(--text-secondary)',
+                      cursor: isMonthlyLocked ? 'not-allowed' : 'pointer',
+                      opacity: isMonthlyLocked ? 0.65 : 1,
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={form.monthly}
+                      disabled={isMonthlyLocked}
+                      onChange={e => {
+                        if (isMonthlyLocked) return;
+                        setForm({ ...form, monthly: e.target.checked });
+                      }}
+                      style={{ accentColor: 'var(--primary)', cursor: isMonthlyLocked ? 'not-allowed' : 'pointer' }}
+                    />
                     Monthly
                   </label>
                 </div>

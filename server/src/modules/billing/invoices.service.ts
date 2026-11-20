@@ -15,6 +15,9 @@ import {
   getCategoryDisplayName,
   findLeaseRentChargeType,
   findLeaseDepositChargeType,
+  resolveInvoiceBillType,
+  INVOICE_BILL_TYPES,
+  type InvoiceBillType,
 } from './chargeCategory.helper';
 
 /** Adds computed `outstandingAmount` to an invoice object */
@@ -155,43 +158,8 @@ export class InvoicesService {
       if (endInvoice) where.invoiceNumber.lte = endInvoice.trim();
     }
 
-    if (billType === 'rental') {
-      const rentChargeTypes = await prisma.chargeType.findMany({
-        where: {
-          OR: [
-            { category: { equals: 'rent', mode: 'insensitive' } },
-            { code: { in: ['RENT', 'rent'] } },
-          ],
-          AND: [{ OR: [{ companyId: null }, { companyId }] }],
-        },
-        select: { id: true },
-      });
-      const rentChargeTypeIds = rentChargeTypes.map((ct) => ct.id);
-      where.lines = { some: { chargeTypeId: { in: rentChargeTypeIds } } };
-    } else if (billType === 'monthly') {
-      const monthlyCategories = await prisma.chargeCategory.findMany({
-        where: {
-          isActive: true,
-          monthly: true,
-          OR: [{ companyId: null }, { companyId }],
-        },
-        select: { code: true },
-      });
-      const monthlyCategoryCodes = monthlyCategories.map((c) => c.code);
-      let monthlyChargeTypeIds: string[] = [];
-      if (monthlyCategoryCodes.length > 0) {
-        const monthlyChargeTypes = await prisma.chargeType.findMany({
-          where: {
-            OR: monthlyCategoryCodes.map((code) => ({
-              category: { equals: code, mode: 'insensitive' as const },
-            })),
-            AND: [{ OR: [{ companyId: null }, { companyId }] }],
-          },
-          select: { id: true },
-        });
-        monthlyChargeTypeIds = monthlyChargeTypes.map((ct) => ct.id);
-      }
-      where.lines = { some: { chargeTypeId: { in: monthlyChargeTypeIds } } };
+    if (billType && (INVOICE_BILL_TYPES as readonly string[]).includes(billType)) {
+      where.billType = billType;
     }
 
     if (from || to) {
@@ -626,6 +594,24 @@ export class InvoicesService {
       }
     }
 
+    let resolvedBillType: InvoiceBillType;
+    const rawBillType = typeof dto.billType === 'string' ? dto.billType.trim().toLowerCase() : '';
+    if ((INVOICE_BILL_TYPES as readonly string[]).includes(rawBillType)) {
+      resolvedBillType = rawBillType as InvoiceBillType;
+    } else {
+      const lineCtIds = Array.from(new Set(lines.map((l) => l.chargeTypeId).filter(Boolean)));
+      const [catMap, lineCts] = await Promise.all([
+        resolveChargeCategoryMap(companyId, propertyId),
+        lineCtIds.length > 0
+          ? prisma.chargeType.findMany({
+              where: { id: { in: lineCtIds } },
+              select: { code: true, category: true },
+            })
+          : Promise.resolve([]),
+      ]);
+      resolvedBillType = resolveInvoiceBillType(catMap, lineCts);
+    }
+
     const invoice = await prisma.invoice.create({
       data: {
         companyId,
@@ -637,6 +623,7 @@ export class InvoicesService {
         costCenterId: (dto.costCenterId as string) || null,
         invoiceNumber,
         invoiceType: 'invoice',
+        billType: resolvedBillType,
         status: 'issued',
         invoiceDate: new Date(dto.invoiceDate as string),
         dueDate: new Date(dto.dueDate as string),
@@ -1063,6 +1050,7 @@ export class InvoicesService {
           costCenterId: centers.costCenterId,
           invoiceNumber,
           invoiceType: 'invoice',
+          billType: resolveInvoiceBillType(categoryMap, pendingLines.map((l) => l.chargeType)),
           status: 'issued',
           invoiceDate,
           dueDate,
@@ -1556,6 +1544,12 @@ export class InvoicesService {
       }
     }
 
+    const schedCategoryMap = await resolveChargeCategoryMap(first.companyId, first.propertyId);
+    const schedBillType = resolveInvoiceBillType(
+      schedCategoryMap,
+      lineInputs.map((l) => l.schedule.chargeType),
+    );
+
     const invoice = await prisma.invoice.create({
       data: {
         companyId: first.companyId,
@@ -1567,6 +1561,7 @@ export class InvoicesService {
         costCenterId,
         invoiceNumber,
         invoiceType: 'invoice',
+        billType: schedBillType,
         status: 'issued',
         invoiceDate,
         dueDate,
@@ -1895,6 +1890,7 @@ export class InvoicesService {
         leaseId: original.leaseId,
         invoiceNumber,
         invoiceType: 'credit_note',
+        billType: original.billType || 'other',
         status: creditNoteStatus,
         invoiceDate: new Date(),
         dueDate: new Date(),

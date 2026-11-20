@@ -220,11 +220,28 @@ export interface InvoiceLine {
   };
 }
 
+export type InvoiceBillType = 'monthly' | 'rental' | 'deposit' | 'other';
+
+export const INVOICE_BILL_TYPE_OPTIONS: Array<{ id: InvoiceBillType; label: string }> = [
+  { id: 'monthly', label: 'Monthly Invoice' },
+  { id: 'rental', label: 'Rental Invoice' },
+  { id: 'deposit', label: 'Deposit Invoice' },
+  { id: 'other', label: 'Other' },
+];
+
+export const INVOICE_BILL_TYPE_LABELS: Record<string, string> = {
+  monthly: 'Monthly Invoice',
+  rental: 'Rental Invoice',
+  deposit: 'Deposit Invoice',
+  other: 'Other',
+};
+
 export interface InvoiceListItem {
   id: string;
   invoiceNumber: string;
   secondRef?: string | null;
   invoiceType: string;
+  billType?: InvoiceBillType | null;
   status: string;
   invoiceDate: string;
   dueDate: string;

@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { skipToken } from '@reduxjs/toolkit/query';
-import { useGetChargeTypesQuery, useCreateInvoiceMutation, useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
+import {
+  useGetChargeTypesQuery,
+  useGetChargeCategoriesQuery,
+  useCreateInvoiceMutation,
+  useGetCurrencyRatesQuery,
+  INVOICE_BILL_TYPE_OPTIONS,
+  type InvoiceBillType,
+} from '../../../store/api/billingApi';
 import { useGetDepartmentCentersQuery, useGetCostCentersQuery, useGetGlAccountsQuery, type GlAccount } from '../../../store/api/glApi';
 import { useGetPropertiesQuery, useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
@@ -51,6 +58,7 @@ export default function CreateInvoicePage() {
   const [form, setForm] = useState({
     propertyId: '', tenantId: '', unitId: '', leaseId: '',
     departmentCenterId: '', costCenterId: '',
+    billType: '' as InvoiceBillType | '',
     invoiceDate: new Date().toISOString().split('T')[0],
     dueDate: '', secondRef: '', notes: '',
   });
@@ -61,6 +69,9 @@ export default function CreateInvoicePage() {
   const { isAccountingIntegrationActive } = useV6IntegrationStatus(resolvedPropertyId || undefined);
 
   const { data: chargeTypesData } = useGetChargeTypesQuery(
+    resolvedPropertyId ? { propertyId: resolvedPropertyId } : undefined,
+  );
+  const { data: chargeCategoriesData } = useGetChargeCategoriesQuery(
     resolvedPropertyId ? { propertyId: resolvedPropertyId } : undefined,
   );
   const { data: glAccounts = [] } = useGetGlAccountsQuery(
@@ -171,19 +182,53 @@ export default function CreateInvoicePage() {
     }
   }, [form.tenantId]);
 
-  const filteredChargeTypes = useMemo(() => {
-    if (!isAccountingIntegrationActive) {
-      return chargeTypes.filter((ct) => ct.isActive !== false);
+  const monthlyCategoryCodes = useMemo(() => {
+    const best = new Map<string, { priority: number; monthly: boolean }>();
+    for (const c of chargeCategoriesData?.data ?? []) {
+      if (!c.isActive) continue;
+      const key = c.code.trim().toLowerCase();
+      const priority = resolvedPropertyId && c.propertyId === resolvedPropertyId ? 2 : 1;
+      const prev = best.get(key);
+      if (!prev || priority > prev.priority) {
+        best.set(key, { priority, monthly: Boolean(c.monthly) });
+      }
     }
-    if (!form.departmentCenterId && !form.costCenterId) return [];
-    return chargeTypes.filter((ct) => {
-      const ctDeptId = ct.departmentCenterId || ct.departmentCenter?.id || '';
-      const ctCcId = ct.costCenterId || ct.costCenter?.id || '';
-      if (form.departmentCenterId && ctDeptId !== form.departmentCenterId) return false;
-      if (form.costCenterId && ctCcId !== form.costCenterId) return false;
-      return true;
-    });
-  }, [isAccountingIntegrationActive, chargeTypes, form.departmentCenterId, form.costCenterId]);
+    const set = new Set<string>();
+    for (const [k, v] of best.entries()) {
+      if (v.monthly) set.add(k);
+    }
+    return set;
+  }, [chargeCategoriesData, resolvedPropertyId]);
+
+  const classifyChargeType = useMemo(() => {
+    return (ct?: { code?: string | null; category?: string | null } | null): InvoiceBillType => {
+      if (!ct) return 'other';
+      const cat = (ct.category || '').trim().toLowerCase();
+      const code = (ct.code || '').trim().toUpperCase();
+      if (monthlyCategoryCodes.has(cat)) return 'monthly';
+      if (cat === 'rent' || code === 'RENT') return 'rental';
+      if (cat === 'deposit' || code === 'DEPOSIT' || code === 'SECURITY_DEPOSIT') return 'deposit';
+      return 'other';
+    };
+  }, [monthlyCategoryCodes]);
+
+  const filteredChargeTypes = useMemo(() => {
+    let list = chargeTypes.filter((ct) => ct.isActive !== false);
+    if (isAccountingIntegrationActive) {
+      if (!form.departmentCenterId && !form.costCenterId) return [];
+      list = list.filter((ct) => {
+        const ctDeptId = ct.departmentCenterId || ct.departmentCenter?.id || '';
+        const ctCcId = ct.costCenterId || ct.costCenter?.id || '';
+        if (form.departmentCenterId && ctDeptId !== form.departmentCenterId) return false;
+        if (form.costCenterId && ctCcId !== form.costCenterId) return false;
+        return true;
+      });
+    }
+    if (form.billType) {
+      list = list.filter((ct) => classifyChargeType(ct) === form.billType);
+    }
+    return list;
+  }, [isAccountingIntegrationActive, chargeTypes, form.departmentCenterId, form.costCenterId, form.billType, classifyChargeType]);
 
   const [lines, setLines] = useState<LineItem[]>([
     { chargeTypeId: '', description: '', quantity: 1, unitPrice: 0, taxRate: 0 },
@@ -223,28 +268,33 @@ export default function CreateInvoicePage() {
 
     const leaseTerm = selectedLease.leaseTermMonths || 1;
     const leaseRent = Number(selectedLease.rentAmount) || 0;
-    const rentCt = filteredChargeTypes.find(c => c.code?.toUpperCase() === 'RENT' || c.name?.toLowerCase() === 'rent' || c.category === 'rent');
+    const rentCt = filteredChargeTypes.find(c => c.code?.toUpperCase() === 'RENT' || c.name?.toLowerCase() === 'rent' || c.category?.toLowerCase() === 'rent');
 
-    setLines((prev) => {
-      if (prev.length === 1 && (!prev[0].chargeTypeId || (rentCt && prev[0].chargeTypeId === rentCt.id))) {
-        const ct = rentCt || filteredChargeTypes[0];
-        return [{
-          chargeTypeId: ct?.id || '',
-          description: selectedLease.unit?.unitNumber
-            ? `Rent — Unit ${selectedLease.unit.unitNumber}`
-            : (ct?.name || 'Rent'),
-          quantity: leaseTerm,
-          unitPrice: leaseRent,
-          taxRate: ct?.isTaxable ? (Number(ct.taxRate) || 0) : 0,
-        }];
+    if (rentCt) {
+      const rentBillType = classifyChargeType(rentCt);
+      if (!form.billType) {
+        setForm((f) => (f.billType ? f : { ...f, billType: rentBillType }));
       }
-      return prev.map((l) => ({
-        ...l,
-        quantity: l.quantity === 1 ? leaseTerm : l.quantity,
-        unitPrice: rentCt && l.chargeTypeId === rentCt.id && l.unitPrice === 0 ? leaseRent : l.unitPrice,
-      }));
-    });
-  }, [selectedLease, form.leaseId, filteredChargeTypes]);
+      setLines((prev) => {
+        if (prev.length === 1 && (!prev[0].chargeTypeId || prev[0].chargeTypeId === rentCt.id)) {
+          return [{
+            chargeTypeId: rentCt.id,
+            description: selectedLease.unit?.unitNumber
+              ? `Rent — Unit ${selectedLease.unit.unitNumber}`
+              : (rentCt.name || 'Rent'),
+            quantity: leaseTerm,
+            unitPrice: leaseRent,
+            taxRate: rentCt.isTaxable ? (Number(rentCt.taxRate) || 0) : 0,
+          }];
+        }
+        return prev.map((l) => ({
+          ...l,
+          quantity: l.quantity === 1 ? leaseTerm : l.quantity,
+          unitPrice: l.chargeTypeId === rentCt.id && l.unitPrice === 0 ? leaseRent : l.unitPrice,
+        }));
+      });
+    }
+  }, [selectedLease, form.leaseId, form.billType, filteredChargeTypes, classifyChargeType]);
 
   const addLine = () => setLines([
     ...lines,
@@ -255,9 +305,12 @@ export default function CreateInvoicePage() {
     const updated = [...lines];
     (updated[idx] as any)[field] = value;
 
-    // Auto-fill description and taxRate from charge type; auto-fill Unit Price & Qty if Rent
+    // Auto-fill Invoice Type, description and taxRate from charge type; auto-fill Unit Price & Qty if Rent
     if (field === 'chargeTypeId') {
       const ct = chargeTypes.find(c => c.id === value);
+      if (ct && !form.billType) {
+        setForm((f) => (f.billType ? f : { ...f, billType: classifyChargeType(ct) }));
+      }
       if (ct && !updated[idx].description) {
         updated[idx].description = selectedLease?.unit?.unitNumber
           ? `${ct.name} — Unit ${selectedLease.unit.unitNumber}`
@@ -304,6 +357,7 @@ export default function CreateInvoicePage() {
         unitId: form.unitId || undefined,
         departmentCenterId: form.departmentCenterId || undefined,
         costCenterId: form.costCenterId || undefined,
+        billType: form.billType || undefined,
         secondRef: form.secondRef.trim() || undefined,
         leaseId: selectedLease?.id || form.leaseId || undefined,
         currency: effectiveCurrency,
@@ -483,6 +537,17 @@ export default function CreateInvoicePage() {
                 onChange={e => setForm({ ...form, dueDate: e.target.value })}
               />
               {isDueDateMissing && <span className="inv-error-text">Due date is required</span>}
+            </div>
+            <div className="inv-field">
+              <label>Invoice Type</label>
+              <ComboBox
+                id="invoice-bill-type"
+                value={form.billType}
+                placeholder="Auto-detect from charge type…"
+                emptyText="No invoice types"
+                options={INVOICE_BILL_TYPE_OPTIONS}
+                onChange={(val) => setForm((f) => ({ ...f, billType: (val as InvoiceBillType) || '' }))}
+              />
             </div>
             <div className="inv-field">
               <label>Second Ref. <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span></label>

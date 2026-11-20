@@ -324,9 +324,7 @@ function InvoiceReportForm({ activeProperty }: { activeProperty: string }) {
     const reportFiltersInfo = {
       currency: activeCurrency || undefined,
       billType: billType
-        ? billType === 'monthly'
-          ? 'Monthly Invoice'
-          : 'Rental Invoice'
+        ? ({ monthly: 'Monthly Invoice', rental: 'Rental Invoice', deposit: 'Deposit Invoice', other: 'Other' }[billType] || billType)
         : undefined,
       startInvoice: startInvoice.trim() || undefined,
       endInvoice: endInvoice.trim() || undefined,
@@ -441,6 +439,8 @@ function InvoiceReportForm({ activeProperty }: { activeProperty: string }) {
             <option value="">All Invoices</option>
             <option value="monthly">Monthly Invoice</option>
             <option value="rental">Rental Invoice</option>
+            <option value="deposit">Deposit Invoice</option>
+            <option value="other">Other</option>
           </select>
         </div>
 

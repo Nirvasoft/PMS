@@ -205,6 +205,7 @@ export const createInvoiceSchema = z.object({
     dueDate: dateString,
     periodFrom: dateString.optional(),
     periodTo: dateString.optional(),
+    billType: z.enum(['monthly', 'rental', 'deposit', 'other']).optional().nullable(),
     currency: z.string().length(3).optional(),
     currencyRate: z.number().optional().nullable(),
     secondRef: z.string().max(100).optional().nullable(),

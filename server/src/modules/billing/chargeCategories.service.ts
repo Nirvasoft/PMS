@@ -1,6 +1,11 @@
 import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
 import { ensurePropertySetupScope, resolveEffectivePropertyId } from '../../common/propertySetupScope';
+import {
+  ensureSystemChargeCategories,
+  getSystemChargeCategoryDef,
+  isSystemChargeCategoryCode,
+} from './chargeCategory.helper';
 
 export class ChargeCategoriesService {
   // Shared by create()/update() — a code must be unique (case-insensitive) across a
@@ -15,8 +20,9 @@ export class ChargeCategoriesService {
       where: {
         OR: [
           { companyId: null },
-          { companyId, isSystem: true, propertyId: null },
-          ...(propertyId ? [{ companyId, propertyId }] : [{ companyId }]),
+          ...(propertyId
+            ? [{ companyId, propertyId }]
+            : [{ companyId, isSystem: true, propertyId: null }, { companyId }]),
         ],
         code: { equals: code, mode: 'insensitive' },
         isActive: true,
@@ -29,11 +35,13 @@ export class ChargeCategoriesService {
   async findAll(companyId: string, filters?: { propertyId?: string }) {
     await ensurePropertySetupScope();
     const propertyId = filters?.propertyId?.trim() || undefined;
+    await ensureSystemChargeCategories(companyId, propertyId);
 
     const scopeOr = [
       { companyId: null }, // system-wide
-      { companyId, isSystem: true, propertyId: null }, // company-level system defaults
-      ...(propertyId ? [{ companyId, propertyId }] : [{ companyId }]),
+      ...(propertyId
+        ? [{ companyId, propertyId }]
+        : [{ companyId, isSystem: true, propertyId: null }, { companyId }]),
     ];
 
     const categories = await prisma.chargeCategory.findMany({
@@ -56,10 +64,15 @@ export class ChargeCategoriesService {
     });
     const countByCode = new Map(counts.map((c) => [c.category.toLowerCase(), c._count._all]));
 
-    return categories.map((cc) => ({
-      ...cc,
-      chargeTypeCount: countByCode.get(cc.code.toLowerCase()) ?? 0,
-    }));
+    return categories.map((cc) => {
+      const sysDef = getSystemChargeCategoryDef(cc.code);
+      return {
+        ...cc,
+        monthly: sysDef?.lockMonthly ? sysDef.monthly : cc.monthly,
+        isSystem: cc.isSystem || Boolean(sysDef),
+        chargeTypeCount: countByCode.get(cc.code.toLowerCase()) ?? 0,
+      };
+    });
   }
 
   async create(companyId: string, dto: Record<string, unknown>) {
@@ -71,8 +84,11 @@ export class ChargeCategoriesService {
       companyId,
       (dto.propertyId as string | null | undefined) ?? undefined,
     );
+    await ensureSystemChargeCategories(companyId, propertyId);
 
     await this.assertCodeAvailable(companyId, propertyId, code);
+
+    const sysDef = getSystemChargeCategoryDef(code);
 
     return prisma.chargeCategory.create({
       data: {
@@ -80,7 +96,8 @@ export class ChargeCategoriesService {
         propertyId,
         code,
         description: (dto.description as string) || null,
-        monthly: (dto.monthly as boolean) || false,
+        monthly: sysDef?.lockMonthly ? sysDef.monthly : (dto.monthly as boolean) || false,
+        isSystem: Boolean(sysDef),
       },
     });
   }
@@ -92,10 +109,12 @@ export class ChargeCategoriesService {
     });
     if (!category) throw AppError.notFound('Charge category');
 
-    // Prevent company users from modifying system-wide categories
-    if (!category.companyId || category.isSystem) {
+    if (!category.companyId) {
       throw new AppError(403, 'FORBIDDEN', 'System charge categories cannot be modified');
     }
+
+    const sysDef = getSystemChargeCategoryDef(category.code);
+    const isSystemCat = category.isSystem || Boolean(sysDef);
 
     const targetPropertyId =
       dto.propertyId !== undefined ? ((dto.propertyId as string) || null) : category.propertyId;
@@ -104,13 +123,23 @@ export class ChargeCategoriesService {
     if (dto.code !== undefined) {
       const code = ((dto.code as string) || '').trim();
       if (!code) throw new AppError(400, 'CODE_REQUIRED', 'Code is required');
-      await this.assertCodeAvailable(companyId, targetPropertyId, code, id);
-      updateData.code = code;
+      if (isSystemCat && code.toLowerCase() !== category.code.trim().toLowerCase()) {
+        throw new AppError(403, 'FORBIDDEN', 'System charge category code cannot be modified');
+      }
+      if (!isSystemCat) {
+        await this.assertCodeAvailable(companyId, targetPropertyId, code, id);
+        updateData.code = code;
+      }
     }
-    if (dto.propertyId !== undefined) updateData.propertyId = targetPropertyId;
+    if (!isSystemCat && dto.propertyId !== undefined) updateData.propertyId = targetPropertyId;
     if (dto.description !== undefined) updateData.description = dto.description || null;
-    if (dto.monthly !== undefined) updateData.monthly = dto.monthly;
-    if (dto.isActive !== undefined) updateData.isActive = dto.isActive;
+    if (sysDef?.lockMonthly) {
+      updateData.monthly = sysDef.monthly;
+    } else if (dto.monthly !== undefined) {
+      updateData.monthly = dto.monthly;
+    }
+    if (!isSystemCat && dto.isActive !== undefined) updateData.isActive = dto.isActive;
+    if (isSystemCat) updateData.isSystem = true;
 
     return prisma.chargeCategory.update({ where: { id }, data: updateData });
   }
@@ -122,8 +151,8 @@ export class ChargeCategoriesService {
     });
     if (!category) throw AppError.notFound('Charge category');
 
-    // Prevent deleting system-wide categories
-    if (!category.companyId || category.isSystem) {
+    // Prevent deleting system categories ('rent', 'deposit', or isSystem = true)
+    if (!category.companyId || category.isSystem || isSystemChargeCategoryCode(category.code)) {
       throw new AppError(403, 'FORBIDDEN', 'System charge categories cannot be deleted');
     }
 

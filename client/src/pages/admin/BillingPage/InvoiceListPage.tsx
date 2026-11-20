@@ -606,6 +606,8 @@ export default function InvoiceListPage() {
             <option value="">All Invoices</option>
             <option value="monthly">Monthly Invoice</option>
             <option value="rental">Rental Invoice</option>
+            <option value="deposit">Deposit Invoice</option>
+            <option value="other">Other</option>
           </select>
 
           <div className="billing-filter-date-range">

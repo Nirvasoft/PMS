@@ -3103,6 +3103,8 @@ model Invoice {
   externalRef        String    @default("0") @map("external_ref") @db.VarChar(100)
   invoiceType        String    @default("invoice") @map("invoice_type") @db.VarChar(50)
   // 'invoice'|'credit_note'|'debit_note'|'proforma'
+  billType           String?   @map("bill_type") @db.VarChar(50)
+  // 'monthly'|'rental'|'deposit'|'other'
   status             String    @default("draft") @db.VarChar(50)
   // 'draft'|'issued'|'sent'|'partially_paid'|'paid'|'overdue'|'void'|'disputed'
   invoiceDate        DateTime  @map("invoice_date") @db.Date
@@ -3176,6 +3178,7 @@ model Invoice {
   @@index([companyId, currency, createdAt(sort: Desc)])
   @@index([companyId, propertyId, currency, createdAt(sort: Desc)])
   @@index([companyId, status, createdAt(sort: Desc)])
+  @@index([companyId, billType])
   @@index([companyId, invoiceDate(sort: Desc)])
   @@map("invoices")
 }

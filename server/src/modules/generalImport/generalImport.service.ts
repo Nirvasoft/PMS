@@ -7,6 +7,11 @@ import { unitsService, metersService } from '../units/units.service';
 import { calcLeaseTermMonths, nextLeaseNumber } from '../leases/services/helpers';
 import { billingSchedulesService } from '../billing/billingSchedules.service';
 import { isV6ErpActive, isAccountingIntegrationActive } from '../integrations/v6Status.helper';
+import {
+  resolveChargeCategoryMap,
+  resolveInvoiceBillType,
+  type ChargeCategoryMeta,
+} from '../billing/chargeCategory.helper';
 
 export type ImportType = 'meter' | 'unit' | 'lease' | 'tenant' | 'lead' | 'invoice' | 'charge' | 'coa';
 export const IMPORT_TYPES: ImportType[] = ['meter', 'unit', 'lease', 'tenant', 'lead', 'invoice', 'charge', 'coa'];
@@ -1736,7 +1741,7 @@ export const generalImportService = {
         }),
         prisma.chargeType.findMany({
           where: { OR: [{ companyId }, { companyId: null }] },
-          select: { id: true, code: true, name: true, glAccountCode: true },
+          select: { id: true, code: true, name: true, category: true, glAccountCode: true },
         }),
         findUnitsByNumbers(fileUnitCandidates),
         prisma.fiscalPeriod.findMany({
@@ -1831,6 +1836,7 @@ export const generalImportService = {
           invoiceNumber: string;
           secondRef: string | null;
           invoiceType: string;
+          billType: string;
           status: string;
           invoiceDate: Date;
           dueDate: Date;
@@ -1864,6 +1870,15 @@ export const generalImportService = {
 
       const INVOICE_BATCH_SIZE = 500;
       let pendingBatch: PreparedInvoice[] = [];
+      const catMapByProp = new Map<string, Map<string, ChargeCategoryMeta>>();
+      const getCatMap = async (propId: string) => {
+        let m = catMapByProp.get(propId);
+        if (!m) {
+          m = await resolveChargeCategoryMap(companyId, propId);
+          catMapByProp.set(propId, m);
+        }
+        return m;
+      };
       const v6Active = await isV6ErpActive(companyId, propertyId);
       const accountingActive = await isAccountingIntegrationActive(companyId, propertyId);
 
@@ -2124,6 +2139,7 @@ export const generalImportService = {
               ctId = newCt.id;
               chargeTypeMap.set(ctKey, ctId);
               chargeTypeMap.set(newCt.code.toLowerCase(), ctId);
+              chargeTypeById.set(ctId, { id: newCt.id, code: newCt.code, name: newCt.name, category: newCt.category, glAccountCode: newCt.glAccountCode });
             }
 
             const qty = num(ld.quantity) || 1;
@@ -2196,6 +2212,10 @@ export const generalImportService = {
               invoiceNumber: invNum,
               secondRef,
               invoiceType: 'invoice',
+              billType: resolveInvoiceBillType(
+                await getCatMap(targetPropertyId),
+                lineItems.map((li) => chargeTypeById.get(li.chargeTypeId)),
+              ),
               status: finalStatus,
               invoiceDate: invDate,
               dueDate,

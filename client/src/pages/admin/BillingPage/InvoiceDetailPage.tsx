@@ -6,6 +6,7 @@ import {
   useGetInvoiceQuery, useVoidInvoiceMutation,
   useSendInvoiceMutation, useCreateCreditNoteMutation, useGetChargeTypesQuery,
   useGetCurrencyRatesQuery,
+  INVOICE_BILL_TYPE_LABELS,
 } from '../../../store/api/billingApi';
 import { useGetGlAccountsQuery } from '../../../store/api/glApi';
 import { List, FileText, Receipt, Ban, CreditCard, Send, Plus, Trash2, X, Banknote, History, ShieldAlert, Timer, UploadCloud, Table2 } from 'lucide-react';
@@ -345,6 +346,10 @@ export default function InvoiceDetailPage() {
         <div className="invoice-meta-item">
           <div className="imi-label">Due Date</div>
           <div className="imi-value">{format(new Date(inv.dueDate), 'MMM d, yyyy')}</div>
+        </div>
+        <div className="invoice-meta-item">
+          <div className="imi-label">Invoice Type</div>
+          <div className="imi-value">{(inv.billType && INVOICE_BILL_TYPE_LABELS[inv.billType]) || '—'}</div>
         </div>
         <div className="invoice-meta-item">
           <div className="imi-label">Second Ref.</div>
