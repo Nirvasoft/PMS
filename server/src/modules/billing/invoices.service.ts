@@ -1204,10 +1204,9 @@ export class InvoicesService {
     };
 
     const isRentLike = (ct: any) => {
-      const code = (ct.code || '').toUpperCase();
-      const cat = (ct.category || '').toLowerCase();
-      const name = (ct.name || '').toLowerCase();
-      return code === 'RENT' || cat === 'rent' || /^U\d{4}/i.test(code) || name === 'base rent' || name.includes('unit fee');
+      const code = (ct.code || '').trim().toUpperCase();
+      const cat = (ct.category || '').trim().toLowerCase();
+      return code === 'RENT' || cat === 'rent';
     };
 
     for (const ct of unitAndScheduleCts.filter(isRentLike)) {

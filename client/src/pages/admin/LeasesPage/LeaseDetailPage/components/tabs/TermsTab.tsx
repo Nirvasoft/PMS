@@ -28,11 +28,7 @@ export function TermsTab({ lease }: { lease: LeaseDetail }) {
               code !== 'RENT' &&
               code !== 'SECURITY_DEPOSIT' &&
               cat !== 'rent' &&
-              !/^U\d{4}/i.test(code) &&
-              name !== 'rent' &&
-              name !== 'base rent' &&
-              name !== 'security deposit' &&
-              !name.includes('unit fee')
+              name !== 'security deposit'
             );
           });
           return visibleCharges.length === 0 ? (

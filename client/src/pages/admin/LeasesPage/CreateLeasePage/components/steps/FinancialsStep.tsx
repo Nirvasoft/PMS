@@ -114,10 +114,9 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
       'leaseCharges',
       unitCharges
         .filter((c) => {
-          const code = (c.chargeType?.code || '').toUpperCase();
-          const cat = (c.chargeType?.category || '').toLowerCase();
-          const name = (c.chargeType?.name || '').toLowerCase();
-          return code !== 'RENT' && cat !== 'rent' && !/^U\d{4}/i.test(code) && name !== 'rent' && name !== 'base rent' && !name.includes('unit fee');
+          const code = (c.chargeType?.code || '').trim().toUpperCase();
+          const cat = (c.chargeType?.category || '').trim().toLowerCase();
+          return code !== 'RENT' && cat !== 'rent';
         })
         .map((c) => ({
           chargeTypeId: c.chargeType.id,

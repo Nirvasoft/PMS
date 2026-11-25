@@ -172,7 +172,6 @@ export class LeasesService {
         if (code === 'RENT' || code === 'SECURITY_DEPOSIT') return false;
         if (cat === 'rent') return false;
         if (name === 'security deposit' || desc.startsWith('security deposit')) return false;
-        if (/^U\d{4}/i.test(code) || /\b(base\s*rent|unit\s*fee)\b/i.test(name)) return false;
         return true;
       })
       .map(({ description: _desc, ...rest }: any) => rest);
@@ -357,10 +356,9 @@ export class LeasesService {
       const rentCtIds = new Set(
         cts
           .filter((ct) => {
-            const code = (ct.code || '').toUpperCase();
-            const cat = (ct.category || '').toLowerCase();
-            const name = (ct.name || '').toLowerCase();
-            return code === 'RENT' || cat === 'rent' || /^U\d{4}/i.test(code) || name === 'base rent' || name.includes('unit fee');
+            const code = (ct.code || '').trim().toUpperCase();
+            const cat = (ct.category || '').trim().toLowerCase();
+            return code === 'RENT' || cat === 'rent';
           })
           .map((ct) => ct.id),
       );
@@ -470,10 +468,9 @@ export class LeasesService {
         const rentCtIds = new Set(
           cts
             .filter((ct) => {
-              const code = (ct.code || '').toUpperCase();
-              const cat = (ct.category || '').toLowerCase();
-              const name = (ct.name || '').toLowerCase();
-              return code === 'RENT' || cat === 'rent' || /^U\d{4}/i.test(code) || name === 'base rent' || name.includes('unit fee');
+              const code = (ct.code || '').trim().toUpperCase();
+              const cat = (ct.category || '').trim().toLowerCase();
+              return code === 'RENT' || cat === 'rent';
             })
             .map((ct) => ct.id),
         );
