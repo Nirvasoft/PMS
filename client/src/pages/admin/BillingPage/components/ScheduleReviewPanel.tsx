@@ -276,6 +276,9 @@ export function ScheduleReviewPanel({ propertyId, currency, search, initialBillD
                           <td><div className="cell-primary">{tenantName(s.tenant)}</div></td>
                           <td>
                             <div className="cell-primary">{s.chargeType.name}</div>
+                            {s.description && s.description.trim() !== s.chargeType.name && (
+                              <div className="cell-secondary">{s.description}</div>
+                            )}
                             {s.alreadyInvoicedNumber && (
                               <div className="sched-row-warning"><AlertTriangle size={11} /> Already invoiced ({s.alreadyInvoicedNumber})</div>
                             )}

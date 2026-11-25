@@ -9,7 +9,7 @@ const EXPORT_COLUMNS: Partial<ExcelJS.Column>[] = [
   { header: 'Tenant',     key: 'tenant',     width: 20 },
   { header: 'P Unit',     key: 'unitCode',   width: 16 },
   { header: 'Meter Type', key: 'meterType',  width: 16 },
-  { header: 'Meter No',   key: 'meterNo',    width: 16 },
+  { header: 'Meter No',   key: 'meterNo',    width: 16, style: { numFmt: '@' } },
   { header: 'Category',   key: 'category',   width: 14 },
   { header: 'Rate',       key: 'rate',       width: 10 },
   { header: 'Start Unit', key: 'startUnit',  width: 12 },
@@ -43,8 +43,97 @@ const CATEGORY_LABELS: Record<string, string> = {
   lighting_telenor: 'Lighting(Telenor)',
 };
 
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+] as const;
+
 function toDateOnly(d: Date): string {
   return d.toISOString().split('T')[0];
+}
+
+function formatMonthYear(d: Date): string {
+  return `${MONTH_NAMES[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+
+/**
+ * Formats meter billing schedule description as:
+ *   "<ChargeName> @<UnitNo> <Month Year>" (e.g. "MEPE @MB1-OCG9 April 2026")
+ * where Month Year is derived from the record's Start Date.
+ */
+function buildMeterScheduleDescription(
+  chargeName: string,
+  unitNumber: string | null | undefined,
+  startDate: Date,
+): string {
+  const cleanCharge = (chargeName || '').trim();
+  const cleanUnit = (unitNumber || '').trim();
+  const monthYear = formatMonthYear(startDate);
+  return [cleanCharge, cleanUnit ? `@${cleanUnit}` : '', monthYear].filter(Boolean).join(' ');
+}
+
+interface MeterSetupChargeInfo {
+  meterNo: string;
+  chargeTypeId: string | null;
+  chargeType: {
+    id: string;
+    name: string;
+    code: string;
+    departmentCenterId: string | null;
+    costCenterId: string | null;
+    glAccountCode: string | null;
+  } | null;
+}
+
+async function buildMeterSetupLookup(propertyId: string, companyId: string) {
+  const setups = await prisma.meterSetup.findMany({
+    where: { propertyId, companyId, isActive: true },
+    select: {
+      meterNo: true,
+      chargeTypeId: true,
+      chargeType: {
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          departmentCenterId: true,
+          costCenterId: true,
+          glAccountCode: true,
+        },
+      },
+    },
+    orderBy: [{ updatedAt: 'desc' }],
+  });
+
+  const exactMap = new Map<string, MeterSetupChargeInfo>();
+  const strippedMap = new Map<string, MeterSetupChargeInfo>();
+
+  const register = (map: Map<string, MeterSetupChargeInfo>, key: string, item: MeterSetupChargeInfo) => {
+    if (!key) return;
+    const prev = map.get(key);
+    // Prefer an entry that actually has a chargeType linked from Meter Setup
+    if (!prev || (!prev.chargeTypeId && item.chargeTypeId)) {
+      map.set(key, item);
+    }
+  };
+
+  for (const s of setups) {
+    const key = s.meterNo.trim().toLowerCase();
+    register(exactMap, key, s);
+    const stripped = key.replace(/^0+/, '');
+    if (stripped && stripped !== key) {
+      register(strippedMap, stripped, s);
+    }
+  }
+
+  return (meterNo: string): MeterSetupChargeInfo | null => {
+    const key = String(meterNo ?? '').trim().toLowerCase();
+    if (!key) return null;
+    const exact = exactMap.get(key);
+    if (exact) return exact;
+    const stripped = key.replace(/^0+/, '');
+    return stripped ? (strippedMap.get(stripped) ?? null) : null;
+  };
 }
 
 /** "YYYY-MM-DD" -> a real UTC-midnight Date, so the cell's `m/d/yyyy` numFmt renders it correctly. */
@@ -331,6 +420,7 @@ class MeterRecordsService {
    */
   async previewExcel(propertyId: string, companyId: string, fileBuffer: Buffer) {
     const rows = await parseImportRows(propertyId, companyId, fileBuffer);
+    const findMeterSetup = await buildMeterSetupLookup(propertyId, companyId);
 
     return Promise.all(rows.map(async (r) => {
       const unit = await prisma.unit.findUnique({ where: { id: r.unitId as string }, select: { unitNumber: true } });
@@ -339,6 +429,8 @@ class MeterRecordsService {
         orderBy: { startDate: 'desc' },
         select: { tenantId: true },
       });
+      const meterSetup = findMeterSetup(r.meterNo);
+      const chargeName = meterSetup?.chargeType?.name || resolveChargeTypeCode(r.meterType, r.category);
 
       // Show the sheet's own Tenant Code; fall back to the unit's currently active lease's
       // tenant when the cell was left blank (informational only — not what gets stored).
@@ -353,6 +445,8 @@ class MeterRecordsService {
         unitCode: unit?.unitNumber ?? '',
         meterType: r.meterType,
         category: r.category,
+        chargeTypeName: chargeName,
+        description: buildMeterScheduleDescription(chargeName, unit?.unitNumber, r.startDate as Date),
         rate: Number(r.rate),
         startUnit: Number(r.startUnit),
         endUnit: Number(r.endUnit),
@@ -408,6 +502,12 @@ class MeterRecordsService {
       await prisma.meterRecordList.createMany({ data: rows });
     }
 
+    const [findMeterSetup, propertyUnits] = await Promise.all([
+      buildMeterSetupLookup(propertyId, companyId),
+      prisma.unit.findMany({ where: { propertyId }, select: { id: true, unitNumber: true } }),
+    ]);
+    const unitNumberById = new Map(propertyUnits.map((u) => [u.id, u.unitNumber]));
+
     let billingSchedulesCreated = 0;
     let skipped = 0;
     for (const r of rows) {
@@ -416,29 +516,24 @@ class MeterRecordsService {
         orderBy: { startDate: 'desc' },
         select: { id: true, tenantId: true },
       });
+      if (!lease) { skipped++; continue; }
+
       const meterType = r.meterType as string;
       const category = r.category as string;
-      const meterSetup = lease
-        ? await prisma.meterSetup.findFirst({
-            where: {
-              propertyId,
-              companyId,
-              meterNo: { equals: String(r.meterNo ?? '').trim(), mode: 'insensitive' },
-              isActive: true,
-            },
-            select: { chargeTypeId: true },
-          })
-        : null;
-      const chargeTypeId = lease
-        ? (meterSetup?.chargeTypeId || await resolveChargeTypeId(companyId, resolveChargeTypeCode(meterType, category)))
-        : null;
+      const meterSetup = findMeterSetup(r.meterNo);
+      const chargeTypeId =
+        meterSetup?.chargeTypeId ||
+        (await resolveChargeTypeId(companyId, resolveChargeTypeCode(meterType, category)));
 
-      if (!lease || !chargeTypeId) { skipped++; continue; }
+      if (!chargeTypeId) { skipped++; continue; }
 
-      const chargeType = await prisma.chargeType.findUnique({
-        where: { id: chargeTypeId },
-        select: { departmentCenterId: true, costCenterId: true, glAccountCode: true },
-      });
+      const chargeType =
+        meterSetup?.chargeType && meterSetup.chargeType.id === chargeTypeId
+          ? meterSetup.chargeType
+          : await prisma.chargeType.findUnique({
+              where: { id: chargeTypeId },
+              select: { id: true, name: true, code: true, departmentCenterId: true, costCenterId: true, glAccountCode: true },
+            });
       let departmentCenterId = chargeType?.departmentCenterId ?? null;
       let costCenterId = chargeType?.costCenterId ?? null;
       if ((!departmentCenterId || !costCenterId) && chargeType?.glAccountCode?.trim()) {
@@ -473,6 +568,9 @@ class MeterRecordsService {
       const endDateIso = (r.endDate as Date).toISOString();
       const todayYmd = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Yangon' }).format(new Date());
       const importDateIso = isoToUtcDate(todayYmd).toISOString();
+      const unitNumber = unitNumberById.get(r.unitId as string) ?? '';
+      const chargeName = chargeType?.name || meterType;
+      const description = buildMeterScheduleDescription(chargeName, unitNumber, r.startDate as Date);
 
       await billingSchedulesService.create(companyId, {
         propertyId,
@@ -482,7 +580,7 @@ class MeterRecordsService {
         departmentCenterId,
         costCenterId,
         chargeTypeId,
-        description: `${meterType} — ${r.meterNo} (${toDateOnly(r.startDate as Date)} to ${toDateOnly(r.endDate as Date)})`,
+        description,
         amount: Number(r.rate),
         quantity,
         currency: property.currency,

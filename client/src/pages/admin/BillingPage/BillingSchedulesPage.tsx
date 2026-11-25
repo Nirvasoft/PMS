@@ -613,6 +613,9 @@ export default function BillingSchedulesPage() {
                           </span>
                         )}
                       </div>
+                      {s.description && s.description.trim() !== s.chargeType.name && (
+                        <div className="cell-secondary">{s.description}</div>
+                      )}
                     </td>
                     <td>
                       <div className="cell-primary">{getTenantName(s)}</div>

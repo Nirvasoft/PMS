@@ -1553,6 +1553,14 @@ export class InvoicesService {
       lineInputs.map((l) => l.schedule.chargeType),
     );
 
+    const scheduleNotes = Array.from(
+      new Set(
+        lineInputs
+          .map((l) => (l.schedule.description || '').trim())
+          .filter(Boolean),
+      ),
+    ).join(', ') || null;
+
     const invoice = await prisma.invoice.create({
       data: {
         companyId: first.companyId,
@@ -1577,12 +1585,13 @@ export class InvoicesService {
         currency: first.currency,
         currencyRate: scheduleCurrencyRate,
         gracePeriodDays: penaltyConfig?.gracePeriodDays || 0,
+        notes: scheduleNotes,
         lines: {
           create: lineInputs.map((l, idx) => {
             const quantity = Number(l.schedule.quantity) || 1;
             return {
               chargeTypeId: l.schedule.chargeTypeId,
-              description: l.schedule.description || l.schedule.chargeType.name,
+              description: l.schedule.description?.trim() || l.schedule.chargeType.name,
               quantity,
               unitPrice: quantity ? l.amount / quantity : l.amount,
               amount: l.amount,
