@@ -9,6 +9,7 @@ interface ApiResponse<T> {
 export interface ImportMeterRecordsResult {
   imported: number;
   billingSchedulesCreated: number;
+  billingSchedulesUpdated: number;
   skipped: number;
   duplicatesSkipped: number;
 }

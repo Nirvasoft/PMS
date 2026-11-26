@@ -3048,6 +3048,7 @@ model BillingSchedule {
   departmentCenterId String?   @map("department_center_id") @db.Uuid
   costCenterId       String?   @map("cost_center_id") @db.Uuid
   chargeTypeId       String    @map("charge_type_id") @db.Uuid
+  meterNo            String?   @map("meter_no") @db.VarChar(50)
   description        String?   @db.VarChar(500)
   amount             Decimal   @db.Decimal(15, 2)
   quantity           Decimal   @default(1) @db.Decimal(10, 4)
@@ -3086,6 +3087,7 @@ model BillingSchedule {
   @@index([departmentCenterId])
   @@index([costCenterId])
   @@index([status])
+  @@index([propertyId, meterNo])
   @@map("billing_schedules")
 }
 

@@ -160,6 +160,7 @@ export class BillingSchedulesService {
         departmentCenterId: (dto.departmentCenterId as string) || null,
         costCenterId: (dto.costCenterId as string) || null,
         chargeTypeId: dto.chargeTypeId as string,
+        meterNo: ((dto.meterNo as string) || '').trim() || null,
         description: (dto.description as string) || null,
         amount: dto.amount as number,
         quantity: (dto.quantity as number) ?? 1,

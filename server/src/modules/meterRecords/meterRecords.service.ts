@@ -468,64 +468,146 @@ class MeterRecordsService {
    * cycle. The schedule's start/end date are both the row's Bill Date, so it self-completes
    * after generating exactly one invoice rather than recurring with stale readings.
    */
-  async importExcel(propertyId: string, companyId: string, userId: string, fileBuffer: Buffer): Promise<{ imported: number; billingSchedulesCreated: number; skipped: number; duplicatesSkipped: number }> {
+  async importExcel(
+    propertyId: string,
+    companyId: string,
+    userId: string,
+    fileBuffer: Buffer,
+  ): Promise<{
+    imported: number;
+    billingSchedulesCreated: number;
+    billingSchedulesUpdated: number;
+    skipped: number;
+    duplicatesSkipped: number;
+  }> {
     const property = await prisma.property.findFirst({ where: { id: propertyId, companyId } });
     if (!property) throw AppError.notFound('Property');
 
     const parsedRows = await parseImportRows(propertyId, companyId, fileBuffer);
 
-    // A row is a duplicate of one already on record for this property (re-imports of the
-    // same sheet), or of another row in this same sheet, when its Meter No + Start Date +
-    // End Date all match — skip it rather than writing another copy.
-    const existing = await prisma.meterRecordList.findMany({
-      where: { companyId, propertyId },
-      select: { meterNo: true, startDate: true, endDate: true },
-    });
-    const dupeKey = (meterNo: string, startDate: Date, endDate: Date) => `${meterNo}|${toDateOnly(startDate)}|${toDateOnly(endDate)}`;
-    const existingKeys = new Set(existing.map((e) => dupeKey(e.meterNo, e.startDate, e.endDate)));
+    const [findMeterSetup, propertyUnits, existingHistory, existingMeterSchedules] = await Promise.all([
+      buildMeterSetupLookup(propertyId, companyId),
+      prisma.unit.findMany({ where: { propertyId }, select: { id: true, unitNumber: true } }),
+      prisma.meterRecordList.findMany({
+        where: { companyId, propertyId },
+        select: { meterNo: true, startDate: true, endDate: true },
+      }),
+      prisma.billingSchedule.findMany({
+        where: {
+          companyId,
+          propertyId,
+          meterNo: { not: null },
+          status: { not: 'cancelled' },
+        },
+        select: { id: true, meterNo: true, status: true, startDate: true, endDate: true },
+        orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+      }),
+    ]);
+
+    const unitNumberById = new Map(propertyUnits.map((u) => [u.id, u.unitNumber]));
+    const canonicalMeterNoFor = (raw: string): string => {
+      const setup = findMeterSetup(raw);
+      return (setup?.meterNo || String(raw ?? '')).trim();
+    };
+
+    // A row is already in meter_record_list history when its Meter No + Start Date + End Date match.
+    // Never update existing meter_record_list rows — append only genuinely new period rows.
+    const dupeKey = (meterNo: string, startDate: Date, endDate: Date) =>
+      `${canonicalMeterNoFor(meterNo).toLowerCase()}|${toDateOnly(startDate)}|${toDateOnly(endDate)}`;
+    const existingKeys = new Set(existingHistory.map((e) => dupeKey(e.meterNo, e.startDate, e.endDate)));
 
     const seenInSheet = new Set<string>();
     let duplicatesSkipped = 0;
-    const dedupedRows = parsedRows.filter((r) => {
+    const newHistoryRows: Prisma.MeterRecordListCreateManyInput[] = [];
+    const duplicateHistoryRows: Array<Omit<Prisma.MeterRecordListCreateManyInput, 'companyId' | 'propertyId'>> = [];
+
+    for (const r of parsedRows) {
       const key = dupeKey(r.meterNo as string, r.startDate as Date, r.endDate as Date);
-      if (existingKeys.has(key) || seenInSheet.has(key)) {
+      if (seenInSheet.has(key)) {
         duplicatesSkipped++;
-        return false;
+        continue;
       }
       seenInSheet.add(key);
-      return true;
-    });
-
-    const rows: Prisma.MeterRecordListCreateManyInput[] = dedupedRows.map((r) => ({ ...r, companyId, propertyId }));
-
-    if (rows.length > 0) {
-      await prisma.meterRecordList.createMany({ data: rows });
+      if (existingKeys.has(key)) {
+        duplicatesSkipped++;
+        duplicateHistoryRows.push(r);
+      } else {
+        newHistoryRows.push({ ...r, companyId, propertyId });
+      }
     }
 
-    const [findMeterSetup, propertyUnits] = await Promise.all([
-      buildMeterSetupLookup(propertyId, companyId),
-      prisma.unit.findMany({ where: { propertyId }, select: { id: true, unitNumber: true } }),
-    ]);
-    const unitNumberById = new Map(propertyUnits.map((u) => [u.id, u.unitNumber]));
+    if (newHistoryRows.length > 0) {
+      await prisma.meterRecordList.createMany({ data: newHistoryRows });
+    }
+
+    // Index existing non-cancelled meter billing schedules by meterNo (exact + leading-zero tolerant)
+    type TrackedSchedule = { id: string; meterNo: string; status: string; startDate: Date; endDate: Date | null };
+    const schedExactMap = new Map<string, TrackedSchedule>();
+    const schedStrippedMap = new Map<string, TrackedSchedule>();
+    const registerTrackedSchedule = (s: TrackedSchedule, overwrite = false) => {
+      const key = s.meterNo.trim().toLowerCase();
+      if (!key) return;
+      if (overwrite || !schedExactMap.has(key)) schedExactMap.set(key, s);
+      const stripped = key.replace(/^0+/, '');
+      if (stripped && stripped !== key && (overwrite || !schedStrippedMap.has(stripped))) {
+        schedStrippedMap.set(stripped, s);
+      }
+    };
+    for (const s of existingMeterSchedules) {
+      if (s.meterNo) {
+        registerTrackedSchedule({
+          id: s.id,
+          meterNo: s.meterNo,
+          status: s.status,
+          startDate: s.startDate,
+          endDate: s.endDate,
+        });
+      }
+    }
+    const findExistingMeterSchedule = (meterNo: string): TrackedSchedule | null => {
+      const key = String(meterNo ?? '').trim().toLowerCase();
+      if (!key) return null;
+      const exact = schedExactMap.get(key);
+      if (exact) return exact;
+      const stripped = key.replace(/^0+/, '');
+      return stripped ? (schedStrippedMap.get(stripped) ?? null) : null;
+    };
 
     let billingSchedulesCreated = 0;
+    let billingSchedulesUpdated = 0;
     let skipped = 0;
-    for (const r of rows) {
+
+    const scheduleRows: Array<{
+      row: Omit<Prisma.MeterRecordListCreateManyInput, 'companyId' | 'propertyId'>;
+      isDuplicateHistory: boolean;
+    }> = [
+      ...newHistoryRows.map((row) => ({ row, isDuplicateHistory: false })),
+      ...duplicateHistoryRows.map((row) => ({ row, isDuplicateHistory: true })),
+    ];
+
+    for (const { row: r, isDuplicateHistory } of scheduleRows) {
       const lease = await prisma.lease.findFirst({
         where: { unitId: r.unitId as string, status: 'active' },
         orderBy: { startDate: 'desc' },
         select: { id: true, tenantId: true },
       });
-      if (!lease) { skipped++; continue; }
+      if (!lease) {
+        if (!isDuplicateHistory) skipped++;
+        continue;
+      }
 
       const meterType = r.meterType as string;
       const category = r.category as string;
       const meterSetup = findMeterSetup(r.meterNo);
+      const canonicalMeterNo = (meterSetup?.meterNo || String(r.meterNo ?? '')).trim();
       const chargeTypeId =
         meterSetup?.chargeTypeId ||
         (await resolveChargeTypeId(companyId, resolveChargeTypeCode(meterType, category)));
 
-      if (!chargeTypeId) { skipped++; continue; }
+      if (!chargeTypeId) {
+        if (!isDuplicateHistory) skipped++;
+        continue;
+      }
 
       const chargeType =
         meterSetup?.chargeType && meterSetup.chargeType.id === chargeTypeId
@@ -564,36 +646,107 @@ class MeterRecordsService {
       }
 
       const quantity = Number(r.endUnit) - Number(r.startUnit);
-      const startDateIso = (r.startDate as Date).toISOString();
-      const endDateIso = (r.endDate as Date).toISOString();
-      const billDateIso = (r.billDate as Date).toISOString();
+      const startDate = r.startDate as Date;
+      const endDate = r.endDate as Date;
+      const billDate = r.billDate as Date;
       const unitNumber = unitNumberById.get(r.unitId as string) ?? '';
       const chargeName = chargeType?.name || meterType;
-      const description = buildMeterScheduleDescription(chargeName, unitNumber, r.startDate as Date);
+      const description = buildMeterScheduleDescription(chargeName, unitNumber, startDate);
 
-      await billingSchedulesService.create(companyId, {
-        propertyId,
-        unitId: r.unitId,
-        tenantId: lease.tenantId,
-        leaseId: lease.id,
-        departmentCenterId,
-        costCenterId,
-        chargeTypeId,
-        description,
-        amount: Number(r.rate),
-        quantity,
-        currency: property.currency,
-        billingCycle: property.billingCycle,
-        billingDay: property.billingDay,
-        startDate: startDateIso,
-        endDate: endDateIso,
-        nextBillingDate: billDateIso,
-        isProrated: false,
-      }, userId);
-      billingSchedulesCreated++;
+      const existingSchedule =
+        findExistingMeterSchedule(canonicalMeterNo) ?? findExistingMeterSchedule(r.meterNo);
+
+      if (existingSchedule) {
+        if (isDuplicateHistory) {
+          // For re-imports of an already-recorded period:
+          // - Never re-open a schedule already invoiced/completed
+          // - Only update when the schedule still represents this same unbilled period
+          const samePeriod =
+            toDateOnly(existingSchedule.startDate) === toDateOnly(startDate) &&
+            Boolean(existingSchedule.endDate && toDateOnly(existingSchedule.endDate) === toDateOnly(endDate));
+          if (existingSchedule.status === 'completed' || !samePeriod) {
+            continue;
+          }
+        }
+
+        const updated = await prisma.billingSchedule.update({
+          where: { id: existingSchedule.id },
+          data: {
+            unitId: r.unitId as string,
+            tenantId: lease.tenantId,
+            leaseId: lease.id,
+            departmentCenterId,
+            costCenterId,
+            chargeTypeId,
+            meterNo: canonicalMeterNo,
+            description,
+            amount: Number(r.rate),
+            quantity,
+            currency: property.currency,
+            billingCycle: property.billingCycle,
+            billingDay: property.billingDay,
+            startDate,
+            endDate,
+            nextBillingDate: billDate,
+            isProrated: false,
+            prorateStart: null,
+            status: 'active',
+          },
+          select: { id: true, meterNo: true, status: true, startDate: true, endDate: true },
+        });
+        registerTrackedSchedule(
+          {
+            id: updated.id,
+            meterNo: updated.meterNo || canonicalMeterNo,
+            status: updated.status,
+            startDate: updated.startDate,
+            endDate: updated.endDate,
+          },
+          true,
+        );
+        billingSchedulesUpdated++;
+      } else {
+        const created = await billingSchedulesService.create(companyId, {
+          propertyId,
+          unitId: r.unitId,
+          tenantId: lease.tenantId,
+          leaseId: lease.id,
+          departmentCenterId,
+          costCenterId,
+          chargeTypeId,
+          meterNo: canonicalMeterNo,
+          description,
+          amount: Number(r.rate),
+          quantity,
+          currency: property.currency,
+          billingCycle: property.billingCycle,
+          billingDay: property.billingDay,
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString(),
+          nextBillingDate: billDate.toISOString(),
+          isProrated: false,
+        }, userId);
+        registerTrackedSchedule(
+          {
+            id: created.id,
+            meterNo: canonicalMeterNo,
+            status: created.status,
+            startDate: created.startDate,
+            endDate: created.endDate,
+          },
+          true,
+        );
+        billingSchedulesCreated++;
+      }
     }
 
-    return { imported: rows.length, billingSchedulesCreated, skipped, duplicatesSkipped };
+    return {
+      imported: newHistoryRows.length,
+      billingSchedulesCreated,
+      billingSchedulesUpdated,
+      skipped,
+      duplicatesSkipped,
+    };
   }
 }
 

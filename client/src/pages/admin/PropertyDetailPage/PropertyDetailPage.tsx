@@ -1936,16 +1936,20 @@ function MeterRecordsTab({ propertyId }: { propertyId: string }) {
     formData.append('file', pendingFile);
     try {
       const result = await importRecords({ propertyId, formData }).unwrap();
-      const { imported, billingSchedulesCreated, skipped, duplicatesSkipped } = result.data;
+      const { imported, billingSchedulesCreated, billingSchedulesUpdated = 0, skipped, duplicatesSkipped } = result.data;
 
-      if (imported === 0 && duplicatesSkipped > 0) {
-        // Every row in the sheet was already on record — nothing new was written.
-        toast.error(`All ${duplicatesSkipped} row${duplicatesSkipped === 1 ? '' : 's'} already exist (same Meter No, Start Date & End Date) — nothing imported`);
+      if (imported === 0 && billingSchedulesCreated === 0 && billingSchedulesUpdated === 0 && duplicatesSkipped > 0) {
+        // Every row in the sheet was already on record and no unbilled schedule needed updating.
+        toast.error(`All ${duplicatesSkipped} row${duplicatesSkipped === 1 ? '' : 's'} already exist (same Meter No, Start Date & End Date) — nothing updated`);
       } else {
-        let msg = `Imported ${imported} meter record${imported === 1 ? '' : 's'}, created ${billingSchedulesCreated} billing schedule${billingSchedulesCreated === 1 ? '' : 's'}`;
+        const parts: string[] = [];
+        if (imported > 0) parts.push(`Imported ${imported} meter record${imported === 1 ? '' : 's'}`);
+        if (billingSchedulesCreated > 0) parts.push(`created ${billingSchedulesCreated} schedule${billingSchedulesCreated === 1 ? '' : 's'}`);
+        if (billingSchedulesUpdated > 0) parts.push(`updated ${billingSchedulesUpdated} schedule${billingSchedulesUpdated === 1 ? '' : 's'}`);
+        let msg = parts.length > 0 ? parts.join(', ') : 'Meter records processed';
         const notes: string[] = [];
         if (skipped > 0) notes.push(`${skipped} skipped — no active tenant`);
-        if (duplicatesSkipped > 0) notes.push(`${duplicatesSkipped} duplicate${duplicatesSkipped === 1 ? '' : 's'} skipped`);
+        if (duplicatesSkipped > 0) notes.push(`${duplicatesSkipped} existing history row${duplicatesSkipped === 1 ? '' : 's'} unchanged`);
         if (notes.length > 0) msg += ` (${notes.join(', ')})`;
         toast.success(msg);
       }
