@@ -109,7 +109,7 @@ export function openMeterRecordReportPreview(
   let tableHtml = '';
 
   if (reportType === 'detail') {
-    const colCountBeforeTotals = showPropCol ? 12 : 11;
+    const colCountBeforeTotals = showPropCol ? 10 : 9;
     const rowsHtml = records
       .map((r, idx) => {
         const periodStr = `${fmtDate(r.startDate)} – ${fmtDate(r.endDate)}`;
@@ -125,8 +125,6 @@ export function openMeterRecordReportPreview(
             <td class="nowrap"><strong>${escapeHtml(r.meterNo)}</strong></td>
             <td class="nowrap">${escapeHtml(r.meterType || '—')}</td>
             <td class="nowrap">${escapeHtml(r.category || '—')}</td>
-            <td class="num">${escapeHtml(fmtQty(r.startUnit))}</td>
-            <td class="num">${escapeHtml(fmtQty(r.endUnit))}</td>
             <td class="num"><strong>${escapeHtml(fmtQty(r.totalUnit))}</strong></td>
             <td class="num">${escapeHtml(fmtRate(r.rate))}</td>
             <td class="num"><strong>${escapeHtml(fmtMoney(r.amount))}</strong></td>
@@ -150,8 +148,6 @@ export function openMeterRecordReportPreview(
             <th>Meter No</th>
             <th>Meter Type</th>
             <th>Category</th>
-            <th class="num">Start Unit</th>
-            <th class="num">End Unit</th>
             <th class="num">Total Unit</th>
             <th class="num">Rate</th>
             <th class="num">Amount${singleCurrency ? ` (${escapeHtml(singleCurrency)})` : ''}</th>
