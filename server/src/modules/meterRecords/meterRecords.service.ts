@@ -566,8 +566,7 @@ class MeterRecordsService {
       const quantity = Number(r.endUnit) - Number(r.startUnit);
       const startDateIso = (r.startDate as Date).toISOString();
       const endDateIso = (r.endDate as Date).toISOString();
-      const todayYmd = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Yangon' }).format(new Date());
-      const importDateIso = isoToUtcDate(todayYmd).toISOString();
+      const billDateIso = (r.billDate as Date).toISOString();
       const unitNumber = unitNumberById.get(r.unitId as string) ?? '';
       const chargeName = chargeType?.name || meterType;
       const description = buildMeterScheduleDescription(chargeName, unitNumber, r.startDate as Date);
@@ -588,7 +587,7 @@ class MeterRecordsService {
         billingDay: property.billingDay,
         startDate: startDateIso,
         endDate: endDateIso,
-        nextBillingDate: importDateIso,
+        nextBillingDate: billDateIso,
         isProrated: false,
       }, userId);
       billingSchedulesCreated++;
