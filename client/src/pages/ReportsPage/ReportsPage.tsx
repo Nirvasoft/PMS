@@ -8,6 +8,7 @@ import {
   ClipboardList,
   Users2,
   Building2,
+  Zap,
   AlertTriangle,
   RotateCcw,
 } from 'lucide-react';
@@ -20,6 +21,10 @@ import {
   useLazyGetLeasesQuery,
   useLazyGetLeaseQuery,
 } from '../../store/api/leasesApi';
+import {
+  useGetMeterRecordReportFiltersQuery,
+  useLazyGetMeterRecordsReportQuery,
+} from '../../store/api/meterRecordsApi';
 import { useGetUsersQuery } from '../../store/api/usersApi';
 import { useGetLeadsQuery } from '../../store/api/crmApi';
 import { useSelectedPropertyFilter } from '../../hooks/useSelectedPropertyId';
@@ -41,6 +46,10 @@ import {
   type UnitReportType,
   type UnitReportEntry,
 } from '../admin/LeasesPage/utils/leasePrintPreview';
+import {
+  openMeterRecordReportPreview,
+  type MeterRecordReportType,
+} from './utils/meterRecordPrintPreview';
 import '../admin/BillingPage/BillingPage.css';
 import './ReportsPage.css';
 
@@ -116,12 +125,14 @@ const AVAILABILITY_WINDOW_OPTIONS = [
 export default function ReportsPage({
   mode,
 }: {
-  mode?: 'invoice' | 'lease' | 'tenant' | 'unit';
+  mode?: 'invoice' | 'lease' | 'tenant' | 'unit' | 'meterRecord';
 }) {
   const location = useLocation();
-  const activeMode: 'invoice' | 'lease' | 'tenant' | 'unit' =
+  const activeMode: 'invoice' | 'lease' | 'tenant' | 'unit' | 'meterRecord' =
     mode ??
-    (location.pathname.includes('/units')
+    (location.pathname.includes('/meter-records')
+      ? 'meterRecord'
+      : location.pathname.includes('/units')
       ? 'unit'
       : location.pathname.includes('/tenants')
       ? 'tenant'
@@ -142,6 +153,8 @@ export default function ReportsPage({
               <ClipboardList size={22} />
             ) : activeMode === 'tenant' ? (
               <Users2 size={22} />
+            ) : activeMode === 'meterRecord' ? (
+              <Zap size={22} />
             ) : (
               <Building2 size={22} />
             )}
@@ -154,6 +167,8 @@ export default function ReportsPage({
                 ? 'Lease Report'
                 : activeMode === 'tenant'
                 ? 'Tenant Unit & Lease History Report'
+                : activeMode === 'meterRecord'
+                ? 'Meter Record Report'
                 : 'Unit Occupancy & Lease History Report'}
             </h1>
             <p>
@@ -163,6 +178,8 @@ export default function ReportsPage({
                 ? 'Lease Summary, Detail, Form & Preview Report'
                 : activeMode === 'tenant'
                 ? 'Tenant Current Owned & Previous Owned Units, Lease Numbers, Dates & Status Report'
+                : activeMode === 'meterRecord'
+                ? 'Meter Readings, Usage, Rate & Amount Detail and Summary Report'
                 : 'Unit No, Shop Name, Floor, Area, Lease Numbers, Start & End Dates & Status Report'}
             </p>
           </div>
@@ -175,6 +192,8 @@ export default function ReportsPage({
         <LeaseReportForm activeProperty={activeProperty} />
       ) : activeMode === 'tenant' ? (
         <TenantReportForm activeProperty={activeProperty} />
+      ) : activeMode === 'meterRecord' ? (
+        <MeterRecordReportForm activeProperty={activeProperty} />
       ) : (
         <UnitReportForm activeProperty={activeProperty} />
       )}
@@ -2415,5 +2434,383 @@ function UnitReportForm({ activeProperty }: { activeProperty: string }) {
     </div>
   );
 }
+
+// ═══════════════════════════════════════════════════
+// 5. METER RECORD REPORT FORM (3-COLUMN CLEAN GRID)
+// ═══════════════════════════════════════════════════
+
+function MeterRecordReportForm({ activeProperty }: { activeProperty: string }) {
+  const { data: filterMetaResp } = useGetMeterRecordReportFiltersQuery(
+    activeProperty ? { propertyId: activeProperty } : undefined,
+  );
+  const filterMeta = filterMetaResp?.data;
+
+  const [triggerFetchMeterRecords, { isFetching: generatingReport }] =
+    useLazyGetMeterRecordsReportQuery();
+
+  const [reportType, setReportType] = useState<MeterRecordReportType>('detail');
+  const [billDateFrom, setBillDateFrom] = useState<string>('');
+  const [billDateTo, setBillDateTo] = useState<string>('');
+  const [startDateFrom, setStartDateFrom] = useState<string>('');
+  const [endDateTo, setEndDateTo] = useState<string>('');
+  const [floor, setFloor] = useState<string>('');
+  const [unitNumber, setUnitNumber] = useState<string>('');
+  const [tenantCode, setTenantCode] = useState<string>('');
+  const [meterType, setMeterType] = useState<string>('');
+  const [category, setCategory] = useState<string>('');
+  const [meterNo, setMeterNo] = useState<string>('');
+  const [sortBy, setSortBy] = useState<string>('billDate');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [validationError, setValidationError] = useState<string>('');
+
+  // Reset floor/unit selection when switching property scope
+  useEffect(() => {
+    setFloor('');
+    setUnitNumber('');
+  }, [activeProperty]);
+
+  const floorOptions = useMemo(
+    () => filterMeta?.floors || [],
+    [filterMeta?.floors],
+  );
+
+  const unitOptions = useMemo(() => {
+    const list = filterMeta?.units || [];
+    const set = new Set<string>();
+    list.forEach((u) => {
+      if (floor && u.floor !== floor) return;
+      if (u.unitNumber) set.add(u.unitNumber);
+    });
+    return Array.from(set).sort((a, b) =>
+      a.localeCompare(b, undefined, { numeric: true }),
+    );
+  }, [filterMeta?.units, floor]);
+
+  const tenantComboOptions = useMemo(
+    () =>
+      (filterMeta?.tenants || []).map((t) => ({
+        id: t.code,
+        label: t.code,
+        sublabel: t.name && t.name !== t.code ? t.name : undefined,
+      })),
+    [filterMeta?.tenants],
+  );
+
+  const selectedTenantLabel = useMemo(() => {
+    if (!tenantCode) return undefined;
+    const found = (filterMeta?.tenants || []).find(
+      (t) => t.code.toLowerCase() === tenantCode.toLowerCase(),
+    );
+    if (!found) return tenantCode;
+    return found.name && found.name !== found.code
+      ? `${found.code} — ${found.name}`
+      : found.code;
+  }, [filterMeta?.tenants, tenantCode]);
+
+  const meterTypeOptions = useMemo(
+    () => filterMeta?.meterTypes || [],
+    [filterMeta?.meterTypes],
+  );
+
+  const categoryOptions = useMemo(
+    () => filterMeta?.categories || [],
+    [filterMeta?.categories],
+  );
+
+  const handleResetFilters = () => {
+    setReportType('detail');
+    setBillDateFrom('');
+    setBillDateTo('');
+    setStartDateFrom('');
+    setEndDateTo('');
+    setFloor('');
+    setUnitNumber('');
+    setTenantCode('');
+    setMeterType('');
+    setCategory('');
+    setMeterNo('');
+    setSortBy('billDate');
+    setSortOrder('desc');
+    setValidationError('');
+  };
+
+  const handleGenerateReport = async () => {
+    setValidationError('');
+
+    if (billDateFrom && billDateTo && billDateFrom > billDateTo) {
+      setValidationError('Bill Date From cannot be later than Bill Date To.');
+      return;
+    }
+    if (startDateFrom && endDateTo && startDateFrom > endDateTo) {
+      setValidationError('Start Date From cannot be later than End Date To.');
+      return;
+    }
+
+    try {
+      const resp = await triggerFetchMeterRecords(
+        {
+          propertyId: activeProperty || undefined,
+          billDateFrom: billDateFrom || undefined,
+          billDateTo: billDateTo || undefined,
+          startDateFrom: startDateFrom || undefined,
+          endDateTo: endDateTo || undefined,
+          floor: floor || undefined,
+          unitNumber: unitNumber || undefined,
+          tenantCode: tenantCode || undefined,
+          meterType: meterType || undefined,
+          category: category || undefined,
+          meterNo: meterNo.trim() || undefined,
+          sortBy,
+          sortOrder,
+        },
+        false,
+      ).unwrap();
+
+      const records = resp.data || [];
+      if (records.length === 0) {
+        toast('No meter records found matching your filters.', { icon: 'ℹ️' });
+        return;
+      }
+
+      const ok = openMeterRecordReportPreview(records, reportType, {
+        showPropertyColumn: !activeProperty,
+        billDateFrom: billDateFrom || undefined,
+        billDateTo: billDateTo || undefined,
+        startDateFrom: startDateFrom || undefined,
+        endDateTo: endDateTo || undefined,
+        floor: floor || undefined,
+        unitNumber: unitNumber || undefined,
+        tenantLabel: selectedTenantLabel,
+        meterType: meterType || undefined,
+        category: category || undefined,
+        meterNo: meterNo.trim() || undefined,
+        sortBy,
+        sortOrder,
+      });
+
+      if (!ok) {
+        toast.error('Please allow pop-ups to view the printable report');
+      }
+    } catch {
+      toast.error('Failed to load meter record report data');
+    }
+  };
+
+  return (
+    <div className="rp-clean-card">
+      <div className="rp-grid-3">
+        {/* Row 1: Report Type | Meter Type | Category */}
+        <div className="rb-field">
+          <label>
+            Report Type <span style={{ color: '#ef4444' }}>*</span>
+          </label>
+          <select
+            value={reportType}
+            onChange={(e) => setReportType(e.target.value as MeterRecordReportType)}
+          >
+            <option value="detail">Meter Record Detail Report</option>
+            <option value="summary">Meter Record Summary Report</option>
+          </select>
+        </div>
+
+        <div className="rb-field">
+          <label>Meter Type</label>
+          <select
+            value={meterType}
+            onChange={(e) => setMeterType(e.target.value)}
+          >
+            <option value="">All Meter Types</option>
+            {meterTypeOptions.map((mt) => (
+              <option key={mt} value={mt}>
+                {mt}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="rb-field">
+          <label>Category</label>
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+          >
+            <option value="">All Categories</option>
+            {categoryOptions.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Row 2: Bill Date From | Bill Date To | Meter No */}
+        <div className="rb-field">
+          <label>Bill Date From</label>
+          <input
+            type="date"
+            value={billDateFrom}
+            max={billDateTo || undefined}
+            onChange={(e) => setBillDateFrom(e.target.value)}
+          />
+        </div>
+
+        <div className="rb-field">
+          <label>Bill Date To</label>
+          <input
+            type="date"
+            value={billDateTo}
+            min={billDateFrom || undefined}
+            onChange={(e) => setBillDateTo(e.target.value)}
+          />
+        </div>
+
+        <div className="rb-field">
+          <label>Meter No</label>
+          <input
+            type="text"
+            placeholder="Search meter no…"
+            value={meterNo}
+            onChange={(e) => setMeterNo(e.target.value)}
+          />
+        </div>
+
+        {/* Row 3: Start Date From | End Date To | Tenant */}
+        <div className="rb-field">
+          <label>Start Date From</label>
+          <input
+            type="date"
+            value={startDateFrom}
+            max={endDateTo || undefined}
+            onChange={(e) => setStartDateFrom(e.target.value)}
+          />
+        </div>
+
+        <div className="rb-field">
+          <label>End Date To</label>
+          <input
+            type="date"
+            value={endDateTo}
+            min={startDateFrom || undefined}
+            onChange={(e) => setEndDateTo(e.target.value)}
+          />
+        </div>
+
+        <div className="rb-field">
+          <label>Tenant</label>
+          <ComboBox
+            id="meter-record-tenant"
+            value={tenantCode}
+            onChange={setTenantCode}
+            options={tenantComboOptions}
+            selectedLabel={selectedTenantLabel}
+            placeholder="All Tenants"
+          />
+        </div>
+
+        {/* Row 4: Floor | Unit No | Sort By + Order */}
+        <div className="rb-field">
+          <label>Floor</label>
+          <select
+            value={floor}
+            onChange={(e) => {
+              setFloor(e.target.value);
+              setUnitNumber('');
+            }}
+          >
+            <option value="">All Floors</option>
+            {floorOptions.map((fl) => (
+              <option key={fl} value={fl}>
+                {fl}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="rb-field">
+          <label>Unit No</label>
+          <select
+            value={unitNumber}
+            onChange={(e) => setUnitNumber(e.target.value)}
+          >
+            <option value="">All Units</option>
+            {unitOptions.map((u) => (
+              <option key={u} value={u}>
+                {u}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="rp-sort-pair">
+          <div className="rb-field">
+            <label>Sort By</label>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+            >
+              <option value="billDate">Bill Date</option>
+              <option value="unitNumber">Unit No</option>
+              <option value="floor">Floor</option>
+              <option value="tenant">Tenant</option>
+              <option value="meterNo">Meter No</option>
+              <option value="meterType">Meter Type</option>
+              <option value="category">Category</option>
+              <option value="totalUnit">Total Unit</option>
+              <option value="amount">Amount</option>
+              <option value="startDate">Start Date</option>
+              <option value="endDate">End Date</option>
+            </select>
+          </div>
+          <div className="rb-field">
+            <label>Order</label>
+            <select
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc')}
+            >
+              <option value="asc">Asc</option>
+              <option value="desc">Desc</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Validation Banner */}
+      {validationError && (
+        <div className="rp-validation-alert">
+          <AlertTriangle size={15} style={{ flexShrink: 0 }} />
+          <span>{validationError}</span>
+        </div>
+      )}
+
+      {/* Footer Bar */}
+      <div className="rp-card-footer">
+        <span className="rb-hint" style={{ margin: 0 }}>
+          <FileText size={13} />
+          Opens a printable report preview window (Print / Save as PDF).
+        </span>
+        <div className="rp-footer-actions">
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={handleResetFilters}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            <RotateCcw size={14} /> Reset
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={handleGenerateReport}
+            disabled={generatingReport}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            <FileText size={14} /> {generatingReport ? 'Loading…' : 'Preview'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 

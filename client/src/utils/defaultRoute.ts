@@ -108,6 +108,7 @@ const ROUTE_BY_PERMISSION: { permission: string | string[]; route: string }[] = 
   { permission: 'reports-leases.read', route: '/reports/leases' },
   { permission: 'reports-tenants.read', route: '/reports/tenants' },
   { permission: 'reports-units.read', route: '/reports/units' },
+  { permission: 'reports-meter-records.read', route: '/reports/meter-records' },
   { permission: 'developer-integrations.read', route: '/admin/developer/integrations' },
   { permission: 'developer-webhooks.read', route: '/admin/developer/webhooks' },
   { permission: 'developer-api-keys.read', route: '/admin/developer/api-keys' },

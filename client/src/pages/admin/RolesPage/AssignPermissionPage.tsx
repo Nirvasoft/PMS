@@ -36,7 +36,7 @@ const MODULE_ORDER = [
   'condo-meters', 'condo-funds', 'condo-meetings', 'condo-bylaws',
   'portal',
   'reports-executive', 'reports-bi', 'reports-anomalies',
-  'reports-invoices', 'reports-leases', 'reports-tenants', 'reports-units',
+  'reports-invoices', 'reports-leases', 'reports-tenants', 'reports-units', 'reports-meter-records',
   'developer-integrations', 'developer-webhooks', 'developer-api-keys', 'developer-bms', 'developer-cron-jobs',
   'settings-security', 'settings-notifications', 'settings-profile',
 ];
@@ -77,7 +77,7 @@ const MODULE_SECTIONS: Record<string, string> = {
   'condo-meters': 'Condo', 'condo-funds': 'Condo', 'condo-meetings': 'Condo', 'condo-bylaws': 'Condo',
   portal: 'Tenant Portal',
   'reports-executive': 'Analytics', 'reports-bi': 'Analytics', 'reports-anomalies': 'Analytics',
-  'reports-invoices': 'Reports', 'reports-leases': 'Reports', 'reports-tenants': 'Reports', 'reports-units': 'Reports',
+  'reports-invoices': 'Reports', 'reports-leases': 'Reports', 'reports-tenants': 'Reports', 'reports-units': 'Reports', 'reports-meter-records': 'Reports',
   'developer-integrations': 'Developer', 'developer-webhooks': 'Developer', 'developer-api-keys': 'Developer', 'developer-bms': 'Developer', 'developer-cron-jobs': 'Developer',
   'settings-security': 'Settings', 'settings-notifications': 'Settings', 'settings-profile': 'Settings',
 };
@@ -204,6 +204,7 @@ const MODULE_LABELS: Record<string, string> = {
   'reports-leases': 'Lease Report',
   'reports-tenants': 'Tenant Report',
   'reports-units': 'Unit Report',
+  'reports-meter-records': 'Meter Record Report',
   'developer-integrations': 'Integrations',
   'developer-webhooks': 'Webhooks',
   'developer-api-keys': 'API Keys',

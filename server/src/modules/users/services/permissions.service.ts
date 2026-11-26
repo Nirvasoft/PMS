@@ -36,6 +36,7 @@ const SIDEBAR_ALIGNED_PERMISSIONS: ReadonlyArray<{
   { code: 'reports-leases.read', name: 'View Lease Report', module: 'reports-leases', action: 'read', legacyCodes: ['reports-list.read', 'leases.read'] },
   { code: 'reports-tenants.read', name: 'View Tenant Report', module: 'reports-tenants', action: 'read', legacyCodes: ['reports-list.read', 'tenants.read', 'leases.read'] },
   { code: 'reports-units.read', name: 'View Unit Report', module: 'reports-units', action: 'read', legacyCodes: ['reports-list.read', 'unit.read', 'properties.read', 'leases.read'] },
+  { code: 'reports-meter-records.read', name: 'View Meter Record Report', module: 'reports-meter-records', action: 'read', legacyCodes: ['reports-list.read', 'meter.read', 'reports-invoices.read'] },
   { code: 'developer-cron-jobs.read', name: 'View Cron Jobs', module: 'developer-cron-jobs', action: 'read', legacyCodes: ['developer-integrations.read'] },
   { code: 'developer-cron-jobs.write', name: 'Manage Cron Jobs', module: 'developer-cron-jobs', action: 'write', legacyCodes: ['developer-integrations.write'] },
 ];
