@@ -29,14 +29,66 @@ export interface MeterRecordPreviewRow {
   willBill: boolean;
 }
 
+export interface MeterRecordReportRow {
+  id: string;
+  propertyId: string;
+  propertyName: string;
+  propertyCode: string;
+  currency: string;
+  unitId: string | null;
+  unitNumber: string;
+  floor: string;
+  tenantCode: string;
+  tenantName: string;
+  meterNo: string;
+  meterType: string;
+  category: string;
+  rate: number;
+  startUnit: number;
+  endUnit: number;
+  totalUnit: number;
+  amount: number;
+  startDate: string;
+  endDate: string;
+  billDate: string;
+}
+
+export interface MeterRecordReportFilters {
+  floors: string[];
+  units: Array<{ unitNumber: string; floor: string }>;
+  tenants: Array<{ code: string; name: string }>;
+  meterTypes: string[];
+  categories: string[];
+}
+
+export interface MeterRecordReportQueryParams {
+  propertyId?: string;
+  billDateFrom?: string;
+  billDateTo?: string;
+  startDateFrom?: string;
+  endDateTo?: string;
+  floor?: string;
+  unitNumber?: string;
+  tenantCode?: string;
+  meterType?: string;
+  category?: string;
+  meterNo?: string;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}
+
+interface MeterRecordsReportResponse {
+  success: boolean;
+  data: MeterRecordReportRow[];
+  total: number;
+}
+
 // ─── API ───────────────────────────────────────────
-// The imported rows are a backend-only audit log (meter_record_list) and aren't surfaced
-// in any persistent UI list — previewMeterRecords is a dry-run parse just for the one-time
-// confirmation step between picking a file and committing the import.
 
 export const meterRecordsApi = createApi({
   reducerPath: 'meterRecordsApi',
   baseQuery: baseQueryWithReauth,
+  tagTypes: ['MeterRecord'],
   endpoints: (builder) => ({
     previewMeterRecords: builder.mutation<ApiResponse<MeterRecordPreviewRow[]>, { propertyId: string; formData: FormData }>({
       query: ({ propertyId, formData }) => ({
@@ -51,8 +103,38 @@ export const meterRecordsApi = createApi({
         method: 'POST',
         body: formData,
       }),
+      invalidatesTags: ['MeterRecord'],
+    }),
+    getMeterRecordReportFilters: builder.query<ApiResponse<MeterRecordReportFilters>, { propertyId?: string } | void>({
+      query: (params) => ({
+        url: '/meter-records/filters',
+        params: params?.propertyId ? { propertyId: params.propertyId } : undefined,
+      }),
+      providesTags: ['MeterRecord'],
+    }),
+    getMeterRecordsReport: builder.query<MeterRecordsReportResponse, MeterRecordReportQueryParams | void>({
+      query: (params) => {
+        const clean: Record<string, string> = {};
+        if (params) {
+          Object.entries(params).forEach(([k, v]) => {
+            if (v !== undefined && v !== null && String(v).trim() !== '') {
+              clean[k] = String(v).trim();
+            }
+          });
+        }
+        return {
+          url: '/meter-records',
+          params: clean,
+        };
+      },
+      providesTags: ['MeterRecord'],
     }),
   }),
 });
 
-export const { usePreviewMeterRecordsMutation, useImportMeterRecordsMutation } = meterRecordsApi;
+export const {
+  usePreviewMeterRecordsMutation,
+  useImportMeterRecordsMutation,
+  useGetMeterRecordReportFiltersQuery,
+  useLazyGetMeterRecordsReportQuery,
+} = meterRecordsApi;

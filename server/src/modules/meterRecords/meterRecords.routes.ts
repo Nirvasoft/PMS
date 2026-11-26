@@ -38,3 +38,49 @@ meterRecordsRouter.post('/import', requirePermission('meter.create'), upload.sin
   const data = await meterRecordsService.importExcel(p(req, 'propertyId'), req.user!.companyId, req.user!.sub, req.file.buffer);
   res.json({ success: true, data });
 }));
+
+// ════════════════════════════════════════════════
+// METER RECORDS REPORT — mounted at /api/v1/meter-records
+// ════════════════════════════════════════════════
+export const meterRecordsReportRouter = Router();
+
+const qStr = (v: unknown): string | undefined =>
+  typeof v === 'string' && v.trim() ? v.trim() : undefined;
+
+/** GET /api/v1/meter-records/filters?propertyId=... */
+meterRecordsReportRouter.get(
+  '/filters',
+  requirePermission('reports-meter-records.read', 'meter.read'),
+  asyncHandler(async (req, res) => {
+    const data = await meterRecordsService.getReportFilters(
+      req.user!.companyId,
+      qStr(req.query.propertyId),
+    );
+    res.json({ success: true, data });
+  }),
+);
+
+/** GET /api/v1/meter-records?... */
+meterRecordsReportRouter.get(
+  '/',
+  requirePermission('reports-meter-records.read', 'meter.read'),
+  asyncHandler(async (req, res) => {
+    const sortOrder = req.query.sortOrder === 'desc' ? 'desc' : 'asc';
+    const result = await meterRecordsService.listReportRecords(req.user!.companyId, {
+      propertyId: qStr(req.query.propertyId),
+      billDateFrom: qStr(req.query.billDateFrom),
+      billDateTo: qStr(req.query.billDateTo),
+      startDateFrom: qStr(req.query.startDateFrom),
+      endDateTo: qStr(req.query.endDateTo),
+      floor: qStr(req.query.floor),
+      unitNumber: qStr(req.query.unitNumber),
+      tenantCode: qStr(req.query.tenantCode),
+      meterType: qStr(req.query.meterType),
+      category: qStr(req.query.category),
+      meterNo: qStr(req.query.meterNo),
+      sortBy: qStr(req.query.sortBy),
+      sortOrder,
+    });
+    res.json({ success: true, ...result });
+  }),
+);

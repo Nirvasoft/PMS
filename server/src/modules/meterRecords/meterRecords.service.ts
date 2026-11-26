@@ -595,6 +595,296 @@ class MeterRecordsService {
 
     return { imported: rows.length, billingSchedulesCreated, skipped, duplicatesSkipped };
   }
+
+  async getReportFilters(companyId: string, propertyId?: string) {
+    const formatFloor = (u: { floorNumber: number | null; floorLabel: string | null }) => {
+      if (u.floorLabel && String(u.floorLabel).trim()) return String(u.floorLabel).trim();
+      if (u.floorNumber != null) return `Floor ${u.floorNumber}`;
+      return '';
+    };
+
+    const [unitRows, tenantRows, recordMeta] = await Promise.all([
+      prisma.unit.findMany({
+        where: {
+          companyId,
+          deletedAt: null,
+          ...(propertyId ? { propertyId } : {}),
+        },
+        select: {
+          unitNumber: true,
+          floorNumber: true,
+          floorLabel: true,
+        },
+      }),
+      prisma.tenant.findMany({
+        where: {
+          companyId,
+          deletedAt: null,
+        },
+        select: {
+          code: true,
+          firstName: true,
+          lastName: true,
+        },
+      }),
+      prisma.meterRecordList.findMany({
+        where: {
+          companyId,
+          ...(propertyId ? { propertyId } : {}),
+        },
+        select: {
+          meterType: true,
+          category: true,
+          tenantCode: true,
+        },
+      }),
+    ]);
+
+    const floorSet = new Set<string>();
+    const unitMap = new Map<string, { unitNumber: string; floor: string }>();
+    for (const u of unitRows) {
+      const floor = formatFloor(u);
+      if (floor) floorSet.add(floor);
+      if (u.unitNumber) {
+        unitMap.set(u.unitNumber, { unitNumber: u.unitNumber, floor });
+      }
+    }
+
+    const tenantByFirstName = new Map<string, { code: string; name: string }>();
+    const tenantByLegacyCode = new Map<string, { code: string; name: string }>();
+    for (const t of tenantRows) {
+      const first = (t.firstName || '').trim();
+      const last = (t.lastName || '').trim();
+      const legacy = (t.code || '').trim();
+      if (first) {
+        tenantByFirstName.set(first.toLowerCase(), { code: first, name: last });
+      }
+      if (legacy) {
+        tenantByLegacyCode.set(legacy.toLowerCase(), { code: first || legacy, name: last });
+      }
+    }
+
+    const meterTypeSet = new Set<string>(Object.values(METER_TYPE_LABELS));
+    const categorySet = new Set<string>(Object.values(CATEGORY_LABELS));
+    for (const r of recordMeta) {
+      if (r.meterType?.trim()) meterTypeSet.add(r.meterType.trim());
+      if (r.category?.trim()) categorySet.add(r.category.trim());
+      if (r.tenantCode?.trim()) {
+        const key = r.tenantCode.trim().toLowerCase();
+        if (!tenantByFirstName.has(key)) {
+          const legacyMatch = tenantByLegacyCode.get(key);
+          if (legacyMatch) {
+            tenantByFirstName.set(legacyMatch.code.toLowerCase(), legacyMatch);
+          } else {
+            tenantByFirstName.set(key, { code: r.tenantCode.trim(), name: '' });
+          }
+        }
+      }
+    }
+
+    return {
+      floors: Array.from(floorSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
+      units: Array.from(unitMap.values()).sort((a, b) =>
+        a.unitNumber.localeCompare(b.unitNumber, undefined, { numeric: true }),
+      ),
+      tenants: Array.from(tenantByFirstName.values()).sort((a, b) =>
+        a.code.localeCompare(b.code, undefined, { numeric: true }),
+      ),
+      meterTypes: Array.from(meterTypeSet).sort((a, b) => a.localeCompare(b)),
+      categories: Array.from(categorySet).sort((a, b) => a.localeCompare(b)),
+    };
+  }
+
+  async listReportRecords(
+    companyId: string,
+    params: {
+      propertyId?: string;
+      billDateFrom?: string;
+      billDateTo?: string;
+      startDateFrom?: string;
+      endDateTo?: string;
+      floor?: string;
+      unitNumber?: string;
+      tenantCode?: string;
+      meterType?: string;
+      category?: string;
+      meterNo?: string;
+      sortBy?: string;
+      sortOrder?: 'asc' | 'desc';
+    },
+  ) {
+    const where: Prisma.MeterRecordListWhereInput = { companyId };
+    if (params.propertyId) where.propertyId = params.propertyId;
+
+    if (params.billDateFrom || params.billDateTo) {
+      where.billDate = {
+        ...(params.billDateFrom ? { gte: isoToUtcDate(params.billDateFrom) } : {}),
+        ...(params.billDateTo ? { lte: isoToUtcDate(params.billDateTo) } : {}),
+      };
+    }
+    if (params.startDateFrom) {
+      where.startDate = { gte: isoToUtcDate(params.startDateFrom) };
+    }
+    if (params.endDateTo) {
+      where.endDate = { lte: isoToUtcDate(params.endDateTo) };
+    }
+    if (params.meterType) {
+      where.meterType = { equals: params.meterType.trim(), mode: 'insensitive' };
+    }
+    if (params.category) {
+      where.category = { equals: params.category.trim(), mode: 'insensitive' };
+    }
+    if (params.meterNo) {
+      where.meterNo = { contains: params.meterNo.trim(), mode: 'insensitive' };
+    }
+    if (params.unitNumber) {
+      where.unit = { unitNumber: { equals: params.unitNumber.trim(), mode: 'insensitive' } };
+    }
+
+    const rows = await prisma.meterRecordList.findMany({
+      where,
+      include: {
+        property: { select: { id: true, name: true, code: true, currency: true } },
+        unit: { select: { id: true, unitNumber: true, floorNumber: true, floorLabel: true } },
+      },
+      orderBy: [{ billDate: 'desc' }, { meterNo: 'asc' }],
+    });
+
+    const distinctTenantCodes = Array.from(
+      new Set(rows.map((r) => r.tenantCode?.trim()).filter((c): c is string => Boolean(c))),
+    );
+    const tenantByFirstName = new Map<string, { code: string; name: string }>();
+    const tenantByLegacyCode = new Map<string, { code: string; name: string }>();
+    if (distinctTenantCodes.length > 0) {
+      const tenants = await prisma.tenant.findMany({
+        where: {
+          companyId,
+          OR: [
+            { firstName: { in: distinctTenantCodes, mode: 'insensitive' } },
+            { code: { in: distinctTenantCodes, mode: 'insensitive' } },
+          ],
+        },
+        select: { code: true, firstName: true, lastName: true },
+      });
+      for (const t of tenants) {
+        const first = (t.firstName || '').trim();
+        const last = (t.lastName || '').trim();
+        const legacy = (t.code || '').trim();
+        if (first) {
+          tenantByFirstName.set(first.toLowerCase(), { code: first, name: last });
+        }
+        if (legacy) {
+          tenantByLegacyCode.set(legacy.toLowerCase(), { code: first || legacy, name: last });
+        }
+      }
+    }
+
+    const formatFloor = (u: { floorNumber: number | null; floorLabel: string | null } | null) => {
+      if (!u) return '';
+      if (u.floorLabel && String(u.floorLabel).trim()) return String(u.floorLabel).trim();
+      if (u.floorNumber != null) return `Floor ${u.floorNumber}`;
+      return '';
+    };
+
+    let records = rows.map((r) => {
+      const startUnit = Number(r.startUnit);
+      const endUnit = Number(r.endUnit);
+      const totalUnit = Number((endUnit - startUnit).toFixed(2));
+      const rate = Number(r.rate);
+      const amount = Number((totalUnit * rate).toFixed(2));
+      const rawCode = r.tenantCode?.trim() || '';
+      const matched = rawCode
+        ? tenantByFirstName.get(rawCode.toLowerCase()) ??
+          tenantByLegacyCode.get(rawCode.toLowerCase())
+        : undefined;
+      const tCode = matched ? matched.code : rawCode;
+      const tName = matched ? matched.name : '';
+
+      return {
+        id: r.id,
+        propertyId: r.propertyId,
+        propertyName: r.property?.name || '',
+        propertyCode: r.property?.code || '',
+        currency: r.property?.currency || 'MMK',
+        unitId: r.unitId,
+        unitNumber: r.unit?.unitNumber || '',
+        floor: formatFloor(r.unit),
+        tenantCode: tCode,
+        tenantName: tName,
+        meterNo: r.meterNo,
+        meterType: r.meterType,
+        category: r.category,
+        rate,
+        startUnit,
+        endUnit,
+        totalUnit,
+        amount,
+        startDate: toDateOnly(r.startDate),
+        endDate: toDateOnly(r.endDate),
+        billDate: toDateOnly(r.billDate),
+      };
+    });
+
+    if (params.floor) {
+      const fl = params.floor.trim().toLowerCase();
+      records = records.filter((r) => r.floor.toLowerCase() === fl);
+    }
+    if (params.tenantCode) {
+      const q = params.tenantCode.trim().toLowerCase();
+      records = records.filter(
+        (r) =>
+          r.tenantCode.toLowerCase() === q ||
+          r.tenantCode.toLowerCase().includes(q) ||
+          r.tenantName.toLowerCase().includes(q),
+      );
+    }
+
+    const dir = params.sortOrder === 'desc' ? -1 : 1;
+    const sortBy = params.sortBy || 'billDate';
+    records.sort((a, b) => {
+      let cmp = 0;
+      switch (sortBy) {
+        case 'unitNumber':
+          cmp = a.unitNumber.localeCompare(b.unitNumber, undefined, { numeric: true });
+          break;
+        case 'floor':
+          cmp = a.floor.localeCompare(b.floor, undefined, { numeric: true });
+          break;
+        case 'tenant':
+          cmp = (a.tenantCode || a.tenantName).localeCompare(b.tenantCode || b.tenantName, undefined, { numeric: true });
+          break;
+        case 'meterNo':
+          cmp = a.meterNo.localeCompare(b.meterNo, undefined, { numeric: true });
+          break;
+        case 'meterType':
+          cmp = a.meterType.localeCompare(b.meterType);
+          break;
+        case 'category':
+          cmp = a.category.localeCompare(b.category);
+          break;
+        case 'totalUnit':
+          cmp = a.totalUnit - b.totalUnit;
+          break;
+        case 'amount':
+          cmp = a.amount - b.amount;
+          break;
+        case 'startDate':
+          cmp = a.startDate.localeCompare(b.startDate);
+          break;
+        case 'endDate':
+          cmp = a.endDate.localeCompare(b.endDate);
+          break;
+        case 'billDate':
+        default:
+          cmp = a.billDate.localeCompare(b.billDate);
+          break;
+      }
+      if (cmp !== 0) return cmp * dir;
+      return a.unitNumber.localeCompare(b.unitNumber, undefined, { numeric: true }) || a.meterNo.localeCompare(b.meterNo);
+    });
+
+    return { data: records, total: records.length };
+  }
 }
 
 export const meterRecordsService = new MeterRecordsService();

@@ -504,6 +504,7 @@ function AppRoutes() {
           <Route path="/reports/leases" element={<ReportsPage key="lease-report" mode="lease" />} />
           <Route path="/reports/tenants" element={<ReportsPage key="tenant-report" mode="tenant" />} />
           <Route path="/reports/units" element={<ReportsPage key="unit-report" mode="unit" />} />
+          <Route path="/reports/meter-records" element={<ReportsPage key="meter-record-report" mode="meterRecord" />} />
 
           {/* Module 6.1 — Mall */}
           <Route path="/admin/mall" element={<MallDashboard />} />

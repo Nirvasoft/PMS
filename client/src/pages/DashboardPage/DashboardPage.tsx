@@ -1012,7 +1012,7 @@ export default function DashboardLayout() {
           </PermissionGuard>
 
           {/* Reports Section */}
-          <PermissionGuard hideWhenDenied permission={['reports-invoices.read', 'reports-leases.read', 'reports-tenants.read', 'reports-units.read']}>
+          <PermissionGuard hideWhenDenied permission={['reports-invoices.read', 'reports-leases.read', 'reports-tenants.read', 'reports-units.read', 'reports-meter-records.read']}>
             <NavSection label="Reports" storageKey="reports" isCollapsed={isCollapsed}>
               <PermissionGuard hideWhenDenied permission="reports-invoices.read">
                 <NavLink to="/reports/invoices" className="nav-item" title="Invoice Report">
@@ -1038,6 +1038,12 @@ export default function DashboardLayout() {
                 <NavLink to="/reports/units" className="nav-item" title="Unit Report">
                   <Building2 size={18} />
                   <span>Unit Report</span>
+                </NavLink>
+              </PermissionGuard>
+              <PermissionGuard hideWhenDenied permission="reports-meter-records.read">
+                <NavLink to="/reports/meter-records" className="nav-item" title="Meter Record Report">
+                  <Zap size={18} />
+                  <span>Meter Record Report</span>
                 </NavLink>
               </PermissionGuard>
             </NavSection>
