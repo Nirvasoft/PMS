@@ -9,9 +9,12 @@ import {
   Users2,
   Building2,
   Zap,
-  AlertTriangle,
   RotateCcw,
 } from 'lucide-react';
+import {
+  ReportNoticeModal,
+  type ReportNoticeState,
+} from './components/ReportNoticeModal';
 import {
   useLazyGetInvoicesQuery,
   useGetInvoiceReportFiltersQuery,
@@ -249,7 +252,7 @@ function InvoiceReportForm({ activeProperty }: { activeProperty: string }) {
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [sortBy, setSortBy] = useState<string>('invoiceNumber');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-  const [validationError, setValidationError] = useState<string>('');
+  const [notice, setNotice] = useState<ReportNoticeState | null>(null);
 
   useEffect(() => {
     setCurrencyFilter(baseCurrencyCode);
@@ -305,20 +308,6 @@ function InvoiceReportForm({ activeProperty }: { activeProperty: string }) {
     [filterMeta?.statuses],
   );
 
-  useEffect(() => {
-    if (fromDate && toDate && fromDate > toDate) {
-      setValidationError('From Date cannot be later than To Date.');
-    } else if (
-      startInvoice.trim() &&
-      endInvoice.trim() &&
-      startInvoice.trim() > endInvoice.trim()
-    ) {
-      setValidationError('Start Invoice cannot be greater than End Invoice.');
-    } else {
-      setValidationError('');
-    }
-  }, [fromDate, toDate, startInvoice, endInvoice]);
-
   const handleResetFilters = () => {
     setBillType('');
     setCurrencyFilter(baseCurrencyCode);
@@ -332,17 +321,24 @@ function InvoiceReportForm({ activeProperty }: { activeProperty: string }) {
     setStatusFilter('');
     setSortBy('invoiceNumber');
     setSortOrder('asc');
-    setValidationError('');
+    setNotice(null);
   };
 
   const handleGenerateReport = async () => {
     if (!reportType) {
-      toast.error('Please select a Report Type');
+      setNotice({
+        variant: 'error',
+        title: 'Report Type Required',
+        message: 'Please select a Report Type before previewing.',
+      });
       return;
     }
     if (fromDate && toDate && fromDate > toDate) {
-      setValidationError('From Date cannot be later than To Date.');
-      toast.error('From Date cannot be later than To Date');
+      setNotice({
+        variant: 'error',
+        title: 'Invalid Date Range',
+        message: 'From Date cannot be later than To Date. Please adjust the dates to continue.',
+      });
       return;
     }
     if (
@@ -350,12 +346,15 @@ function InvoiceReportForm({ activeProperty }: { activeProperty: string }) {
       endInvoice.trim() &&
       startInvoice.trim() > endInvoice.trim()
     ) {
-      setValidationError('Start Invoice cannot be greater than End Invoice.');
-      toast.error('Start Invoice cannot be greater than End Invoice');
+      setNotice({
+        variant: 'error',
+        title: 'Invalid Invoice Range',
+        message: 'Start Invoice cannot be greater than End Invoice. Please adjust the range.',
+      });
       return;
     }
 
-    setValidationError('');
+    setNotice(null);
 
     const baseFilterParams: Record<string, any> = {
       includeLines: reportType !== 'summary',
@@ -416,8 +415,11 @@ function InvoiceReportForm({ activeProperty }: { activeProperty: string }) {
         const fetched = res?.data || [];
         if (fetched.length === 0 && targetPage === 1) {
           if (previewWin) previewWin.close();
-          setValidationError('No invoices match the current filter criteria.');
-          toast.error('No invoices match the current filter criteria.');
+          setNotice({
+            variant: 'empty',
+            title: 'No Invoices Found',
+            message: 'No invoices match your current filter criteria. Try widening the date range or resetting your filters.',
+          });
           return;
         }
 
@@ -645,14 +647,6 @@ function InvoiceReportForm({ activeProperty }: { activeProperty: string }) {
         </div>
       </div>
 
-      {/* Validation Banner */}
-      {validationError && (
-        <div className="rp-validation-alert">
-          <AlertTriangle size={15} style={{ flexShrink: 0 }} />
-          <span>{validationError}</span>
-        </div>
-      )}
-
       {/* Footer Bar */}
       <div className="rp-card-footer">
         <span className="rb-hint" style={{ margin: 0 }}>
@@ -679,6 +673,12 @@ function InvoiceReportForm({ activeProperty }: { activeProperty: string }) {
           </button>
         </div>
       </div>
+
+      <ReportNoticeModal
+        notice={notice}
+        onClose={() => setNotice(null)}
+        onReset={handleResetFilters}
+      />
     </div>
   );
 }
@@ -736,7 +736,7 @@ function LeaseReportForm({ activeProperty }: { activeProperty: string }) {
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [sortBy, setSortBy] = useState<string>('leaseNumber');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-  const [validationError, setValidationError] = useState<string>('');
+  const [notice, setNotice] = useState<ReportNoticeState | null>(null);
 
   const floorOptions = useMemo(
     () => filterMeta?.floors || [],
@@ -780,20 +780,6 @@ function LeaseReportForm({ activeProperty }: { activeProperty: string }) {
     return [found.firstName, found.lastName].filter(Boolean).join(' - ');
   }, [tenantId, filterMeta?.tenantItems]);
 
-  useEffect(() => {
-    if (fromDate && toDate && fromDate > toDate) {
-      setValidationError('From Date cannot be later than To Date.');
-    } else if (
-      startLease.trim() &&
-      endLease.trim() &&
-      startLease.trim().localeCompare(endLease.trim(), undefined, { numeric: true }) > 0
-    ) {
-      setValidationError('Start Lease cannot be greater than End Lease.');
-    } else {
-      setValidationError('');
-    }
-  }, [fromDate, toDate, startLease, endLease]);
-
   const handleResetFilters = () => {
     setCurrencyFilter('ALL');
     setFromDate(defaultDates.min);
@@ -807,13 +793,16 @@ function LeaseReportForm({ activeProperty }: { activeProperty: string }) {
     setStatusFilter('');
     setSortBy('leaseNumber');
     setSortOrder('asc');
-    setValidationError('');
+    setNotice(null);
   };
 
   const handleGenerateLeaseReport = async () => {
     if (fromDate && toDate && fromDate > toDate) {
-      setValidationError('From Date cannot be later than To Date.');
-      toast.error('From Date cannot be later than To Date');
+      setNotice({
+        variant: 'error',
+        title: 'Invalid Date Range',
+        message: 'From Date cannot be later than To Date. Please adjust the dates to continue.',
+      });
       return;
     }
     if (
@@ -821,12 +810,15 @@ function LeaseReportForm({ activeProperty }: { activeProperty: string }) {
       endLease.trim() &&
       startLease.trim().localeCompare(endLease.trim(), undefined, { numeric: true }) > 0
     ) {
-      setValidationError('Start Lease cannot be greater than End Lease.');
-      toast.error('Start Lease cannot be greater than End Lease');
+      setNotice({
+        variant: 'error',
+        title: 'Invalid Lease Range',
+        message: 'Start Lease cannot be greater than End Lease. Please adjust the range.',
+      });
       return;
     }
 
-    setValidationError('');
+    setNotice(null);
 
     try {
       setLoadingDetails(true);
@@ -883,8 +875,11 @@ function LeaseReportForm({ activeProperty }: { activeProperty: string }) {
       }
 
       if (list.length === 0) {
-        setValidationError('No leases match the current filter criteria.');
-        toast.error('No leases match the current filter criteria.');
+        setNotice({
+          variant: 'empty',
+          title: 'No Leases Found',
+          message: 'No leases match your current filter criteria. Try widening the date range or resetting your filters.',
+        });
         return;
       }
 
@@ -1148,14 +1143,6 @@ function LeaseReportForm({ activeProperty }: { activeProperty: string }) {
         </div>
       </div>
 
-      {/* Validation Banner */}
-      {validationError && (
-        <div className="rp-validation-alert">
-          <AlertTriangle size={15} style={{ flexShrink: 0 }} />
-          <span>{validationError}</span>
-        </div>
-      )}
-
       {/* Footer Bar */}
       <div className="rp-card-footer">
         <span className="rb-hint" style={{ margin: 0 }}>
@@ -1182,6 +1169,12 @@ function LeaseReportForm({ activeProperty }: { activeProperty: string }) {
           </button>
         </div>
       </div>
+
+      <ReportNoticeModal
+        notice={notice}
+        onClose={() => setNotice(null)}
+        onReset={handleResetFilters}
+      />
     </div>
   );
 }
@@ -1235,7 +1228,7 @@ function TenantReportForm({ activeProperty }: { activeProperty: string }) {
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [sortBy, setSortBy] = useState<string>('tenant');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-  const [validationError, setValidationError] = useState<string>('');
+  const [notice, setNotice] = useState<ReportNoticeState | null>(null);
 
   const floorOptions = useMemo(
     () => filterMeta?.floors || [],
@@ -1279,22 +1272,6 @@ function TenantReportForm({ activeProperty }: { activeProperty: string }) {
     return [found.firstName, found.lastName].filter(Boolean).join(' - ');
   }, [tenantId, filterMeta?.tenantItems]);
 
-  useEffect(() => {
-    if (fromDate && toDate && fromDate > toDate) {
-      setValidationError('From Date cannot be later than To Date.');
-    } else if (
-      startLease.trim() &&
-      endLease.trim() &&
-      startLease
-        .trim()
-        .localeCompare(endLease.trim(), undefined, { numeric: true }) > 0
-    ) {
-      setValidationError('Start Lease cannot be greater than End Lease.');
-    } else {
-      setValidationError('');
-    }
-  }, [fromDate, toDate, startLease, endLease]);
-
   const handleResetFilters = () => {
     setReportType('detail');
     setOccupancyFilter('all');
@@ -1309,13 +1286,16 @@ function TenantReportForm({ activeProperty }: { activeProperty: string }) {
     setStatusFilter('');
     setSortBy('tenant');
     setSortOrder('asc');
-    setValidationError('');
+    setNotice(null);
   };
 
   const handleGenerateTenantReport = async () => {
     if (fromDate && toDate && fromDate > toDate) {
-      setValidationError('From Date cannot be later than To Date.');
-      toast.error('From Date cannot be later than To Date');
+      setNotice({
+        variant: 'error',
+        title: 'Invalid Date Range',
+        message: 'From Date cannot be later than To Date. Please adjust the dates to continue.',
+      });
       return;
     }
     if (
@@ -1325,12 +1305,15 @@ function TenantReportForm({ activeProperty }: { activeProperty: string }) {
         .trim()
         .localeCompare(endLease.trim(), undefined, { numeric: true }) > 0
     ) {
-      setValidationError('Start Lease cannot be greater than End Lease.');
-      toast.error('Start Lease cannot be greater than End Lease');
+      setNotice({
+        variant: 'error',
+        title: 'Invalid Lease Range',
+        message: 'Start Lease cannot be greater than End Lease. Please adjust the range.',
+      });
       return;
     }
 
-    setValidationError('');
+    setNotice(null);
 
     try {
       const res = await triggerFetchLeases({
@@ -1435,7 +1418,11 @@ function TenantReportForm({ activeProperty }: { activeProperty: string }) {
       }
 
       if (items.length === 0) {
-        toast.error('No tenant unit or lease records match the selected filters');
+        setNotice({
+          variant: 'empty',
+          title: 'No Tenant Records Found',
+          message: 'No tenant unit or lease records match your current filter criteria. Try widening the date range or resetting your filters.',
+        });
         return;
       }
 
@@ -1708,14 +1695,6 @@ function TenantReportForm({ activeProperty }: { activeProperty: string }) {
         </div>
       </div>
 
-      {/* Validation Banner */}
-      {validationError && (
-        <div className="rp-validation-alert">
-          <AlertTriangle size={15} style={{ flexShrink: 0 }} />
-          <span>{validationError}</span>
-        </div>
-      )}
-
       {/* Footer Bar */}
       <div className="rp-card-footer">
         <span className="rb-hint" style={{ margin: 0 }}>
@@ -1742,6 +1721,12 @@ function TenantReportForm({ activeProperty }: { activeProperty: string }) {
           </button>
         </div>
       </div>
+
+      <ReportNoticeModal
+        notice={notice}
+        onClose={() => setNotice(null)}
+        onReset={handleResetFilters}
+      />
     </div>
   );
 }
@@ -1796,7 +1781,7 @@ function UnitReportForm({ activeProperty }: { activeProperty: string }) {
   const [tenantId, setTenantId] = useState<string>('');
   const [sortBy, setSortBy] = useState<string>('unit');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-  const [validationError, setValidationError] = useState<string>('');
+  const [notice, setNotice] = useState<ReportNoticeState | null>(null);
 
   const handleReportTypeChange = (nextType: UnitReportType) => {
     setReportType(nextType);
@@ -1825,22 +1810,6 @@ function UnitReportForm({ activeProperty }: { activeProperty: string }) {
     );
   }, [filterMeta?.units, floor]);
 
-  useEffect(() => {
-    if (fromDate && toDate && fromDate > toDate) {
-      setValidationError('From Date cannot be later than To Date.');
-    } else if (
-      startLease.trim() &&
-      endLease.trim() &&
-      startLease
-        .trim()
-        .localeCompare(endLease.trim(), undefined, { numeric: true }) > 0
-    ) {
-      setValidationError('Start Lease cannot be greater than End Lease.');
-    } else {
-      setValidationError('');
-    }
-  }, [fromDate, toDate, startLease, endLease]);
-
   const handleResetFilters = () => {
     setReportType('detail');
     setAvailabilityFilter('');
@@ -1857,13 +1826,16 @@ function UnitReportForm({ activeProperty }: { activeProperty: string }) {
     setTenantId('');
     setSortBy('unit');
     setSortOrder('asc');
-    setValidationError('');
+    setNotice(null);
   };
 
   const handleGenerateUnitReport = async () => {
     if (fromDate && toDate && fromDate > toDate) {
-      setValidationError('From Date cannot be later than To Date.');
-      toast.error('From Date cannot be later than To Date');
+      setNotice({
+        variant: 'error',
+        title: 'Invalid Date Range',
+        message: 'From Date cannot be later than To Date. Please adjust the dates to continue.',
+      });
       return;
     }
     if (
@@ -1873,12 +1845,15 @@ function UnitReportForm({ activeProperty }: { activeProperty: string }) {
         .trim()
         .localeCompare(endLease.trim(), undefined, { numeric: true }) > 0
     ) {
-      setValidationError('Start Lease cannot be greater than End Lease.');
-      toast.error('Start Lease cannot be greater than End Lease');
+      setNotice({
+        variant: 'error',
+        title: 'Invalid Lease Range',
+        message: 'Start Lease cannot be greater than End Lease. Please adjust the range.',
+      });
       return;
     }
 
-    setValidationError('');
+    setNotice(null);
 
     try {
       const res = await triggerFetchLeases({
@@ -2075,7 +2050,11 @@ function UnitReportForm({ activeProperty }: { activeProperty: string }) {
       });
 
       if (entries.length === 0) {
-        toast.error('No unit or lease records match the selected filters');
+        setNotice({
+          variant: 'empty',
+          title: 'No Units Found',
+          message: 'No unit or lease records match your current filter criteria. Try widening the date range or resetting your filters.',
+        });
         return;
       }
 
@@ -2397,14 +2376,6 @@ function UnitReportForm({ activeProperty }: { activeProperty: string }) {
         </div>
       </div>
 
-      {/* Validation Banner */}
-      {validationError && (
-        <div className="rp-validation-alert">
-          <AlertTriangle size={15} style={{ flexShrink: 0 }} />
-          <span>{validationError}</span>
-        </div>
-      )}
-
       {/* Footer Bar */}
       <div className="rp-card-footer">
         <span className="rb-hint" style={{ margin: 0 }}>
@@ -2431,6 +2402,12 @@ function UnitReportForm({ activeProperty }: { activeProperty: string }) {
           </button>
         </div>
       </div>
+
+      <ReportNoticeModal
+        notice={notice}
+        onClose={() => setNotice(null)}
+        onReset={handleResetFilters}
+      />
     </div>
   );
 }
@@ -2461,7 +2438,7 @@ function MeterRecordReportForm({ activeProperty }: { activeProperty: string }) {
   const [meterNo, setMeterNo] = useState<string>('');
   const [sortBy, setSortBy] = useState<string>('billDate');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [validationError, setValidationError] = useState<string>('');
+  const [notice, setNotice] = useState<ReportNoticeState | null>(null);
 
   // Reset floor/unit selection when switching property scope
   useEffect(() => {
@@ -2531,18 +2508,26 @@ function MeterRecordReportForm({ activeProperty }: { activeProperty: string }) {
     setMeterNo('');
     setSortBy('billDate');
     setSortOrder('desc');
-    setValidationError('');
+    setNotice(null);
   };
 
   const handleGenerateReport = async () => {
-    setValidationError('');
+    setNotice(null);
 
     if (billDateFrom && billDateTo && billDateFrom > billDateTo) {
-      setValidationError('Bill Date From cannot be later than Bill Date To.');
+      setNotice({
+        variant: 'error',
+        title: 'Invalid Bill Date Range',
+        message: 'Bill Date From cannot be later than Bill Date To. Please adjust the dates to continue.',
+      });
       return;
     }
     if (startDateFrom && endDateTo && startDateFrom > endDateTo) {
-      setValidationError('Start Date From cannot be later than End Date To.');
+      setNotice({
+        variant: 'error',
+        title: 'Invalid Period Date Range',
+        message: 'Start Date From cannot be later than End Date To. Please adjust the dates to continue.',
+      });
       return;
     }
 
@@ -2568,7 +2553,11 @@ function MeterRecordReportForm({ activeProperty }: { activeProperty: string }) {
 
       const records = resp.data || [];
       if (records.length === 0) {
-        toast('No meter records found matching your filters.', { icon: 'ℹ️' });
+        setNotice({
+          variant: 'empty',
+          title: 'No Meter Records Found',
+          message: 'No meter records match your current filter criteria. Try widening the date range or resetting your filters.',
+        });
         return;
       }
 
@@ -2774,14 +2763,6 @@ function MeterRecordReportForm({ activeProperty }: { activeProperty: string }) {
         </div>
       </div>
 
-      {/* Validation Banner */}
-      {validationError && (
-        <div className="rp-validation-alert">
-          <AlertTriangle size={15} style={{ flexShrink: 0 }} />
-          <span>{validationError}</span>
-        </div>
-      )}
-
       {/* Footer Bar */}
       <div className="rp-card-footer">
         <span className="rb-hint" style={{ margin: 0 }}>
@@ -2808,6 +2789,12 @@ function MeterRecordReportForm({ activeProperty }: { activeProperty: string }) {
           </button>
         </div>
       </div>
+
+      <ReportNoticeModal
+        notice={notice}
+        onClose={() => setNotice(null)}
+        onReset={handleResetFilters}
+      />
     </div>
   );
 }

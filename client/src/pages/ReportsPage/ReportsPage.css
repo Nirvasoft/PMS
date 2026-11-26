@@ -1622,18 +1622,117 @@
   gap: 10px;
 }
 
-.rp-validation-alert {
+/* ─── Clean Modal Notice (Option D) ──────────── */
+@keyframes rpNoticeFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes rpNoticePop {
+  from { opacity: 0; transform: translateY(8px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.rp-notice-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 18px;
-  padding: 10px 14px;
-  border-radius: 9px;
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  color: #ef4444;
-  font-size: 0.82rem;
-  font-weight: 500;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(4, 10, 8, 0.66);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: rpNoticeFade 0.16s ease-out;
+}
+
+.rp-notice-modal {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  padding: 28px 26px 24px;
+  border-radius: 16px;
+  background: var(--bg-secondary, #13241e);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+  text-align: center;
+  animation: rpNoticePop 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.rp-notice-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted, #8b95a5);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.rp-notice-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+.rp-notice-icon {
+  width: 50px;
+  height: 50px;
+  margin: 0 auto 14px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rp-notice-icon--empty {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  box-shadow: 0 0 0 6px rgba(245, 158, 11, 0.06);
+}
+
+.rp-notice-icon--error {
+  background: rgba(244, 63, 94, 0.15);
+  color: #fb7185;
+  box-shadow: 0 0 0 6px rgba(244, 63, 94, 0.06);
+}
+
+.rp-notice-title {
+  margin: 0 0 8px;
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.35;
+}
+
+.rp-notice-desc {
+  margin: 0 0 22px;
+  font-size: 0.84rem;
+  line-height: 1.55;
+  color: var(--text-secondary, var(--text-muted));
+}
+
+.rp-notice-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.rp-notice-btn-reset,
+.rp-notice-btn-ok {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 112px;
 }
 
 .rp-card-footer {
