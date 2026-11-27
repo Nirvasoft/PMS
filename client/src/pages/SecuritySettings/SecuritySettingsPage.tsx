@@ -13,6 +13,7 @@ import toast from 'react-hot-toast';
 import PasswordStrengthMeter from '../../components/PasswordStrengthMeter';
 import { useConfirm } from '../../components/DialogProvider';
 import { TableScrollWrapper } from '../../components/TableScrollWrapper';
+import { formatUserAgent, formatIpAddress } from '../../utils/userAgent';
 
 type TabId = 'password' | 'mfa' | 'devices' | 'audit' | 'ip-policy' | 'pw-policy';
 
@@ -197,7 +198,7 @@ function DevicesSection() {
 
 function AuditLogSection() {
   const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(15);
+  const [limit, setLimit] = useState(10);
   const [eventType, setEventType] = useState('');
   const [status, setStatus] = useState('');
   const [dateFrom, setDateFrom] = useState('');
@@ -214,6 +215,8 @@ function AuditLogSection() {
   const meta = data?.meta || { total: 0, totalPages: 0, page: 1 };
   const totalCount = meta.total ?? logs.length;
   const totalPages = Math.max(1, meta.totalPages || Math.ceil(totalCount / limit));
+  const startItem = totalCount === 0 ? 0 : (page - 1) * limit + 1;
+  const endItem = Math.min(page * limit, totalCount);
 
   const hasFilters = eventType || status || dateFrom || dateTo;
   const clearFilters = () => {
@@ -293,67 +296,100 @@ function AuditLogSection() {
 
       {isLoading ? (
         <TableSkeleton columns={5} rows={5} />
-      ) : logs.length === 0 ? (
-        <p className="text-muted">{hasFilters ? 'No events match your filters' : 'No audit logs found'}</p>
       ) : (
-        <>
-          <div className="audit-table-container">
-            <TableScrollWrapper>
-              <table className="audit-table">
-                <thead>
+        <div className="audit-table-container">
+          <TableScrollWrapper>
+            <table className="audit-table billing-table">
+              <thead>
+                <tr>
+                  <th>Event</th>
+                  <th>Status</th>
+                  <th>IP Address</th>
+                  <th>Device</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {logs.length === 0 ? (
                   <tr>
-                    <th>Event</th>
-                    <th>Status</th>
-                    <th>IP Address</th>
-                    <th>Date</th>
+                    <td colSpan={5} style={{ textAlign: 'center', padding: '40px' }} className="text-muted">
+                      {hasFilters ? 'No events match your filters' : 'No audit logs found'}
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {logs.map((log: Record<string, unknown>) => (
-                    <tr key={log.id as string}>
-                      <td>
-                        <span className={`event-badge ${log.eventType as string}`}>
-                          {(log.eventType as string).replace(/_/g, ' ')}
-                        </span>
-                      </td>
-                      <td>
-                        {log.status === 'success'
-                          ? <span className="status-success"><CheckCircle size={14} /> Success</span>
-                          : <span className="status-failure"><AlertTriangle size={14} /> Failure</span>}
-                      </td>
-                      <td className="text-mono">{log.ipAddress as string || '—'}</td>
-                      <td>{new Date(log.createdAt as string).toLocaleString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </TableScrollWrapper>
-          </div>
-          {totalCount >= 10 && (
-            <div className="maint-pagination">
-              <div className="maint-page-size">
-                <span>Rows per page:</span>
-                <select value={limit} onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }}>
-                  <option value={10}>10</option>
-                  <option value={15}>15</option>
-                  <option value={25}>25</option>
-                  <option value={50}>50</option>
-                </select>
+                ) : (
+                  logs.map((log: Record<string, unknown>) => {
+                    const ua = String(log.userAgent || '');
+                    return (
+                      <tr key={log.id as string}>
+                        <td data-label="Event">
+                          <span className={`event-badge ${log.eventType as string}`}>
+                            {(log.eventType as string).replace(/_/g, ' ')}
+                          </span>
+                        </td>
+                        <td data-label="Status">
+                          {log.status === 'success'
+                            ? <span className="status-success"><CheckCircle size={14} /> Success</span>
+                            : <span className="status-failure"><AlertTriangle size={14} /> Failure</span>}
+                        </td>
+                        <td data-label="IP Address" className="text-mono">{formatIpAddress(log.ipAddress)}</td>
+                        <td data-label="Device" className="text-small text-muted" title={ua || undefined}>{formatUserAgent(ua)}</td>
+                        <td data-label="Date">{new Date(log.createdAt as string).toLocaleString()}</td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </TableScrollWrapper>
+
+          {totalCount > 0 && (
+            <div className="billing-pagination">
+              <div className="pagination-left">
+                <div className="page-size-selector">
+                  <label htmlFor="audit-log-page-size">Rows per page:</label>
+                  <select
+                    id="audit-log-page-size"
+                    value={limit}
+                    onChange={(e) => {
+                      setLimit(Number(e.target.value));
+                      setPage(1);
+                    }}
+                  >
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
+                <span className="page-info">
+                  Showing {startItem}–{endItem} of {totalCount}
+                </span>
               </div>
-              <div className="maint-page-controls">
-                <button className="maint-page-btn" disabled={page <= 1} onClick={() => setPage(page - 1)}>
-                  <ChevronLeft size={16} />
+
+              <div className="page-btns">
+                <button
+                  type="button"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  title="Previous page"
+                >
+                  <ChevronLeft size={15} />
                 </button>
-                <span className="maint-page-info">
+                <span className="page-num-display">
                   Page {page} of {totalPages}
                 </span>
-                <button className="maint-page-btn" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
-                  <ChevronRight size={16} />
+                <button
+                  type="button"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  title="Next page"
+                >
+                  <ChevronRight size={15} />
                 </button>
               </div>
             </div>
           )}
-        </>
+        </div>
       )}
     </div>
   );

@@ -18,8 +18,10 @@ import {
   User, KeyRound, Shield, Activity, Lock, Unlock, Clock,
   CheckCircle2, XCircle, Ban, AlertTriangle, Copy, Camera,
   Loader2, LogOut, RefreshCw, Mail, Laptop, Link2, ShieldAlert,
-  FileText, X, List,
+  FileText, X, List, ChevronLeft, ChevronRight,
 } from 'lucide-react';
+import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
+import { formatUserAgent, formatIpAddress } from '../../../utils/userAgent';
 import toast from 'react-hot-toast';
 
 type Tab = 'profile' | 'roles' | 'security' | 'activity';
@@ -979,30 +981,35 @@ const EVENT_LABELS: Record<string, { label: string; icon: React.ReactNode }> = {
 
 function ActivityTab({ userId }: { userId: string }) {
   const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
   const { data, isLoading } = useGetAuditLogsQuery({
     userId,
     page: String(page),
-    limit: '20',
+    limit: String(limit),
   });
 
   const logs = data?.data ?? [];
   const meta = data?.meta ?? { total: 0, page: 1, totalPages: 1 };
+  const totalCount = meta.total ?? logs.length;
+  const totalPages = Math.max(1, meta.totalPages || Math.ceil(totalCount / limit));
+  const startItem = totalCount === 0 ? 0 : (page - 1) * limit + 1;
+  const endItem = Math.min(page * limit, totalCount);
 
   return (
     <div className="user-detail-section">
       <div className="section-header">
         <h3>Auth Activity Log</h3>
-        <span className="text-muted text-small">{meta.total} events</span>
+        <span className="text-muted text-small">
+          {totalCount} event{totalCount === 1 ? '' : 's'}
+        </span>
       </div>
 
       {isLoading ? (
         <TableSkeleton columns={5} rows={5} />
-      ) : logs.length === 0 ? (
-        <p className="text-muted">No activity recorded for this user</p>
       ) : (
-        <>
-          <div className="activity-table-wrap">
-            <table className="activity-table">
+        <div className="audit-table-container">
+          <TableScrollWrapper>
+            <table className="audit-table billing-table">
               <thead>
                 <tr>
                   <th>Event</th>
@@ -1013,57 +1020,94 @@ function ActivityTab({ userId }: { userId: string }) {
                 </tr>
               </thead>
               <tbody>
-                {logs.map((log: Record<string, unknown>) => {
-                  const evtInfo = EVENT_LABELS[log.eventType as string] ?? {
-                    label: String(log.eventType),
-                    icon: <FileText size={14} style={{ color: 'var(--accent)' }} />,
-                  };
-                  const ua = String(log.userAgent || '');
-                  const shortUA = ua.length > 40 ? ua.substring(0, 40) + '…' : ua || '—';
-                  return (
-                    <tr key={log.id as string}>
-                      <td>
-                        <span className="activity-event">
-                          <span style={{ display: 'inline-flex', alignItems: 'center' }}>{evtInfo.icon}</span>
-                          <span>{evtInfo.label}</span>
-                        </span>
-                      </td>
-                      <td>
-                        <span className={`status-badge ${log.status === 'success' ? 'active' : 'danger'}`}>
-                          {String(log.status)}
-                        </span>
-                      </td>
-                      <td className="text-small">{String(log.ipAddress || '—')}</td>
-                      <td className="text-small text-muted" title={ua}>{shortUA}</td>
-                      <td className="text-small text-muted">
-                        {new Date(log.createdAt as string).toLocaleString()}
-                      </td>
-                    </tr>
-                  );
-                })}
+                {logs.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} style={{ textAlign: 'center', padding: '40px' }} className="text-muted">
+                      No activity recorded for this user
+                    </td>
+                  </tr>
+                ) : (
+                  logs.map((log: Record<string, unknown>) => {
+                    const evtInfo = EVENT_LABELS[log.eventType as string] ?? {
+                      label: String(log.eventType),
+                      icon: <FileText size={14} style={{ color: 'var(--accent)' }} />,
+                    };
+                    const ua = String(log.userAgent || '');
+                    const deviceLabel = formatUserAgent(ua);
+                    return (
+                      <tr key={log.id as string}>
+                        <td data-label="Event">
+                          <span className="activity-event">
+                            <span style={{ display: 'inline-flex', alignItems: 'center' }}>{evtInfo.icon}</span>
+                            <span>{evtInfo.label}</span>
+                          </span>
+                        </td>
+                        <td data-label="Status">
+                          <span className={`status-badge ${log.status === 'success' ? 'active' : 'danger'}`}>
+                            {String(log.status)}
+                          </span>
+                        </td>
+                        <td data-label="IP Address" className="text-mono text-small">{formatIpAddress(log.ipAddress)}</td>
+                        <td data-label="Device" className="text-small text-muted" title={ua || undefined}>{deviceLabel}</td>
+                        <td data-label="Time" className="text-small text-muted">
+                          {new Date(log.createdAt as string).toLocaleString()}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
-          </div>
+          </TableScrollWrapper>
 
-          {/* Pagination */}
-          {meta.totalPages > 1 && (
-            <div className="pagination" style={{ marginTop: 16 }}>
-              <button
-                className="btn btn-sm"
-                disabled={page <= 1}
-                onClick={() => setPage(p => p - 1)}
-              >← Prev</button>
-              <span className="text-muted text-small">
-                Page {page} of {meta.totalPages}
-              </span>
-              <button
-                className="btn btn-sm"
-                disabled={page >= meta.totalPages}
-                onClick={() => setPage(p => p + 1)}
-              >Next →</button>
+          {totalCount > 0 && (
+            <div className="billing-pagination">
+              <div className="pagination-left">
+                <div className="page-size-selector">
+                  <label htmlFor="user-activity-page-size">Rows per page:</label>
+                  <select
+                    id="user-activity-page-size"
+                    value={limit}
+                    onChange={(e) => {
+                      setLimit(Number(e.target.value));
+                      setPage(1);
+                    }}
+                  >
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
+                <span className="page-info">
+                  Showing {startItem}–{endItem} of {totalCount}
+                </span>
+              </div>
+
+              <div className="page-btns">
+                <button
+                  type="button"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  title="Previous page"
+                >
+                  <ChevronLeft size={15} />
+                </button>
+                <span className="page-num-display">
+                  Page {page} of {totalPages}
+                </span>
+                <button
+                  type="button"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  title="Next page"
+                >
+                  <ChevronRight size={15} />
+                </button>
+              </div>
             </div>
           )}
-        </>
+        </div>
       )}
     </div>
   );

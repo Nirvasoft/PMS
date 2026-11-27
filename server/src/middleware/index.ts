@@ -79,13 +79,31 @@ export function authMiddleware(req: Request, _res: Response, next: NextFunction)
 }
 
 /**
+ * Normalize raw socket / proxy IP addresses:
+ * - "::1" / "0:0:0:0:0:0:0:1" -> "127.0.0.1"
+ * - "::ffff:192.168.1.5" -> "192.168.1.5"
+ */
+function normalizeIpAddress(raw?: string | null): string {
+  const ip = (raw || '').trim();
+  if (!ip) return '0.0.0.0';
+  if (ip === '::1' || ip === '0:0:0:0:0:0:0:1') return '127.0.0.1';
+  if (/^::ffff:/i.test(ip)) return ip.slice(7);
+  return ip;
+}
+
+/**
  * Extracts request context (IP, user agent) for audit logging
  */
 export function requestContextMiddleware(req: Request, _res: Response, next: NextFunction): void {
+  const rawIp =
+    (req.headers['cf-connecting-ip'] as string)?.trim()
+    || (req.headers['x-real-ip'] as string)?.trim()
+    || (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()
+    || req.socket.remoteAddress
+    || '0.0.0.0';
+
   req.requestContext = {
-    ipAddress: (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()
-      || req.socket.remoteAddress
-      || '0.0.0.0',
+    ipAddress: normalizeIpAddress(rawIp),
     userAgent: req.headers['user-agent'] || 'unknown',
   };
   next();
