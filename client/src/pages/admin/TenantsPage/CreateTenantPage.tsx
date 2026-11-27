@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCreateTenantMutation } from '../../../store/api/tenantsApi';
 import { useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
@@ -45,6 +45,16 @@ export default function CreateTenantPage() {
     tags: [] as string[],
     notes: '',
   });
+
+  const hasAutoBoundCurrency = useRef(false);
+  useEffect(() => {
+    if (hasAutoBoundCurrency.current || currencyOptions.length === 0) return;
+    const base = currencyOptions.find((c) => c.isBaseCurrency) ?? currencyOptions[0];
+    if (base?.currency) {
+      hasAutoBoundCurrency.current = true;
+      setForm((f) => (f.currency ? f : { ...f, currency: base.currency }));
+    }
+  }, [currencyOptions]);
 
   const [tagInput, setTagInput] = useState('');
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
