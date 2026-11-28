@@ -8,7 +8,7 @@ import {
   useGetCurrencyRatesQuery,
 } from '../../../store/api/billingApi';
 import { usePushInvoicesToV6ErpMutation } from '../../../store/api/integrationsApi';
-import { useGetPropertiesQuery, useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
+import { useGetPropertiesQuery, useGetMyPropertyScopeQuery, useGetFloorSetupsQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import {
@@ -70,6 +70,7 @@ interface SavedInvoiceListState {
   status: string;
   currencyFilter: string;
   billType: string;
+  floorFilter?: string;
   fromDate: string;
   toDate: string;
   search: string;
@@ -101,6 +102,7 @@ export default function InvoiceListPage() {
   const [status, setStatus] = useState<string>(() => initialSaved.status || '');
   const [currencyFilter, setCurrencyFilter] = useState<string>(() => initialSaved.currencyFilter || '');
   const [billType, setBillType] = useState<string>(() => initialSaved.billType || '');
+  const [floorFilter, setFloorFilter] = useState<string>(() => initialSaved.floorFilter || '');
   const [fromDate, setFromDate] = useState<string>(() => initialSaved.fromDate || '');
   const [toDate, setToDate] = useState<string>(() => initialSaved.toDate || '');
   const [search, setSearch] = useState<string>(() => initialSaved.search || '');
@@ -121,22 +123,40 @@ export default function InvoiceListPage() {
     [currencyRates, baseCurrencyCode],
   );
 
-  // Reset currency filter & page only when the sidebar's Active Property actually changes
+  const { data: floorsData } = useGetFloorSetupsQuery(
+    activePropertyFilter ? { propertyId: activePropertyFilter } : undefined,
+  );
+  const floorOptions = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const f of floorsData?.data ?? []) {
+      if (!map.has(f.floorNumber)) {
+        map.set(f.floorNumber, f.floorLabel?.trim() || `Floor ${f.floorNumber}`);
+      }
+    }
+    return Array.from(map.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([floorNumber, floorLabel]) => ({ floorNumber, floorLabel }));
+  }, [floorsData]);
+
+  // Reset currency & floor filters and page only when the sidebar's Active Property actually changes
   const prevPropertyFilterRef = useRef(activePropertyFilter);
   useEffect(() => {
     if (prevPropertyFilterRef.current !== activePropertyFilter) {
       prevPropertyFilterRef.current = activePropertyFilter;
       setCurrencyFilter('');
+      setFloorFilter('');
       setPage(1);
       setSelectedIds(new Set());
     }
   }, [activePropertyFilter]);
 
   const activeCurrency = currencyFilter === 'ALL' ? undefined : (currencyFilter || baseCurrencyCode);
+  const activeFloorNumber = floorFilter !== '' ? Number(floorFilter) : undefined;
 
   const hasActiveFilters = Boolean(
     status ||
     billType ||
+    floorFilter !== '' ||
     fromDate ||
     toDate ||
     (currencyFilter && currencyFilter !== baseCurrencyCode)
@@ -167,6 +187,7 @@ export default function InvoiceListPage() {
         status,
         currencyFilter,
         billType,
+        floorFilter,
         fromDate,
         toDate,
         search,
@@ -176,13 +197,14 @@ export default function InvoiceListPage() {
     } catch {
       // Ignore storage quota errors
     }
-  }, [activePropertyFilter, page, pageSize, showFilters, status, currencyFilter, billType, fromDate, toDate, search, sortBy]);
+  }, [activePropertyFilter, page, pageSize, showFilters, status, currencyFilter, billType, floorFilter, fromDate, toDate, search, sortBy]);
 
   const { data, isFetching, refetch } = useGetInvoicesQuery({
     propertyId: activePropertyFilter || undefined,
     status: status || undefined,
     currency: activeCurrency,
     billType: billType || undefined,
+    floorNumber: activeFloorNumber,
     from: fromDate || undefined,
     to: toDate || undefined,
     search: debouncedSearch || undefined,
@@ -200,6 +222,7 @@ export default function InvoiceListPage() {
       status: 'issued',
       currency: activeCurrency,
       billType: billType || undefined,
+      floorNumber: activeFloorNumber,
       from: fromDate || undefined,
       to: toDate || undefined,
       search: debouncedSearch || undefined,
@@ -610,6 +633,20 @@ export default function InvoiceListPage() {
             <option value="other">Other</option>
           </select>
 
+          <select
+            className="filter-select"
+            value={floorFilter}
+            onChange={e => { setFloorFilter(e.target.value); setPage(1); clearSelection(); }}
+            title="Floor Level"
+          >
+            <option value="">All Floors</option>
+            {floorOptions.map(f => (
+              <option key={f.floorNumber} value={String(f.floorNumber)}>
+                {f.floorLabel}
+              </option>
+            ))}
+          </select>
+
           <div className="billing-filter-date-range">
             <input
               type="date"
@@ -635,6 +672,7 @@ export default function InvoiceListPage() {
               setCurrencyFilter('');
               setStatus('');
               setBillType('');
+              setFloorFilter('');
               setFromDate('');
               setToDate('');
               setPage(1);

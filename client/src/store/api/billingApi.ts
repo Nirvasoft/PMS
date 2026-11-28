@@ -365,7 +365,7 @@ export const billingApi = createApi({
     }),
 
     // ── Charge Types ──────────────────────
-    getChargeTypes: builder.query<ApiResponse<ChargeType[]>, { propertyId?: string } | void>({
+    getChargeTypes: builder.query<ApiResponse<ChargeType[]>, { propertyId?: string; floorNumber?: number } | void>({
       query: (params) => ({ url: '/billing/charge-types', params: params || {} }),
       providesTags: ['ChargeTypes'],
     }),
@@ -434,13 +434,13 @@ export const billingApi = createApi({
 
     // ── Billing Schedules ─────────────────
     getBillingSchedules: builder.query<PaginatedResponse<BillingSchedule>, {
-      leaseId?: string; tenantId?: string; propertyId?: string; unitId?: string; status?: string; currency?: string; billingCycle?: string; search?: string; dueAsOf?: string; page?: number; limit?: number;
+      leaseId?: string; tenantId?: string; propertyId?: string; unitId?: string; floorNumber?: number; status?: string; currency?: string; billingCycle?: string; search?: string; dueAsOf?: string; page?: number; limit?: number;
     }>({
       query: (params) => ({ url: '/billing/schedules', params }),
       providesTags: ['BillingSchedules'],
     }),
 
-    getBillingScheduleReview: builder.query<ApiResponse<BillingScheduleReview>, { asOfDate: string; propertyId?: string; currency?: string }>({
+    getBillingScheduleReview: builder.query<ApiResponse<BillingScheduleReview>, { asOfDate: string; propertyId?: string; currency?: string; floorNumber?: number }>({
       query: (params) => ({ url: '/billing/schedules/review', params }),
       providesTags: ['BillingSchedules'],
     }),
@@ -451,7 +451,7 @@ export const billingApi = createApi({
     }),
 
     setBillingScheduleConfirmation: builder.mutation<ApiResponse<{ updatedCount: number; status: string }>, {
-      asOfDate: string; action: 'confirm' | 'unconfirm'; propertyId?: string; currency?: string; category?: string; scheduleIds?: string[];
+      asOfDate: string; action: 'confirm' | 'unconfirm'; propertyId?: string; currency?: string; floorNumber?: number; category?: string; scheduleIds?: string[];
     }>({
       query: (body) => ({ url: '/billing/schedules/confirm', method: 'POST', body }),
       invalidatesTags: ['BillingSchedules'],
@@ -509,7 +509,7 @@ export const billingApi = createApi({
       tenantId?: string; leaseId?: string; propertyId?: string; status?: string;
       currency?: string; billType?: string;
       startInvoice?: string; endInvoice?: string;
-      search?: string; from?: string; to?: string; floor?: string; unitNumber?: string;
+      search?: string; from?: string; to?: string; floor?: string; floorNumber?: number; unitNumber?: string;
       includeLines?: boolean; includeTotals?: boolean;
       sortBy?: string; sortOrder?: 'asc' | 'desc';
       page?: number; limit?: number; all?: boolean;

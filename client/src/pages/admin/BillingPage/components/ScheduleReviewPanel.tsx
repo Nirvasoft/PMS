@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import {
   CheckCircle2, ClipboardCheck, RotateCcw, AlertTriangle, CircleDot,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import {
   useGetBillingScheduleReviewQuery,
@@ -15,6 +16,7 @@ import { useConfirm, useAlertDialog } from '../../../../components/DialogProvide
 import { usePermission } from '../../../../components/guards/PermissionGuard';
 import { formatFullAmount } from '../../../../utils/formatCurrency';
 import ComboBox from '../../../../components/ComboBox';
+import { TableScrollWrapper } from './TableScrollWrapper';
 
 const fmt = (n: string | number) => formatFullAmount(n, { minDecimals: 2, maxDecimals: 2 });
 
@@ -32,6 +34,7 @@ const totalsLabel = (totals: Record<string, number>) =>
 interface Props {
   propertyId?: string;
   currency?: string;
+  floorNumber?: number;
   search: string;
   initialBillDate?: string;
   initialCategory?: string;
@@ -41,15 +44,21 @@ interface Props {
  * Review & Confirm: due schedules grouped by Charge Category. Staff check Unit, Tenant and
  * Amount, then Confirm — only Confirmed schedules are invoiced by Run Billing.
  */
-export function ScheduleReviewPanel({ propertyId, currency, search, initialBillDate, initialCategory }: Props) {
+export function ScheduleReviewPanel({ propertyId, currency, floorNumber, search, initialBillDate, initialCategory }: Props) {
   const [billDate, setBillDate] = useState(initialBillDate || todayIso());
   const [categoryFilter, setCategoryFilter] = useState(initialCategory || '');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const canWrite = usePermission('billing-schedules.write');
   const confirmDialog = useConfirm();
   const alertDialog = useAlertDialog();
 
-  const { data, isFetching } = useGetBillingScheduleReviewQuery({ asOfDate: billDate, propertyId, currency });
+  useEffect(() => {
+    setPage(1);
+  }, [billDate, categoryFilter, propertyId, currency, floorNumber, search]);
+
+  const { data, isFetching } = useGetBillingScheduleReviewQuery({ asOfDate: billDate, propertyId, currency, floorNumber });
   const [setConfirmation] = useSetBillingScheduleConfirmationMutation();
   const review = data?.data;
 
@@ -124,7 +133,7 @@ export function ScheduleReviewPanel({ propertyId, currency, search, initialBillD
   ) => {
     setBusyKey(key);
     try {
-      const res = await setConfirmation({ asOfDate: billDate, propertyId, currency, ...body }).unwrap();
+      const res = await setConfirmation({ asOfDate: billDate, propertyId, currency, floorNumber, ...body }).unwrap();
       toast.success(successMsg(res.data.updatedCount));
     } catch (err: any) {
       alertDialog(err?.data?.errors?.[0]?.message || `Failed to ${body.action} schedules`);
@@ -209,6 +218,13 @@ export function ScheduleReviewPanel({ propertyId, currency, search, initialBillD
           const key = cat.categoryCode;
           const fullyConfirmed = cat.activeCount === 0 && cat.confirmedCount > 0;
           const invoicedCount = cat.schedules.filter((s) => s.alreadyInvoicedNumber).length;
+          const totalCount = cat.schedules.length;
+          const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+          const currentPage = Math.min(page, totalPages);
+          const startItem = totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+          const endItem = Math.min(currentPage * pageSize, totalCount);
+          const pagedSchedules = cat.schedules.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
           return (
             <div key={key} className={`sched-category-card${fullyConfirmed ? ' sched-category-card--confirmed' : ''}`}>
               <div className="sched-category-head">
@@ -248,68 +264,118 @@ export function ScheduleReviewPanel({ propertyId, currency, search, initialBillD
 
               {(
                 <div className="sched-category-body">
-                  <table className="billing-table">
-                    <thead>
-                      <tr>
-                        <th>Floor / Unit</th>
-                        <th>Tenant</th>
-                        <th>Charge</th>
-                        <th>Next Billing</th>
-                        <th className="text-center">Qty</th>
-                        <th className="text-right">Amount</th>
-                        <th className="text-right">Total</th>
-                        <th>Status</th>
-                        {canWrite && <th className="text-center" />}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {cat.schedules.map((s) => (
-                        <tr key={s.id} className={s.status === 'confirmed' ? 'sched-row--confirmed' : undefined}>
-                          <td>
-                            {s.unit ? (
-                              <>
-                                {s.unit.floorLabel && <div className="cell-secondary">{s.unit.floorLabel}</div>}
-                                <div className="cell-primary">{s.unit.unitNumber}</div>
-                              </>
-                            ) : <span style={{ color: 'var(--text-tertiary)' }}>—</span>}
-                          </td>
-                          <td><div className="cell-primary">{tenantName(s.tenant)}</div></td>
-                          <td>
-                            <div className="cell-primary">{s.chargeType.name}</div>
-                            {s.description && s.description.trim() !== s.chargeType.name && (
-                              <div className="cell-secondary">{s.description}</div>
-                            )}
-                            {s.alreadyInvoicedNumber && (
-                              <div className="sched-row-warning"><AlertTriangle size={11} /> Already invoiced ({s.alreadyInvoicedNumber})</div>
-                            )}
-                            {s.isProrated && <div className="sched-row-note">First invoice is prorated</div>}
-                          </td>
-                          <td>{s.nextBillingDate ? format(new Date(`${s.nextBillingDate.split('T')[0]}T00:00:00`), 'MMM d, yyyy') : '—'}</td>
-                          <td className="text-center">{Number(s.quantity) || 1}</td>
-                          <td className="text-right">{fmt(s.amount)}</td>
-                          <td className="text-right"><span className="cell-amount">{s.currency} {fmt(s.lineTotal)}</span></td>
-                          <td>
-                            <span className={`sched-status sched-status--${s.status}`}>
-                              <CircleDot size={10} /> {s.status}
-                            </span>
-                          </td>
-                          {canWrite && (
-                            <td className="text-center">
-                              <button
-                                type="button"
-                                className="action-btn"
-                                disabled={busyKey !== null}
-                                onClick={() => handleRow(s)}
-                                title={s.status === 'confirmed' ? 'Revert to Active' : 'Confirm this schedule'}
-                              >
-                                {s.status === 'confirmed' ? <RotateCcw size={13} /> : <CheckCircle2 size={13} />}
-                              </button>
-                            </td>
-                          )}
+                  <TableScrollWrapper>
+                    <table className="billing-table">
+                      <thead>
+                        <tr>
+                          <th>Floor / Unit</th>
+                          <th>Tenant</th>
+                          <th>Charge</th>
+                          <th>Next Billing</th>
+                          <th className="text-center">Qty</th>
+                          <th className="text-right">Amount</th>
+                          <th className="text-right">Total</th>
+                          <th>Status</th>
+                          {canWrite && <th className="text-center" />}
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {pagedSchedules.map((s) => (
+                          <tr key={s.id} className={s.status === 'confirmed' ? 'sched-row--confirmed' : undefined}>
+                            <td>
+                              {s.unit ? (
+                                <>
+                                  {s.unit.floorLabel && <div className="cell-secondary">{s.unit.floorLabel}</div>}
+                                  <div className="cell-primary">{s.unit.unitNumber}</div>
+                                </>
+                              ) : <span style={{ color: 'var(--text-tertiary)' }}>—</span>}
+                            </td>
+                            <td><div className="cell-primary">{tenantName(s.tenant)}</div></td>
+                            <td>
+                              <div className="cell-primary">{s.chargeType.name}</div>
+                              {s.description && s.description.trim() !== s.chargeType.name && (
+                                <div className="cell-secondary">{s.description}</div>
+                              )}
+                              {s.alreadyInvoicedNumber && (
+                                <div className="sched-row-warning"><AlertTriangle size={11} /> Already invoiced ({s.alreadyInvoicedNumber})</div>
+                              )}
+                              {s.isProrated && <div className="sched-row-note">First invoice is prorated</div>}
+                            </td>
+                            <td>{s.nextBillingDate ? format(new Date(`${s.nextBillingDate.split('T')[0]}T00:00:00`), 'MMM d, yyyy') : '—'}</td>
+                            <td className="text-center">{Number(s.quantity) || 1}</td>
+                            <td className="text-right">{fmt(s.amount)}</td>
+                            <td className="text-right"><span className="cell-amount">{s.currency} {fmt(s.lineTotal)}</span></td>
+                            <td>
+                              <span className={`sched-status sched-status--${s.status}`}>
+                                <CircleDot size={10} /> {s.status}
+                              </span>
+                            </td>
+                            {canWrite && (
+                              <td className="text-center">
+                                <button
+                                  type="button"
+                                  className="action-btn"
+                                  disabled={busyKey !== null}
+                                  onClick={() => handleRow(s)}
+                                  title={s.status === 'confirmed' ? 'Revert to Active' : 'Confirm this schedule'}
+                                >
+                                  {s.status === 'confirmed' ? <RotateCcw size={13} /> : <CheckCircle2 size={13} />}
+                                </button>
+                              </td>
+                            )}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </TableScrollWrapper>
+
+                  {totalCount >= 10 && (
+                    <div className="billing-pagination">
+                      <div className="pagination-left">
+                        <div className="page-size-selector">
+                          <label htmlFor={`review-page-size-${key}`}>Rows per page:</label>
+                          <select
+                            id={`review-page-size-${key}`}
+                            value={pageSize}
+                            onChange={(e) => {
+                              setPageSize(Number(e.target.value));
+                              setPage(1);
+                            }}
+                          >
+                            <option value={10}>10</option>
+                            <option value={25}>25</option>
+                            <option value={50}>50</option>
+                            <option value={100}>100</option>
+                          </select>
+                        </div>
+                        <span className="page-info">
+                          Showing {startItem}–{endItem} of {totalCount}
+                        </span>
+                      </div>
+
+                      <div className="page-btns">
+                        <button
+                          type="button"
+                          disabled={currentPage <= 1}
+                          onClick={() => setPage(Math.max(1, currentPage - 1))}
+                          title="Previous page"
+                        >
+                          <ChevronLeft size={15} />
+                        </button>
+                        <span className="page-num-display">
+                          Page {currentPage} of {totalPages}
+                        </span>
+                        <button
+                          type="button"
+                          disabled={currentPage >= totalPages}
+                          onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
+                          title="Next page"
+                        >
+                          <ChevronRight size={15} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

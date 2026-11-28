@@ -36,9 +36,9 @@ export class BillingSchedulesService {
   }
 
   async findAll(companyId: string, filters: {
-    leaseId?: string; tenantId?: string; propertyId?: string; unitId?: string; status?: string; currency?: string; billingCycle?: string; search?: string; dueAsOf?: string; page?: number; limit?: number;
+    leaseId?: string; tenantId?: string; propertyId?: string; unitId?: string; floorNumber?: number; status?: string; currency?: string; billingCycle?: string; search?: string; dueAsOf?: string; page?: number; limit?: number;
   }) {
-    const { leaseId, tenantId, propertyId, unitId, status, currency, billingCycle, search, dueAsOf, page = 1, limit = 20 } = filters;
+    const { leaseId, tenantId, propertyId, unitId, floorNumber, status, currency, billingCycle, search, dueAsOf, page = 1, limit = 20 } = filters;
     const where: any = { companyId };
     if (dueAsOf) {
       where.nextBillingDate = { lte: new Date(dueAsOf) };
@@ -48,6 +48,7 @@ export class BillingSchedulesService {
     if (tenantId) where.tenantId = tenantId;
     if (propertyId) where.propertyId = propertyId;
     if (unitId) where.unitId = unitId;
+    if (floorNumber !== undefined) where.unit = { floorNumber };
     if (status) where.status = status;
     if (currency) where.currency = currency;
     if (billingCycle) where.billingCycle = billingCycle;
@@ -806,9 +807,9 @@ export class BillingSchedulesService {
    */
   async getReviewByCategory(
     companyId: string,
-    filters: { asOfDate: Date; propertyId?: string; currency?: string },
+    filters: { asOfDate: Date; propertyId?: string; currency?: string; floorNumber?: number },
   ) {
-    const { asOfDate, propertyId, currency } = filters;
+    const { asOfDate, propertyId, currency, floorNumber } = filters;
     const where: any = {
       companyId,
       status: { in: ['active', 'confirmed'] },
@@ -817,6 +818,7 @@ export class BillingSchedulesService {
     };
     if (propertyId) where.propertyId = propertyId;
     if (currency) where.currency = currency;
+    if (floorNumber !== undefined) where.unit = { floorNumber };
 
     const [rows, categoryDefs] = await Promise.all([
       prisma.billingSchedule.findMany({
@@ -970,11 +972,12 @@ export class BillingSchedulesService {
       action: 'confirm' | 'unconfirm';
       propertyId?: string;
       currency?: string;
+      floorNumber?: number;
       category?: string;
       scheduleIds?: string[];
     },
   ) {
-    const { asOfDate, action, propertyId, currency, category, scheduleIds } = dto;
+    const { asOfDate, action, propertyId, currency, floorNumber, category, scheduleIds } = dto;
     if (!category && !(scheduleIds && scheduleIds.length > 0)) {
       throw AppError.validation('Select a charge category or at least one schedule');
     }
@@ -989,6 +992,7 @@ export class BillingSchedulesService {
     };
     if (propertyId) where.propertyId = propertyId;
     if (currency) where.currency = currency;
+    if (floorNumber !== undefined) where.unit = { floorNumber };
     if (category) where.chargeType = { category: { equals: category.trim(), mode: 'insensitive' } };
     if (scheduleIds && scheduleIds.length > 0) where.id = { in: scheduleIds };
 

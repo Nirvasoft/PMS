@@ -64,6 +64,7 @@ export default function BillingSchedulesPage() {
   const [statusFilter, setStatusFilter] = useState('active');
   const [currencyFilter, setCurrencyFilter] = useState<string>('');
   const [cycleFilter, setCycleFilter] = useState<string>('');
+  const [floorFilter, setFloorFilter] = useState<string>('');
   const [search, setSearch] = useState('');
   const selectedProperty = useSelectedPropertyFilter();
   const defaultPropertyId = useSelectedPropertyId();
@@ -94,15 +95,36 @@ export default function BillingSchedulesPage() {
       .map(([code, isBase]) => ({ code, isBase }));
   }, [listCurrencyRates, listBaseCurrencyCode]);
 
+  const { data: listFloorsData } = useGetFloorSetupsQuery(
+    selectedProperty ? { propertyId: selectedProperty } : undefined,
+  );
+  const listFloorOptions = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const f of listFloorsData?.data ?? []) {
+      if (!map.has(f.floorNumber)) {
+        map.set(f.floorNumber, f.floorLabel?.trim() || `Floor ${f.floorNumber}`);
+      }
+    }
+    return Array.from(map.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([floorNumber, floorLabel]) => ({ floorNumber, floorLabel }));
+  }, [listFloorsData]);
+
   useEffect(() => {
     setCurrencyFilter(listBaseCurrencyCode);
   }, [selectedProperty, listBaseCurrencyCode]);
 
+  useEffect(() => {
+    setFloorFilter('');
+  }, [selectedProperty]);
+
   const activeListCurrency = currencyFilter === 'ALL' ? undefined : (currencyFilter || listBaseCurrencyCode);
+  const activeListFloorNumber = floorFilter !== '' ? Number(floorFilter) : undefined;
 
   const hasActiveFilters = Boolean(
     statusFilter !== 'active' ||
     cycleFilter ||
+    floorFilter !== '' ||
     (currencyFilter && currencyFilter !== listBaseCurrencyCode)
   );
 
@@ -114,13 +136,14 @@ export default function BillingSchedulesPage() {
   }, [search]);
 
   // Reset pagination whenever Active Property, filters, or search changes.
-  useEffect(() => { setPage(1); }, [selectedProperty, statusFilter, currencyFilter, cycleFilter, debouncedSearch]);
+  useEffect(() => { setPage(1); }, [selectedProperty, statusFilter, currencyFilter, cycleFilter, floorFilter, debouncedSearch]);
 
   const { data, isFetching } = useGetBillingSchedulesQuery({
     ...(statusFilter ? { status: statusFilter } : {}),
     propertyId: selectedProperty || undefined,
     currency: activeListCurrency,
     billingCycle: cycleFilter || undefined,
+    floorNumber: activeListFloorNumber,
     search: debouncedSearch || undefined,
     page,
     limit: pageSize,
@@ -539,6 +562,20 @@ export default function BillingSchedulesPage() {
             <option value="annual">Annual</option>
           </select>
 
+          <select
+            className="filter-select"
+            value={floorFilter}
+            onChange={e => { setFloorFilter(e.target.value); setPage(1); }}
+            title="Floor Level"
+          >
+            <option value="">All Floors</option>
+            {listFloorOptions.map(f => (
+              <option key={f.floorNumber} value={String(f.floorNumber)}>
+                {f.floorLabel}
+              </option>
+            ))}
+          </select>
+
           <button
             type="button"
             className="btn-ghost billing-filter-reset-btn"
@@ -546,6 +583,7 @@ export default function BillingSchedulesPage() {
               setCurrencyFilter(listBaseCurrencyCode);
               setStatusFilter('active');
               setCycleFilter('');
+              setFloorFilter('');
               setPage(1);
             }}
           >
@@ -558,6 +596,7 @@ export default function BillingSchedulesPage() {
         <ScheduleReviewPanel
           propertyId={selectedProperty || undefined}
           currency={activeListCurrency}
+          floorNumber={activeListFloorNumber}
           search={debouncedSearch}
           initialBillDate={initialBillDate}
           initialCategory={initialCategory}

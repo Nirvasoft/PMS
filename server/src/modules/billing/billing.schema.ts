@@ -163,6 +163,7 @@ export const confirmBillingSchedulesSchema = z.object({
     action: z.enum(['confirm', 'unconfirm']).optional(),
     propertyId: z.string().uuid().optional(),
     currency: z.string().length(3).optional(),
+    floorNumber: z.number().int().optional(),
     category: z.string().min(1).optional(),
     scheduleIds: z.array(z.string().uuid()).optional(),
   }),

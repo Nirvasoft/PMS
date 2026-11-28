@@ -11,6 +11,7 @@ import {
   useGetCostCentersQuery,
   type GlAccount,
 } from '../../../store/api/glApi';
+import { useGetFloorSetupsQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import { DollarSign, Plus, X, Tag, Check, Pencil, Lock, Search, RotateCcw, ChevronLeft, ChevronRight, BookOpen, Filter } from 'lucide-react';
@@ -22,13 +23,36 @@ import './BillingPage.css';
 
 export default function ChargeTypesPage() {
   const propertyId = useSelectedPropertyId();
+  const [floorFilter, setFloorFilter] = useState('');
+  const activeFloorNumber = floorFilter !== '' ? Number(floorFilter) : undefined;
   const { isAccountingIntegrationActive } = useV6IntegrationStatus(propertyId || undefined);
   const { data: chargeTypesData, isFetching } = useGetChargeTypesQuery(
-    propertyId ? { propertyId } : undefined
+    propertyId || activeFloorNumber !== undefined
+      ? { ...(propertyId ? { propertyId } : {}), ...(activeFloorNumber !== undefined ? { floorNumber: activeFloorNumber } : {}) }
+      : undefined
   );
   const { data: categoriesData } = useGetChargeCategoriesQuery(
     propertyId ? { propertyId } : undefined
   );
+  const { data: floorsData } = useGetFloorSetupsQuery(
+    propertyId ? { propertyId } : undefined
+  );
+  const floorOptions = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const f of floorsData?.data ?? []) {
+      if (!map.has(f.floorNumber)) {
+        map.set(f.floorNumber, f.floorLabel?.trim() || `Floor ${f.floorNumber}`);
+      }
+    }
+    return Array.from(map.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([floorNumber, floorLabel]) => ({ floorNumber, floorLabel }));
+  }, [floorsData]);
+
+  useEffect(() => {
+    setFloorFilter('');
+  }, [propertyId]);
+
   const { data: glAccounts = [], isLoading: loadingGlAccounts } = useGetGlAccountsQuery(
     propertyId ? { propertyId } : {},
     { skip: !isAccountingIntegrationActive }
@@ -115,13 +139,14 @@ export default function ChargeTypesPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  const hasFilterSelections = Boolean(categoryFilter || taxFilter || statusFilter);
+  const hasFilterSelections = Boolean(categoryFilter || taxFilter || statusFilter || floorFilter !== '');
 
   const handleResetFilters = () => {
     setSearch('');
     setCategoryFilter('');
     setTaxFilter('');
     setStatusFilter('');
+    setFloorFilter('');
     setPage(1);
   };
 
@@ -219,7 +244,7 @@ export default function ChargeTypesPage() {
   // Reset pagination when search, filters, or active property change
   useEffect(() => {
     setPage(1);
-  }, [search, categoryFilter, taxFilter, statusFilter, pageSize, propertyId]);
+  }, [search, categoryFilter, taxFilter, statusFilter, floorFilter, pageSize, propertyId]);
 
   const totalItems = filteredChargeTypes.length;
   const totalPages = Math.ceil(totalItems / pageSize) || 1;
@@ -319,6 +344,20 @@ export default function ChargeTypesPage() {
             <option value="inactive">Inactive</option>
           </select>
 
+          <select
+            className="filter-select"
+            value={floorFilter}
+            onChange={(e) => setFloorFilter(e.target.value)}
+            title="Floor Level"
+          >
+            <option value="">All Floors</option>
+            {floorOptions.map((f) => (
+              <option key={f.floorNumber} value={String(f.floorNumber)}>
+                {f.floorLabel}
+              </option>
+            ))}
+          </select>
+
           <button
             type="button"
             className="btn-ghost billing-filter-reset-btn"
@@ -326,6 +365,7 @@ export default function ChargeTypesPage() {
               setCategoryFilter('');
               setTaxFilter('');
               setStatusFilter('');
+              setFloorFilter('');
               setPage(1);
             }}
           >
@@ -357,7 +397,7 @@ export default function ChargeTypesPage() {
           <tbody>
             {isFetching && chargeTypes.length === 0 ? (
               <TableSkeletonRows columns={isAccountingIntegrationActive ? 8 : 5} />
-            ) : chargeTypes.length === 0 ? (
+            ) : chargeTypes.length === 0 && !hasFilterSelections && !search.trim() ? (
               <tr><td colSpan={isAccountingIntegrationActive ? 8 : 5} className="billing-empty">No charge types found</td></tr>
             ) : filteredChargeTypes.length === 0 ? (
               <tr>

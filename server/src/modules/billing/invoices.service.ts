@@ -133,7 +133,7 @@ export class InvoicesService {
     tenantId?: string; leaseId?: string; propertyId?: string; status?: string;
     currency?: string; billType?: string;
     startInvoice?: string; endInvoice?: string;
-    search?: string; from?: string; to?: string; floor?: string; unitNumber?: string;
+    search?: string; from?: string; to?: string; floor?: string; floorNumber?: number; unitNumber?: string;
     includeLines?: boolean; includeTotals?: boolean;
     sortBy?: string; sortOrder?: 'asc' | 'desc';
     page?: number; limit?: number; all?: boolean;
@@ -144,7 +144,7 @@ export class InvoicesService {
     const {
       tenantId, leaseId, propertyId, status, currency, billType,
       startInvoice, endInvoice, search, from, to,
-      floor, unitNumber, includeLines = true, includeTotals = false,
+      floor, floorNumber, unitNumber, includeLines = true, includeTotals = false,
       sortBy, sortOrder = 'asc',
       page = 1, limit = 20, all = false,
     } = filters;
@@ -173,10 +173,12 @@ export class InvoicesService {
       }
     }
 
-    if (floor || unitNumber) {
+    if (floor || floorNumber !== undefined || unitNumber) {
       const unitWhere: any = {};
       if (unitNumber) unitWhere.unitNumber = unitNumber;
-      if (floor) {
+      if (floorNumber !== undefined) {
+        unitWhere.floorNumber = floorNumber;
+      } else if (floor) {
         const floorMatch = /^Floor\s+(-?\d+)$/i.exec(floor.trim());
         if (floorMatch) {
           const flNum = parseInt(floorMatch[1], 10);

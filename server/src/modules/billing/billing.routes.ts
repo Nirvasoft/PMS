@@ -59,8 +59,12 @@ chargeCategoriesRouter.delete('/:id', requirePermission('charge-category.delete'
 export const chargeTypesRouter = Router();
 
 chargeTypesRouter.get('/', asyncHandler(async (req, res) => {
+  const rawFloor = req.query.floorNumber as string | undefined;
+  const parsedFloor = rawFloor !== undefined && rawFloor.trim() !== '' ? Number(rawFloor) : undefined;
+  const floorNumber = parsedFloor !== undefined && Number.isInteger(parsedFloor) ? parsedFloor : undefined;
   const data = await chargeTypesService.findAll(req.user!.companyId, {
     propertyId: req.query.propertyId as string,
+    floorNumber,
   });
   res.json({ success: true, data });
 }));
@@ -150,11 +154,15 @@ meterSetupRouter.get('/:id/history', requirePermission('meter.read'), asyncHandl
 export const billingSchedulesRouter = Router();
 
 billingSchedulesRouter.get('/', asyncHandler(async (req, res) => {
+  const rawFloor = req.query.floorNumber as string | undefined;
+  const parsedFloor = rawFloor !== undefined && rawFloor.trim() !== '' ? Number(rawFloor) : undefined;
+  const floorNumber = parsedFloor !== undefined && Number.isInteger(parsedFloor) ? parsedFloor : undefined;
   const result = await billingSchedulesService.findAll(req.user!.companyId, {
     leaseId: req.query.leaseId as string,
     tenantId: req.query.tenantId as string,
     propertyId: req.query.propertyId as string,
     unitId: req.query.unitId as string,
+    floorNumber,
     status: req.query.status as string,
     currency: req.query.currency as string,
     billingCycle: req.query.billingCycle as string,
@@ -171,10 +179,14 @@ billingSchedulesRouter.get('/review', asyncHandler(async (req, res) => {
   const asOfRaw = (req.query.asOfDate as string) || new Date().toISOString().split('T')[0];
   const asOfDate = new Date(asOfRaw);
   if (Number.isNaN(asOfDate.getTime())) throw AppError.validation('asOfDate must be a valid date (YYYY-MM-DD)');
+  const rawFloor = req.query.floorNumber as string | undefined;
+  const parsedFloor = rawFloor !== undefined && rawFloor.trim() !== '' ? Number(rawFloor) : undefined;
+  const floorNumber = parsedFloor !== undefined && Number.isInteger(parsedFloor) ? parsedFloor : undefined;
   const data = await billingSchedulesService.getReviewByCategory(req.user!.companyId, {
     asOfDate,
     propertyId: (req.query.propertyId as string) || undefined,
     currency: (req.query.currency as string) || undefined,
+    floorNumber,
   });
   res.json({ success: true, data });
 }));
@@ -198,6 +210,7 @@ billingSchedulesRouter.post('/confirm', validateRequest(confirmBillingSchedulesS
     action: req.body.action ?? 'confirm',
     propertyId: req.body.propertyId || undefined,
     currency: req.body.currency || undefined,
+    floorNumber: req.body.floorNumber !== undefined ? req.body.floorNumber : undefined,
     category: req.body.category || undefined,
     scheduleIds: req.body.scheduleIds,
   });
@@ -243,6 +256,9 @@ const qStr = (val: unknown): string | undefined => {
 
 invoicesRouter.get('/', asyncHandler(async (req, res) => {
   const rawOrder = qStr(req.query.sortOrder);
+  const rawFloorNumber = qStr(req.query.floorNumber);
+  const parsedFloorNumber = rawFloorNumber !== undefined ? Number(rawFloorNumber) : undefined;
+  const floorNumber = parsedFloorNumber !== undefined && Number.isInteger(parsedFloorNumber) ? parsedFloorNumber : undefined;
   const result = await invoicesService.findAll(req.user!.companyId, {
     tenantId: qStr(req.query.tenantId),
     leaseId: qStr(req.query.leaseId),
@@ -256,6 +272,7 @@ invoicesRouter.get('/', asyncHandler(async (req, res) => {
     from: qStr(req.query.from),
     to: qStr(req.query.to),
     floor: qStr(req.query.floor),
+    floorNumber,
     unitNumber: qStr(req.query.unitNumber),
     includeLines: req.query.includeLines !== 'false',
     includeTotals: req.query.includeTotals === 'true',

@@ -32,22 +32,70 @@ export class ChargeTypesService {
     }
   }
 
-  async findAll(companyId: string, filters?: { propertyId?: string }) {
+  async findAll(companyId: string, filters?: { propertyId?: string; floorNumber?: number }) {
     await ensurePropertySetupScope();
     const propertyId = filters?.propertyId?.trim() || undefined;
+    const floorNumber = filters?.floorNumber;
+
+    const where: any = {
+      OR: [
+        { companyId: null }, // system-wide
+        { companyId, isSystem: true, propertyId: null }, // company-level system defaults
+        ...(propertyId ? [{ companyId, propertyId }] : [{ companyId }]),
+      ],
+      isActive: true,
+      NOT: {
+        code: { in: ['SECURITY_DEPOSIT', 'security_deposit'] },
+      },
+    };
+
+    if (floorNumber !== undefined) {
+      where.AND = [
+        {
+          OR: [
+            {
+              unitCharges: {
+                some: {
+                  unit: {
+                    companyId,
+                    deletedAt: null,
+                    ...(propertyId ? { propertyId } : {}),
+                    floorNumber,
+                  },
+                },
+              },
+            },
+            {
+              billingSchedules: {
+                some: {
+                  companyId,
+                  ...(propertyId ? { propertyId } : {}),
+                  unit: {
+                    deletedAt: null,
+                    floorNumber,
+                  },
+                },
+              },
+            },
+            {
+              meterSetups: {
+                some: {
+                  companyId,
+                  isActive: true,
+                  ...(propertyId ? { propertyId } : {}),
+                  floor: {
+                    floorNumber,
+                  },
+                },
+              },
+            },
+          ],
+        },
+      ];
+    }
 
     return prisma.chargeType.findMany({
-      where: {
-        OR: [
-          { companyId: null }, // system-wide
-          { companyId, isSystem: true, propertyId: null }, // company-level system defaults
-          ...(propertyId ? [{ companyId, propertyId }] : [{ companyId }]),
-        ],
-        isActive: true,
-        NOT: {
-          code: { in: ['SECURITY_DEPOSIT', 'security_deposit'] },
-        },
-      },
+      where,
       include: chargeTypeInclude,
       orderBy: [{ isSystem: 'desc' }, { category: 'asc' }, { name: 'asc' }],
     });
