@@ -13,7 +13,7 @@ import { useGetPropertiesQuery, useGetFloorSetupsQuery, useGetMyPropertyScopeQue
 import { useGetUnitsQuery } from '../../../store/api/unitsApi';
 import { useGetLeasesQuery } from '../../../store/api/leasesApi';
 import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
-import { CalendarClock, Pause, Play, X, ChevronLeft, ChevronRight, CircleDot, Plus, Pencil, Search, Filter, ClipboardCheck } from 'lucide-react';
+import { CalendarClock, Pause, Play, X, ChevronLeft, ChevronRight, CircleDot, Plus, Pencil, Search, Filter, ClipboardCheck, Info } from 'lucide-react';
 import { format } from 'date-fns';
 import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
 import { useSelectedPropertyFilter, useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
@@ -33,6 +33,11 @@ const formatAmount = (amount: string | number) =>
   formatFullAmount(amount, { minDecimals: 2, maxDecimals: 2 });
 const formatCompactAmount = (amount: string | number) =>
   formatCompactAmountHelper(amount, { minDecimals: 2, maxDecimals: 2 });
+
+const todayIso = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
 const BILLING_CYCLES = ['monthly', 'quarterly', 'semi_annual', 'tri_quarterly', 'annual'] as const;
 
@@ -58,6 +63,7 @@ export default function BillingSchedulesPage() {
   const initialBillDate = searchParams.get('billDate') || undefined;
   const initialCategory = searchParams.get('category') || undefined;
   const [activeView, setActiveView] = useState<'list' | 'review'>(initialView);
+  const [reviewBillDate, setReviewBillDate] = useState(initialBillDate || todayIso());
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [showFilters, setShowFilters] = useState(false);
@@ -122,10 +128,9 @@ export default function BillingSchedulesPage() {
   const activeListFloorNumber = floorFilter !== '' ? Number(floorFilter) : undefined;
 
   const hasActiveFilters = Boolean(
-    statusFilter !== 'active' ||
-    cycleFilter ||
     floorFilter !== '' ||
-    (currencyFilter && currencyFilter !== listBaseCurrencyCode)
+    (currencyFilter && currencyFilter !== listBaseCurrencyCode) ||
+    (activeView === 'list' && (statusFilter !== 'active' || Boolean(cycleFilter)))
   );
 
   // Debounce the search box so typing doesn't fire a request per keystroke.
@@ -458,7 +463,7 @@ export default function BillingSchedulesPage() {
 
   return (
     <div className="billing-page">
-      <div className="page-header">
+      <div className="page-header" style={{ marginBottom: 16 }}>
         <div className="page-title-row">
           <div className="page-icon-lg" style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent)', borderRadius: 12 }}>
             <CalendarClock size={22} />
@@ -475,51 +480,78 @@ export default function BillingSchedulesPage() {
             </button>
           </PermissionGuard>
         </div>
-        <div className="sched-view-tabs">
-          <button
-            type="button"
-            className={`sched-view-tab${activeView === 'list' ? ' active' : ''}`}
-            onClick={() => setActiveView('list')}
-          >
-            <CalendarClock size={14} /> All Schedules
-          </button>
-          <button
-            type="button"
-            className={`sched-view-tab${activeView === 'review' ? ' active' : ''}`}
-            onClick={() => setActiveView('review')}
-          >
-            <ClipboardCheck size={14} /> Review &amp; Confirm
-          </button>
-        </div>
-        <div className="billing-filters" style={{ marginBottom: 0 }}>
-          <div className="billing-filters-left">
-            <div className="search-wrap">
-              <Search size={15} className="search-icon" />
-              <input
-                type="text"
-                placeholder="Search tenant or unit…"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-              />
-              {search && (
-                <button type="button" className="search-clear-btn" onClick={() => setSearch('')} title="Clear search">
-                  <X size={13} />
-                </button>
-              )}
-            </div>
-            <button
-              type="button"
-              className={`btn btn-secondary billing-filter-toggle-btn${showFilters || hasActiveFilters ? ' active' : ''}`}
-              onClick={() => setShowFilters(!showFilters)}
-            >
-              <Filter size={14} /> Filters{hasActiveFilters ? ' •' : ''}
-            </button>
+      </div>
+
+      <div className="sched-view-tabs">
+        <button
+          type="button"
+          className={`sched-view-tab${activeView === 'list' ? ' active' : ''}`}
+          onClick={() => setActiveView('list')}
+        >
+          <CalendarClock size={14} /> All Schedules
+        </button>
+        <button
+          type="button"
+          className={`sched-view-tab${activeView === 'review' ? ' active' : ''}`}
+          onClick={() => setActiveView('review')}
+        >
+          <ClipboardCheck size={14} /> Review &amp; Confirm
+        </button>
+      </div>
+
+      {/* Search & Filter Toolbar */}
+      <div className="billing-filters" style={showFilters ? { marginBottom: 12 } : undefined}>
+        <div className="billing-filters-left">
+          <div className="search-wrap">
+            <Search size={15} className="search-icon" />
+            <input
+              type="text"
+              placeholder="Search tenant or unit…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+            {search && (
+              <button type="button" className="search-clear-btn" onClick={() => setSearch('')} title="Clear search">
+                <X size={13} />
+              </button>
+            )}
           </div>
+          {activeView === 'review' && (
+            <label className="sched-bill-date-inline" title="Bill Date (schedules due on or before this date)">
+              <span className="sched-bill-date-label">Bill Date</span>
+              <input
+                type="date"
+                value={reviewBillDate}
+                onChange={(e) => setReviewBillDate(e.target.value || todayIso())}
+              />
+            </label>
+          )}
+          <button
+            type="button"
+            className={`btn btn-secondary billing-filter-toggle-btn${showFilters || hasActiveFilters ? ' active' : ''}`}
+            onClick={() => setShowFilters(!showFilters)}
+          >
+            <Filter size={14} /> Filters{hasActiveFilters ? ' •' : ''}
+          </button>
         </div>
+
+        {activeView === 'review' && (
+          <div className="billing-filters-actions">
+            <div className="sched-review-info-wrap">
+              <button type="button" className="sched-review-info-btn" aria-label="How Review & Confirm works">
+                <Info size={14} /> Guide
+              </button>
+              <div className="sched-review-info-popover" role="tooltip">
+                Check Unit, Tenant, and Amount for schedules due on or before the Bill Date, then confirm. Run Billing
+                invoices Confirmed schedules only; after billing they return to Active with the next billing date.
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {showFilters && (
-        <div className="billing-filter-bar" style={{ marginTop: 12, marginBottom: 0 }}>
+        <div className="billing-filter-bar">
           <select
             className="filter-select"
             value={currencyFilter || listBaseCurrencyCode}
@@ -534,33 +566,37 @@ export default function BillingSchedulesPage() {
             <option value="ALL">All Currencies</option>
           </select>
 
-          <select
-            className="filter-select"
-            value={statusFilter}
-            onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
-            title="Status"
-          >
-            <option value="">All Statuses</option>
-            <option value="active">Active</option>
-            <option value="confirmed">Confirmed</option>
-            <option value="paused">Paused</option>
-            <option value="cancelled">Cancelled</option>
-            <option value="completed">Completed</option>
-          </select>
+          {activeView === 'list' && (
+            <>
+              <select
+                className="filter-select"
+                value={statusFilter}
+                onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
+                title="Status"
+              >
+                <option value="">All Statuses</option>
+                <option value="active">Active</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="paused">Paused</option>
+                <option value="cancelled">Cancelled</option>
+                <option value="completed">Completed</option>
+              </select>
 
-          <select
-            className="filter-select"
-            value={cycleFilter}
-            onChange={e => { setCycleFilter(e.target.value); setPage(1); }}
-            title="Billing Cycle"
-          >
-            <option value="">All Cycles</option>
-            <option value="monthly">Monthly</option>
-            <option value="quarterly">Quarterly</option>
-            <option value="semi_annual">Semi-Annual</option>
-            <option value="tri_quarterly">Tri-Quarterly</option>
-            <option value="annual">Annual</option>
-          </select>
+              <select
+                className="filter-select"
+                value={cycleFilter}
+                onChange={e => { setCycleFilter(e.target.value); setPage(1); }}
+                title="Billing Cycle"
+              >
+                <option value="">All Cycles</option>
+                <option value="monthly">Monthly</option>
+                <option value="quarterly">Quarterly</option>
+                <option value="semi_annual">Semi-Annual</option>
+                <option value="tri_quarterly">Tri-Quarterly</option>
+                <option value="annual">Annual</option>
+              </select>
+            </>
+          )}
 
           <select
             className="filter-select"
@@ -581,9 +617,11 @@ export default function BillingSchedulesPage() {
             className="btn-ghost billing-filter-reset-btn"
             onClick={() => {
               setCurrencyFilter(listBaseCurrencyCode);
-              setStatusFilter('active');
-              setCycleFilter('');
               setFloorFilter('');
+              if (activeView === 'list') {
+                setStatusFilter('active');
+                setCycleFilter('');
+              }
               setPage(1);
             }}
           >
@@ -597,12 +635,12 @@ export default function BillingSchedulesPage() {
           propertyId={selectedProperty || undefined}
           currency={activeListCurrency}
           floorNumber={activeListFloorNumber}
+          billDate={reviewBillDate}
           search={debouncedSearch}
-          initialBillDate={initialBillDate}
           initialCategory={initialCategory}
         />
       ) : (
-      <div className="billing-table-wrap" style={{ marginTop: 24 }}>
+      <div className="billing-table-wrap">
         <TableScrollWrapper className="schedules-scroll">
           <table className="billing-table">
           <thead>

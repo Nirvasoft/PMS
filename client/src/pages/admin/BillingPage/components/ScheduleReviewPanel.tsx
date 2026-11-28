@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import {
-  CheckCircle2, ClipboardCheck, RotateCcw, AlertTriangle, CircleDot,
+  CheckCircle2, RotateCcw, AlertTriangle, CircleDot,
   ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import {
@@ -15,15 +15,9 @@ import {
 import { useConfirm, useAlertDialog } from '../../../../components/DialogProvider';
 import { usePermission } from '../../../../components/guards/PermissionGuard';
 import { formatFullAmount } from '../../../../utils/formatCurrency';
-import ComboBox from '../../../../components/ComboBox';
 import { TableScrollWrapper } from './TableScrollWrapper';
 
 const fmt = (n: string | number) => formatFullAmount(n, { minDecimals: 2, maxDecimals: 2 });
-
-const todayIso = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
 
 const tenantName = (t: BillingScheduleReviewRow['tenant']) =>
   (t.tenantType !== 'individual' ? t.companyName : t.lastName) || t.lastName || t.companyName || t.firstName || '—';
@@ -31,12 +25,20 @@ const tenantName = (t: BillingScheduleReviewRow['tenant']) =>
 const totalsLabel = (totals: Record<string, number>) =>
   Object.entries(totals).map(([cur, amt]) => `${cur} ${fmt(amt)}`).join(' • ') || '—';
 
+const computeTotals = (rows: BillingScheduleReviewRow[]): Record<string, number> => {
+  const totals: Record<string, number> = {};
+  for (const s of rows) {
+    totals[s.currency] = Math.round(((totals[s.currency] || 0) + Number(s.lineTotal || 0)) * 100) / 100;
+  }
+  return totals;
+};
+
 interface Props {
   propertyId?: string;
   currency?: string;
   floorNumber?: number;
+  billDate: string;
   search: string;
-  initialBillDate?: string;
   initialCategory?: string;
 }
 
@@ -44,11 +46,11 @@ interface Props {
  * Review & Confirm: due schedules grouped by Charge Category. Staff check Unit, Tenant and
  * Amount, then Confirm — only Confirmed schedules are invoiced by Run Billing.
  */
-export function ScheduleReviewPanel({ propertyId, currency, floorNumber, search, initialBillDate, initialCategory }: Props) {
-  const [billDate, setBillDate] = useState(initialBillDate || todayIso());
+export function ScheduleReviewPanel({ propertyId, currency, floorNumber, billDate, search, initialCategory }: Props) {
   const [categoryFilter, setCategoryFilter] = useState(initialCategory || '');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const canWrite = usePermission('billing-schedules.write');
   const confirmDialog = useConfirm();
@@ -56,6 +58,7 @@ export function ScheduleReviewPanel({ propertyId, currency, floorNumber, search,
 
   useEffect(() => {
     setPage(1);
+    setSelectedIds(new Set());
   }, [billDate, categoryFilter, propertyId, currency, floorNumber, search]);
 
   const { data, isFetching } = useGetBillingScheduleReviewQuery({ asOfDate: billDate, propertyId, currency, floorNumber });
@@ -63,31 +66,62 @@ export function ScheduleReviewPanel({ propertyId, currency, floorNumber, search,
   const review = data?.data;
 
   const { data: chargeCategoriesData } = useGetChargeCategoriesQuery(propertyId ? { propertyId } : undefined);
+
+  const reviewByCategoryKey = useMemo(() => {
+    const map = new Map<string, BillingScheduleReviewCategory>();
+    for (const g of review?.categories ?? []) {
+      map.set(g.categoryCode.trim().toLowerCase(), g);
+    }
+    return map;
+  }, [review]);
+
   const categoryOptions = useMemo(() => {
     const seen = new Set<string>();
-    const opts: { id: string; label: string; sublabel?: string }[] = [];
+    const opts: Array<{
+      id: string;
+      label: string;
+      activeCount: number;
+      confirmedCount: number;
+      totalDue: number;
+    }> = [];
+
     for (const c of chargeCategoriesData?.data ?? []) {
       const key = c.code.trim().toLowerCase();
       if (!c.isActive || seen.has(key)) continue;
       seen.add(key);
-      const label = c.description?.trim() || c.code;
-      opts.push({ id: c.code, label, sublabel: label !== c.code ? c.code : undefined });
+      const rev = reviewByCategoryKey.get(key);
+      const activeCount = rev?.activeCount ?? 0;
+      const confirmedCount = rev?.confirmedCount ?? 0;
+      opts.push({
+        id: c.code,
+        label: c.description?.trim() || c.code,
+        activeCount,
+        confirmedCount,
+        totalDue: activeCount + confirmedCount,
+      });
     }
+
     // Categories that only exist on due schedules (e.g. legacy codes) stay selectable too
     for (const g of review?.categories ?? []) {
       const key = g.categoryCode.trim().toLowerCase();
       if (seen.has(key)) continue;
       seen.add(key);
-      opts.push({ id: g.categoryCode, label: g.categoryName });
+      opts.push({
+        id: g.categoryCode,
+        label: g.categoryName,
+        activeCount: g.activeCount,
+        confirmedCount: g.confirmedCount,
+        totalDue: g.activeCount + g.confirmedCount,
+      });
     }
-    // Categories with due schedules come first so the default (top) selection has data to review
-    const dueKeys = new Set((review?.categories ?? []).map((g) => g.categoryCode.trim().toLowerCase()));
+
+    // Categories with pending schedules first, then confirmed due categories, then empty
     return opts.sort((a, b) => {
-      const da = dueKeys.has(a.id.trim().toLowerCase()) ? 0 : 1;
-      const db = dueKeys.has(b.id.trim().toLowerCase()) ? 0 : 1;
-      return da - db || a.label.localeCompare(b.label);
+      const pa = a.activeCount > 0 ? 0 : a.totalDue > 0 ? 1 : 2;
+      const pb = b.activeCount > 0 ? 0 : b.totalDue > 0 ? 1 : 2;
+      return pa - pb || a.label.localeCompare(b.label);
     });
-  }, [chargeCategoriesData, review]);
+  }, [chargeCategoriesData, review, reviewByCategoryKey]);
 
   // One category at a time — default to the top option, and keep a valid selection when options change
   useEffect(() => {
@@ -103,12 +137,6 @@ export function ScheduleReviewPanel({ propertyId, currency, floorNumber, search,
     const key = categoryFilter.trim().toLowerCase();
     return (review?.categories ?? []).filter((c) => c.categoryCode.trim().toLowerCase() === key);
   }, [review, categoryFilter]);
-
-  const stats = useMemo(() => ({
-    due: categoryScoped.reduce((n, c) => n + c.activeCount + c.confirmedCount, 0),
-    pending: categoryScoped.reduce((n, c) => n + c.activeCount, 0),
-    confirmed: categoryScoped.reduce((n, c) => n + c.confirmedCount, 0),
-  }), [categoryScoped]);
 
   // Client-side search over tenant / unit / charge so the category totals stay server-accurate.
   const categories = useMemo(() => {
@@ -135,6 +163,7 @@ export function ScheduleReviewPanel({ propertyId, currency, floorNumber, search,
     try {
       const res = await setConfirmation({ asOfDate: billDate, propertyId, currency, floorNumber, ...body }).unwrap();
       toast.success(successMsg(res.data.updatedCount));
+      setSelectedIds(new Set());
     } catch (err: any) {
       alertDialog(err?.data?.errors?.[0]?.message || `Failed to ${body.action} schedules`);
     } finally {
@@ -156,6 +185,25 @@ export function ScheduleReviewPanel({ propertyId, currency, floorNumber, search,
     );
   };
 
+  const handleSelected = async (
+    cat: BillingScheduleReviewCategory,
+    rows: BillingScheduleReviewRow[],
+    action: 'confirm' | 'unconfirm',
+  ) => {
+    if (rows.length === 0) return;
+    const ids = rows.map((r) => r.id);
+    const selectedTotals = computeTotals(rows);
+    const msg = action === 'confirm'
+      ? `Confirm ${ids.length} selected schedule(s) (${totalsLabel(selectedTotals)}) in "${cat.categoryName}"?`
+      : `Revert ${ids.length} selected schedule(s) in "${cat.categoryName}" back to Active?`;
+    if (!(await confirmDialog(msg, { confirmText: action === 'confirm' ? 'Confirm' : 'Unconfirm' }))) return;
+    await run(`bulk:${action}`, { action, scheduleIds: ids }, (n) =>
+      action === 'confirm'
+        ? `Confirmed ${n} selected schedule(s).`
+        : `Reverted ${n} selected schedule(s) to Active.`,
+    );
+  };
+
   const handleRow = (s: BillingScheduleReviewRow) => {
     const action = s.status === 'confirmed' ? 'unconfirm' : 'confirm';
     return run(`row:${s.id}`, { action, scheduleIds: [s.id] }, () =>
@@ -163,47 +211,60 @@ export function ScheduleReviewPanel({ propertyId, currency, floorNumber, search,
     );
   };
 
+  const toggleRowSelection = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = (rows: BillingScheduleReviewRow[]) => {
+    const allChecked = rows.length > 0 && rows.every((r) => selectedIds.has(r.id));
+    setSelectedIds(allChecked ? new Set() : new Set(rows.map((r) => r.id)));
+  };
+
   return (
     <div className="sched-review">
-      <div className="sched-review-toolbar">
-        <div className="sched-review-filters">
-          <label className="sched-review-date">
-            <span>Bill Date</span>
-            <input type="date" value={billDate} onChange={(e) => setBillDate(e.target.value || todayIso())} />
-          </label>
-          <div className="sched-review-date sched-review-category">
-            <span>Charge Category</span>
-            <ComboBox
-              id="review-charge-category"
-              value={categoryFilter}
-              onChange={(v) => { if (v) setCategoryFilter(v); }}
-              options={categoryOptions}
-              placeholder="Select category"
-              emptyText="No charge categories"
-              clearable={false}
-            />
-          </div>
+      {/* Charge Category Quick Pills */}
+      {categoryOptions.length > 0 && (
+        <div className="sched-cat-pills" role="tablist" aria-label="Charge Categories">
+          {categoryOptions.map((opt) => {
+            const isActive = opt.id.trim().toLowerCase() === categoryFilter.trim().toLowerCase();
+            const isAllConfirmed = opt.activeCount === 0 && opt.confirmedCount > 0;
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                className={`sched-cat-pill${isActive ? ' active' : ''}${opt.totalDue === 0 ? ' is-empty' : ''}`}
+                onClick={() => setCategoryFilter(opt.id)}
+              >
+                <span>{opt.label}</span>
+                {opt.activeCount > 0 ? (
+                  <span
+                    className="sched-cat-pill-badge sched-cat-pill-badge--pending"
+                    title={`${opt.activeCount} pending review`}
+                  >
+                    {opt.activeCount}
+                  </span>
+                ) : isAllConfirmed ? (
+                  <span
+                    className="sched-cat-pill-badge sched-cat-pill-badge--confirmed"
+                    title={`${opt.confirmedCount} confirmed`}
+                  >
+                    <CheckCircle2 size={11} />
+                  </span>
+                ) : (
+                  <span className="sched-cat-pill-badge sched-cat-pill-badge--zero">0</span>
+                )}
+              </button>
+            );
+          })}
         </div>
-        <div className="sched-review-stats">
-          <div className="sched-review-stat">
-            <span className="sched-review-stat-label">Due</span>
-            <span className="sched-review-stat-value">{stats.due}</span>
-          </div>
-          <div className="sched-review-stat">
-            <span className="sched-review-stat-label">Pending Review</span>
-            <span className="sched-review-stat-value sched-review-stat-value--pending">{stats.pending}</span>
-          </div>
-          <div className="sched-review-stat">
-            <span className="sched-review-stat-label">Confirmed</span>
-            <span className="sched-review-stat-value sched-review-stat-value--confirmed">{stats.confirmed}</span>
-          </div>
-        </div>
-      </div>
-      <p className="sched-review-hint">
-        <ClipboardCheck size={13} /> Check Unit, Tenant and Amount for schedules due on or before the bill date, then
-        confirm each Charge Category. Run Billing invoices Confirmed schedules only; after billing they return to Active
-        with the next billing date.
-      </p>
+      )}
 
       {isFetching && !review ? (
         <div className="billing-empty">Loading…</div>
@@ -225,63 +286,143 @@ export function ScheduleReviewPanel({ propertyId, currency, floorNumber, search,
           const endItem = Math.min(currentPage * pageSize, totalCount);
           const pagedSchedules = cat.schedules.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
+          const selectedRows = cat.schedules.filter((s) => selectedIds.has(s.id));
+          const selectedPending = selectedRows.filter((s) => s.status !== 'confirmed');
+          const selectedConfirmed = selectedRows.filter((s) => s.status === 'confirmed');
+          const allSelected = cat.schedules.length > 0 && selectedRows.length === cat.schedules.length;
+          const someSelected = selectedRows.length > 0;
+          const displayedTotals = someSelected ? computeTotals(selectedRows) : cat.totalsByCurrency;
+
           return (
             <div key={key} className={`sched-category-card${fullyConfirmed ? ' sched-category-card--confirmed' : ''}`}>
               <div className="sched-category-head">
                 <div className="sched-category-toggle">
-                  <span className="sched-category-name">{cat.categoryName}</span>
-                  <span className="sched-category-count">{cat.activeCount + cat.confirmedCount} schedules</span>
-                  {cat.confirmedCount > 0 && (
-                    <span className="sched-status sched-status--confirmed">
-                      <CheckCircle2 size={10} /> {fullyConfirmed ? 'Confirmed' : `${cat.confirmedCount} Confirmed`}
-                    </span>
-                  )}
-                  {cat.activeCount > 0 && (
-                    <span className="sched-status sched-status--active">
-                      <CircleDot size={10} /> {cat.activeCount} Pending
-                    </span>
-                  )}
-                  {invoicedCount > 0 && (
-                    <span className="sched-status sched-status--paused" title="Already invoiced for this period — Run Billing will skip the invoice and only advance the next billing date">
-                      <AlertTriangle size={10} /> {invoicedCount} Already Invoiced
-                    </span>
+                  {someSelected ? (
+                    <>
+                      <span className="sched-selected-pill">{selectedRows.length} selected</span>
+                      <button
+                        type="button"
+                        className="btn-ghost sched-clear-sel-btn"
+                        onClick={() => setSelectedIds(new Set())}
+                      >
+                        Clear
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="sched-category-name">{cat.categoryName}</span>
+                      <span className="sched-category-count">{cat.activeCount + cat.confirmedCount} due</span>
+                      {cat.activeCount > 0 && (
+                        <span className="sched-status sched-status--active">
+                          <CircleDot size={10} /> {cat.activeCount} Pending
+                        </span>
+                      )}
+                      {cat.confirmedCount > 0 && (
+                        <span className="sched-status sched-status--confirmed">
+                          <CheckCircle2 size={10} /> {fullyConfirmed ? 'All Confirmed' : `${cat.confirmedCount} Confirmed`}
+                        </span>
+                      )}
+                      {invoicedCount > 0 && (
+                        <span className="sched-status sched-status--paused" title="Already invoiced for this period — Run Billing will skip the invoice and only advance the next billing date">
+                          <AlertTriangle size={10} /> {invoicedCount} Already Invoiced
+                        </span>
+                      )}
+                    </>
                   )}
                 </div>
+
                 <div className="sched-category-actions">
-                  <span className="sched-category-total">{totalsLabel(cat.totalsByCurrency)}</span>
-                  {canWrite && cat.confirmedCount > 0 && (
-                    <button type="button" className="btn btn-ghost btn-sm" disabled={busyKey !== null} onClick={() => handleCategory(cat, 'unconfirm')}>
-                      <RotateCcw size={13} /> Unconfirm
-                    </button>
-                  )}
-                  {canWrite && cat.activeCount > 0 && (
-                    <button type="button" className="btn btn-primary btn-sm" disabled={busyKey !== null} onClick={() => handleCategory(cat, 'confirm')}>
-                      <CheckCircle2 size={13} /> {busyKey === `cat:${key}` ? 'Confirming…' : 'Confirm'}
-                    </button>
+                  <span className="sched-category-total">{totalsLabel(displayedTotals)}</span>
+                  {canWrite && someSelected ? (
+                    <>
+                      {selectedConfirmed.length > 0 && (
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          disabled={busyKey !== null}
+                          onClick={() => handleSelected(cat, selectedConfirmed, 'unconfirm')}
+                        >
+                          <RotateCcw size={13} /> Unconfirm ({selectedConfirmed.length})
+                        </button>
+                      )}
+                      {selectedPending.length > 0 && (
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          disabled={busyKey !== null}
+                          onClick={() => handleSelected(cat, selectedPending, 'confirm')}
+                        >
+                          <CheckCircle2 size={13} /> {busyKey === 'bulk:confirm' ? 'Confirming…' : `Confirm (${selectedPending.length})`}
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {canWrite && cat.confirmedCount > 0 && (
+                        <button type="button" className="btn btn-ghost btn-sm" disabled={busyKey !== null} onClick={() => handleCategory(cat, 'unconfirm')}>
+                          <RotateCcw size={13} /> Unconfirm All
+                        </button>
+                      )}
+                      {canWrite && cat.activeCount > 0 && (
+                        <button type="button" className="btn btn-primary btn-sm" disabled={busyKey !== null} onClick={() => handleCategory(cat, 'confirm')}>
+                          <CheckCircle2 size={13} /> {busyKey === `cat:${key}` ? 'Confirming…' : `Confirm All (${cat.activeCount})`}
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
 
-              {(
-                <div className="sched-category-body">
-                  <TableScrollWrapper>
-                    <table className="billing-table">
-                      <thead>
-                        <tr>
-                          <th>Floor / Unit</th>
-                          <th>Tenant</th>
-                          <th>Charge</th>
-                          <th>Next Billing</th>
-                          <th className="text-center">Qty</th>
-                          <th className="text-right">Amount</th>
-                          <th className="text-right">Total</th>
-                          <th>Status</th>
-                          {canWrite && <th className="text-center" />}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {pagedSchedules.map((s) => (
-                          <tr key={s.id} className={s.status === 'confirmed' ? 'sched-row--confirmed' : undefined}>
+              <div className="sched-category-body">
+                <TableScrollWrapper>
+                  <table className="billing-table">
+                    <thead>
+                      <tr>
+                        {canWrite && (
+                          <th style={{ width: 40, paddingLeft: 12 }}>
+                            <input
+                              type="checkbox"
+                              className="inv-checkbox"
+                              checked={allSelected}
+                              disabled={cat.schedules.length === 0}
+                              ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected; }}
+                              onChange={() => toggleSelectAll(cat.schedules)}
+                              title={`Select all ${cat.schedules.length} schedule(s) in ${cat.categoryName}`}
+                            />
+                          </th>
+                        )}
+                        <th>Floor / Unit</th>
+                        <th>Tenant</th>
+                        <th>Charge</th>
+                        <th>Next Billing</th>
+                        <th className="text-center">Qty</th>
+                        <th className="text-right">Amount</th>
+                        <th className="text-right">Total</th>
+                        <th>Status</th>
+                        {canWrite && <th className="text-center" style={{ width: 56 }} />}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pagedSchedules.map((s) => {
+                        const isChecked = selectedIds.has(s.id);
+                        const rowClass = [
+                          isChecked ? 'row-selected' : '',
+                          s.status === 'confirmed' ? 'sched-row--confirmed' : '',
+                        ].filter(Boolean).join(' ') || undefined;
+
+                        return (
+                          <tr key={s.id} className={rowClass}>
+                            {canWrite && (
+                              <td style={{ paddingLeft: 12 }} onClick={(e) => e.stopPropagation()}>
+                                <input
+                                  type="checkbox"
+                                  className="inv-checkbox"
+                                  checked={isChecked}
+                                  onChange={() => toggleRowSelection(s.id)}
+                                  title="Select schedule"
+                                />
+                              </td>
+                            )}
                             <td>
                               {s.unit ? (
                                 <>
@@ -324,60 +465,60 @@ export function ScheduleReviewPanel({ propertyId, currency, floorNumber, search,
                               </td>
                             )}
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </TableScrollWrapper>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </TableScrollWrapper>
 
-                  {totalCount >= 10 && (
-                    <div className="billing-pagination">
-                      <div className="pagination-left">
-                        <div className="page-size-selector">
-                          <label htmlFor={`review-page-size-${key}`}>Rows per page:</label>
-                          <select
-                            id={`review-page-size-${key}`}
-                            value={pageSize}
-                            onChange={(e) => {
-                              setPageSize(Number(e.target.value));
-                              setPage(1);
-                            }}
-                          >
-                            <option value={10}>10</option>
-                            <option value={25}>25</option>
-                            <option value={50}>50</option>
-                            <option value={100}>100</option>
-                          </select>
-                        </div>
-                        <span className="page-info">
-                          Showing {startItem}–{endItem} of {totalCount}
-                        </span>
-                      </div>
-
-                      <div className="page-btns">
-                        <button
-                          type="button"
-                          disabled={currentPage <= 1}
-                          onClick={() => setPage(Math.max(1, currentPage - 1))}
-                          title="Previous page"
+                {totalCount >= 10 && (
+                  <div className="billing-pagination">
+                    <div className="pagination-left">
+                      <div className="page-size-selector">
+                        <label htmlFor={`review-page-size-${key}`}>Rows per page:</label>
+                        <select
+                          id={`review-page-size-${key}`}
+                          value={pageSize}
+                          onChange={(e) => {
+                            setPageSize(Number(e.target.value));
+                            setPage(1);
+                          }}
                         >
-                          <ChevronLeft size={15} />
-                        </button>
-                        <span className="page-num-display">
-                          Page {currentPage} of {totalPages}
-                        </span>
-                        <button
-                          type="button"
-                          disabled={currentPage >= totalPages}
-                          onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
-                          title="Next page"
-                        >
-                          <ChevronRight size={15} />
-                        </button>
+                          <option value={10}>10</option>
+                          <option value={25}>25</option>
+                          <option value={50}>50</option>
+                          <option value={100}>100</option>
+                        </select>
                       </div>
+                      <span className="page-info">
+                        Showing {startItem}–{endItem} of {totalCount}
+                      </span>
                     </div>
-                  )}
-                </div>
-              )}
+
+                    <div className="page-btns">
+                      <button
+                        type="button"
+                        disabled={currentPage <= 1}
+                        onClick={() => setPage(Math.max(1, currentPage - 1))}
+                        title="Previous page"
+                      >
+                        <ChevronLeft size={15} />
+                      </button>
+                      <span className="page-num-display">
+                        Page {currentPage} of {totalPages}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={currentPage >= totalPages}
+                        onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
+                        title="Next page"
+                      >
+                        <ChevronRight size={15} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           );
         })
