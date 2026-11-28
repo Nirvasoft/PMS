@@ -20,14 +20,17 @@ export class LeasesService {
   // ── List ──────────────────────────────────
   async findAll(companyId: string, query: {
     search?: string; propertyId?: string; unitId?: string; tenantId?: string;
-    status?: string; expiringWithinDays?: number; page?: number; limit?: number;
+    status?: string; floorNumber?: number; expiringWithinDays?: number; page?: number; limit?: number;
   }) {
-    const { search, propertyId, unitId, tenantId, status, expiringWithinDays, page = 1, limit = 20 } = query;
+    const { search, propertyId, unitId, tenantId, status, floorNumber, expiringWithinDays, page = 1, limit = 20 } = query;
     const where: Record<string, unknown> = { companyId, deletedAt: null };
     if (propertyId) where.propertyId = propertyId;
     if (unitId)     where.unitId = unitId;
     if (tenantId)   where.tenantId = tenantId;
     if (status)     where.status = status;
+    if (floorNumber !== undefined) {
+      where.unit = { floorNumber };
+    }
     if (expiringWithinDays) {
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() + expiringWithinDays);

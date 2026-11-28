@@ -226,7 +226,7 @@ export const leasesApi = createApi({
 
     getLeases: builder.query<PaginatedResponse<LeaseListItem>, {
       search?: string; propertyId?: string; unitId?: string; tenantId?: string;
-      status?: string; expiringWithinDays?: number; page?: number; limit?: number;
+      status?: string; floorNumber?: number; expiringWithinDays?: number; page?: number; limit?: number;
     }>({
       query: (params) => ({ url: '/leases', params }),
       providesTags: ['Leases'],

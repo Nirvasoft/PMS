@@ -25,12 +25,17 @@ export const leaseClausesRouter   = Router();
 
 /** GET /leases */
 leasesRouter.get('/', asyncHandler(async (req, res) => {
+  const rawFloor = req.query.floorNumber as string | undefined;
+  const parsedFloor = rawFloor !== undefined && rawFloor.trim() !== '' ? Number(rawFloor) : undefined;
+  const floorNumber = parsedFloor !== undefined && Number.isInteger(parsedFloor) ? parsedFloor : undefined;
+
   const result = await leasesService.findAll(req.user!.companyId, {
     search:             req.query.search as string,
     propertyId:         req.query.propertyId as string,
     unitId:             req.query.unitId as string,
     tenantId:           req.query.tenantId as string,
     status:             req.query.status as string,
+    floorNumber,
     expiringWithinDays: req.query.expiringWithinDays ? parseInt(req.query.expiringWithinDays as string) : undefined,
     page:               parseInt(req.query.page as string) || 1,
     limit:              Math.min(parseInt(req.query.limit as string) || 20, 5000),

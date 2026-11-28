@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useGetLeasesQuery, useDeleteLeaseMutation } from '../../../store/api/leasesApi';
+import { useGetFloorSetupsQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   FileText, ClipboardList, Plus, Search, Filter, X, AlertTriangle, Trash2,
@@ -35,18 +36,39 @@ export default function LeaseListPage() {
   const [search, setSearch]           = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [status, setStatus]           = useState('');
+  const [floorNumber, setFloorNumber] = useState('');
   const [expiring, setExpiring]       = useState<number | undefined>(undefined);
   const [page, setPage]               = useState(1);
   const [pageSize, setPageSize]       = useState(10);
   const [showImportModal, setShowImportModal] = useState(false);
   const activePropertyFilter = useSelectedPropertyFilter();
 
-  // Reset pagination whenever the sidebar's Active Property changes.
-  useEffect(() => { setPage(1); }, [activePropertyFilter]);
+  // Reset pagination and floor filter whenever the sidebar's Active Property changes.
+  useEffect(() => {
+    setPage(1);
+    setFloorNumber('');
+  }, [activePropertyFilter]);
+
+  const { data: floorSetupsData } = useGetFloorSetupsQuery(
+    activePropertyFilter ? { propertyId: activePropertyFilter } : undefined,
+  );
+  const floorOptions = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const f of floorSetupsData?.data || []) {
+      if (f.floorNumber == null) continue;
+      if (!map.has(f.floorNumber)) {
+        map.set(f.floorNumber, f.floorLabel?.trim() || `Floor ${f.floorNumber}`);
+      }
+    }
+    return Array.from(map.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([num, label]) => ({ floorNumber: num, label }));
+  }, [floorSetupsData?.data]);
 
   const { data, isLoading } = useGetLeasesQuery({
     search: search || undefined,
     status: status || undefined,
+    floorNumber: floorNumber !== '' ? Number(floorNumber) : undefined,
     expiringWithinDays: expiring,
     propertyId: activePropertyFilter || undefined,
     page,
@@ -64,8 +86,8 @@ export default function LeaseListPage() {
 
   const leases = data?.data || [];
   const meta   = data?.meta;
-  const hasActiveFilters = !!(status || expiring);
-  const hasFilters = !!(search || status || expiring);
+  const hasActiveFilters = !!(status || floorNumber !== '' || expiring);
+  const hasFilters = !!(search || status || floorNumber !== '' || expiring);
 
   return (
     <div className="lease-list-page">
@@ -129,6 +151,13 @@ export default function LeaseListPage() {
             {Object.entries(STATUS_META).map(([v, m]) => <option key={v} value={v}>{m.label}</option>)}
           </select>
 
+          <select className="filter-select" value={floorNumber} onChange={(e) => { setFloorNumber(e.target.value); setPage(1); }}>
+            <option value="">All Floors</option>
+            {floorOptions.map((f) => (
+              <option key={f.floorNumber} value={String(f.floorNumber)}>{f.label}</option>
+            ))}
+          </select>
+
           <div className="expiry-filter">
             {[30, 60, 90].map((d) => (
               <button key={d} className={expiring === d ? 'active' : ''} onClick={() => { setExpiring(expiring === d ? undefined : d); setPage(1); }}>
@@ -137,7 +166,7 @@ export default function LeaseListPage() {
             ))}
           </div>
 
-          <button className="btn-ghost" onClick={() => { setStatus(''); setExpiring(undefined); setPage(1); }}>
+          <button className="btn-ghost" onClick={() => { setStatus(''); setFloorNumber(''); setExpiring(undefined); setPage(1); }}>
             <X size={14} /> Reset
           </button>
         </div>
