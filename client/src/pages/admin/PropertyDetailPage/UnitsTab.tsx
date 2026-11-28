@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '../../../store';
 import {
   selectUnit, setViewMode, selectTower,
-  toggleStatusFilter, setSearchQuery, clearFilters,
+  toggleStatusFilter, clearStatusFilter, setSearchQuery, clearFilters,
   setZoomLevel, setBulkCreateOpen,
   setFloorFilter, setUnitTypeFilter,
 } from '../../../store/slices/unitsSlice';
@@ -103,8 +103,15 @@ export default function UnitsTab() {
     }
   }, [propertyId, dispatch]);
 
+  const trimmedSearch = searchQuery.trim();
   const { data: towersData } = useGetTowersQuery(propertyId!);
-  const { data: statsData }  = useGetUnitStatsQuery(propertyId!);
+  const { data: statsData }  = useGetUnitStatsQuery({
+    propertyId: propertyId!,
+    towerId: selectedTowerId || undefined,
+    unitType: unitTypeFilter || undefined,
+    floor: floorFilter ?? undefined,
+    search: trimmedSearch || undefined,
+  });
   const towers = towersData?.data || [];
   const stats  = statsData?.data;
 
@@ -141,8 +148,6 @@ export default function UnitsTab() {
   const eligibleStatuses = statusFilter.filter((s) => s === 'available' || s === 'reserved');
   const hasEligibleStatus = eligibleStatuses.length > 0;
   const selectableStatusParam = eligibleStatuses.join(',') || undefined;
-
-  const trimmedSearch = searchQuery.trim();
 
   const { data: listData, isLoading: listLoading } = useGetUnitsQuery(
     {
@@ -296,6 +301,15 @@ export default function UnitsTab() {
         {stats && (
           <div className="ut-row ut-row-stats">
             <div className="ut-stat-pills">
+              <button
+                type="button"
+                className={`ut-stat-pill ut-total-pill ${statusFilter.length === 0 ? 'active' : ''}`}
+                onClick={() => dispatch(clearStatusFilter())}
+                title="Show all statuses"
+              >
+                <span className="usp-count">{stats.total}</span>
+                <span className="usp-label">Total</span>
+              </button>
               {STATUSES.map((s) => {
                 const count = (stats as any)[s.key] ?? 0;
                 const isActive = statusFilter.includes(s.key);
@@ -362,12 +376,12 @@ export default function UnitsTab() {
                 ))}
               </select>
             </div>
-            {(viewMode === 'floor_plan' || viewMode === 'list') && distinctFloors.length > 1 && (
+            {distinctFloors.length > 1 && (
               <div className="ut-filter-select">
                 <Layers size={11} />
                 <select
                   value={floorFilter ?? ''}
-                  onChange={(e) => dispatch(setFloorFilter(e.target.value ? parseInt(e.target.value) : null))}
+                  onChange={(e) => dispatch(setFloorFilter(e.target.value !== '' ? parseInt(e.target.value, 10) : null))}
                 >
                   <option value="">All Floors</option>
                   {distinctFloors.map((f) => (

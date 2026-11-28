@@ -126,6 +126,18 @@
   position: relative; z-index: 1;
 }
 
+/* Total pill */
+.ut-total-pill {
+  border-color: rgba(99, 102, 241, 0.25);
+  background: rgba(99, 102, 241, 0.08);
+}
+.ut-total-pill.active {
+  border-color: rgba(99, 102, 241, 0.55);
+  background: rgba(99, 102, 241, 0.14);
+}
+.ut-total-pill .usp-count { color: #818cf8; }
+.ut-total-pill::before { display: none; }
+
 /* Occupancy pill (non-clickable) */
 .ut-occ-pill {
   cursor: default;
@@ -1250,6 +1262,17 @@
 [data-theme="light"] .ut-stat-pill.active {
   border-color: var(--sc, var(--accent));
   box-shadow: 0 2px 8px color-mix(in srgb, var(--sc, var(--accent)) 15%, transparent);
+}
+[data-theme="light"] .ut-total-pill {
+  border-color: rgba(79, 70, 229, 0.22);
+  background: rgba(79, 70, 229, 0.06);
+}
+[data-theme="light"] .ut-total-pill.active {
+  border-color: rgba(79, 70, 229, 0.45);
+  background: rgba(79, 70, 229, 0.12);
+}
+[data-theme="light"] .ut-total-pill .usp-count {
+  color: #4f46e5;
 }
 [data-theme="light"] .ut-occ-pill {
   border-color: rgba(5, 150, 105, 0.2);

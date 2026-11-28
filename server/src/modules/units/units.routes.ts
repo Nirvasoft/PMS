@@ -96,7 +96,18 @@ unitsRouter.get('/floor-plan', requirePermission('unit.read'), asyncHandler(asyn
 
 /** GET /properties/:propertyId/unit-stats */
 unitsRouter.get('/stats', requirePermission('unit.read'), asyncHandler(async (req, res) => {
-  const data = await unitsService.getStats(p(req, 'propertyId'));
+  const floorScope = await getUserFloorScope(req.user!.sub);
+  const rawFloor = req.query.floor as string | undefined;
+  const parsedFloor = rawFloor !== undefined && rawFloor.trim() !== '' ? Number(rawFloor) : undefined;
+  const floor = parsedFloor !== undefined && Number.isInteger(parsedFloor) ? parsedFloor : undefined;
+  const data = await unitsService.getStats(p(req, 'propertyId'), {
+    towerId:   req.query.towerId as string | undefined,
+    sectionId: req.query.sectionId as string | undefined,
+    unitType:  req.query.unitType as string | undefined,
+    floor,
+    search:    (req.query.search as string | undefined)?.trim() || undefined,
+    floorScope: floorScope ?? undefined,
+  });
   res.json({ success: true, data });
 }));
 

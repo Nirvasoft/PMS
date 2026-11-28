@@ -803,17 +803,38 @@ export class UnitsService {
   }
 
   // ── Stats ──────────────────────────────────
-  async getStats(propertyId: string) {
-    // Check cache first
+  async getStats(propertyId: string, filters?: {
+    towerId?: string;
+    sectionId?: string;
+    unitType?: string;
+    floor?: number;
+    search?: string;
+    floorScope?: number[];
+  }) {
+    const hasFilters = Boolean(
+      filters?.towerId ||
+      filters?.sectionId ||
+      filters?.unitType ||
+      filters?.floor !== undefined ||
+      filters?.search ||
+      (filters?.floorScope && filters.floorScope.length > 0),
+    );
+
     const cacheKey = `unit_stats:${propertyId}`;
-    const cached = await redis.get(cacheKey);
-    if (cached) {
-      try { return JSON.parse(cached); } catch { /* fall through */ }
+    if (!hasFilters) {
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        try { return JSON.parse(cached); } catch { /* fall through */ }
+      }
     }
+
+    const where = hasFilters
+      ? this.buildListWhere(propertyId, filters!)
+      : { propertyId, deletedAt: null };
 
     const statusCounts = await prisma.unit.groupBy({
       by: ['status'],
-      where: { propertyId, deletedAt: null },
+      where,
       _count: true,
     });
 
@@ -826,8 +847,10 @@ export class UnitsService {
     const occupancyRate = stats.total > 0 ? Math.round((stats.occupied / stats.total) * 100) : 0;
     const result = { ...stats, occupancyRate };
 
-    // Cache for 60 seconds
-    await redis.set(cacheKey, JSON.stringify(result), 'EX', 60);
+    if (!hasFilters) {
+      // Cache unfiltered property-wide stats for 60 seconds
+      await redis.set(cacheKey, JSON.stringify(result), 'EX', 60);
+    }
 
     return result;
   }

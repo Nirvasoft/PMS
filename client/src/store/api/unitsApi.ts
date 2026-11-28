@@ -455,9 +455,21 @@ export const unitsApi = createApi({
     }),
 
     // Unit stats
-    getUnitStats: builder.query<ApiResponse<UnitStats>, string>({
-      query: (propertyId) => `/properties/${propertyId}/units/stats`,
-      providesTags: (_, __, propertyId) => [{ type: 'UnitStats', id: propertyId }],
+    getUnitStats: builder.query<
+      ApiResponse<UnitStats>,
+      string | { propertyId: string; towerId?: string; sectionId?: string; unitType?: string; floor?: number; search?: string }
+    >({
+      query: (arg) => {
+        if (typeof arg === 'string') {
+          return `/properties/${arg}/units/stats`;
+        }
+        const { propertyId, ...params } = arg;
+        return { url: `/properties/${propertyId}/units/stats`, params };
+      },
+      providesTags: (_, __, arg) => {
+        const propertyId = typeof arg === 'string' ? arg : arg.propertyId;
+        return [{ type: 'UnitStats', id: propertyId }];
+      },
     }),
 
     // Meters

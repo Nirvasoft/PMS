@@ -57,6 +57,9 @@ export const unitsSlice = createSlice({
       if (idx === -1) state.statusFilter.push(action.payload);
       else state.statusFilter.splice(idx, 1);
     },
+    clearStatusFilter: (state) => {
+      state.statusFilter = [];
+    },
     setUnitTypeFilter: (state, action: PayloadAction<string | null>) => {
       state.unitTypeFilter = action.payload;
     },
@@ -83,7 +86,7 @@ export const unitsSlice = createSlice({
 
 export const {
   selectUnit, closeDrawer, setViewMode, selectTower, setFloorFilter,
-  toggleStatusFilter, setUnitTypeFilter, setSearchQuery, setZoomLevel,
+  toggleStatusFilter, clearStatusFilter, setUnitTypeFilter, setSearchQuery, setZoomLevel,
   clearFilters, setBulkCreateOpen, setTowerModalOpen,
 } = unitsSlice.actions;
 
